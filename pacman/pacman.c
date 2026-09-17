@@ -80,6 +80,7 @@
 #define Z_TUER     82
 #define Z_VORRAT  128    /* ab hier die Figurzeichen       */
 #define EINZUG      3    /* Einrueckung der Mauerlinie     */
+#define DICKE       2    /* Staerke der Mauerlinie         */
 
 /* 2 KB Zeichensatz, ausgerichtet auf eine durch 2048 teilbare Adresse. */
 static unsigned char zeichenspeicher[2048 + 2047];
@@ -105,9 +106,13 @@ static void font_aus_rom(void)
 
 /*
  * Baut die 16 Mauerzeichen. Gezeichnet wird der Umriss der Mauerflaeche:
- * eine Linie kommt nur an die Kante, hinter der ein begehbares Feld liegt,
- * und zwar um EINZUG Pixel nach innen versetzt. Aus zwei Kacheln dicken
- * Bloecken werden so die doppelten Konturlinien des Originals.
+ * ein Strich kommt nur an die Kante, hinter der ein begehbares Feld liegt,
+ * um EINZUG Pixel nach innen versetzt und DICKE Pixel stark.
+ *
+ * EINZUG und DICKE sind so gewaehlt, dass die Striche gegenueberliegender
+ * Kanten genau aufeinanderfallen (beide bei Pixel 3 und 4). Dadurch ist eine
+ * eine Kachel dicke Wand genauso ein 2-Pixel-Strich wie der Umriss eines
+ * grossen Blocks - die Waende sehen ueberall gleich aus.
  *
  * Die Nummer ist eine Bitmaske:
  *   Bit 0 = oben offen, 1 = unten, 2 = links, 3 = rechts.
@@ -115,20 +120,32 @@ static void font_aus_rom(void)
 static void mauerzeichen_bauen(void)
 {
     unsigned char m, y, x, b, x0, x1, y0, y1;
+    unsigned char oben, unten, links, rechts;
 
     for (m = 0; m < 16; ++m) {
-        x0 = (unsigned char)((m & 4) ? EINZUG : 0);
-        x1 = (unsigned char)((m & 8) ? 7 - EINZUG : 7);
-        y0 = (unsigned char)((m & 1) ? EINZUG : 0);
-        y1 = (unsigned char)((m & 2) ? 7 - EINZUG : 7);
+        oben   = (unsigned char)(m & 1);
+        unten  = (unsigned char)(m & 2);
+        links  = (unsigned char)(m & 4);
+        rechts = (unsigned char)(m & 8);
+
+        /* Ausdehnung der Striche, damit Ecken sauber schliessen */
+        x0 = (unsigned char)(links  ? EINZUG : 0);
+        x1 = (unsigned char)(rechts ? 7 - EINZUG : 7);
+        y0 = (unsigned char)(oben   ? EINZUG : 0);
+        y1 = (unsigned char)(unten  ? 7 - EINZUG : 7);
 
         for (y = 0; y < 8; ++y) {
             b = 0;
-            if (((m & 1) && y == EINZUG) || ((m & 2) && y == 7 - EINZUG))
+            /* waagerechte Striche */
+            if ((oben  && y >= EINZUG && y < EINZUG + DICKE) ||
+                (unten && y > 7 - EINZUG - DICKE && y <= 7 - EINZUG))
                 for (x = x0; x <= x1; ++x) b |= (unsigned char)(0x80 >> x);
+            /* senkrechte Striche */
             if (y >= y0 && y <= y1) {
-                if (m & 4) b |= (unsigned char)(0x80 >> EINZUG);
-                if (m & 8) b |= (unsigned char)(0x80 >> (7 - EINZUG));
+                for (x = 0; x < DICKE; ++x) {
+                    if (links)  b |= (unsigned char)(0x80 >> (EINZUG + x));
+                    if (rechts) b |= (unsigned char)(0x80 >> (7 - EINZUG - x));
+                }
             }
             zeichensatz[(Z_MAUER + m) * 8 + y] = b;
         }
@@ -183,6 +200,10 @@ static const char PLAN[KH][KB + 1] = {
     "########################################",
 };
 
+/* Vorberechnete Zeilenanfaenge im Bildschirmspeicher. Spart in den
+   Zeichenschleifen je Zelle eine 16-Bit-Multiplikation. */
+static unsigned bildzeile[KH];
+
 static unsigned char feld[KH][KB];       /* was liegt auf der Kachel   */
 static unsigned char feldzeichen[KH][KB];/* welches Zeichen gehoert hin*/
 static unsigned int  restpunkte;
@@ -202,28 +223,28 @@ static unsigned char ist_mauer(unsigned char mx, unsigned char my)
     return (unsigned char)(feld[my][mx] == F_MAUER);
 }
 
-static unsigned char feldfarbe(unsigned char mx, unsigned char my)
-{
-    switch (feld[my][mx]) {
-    case F_MAUER: return mauerfarbe;
-    case F_TUER:  return C_TUER;
-    case F_PUNKT:
-    case F_PILLE: return C_PUNKT;
-    default:      return C_SCHWARZ;
-    }
-}
 
 /* Setzt das Zeichen einer Kachel neu - loescht damit auch eine Figur. */
 static void kachel_zeichnen(unsigned char mx, unsigned char my)
 {
-    unsigned pos = (unsigned)(OFFY + my) * 40 + mx;
+    unsigned pos = bildzeile[my] + mx;
+    unsigned char *zf = feld[my];
     BILD[pos] = feldzeichen[my][mx];
-    FARBE[pos] = feldfarbe(mx, my);
+    switch (zf[mx]) {
+    case F_MAUER: FARBE[pos] = mauerfarbe; break;
+    case F_TUER:  FARBE[pos] = C_TUER;     break;
+    case F_PUNKT:
+    case F_PILLE: FARBE[pos] = C_PUNKT;    break;
+    default:      FARBE[pos] = C_SCHWARZ;  break;
+    }
 }
 
 static void labyrinth_aufbauen(void)
 {
     unsigned char mx, my, m, n = 0;
+
+    for (my = 0; my < KH; ++my)
+        bildzeile[my] = (unsigned)(OFFY + my) * 40;
 
     restpunkte = 0;
     for (my = 0; my < KH; ++my) {
@@ -435,6 +456,12 @@ typedef struct {
     unsigned char neu_sp, neu_ze, vsx, vsy;   /* fuer das Zeichnen */
     unsigned int  alt_cx;                     /* Stand beim letzten Mischen */
     unsigned char alt_cy, alt_form;
+    /*
+     * Auffuellen auf genau 32 Byte. Bei krummer Groesse muss cc65 fuer jedes
+     * fig[i] eine 16-Bit-Multiplikation ausfuehren; mit einer Zweierpotenz
+     * wird daraus eine Schiebeoperation. Das passiert dutzendfach je Bild.
+     */
+    unsigned char fuellung[6];
 } Figur;
 
 static Figur fig[5];         /* 0 = Pac-Man, 1..4 = Geister */
@@ -513,50 +540,88 @@ static void figur_position(Figur *f)
 {
     unsigned int bx = f->cx + (KB * 8) - 8;   /* +320 haelt alles positiv */
     unsigned char by = (unsigned char)(f->cy - 8);
+    unsigned char sp;
 
     f->vsx = (unsigned char)(bx & 7);
     f->vsy = (unsigned char)(by & 7);
-    f->neu_sp = (unsigned char)((bx >> 3) % KB);
+    /* Statt Modulo einmal abziehen - cc65 wuerde fuer % eine ganze
+       Divisionsroutine aufrufen, und das hier laeuft in jedem Bild. */
+    sp = (unsigned char)(bx >> 3);
+    if (sp >= KB) sp = (unsigned char)(sp - KB);
+    f->neu_sp = sp;
     f->neu_ze = (unsigned char)(by >> 3);
 }
 
 /* Schritt 2: Kacheln freigeben, die die Figur verlassen hat. */
+/*
+ * Gibt die Kacheln frei, die die Figur verlassen hat.
+ *
+ * Der Block aus 3x3 Kacheln wandert nur alle acht Pixel weiter, also in den
+ * meisten Bildern gar nicht. Dann ist hier nichts zu tun - diese Abkuerzung
+ * war die wichtigste Bremse im Spiel.
+ */
 static void figur_freigeben(Figur *f)
 {
-    unsigned char i, j, mx, my;
+    unsigned char i, j, mx, my, d;
 
     if (!f->sichtbar) return;
+    if (f->alt_sp == f->neu_sp && f->alt_ze == f->neu_ze) return;
     for (j = 0; j < 3; ++j) {
         my = (unsigned char)(f->alt_ze + j);
         if (my >= KH) continue;
-        for (i = 0; i < 3; ++i) {
-            mx = (unsigned char)(f->alt_sp + i);
-            if (mx >= KB) mx = (unsigned char)(mx - KB);
-            if ((unsigned char)((mx + KB - f->neu_sp) % KB) < 3
-                && (unsigned char)(my - f->neu_ze) < 3) continue;
-            kachel_zeichnen(mx, my);
+        if ((unsigned char)(my - f->neu_ze) < 3) {
+            /* Zeile gehoert noch zur Figur - nur die Spalten pruefen. */
+            for (i = 0; i < 3; ++i) {
+                mx = (unsigned char)(f->alt_sp + i);
+                if (mx >= KB) mx = (unsigned char)(mx - KB);
+                d = (unsigned char)(mx + KB - f->neu_sp);
+                if (d >= KB) d = (unsigned char)(d - KB);
+                if (d < 3) continue;
+                kachel_zeichnen(mx, my);
+            }
+        } else {
+            for (i = 0; i < 3; ++i) {
+                mx = (unsigned char)(f->alt_sp + i);
+                if (mx >= KB) mx = (unsigned char)(mx - KB);
+                kachel_zeichnen(mx, my);
+            }
         }
     }
 }
 
-/* Schritt 3: die neun Zeichen fuellen und auf den Bildschirm setzen. */
+/*
+ * Schritt 3: die neun Zeichen fuellen und auf den Bildschirm setzen.
+ *
+ * Diese Schleife laeuft 45 mal je Bild und ist damit die heisseste Stelle des
+ * Programms. Sie ist bewusst umstaendlich geschrieben, weil cc65 sonst teuren
+ * Code erzeugt:
+ *
+ *   - Alle Hilfsvariablen sind static. Lokale Variablen liegen bei cc65 auf
+ *     einem Software-Stack, jeder Zugriff kostet einen Unterprogrammaufruf.
+ *   - Aus "Z_VORRAT + nr*9 + j*3 + i" wird ein einfaches ++z. Multiplikationen
+ *     mit krummen Zahlen ruft cc65 als Unterprogramm auf.
+ *   - Die Spaltenzeiger und Bildschirmspalten werden einmal je Figur
+ *     ausgerechnet statt in jeder Zelle neu.
+ */
+static unsigned char *qs[3];        /* Quelle je Spalte, wandert zeilenweise */
+static unsigned char mxs[3];        /* Bildschirmspalten der Figur           */
+
 static void figur_malen(Figur *f, unsigned char nr)
 {
-    unsigned char i, j, mx, my, z, hg, neu;
-    unsigned char *tab;
-    unsigned pos;
+    static unsigned char i, j, my, z, hg, neu, farbe;
+    static unsigned char sp_von, sp_bis, ze_von, ze_bis;
+    static unsigned char *zeile_zeichen, *zeile_feld, *tab;
+    static unsigned      zeile_bild, pos;
+    static unsigned char mx;
 
     /*
      * Hat sich weder Position noch Form geaendert, stehen in den neun
-     * Zeichen dieser Figur noch die richtigen Punktmuster - dann muessen
-     * nur die Zeichencodes wieder auf den Bildschirm. Das Mischen ist der
-     * teuerste Teil der Schleife und faellt so bei stehenden Figuren weg.
+     * Zeichen dieser Figur noch die richtigen Punktmuster - dann muss nur
+     * neu eingepasst werden, was ohnehin schon stimmt.
      */
     neu = (unsigned char)(f->cx != f->alt_cx || f->cy != f->alt_cy
                           || f->form != f->alt_form);
     if (neu) {
-        /* Figur senkrecht einpassen: drei Spalten zu 24 Zeilen, die Form
-           beginnt in Zeile vsy. Waagerecht ist sie schon vorgeschoben. */
         tab = vorgeschoben + ((unsigned)f->form * 8 + f->vsx) * 48;
         for (i = 0; i < 3; ++i) {
             memset(spalte[i], 0, 24);
@@ -567,36 +632,67 @@ static void figur_malen(Figur *f, unsigned char nr)
         f->alt_form = f->form;
     }
 
+    /*
+     * Alle Formen liegen in den Zeilen und Spalten 3..12 der 16x16-Schachtel.
+     * Je nach Versatz beruehrt die Figur nur zwei der drei Zeilen bzw.
+     * Spalten - leere Zellen brauchen kein Mischen.
+     */
+    sp_von = (unsigned char)(f->vsx >= 5 ? 1 : 0);
+    sp_bis = (unsigned char)(f->vsx <= 3 ? 1 : 2);
+    ze_von = (unsigned char)(f->vsy >= 5 ? 1 : 0);
+    ze_bis = (unsigned char)(f->vsy <= 3 ? 1 : 2);
+
+    for (i = 0; i < 3; ++i) {
+        mx = (unsigned char)(f->neu_sp + i);
+        if (mx >= KB) mx = (unsigned char)(mx - KB);
+        mxs[i] = mx;
+        qs[i] = spalte[i];
+    }
+    z = (unsigned char)(Z_VORRAT + nr * 9);
+    farbe = f->farbe;
+
     for (j = 0; j < 3; ++j) {
         my = (unsigned char)(f->neu_ze + j);
-        if (my >= KH) continue;
-        for (i = 0; i < 3; ++i) {
-            mx = (unsigned char)(f->neu_sp + i);
-            if (mx >= KB) mx = (unsigned char)(mx - KB);
+        if (my < KH) {
+            zeile_zeichen = feldzeichen[my];
+            zeile_feld    = feld[my];
+            zeile_bild    = bildzeile[my];
 
-            z = (unsigned char)(Z_VORRAT + nr * 9 + j * 3 + i);
-            hg = feldzeichen[my][mx];
+            for (i = 0; i < 3; ++i) {
+                mx = mxs[i];
+                pos = zeile_bild + mx;
 
-            if (neu) {
-                p_quelle = &spalte[i][j * 8];
-                p_grund  = zeichensatz + (unsigned)hg * 8;
-                p_ziel   = zeichensatz + (unsigned)z * 8;
-                zelle_mischen();
+                if (j < ze_von || j > ze_bis || i < sp_von || i > sp_bis) {
+                    /* Kein Punkt der Figur: Labyrinth zeigen. */
+                    BILD[pos] = zeile_zeichen[mx];
+                    switch (zeile_feld[mx]) {
+                    case F_MAUER: FARBE[pos] = mauerfarbe; break;
+                    case F_TUER:  FARBE[pos] = C_TUER;     break;
+                    case F_PUNKT:
+                    case F_PILLE: FARBE[pos] = C_PUNKT;    break;
+                    default:      FARBE[pos] = C_SCHWARZ;  break;
+                    }
+                } else {
+                    if (neu) {
+                        hg = zeile_zeichen[mx];
+                        p_quelle = qs[i];
+                        p_grund  = zeichensatz + ((unsigned)hg << 3);
+                        p_ziel   = zeichensatz + ((unsigned)z << 3);
+                        zelle_mischen();
+                    }
+                    BILD[pos] = z;
+                    /* Ueber einer Mauer behaelt die Mauer ihre Farbe - eine
+                       Zelle kann nur eine tragen, und ein dunkler Figurrand
+                       faellt weniger auf als eine mitgefaerbte Wand. */
+                    FARBE[pos] = (unsigned char)(zeile_feld[mx] == F_MAUER
+                                                 ? mauerfarbe : farbe);
+                }
+                ++z;
             }
-
-            pos = (unsigned)(OFFY + my) * 40 + mx;
-            BILD[pos] = z;
-            /*
-             * Eine Zeichenzelle kann nur eine Farbe tragen. Wo die Figur in
-             * eine Mauerzelle hineinragt, behaelt die Mauer ihre Farbe -
-             * sonst faerbten sich ganze Wandabschnitte mit, waehrend die
-             * Figur vorbeilaeuft. Die Figuren sind deshalb so geschnitten,
-             * dass nur ein bis zwei Randpixel betroffen sind; die wirken
-             * dann wie eine dunkle Kontur.
-             */
-            FARBE[pos] = (unsigned char)(feld[my][mx] == F_MAUER
-                                         ? mauerfarbe : f->farbe);
+        } else {
+            z = (unsigned char)(z + 3);
         }
+        qs[0] += 8; qs[1] += 8; qs[2] += 8;
     }
 
     f->alt_sp = f->neu_sp;
@@ -607,9 +703,11 @@ static void figur_malen(Figur *f, unsigned char nr)
 static void alle_zeichnen(void)
 {
     unsigned char i;
-    for (i = 0; i < 5; ++i) figur_position(&fig[i]);
-    for (i = 0; i < 5; ++i) figur_freigeben(&fig[i]);
-    for (i = 1; i < 5; ++i) figur_malen(&fig[i], i);
+    Figur *f;
+
+    for (i = 0, f = fig; i < 5; ++i, ++f) figur_position(f);
+    for (i = 0, f = fig; i < 5; ++i, ++f) figur_freigeben(f);
+    for (i = 1, f = &fig[1]; i < 5; ++i, ++f) figur_malen(f, i);
     figur_malen(PAC, 0);
 }
 
@@ -794,9 +892,9 @@ static void geist_bewegen(unsigned char i)
     unsigned char kx, ky;
 
     /* Tempo je nach Zustand */
-    if (g->zustand == G_ANGST)      g->tempo = 11;
-    else if (g->zustand == G_AUGEN) g->tempo = 40;
-    else g->tempo = (unsigned char)(level < 6 ? 19 + level : 24);
+    if (g->zustand == G_ANGST)      g->tempo = 56;
+    else if (g->zustand == G_AUGEN) g->tempo = 200;
+    else g->tempo = (unsigned char)(level < 6 ? 88 + level * 6 : 118);
 
     if (g->zustand == G_HAUS) {
         if (g->wartet) --g->wartet;
@@ -860,24 +958,26 @@ static void geist_bewegen(unsigned char i)
 static unsigned char beruehrung(void)
 {
     unsigned char i, ax, ay;
-    unsigned int  d;
+    unsigned int  d, px = PAC->cx;
+    unsigned char py = PAC->cy;
+    Figur *g;
 
     for (i = 1; i < 5; ++i) {
-        d = (fig[i].cx > PAC->cx) ? (fig[i].cx - PAC->cx) : (PAC->cx - fig[i].cx);
+        g = &fig[i];
+        d = (g->cx > px) ? (g->cx - px) : (px - g->cx);
         if (d > KB * 4) d = KB * 8 - d;            /* ueber den Tunnel */
         ax = (unsigned char)d;
-        ay = (unsigned char)(fig[i].cy > PAC->cy ? fig[i].cy - PAC->cy
-                                                 : PAC->cy - fig[i].cy);
+        ay = (unsigned char)(g->cy > py ? g->cy - py : py - g->cy);
         if (ax >= 7 || ay >= 7) continue;
 
-        if (fig[i].zustand == G_ANGST) {
+        if (g->zustand == G_ANGST) {
             if (gefressen < 4) ++gefressen;
             punkte = (unsigned int)(punkte + (100u << gefressen));
-            fig[i].zustand = G_AUGEN;
-            fig[i].acc = 0;
+            g->zustand = G_AUGEN;
+            g->acc = 0;
             ton(900, 10);
             statuszeile();
-        } else if (fig[i].zustand == G_JAGD || fig[i].zustand == G_RAUS) {
+        } else if (g->zustand == G_JAGD || g->zustand == G_RAUS) {
             return 1;
         }
     }
@@ -961,7 +1061,19 @@ static void figuren_setzen(void)
         fig[i].zustand = (unsigned char)(i == 1 ? G_JAGD : G_HAUS);
         fig[i].form = (unsigned char)(i == 0 ? FORM_ZU : FORM_GEIST);
     }
-    PAC->tempo = (unsigned char)(level < 5 ? 23 + level : 27);
+    /*
+     * Tempo in Sechzehnteln eines Punktes je Schleifendurchlauf.
+     *
+     * Achtung: das Zeichnen der fuenf Figuren kostet so viel Rechenzeit,
+     * dass ein Durchlauf rund sechs Bildschirmbilder braucht - das Spiel
+     * laeuft also mit etwa acht statt fuenfzig Durchlaeufen je Sekunde.
+     * Die Werte sind darauf abgestimmt, damit Pac-Man ueberhaupt zuegig
+     * unterwegs ist. Wird das Zeichnen schneller, muessen sie wieder
+     * kleiner werden. Die Bewegung selbst bleibt korrekt: die Schleife in
+     * pac_bewegen() geht immer Punkt fuer Punkt und trifft deshalb jede
+     * Kachelmitte, egal wie gross der Schritt insgesamt ist.
+     */
+    PAC->tempo = (unsigned char)(level < 5 ? 104 + level * 8 : 136);
     fig[0].zustand = G_JAGD;
     for (i = 0; i < 5; ++i) fig[i].farbe = GEISTFARBE[i];
 
