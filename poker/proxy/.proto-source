@@ -1,0 +1,7 @@
+pokerth.proto is a verbatim copy from the PokerTH repository.
+
+  upstream: https://github.com/pokerth/pokerth  (branch: stable)
+  commit:   a6d4f05f6fd70865fdcf3758018b659160ce9e63  (2026-09-16)
+
+Refresh it with ./build-proto.sh --fetch, which overwrites the copy with the
+current stable version and regenerates the Python bindings.

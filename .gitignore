@@ -7,3 +7,8 @@ build/
 *.map
 *.lbl
 *.mp4
+
+# Python environment and generated protobuf code of the PokerTH proxy
+poker/proxy/.venv/
+poker/proxy/gen/
+__pycache__/

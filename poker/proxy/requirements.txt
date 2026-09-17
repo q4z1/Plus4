@@ -1,0 +1,7 @@
+# Wire format of the lobby protocol.
+protobuf
+# protoc as a wheel, so no system protobuf compiler is needed:
+#   python -m grpc_tools.protoc
+grpcio-tools
+# SubjectPublicKeyInfo extraction for the TLS pin.
+cryptography
