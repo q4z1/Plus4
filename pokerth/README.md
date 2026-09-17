@@ -41,7 +41,7 @@ Each stage is meant to work on its own before the next one starts.
 | --- | --- | --- |
 | 1 | `proxy/lobbywatch.py` — log in as guest or with an account, show the lobby and chat on a PC terminal | **done** |
 | 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
-| 3 | Plus/4: ACIA driver, echo test through VICE's IP232 | |
+| 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
 | 4 | Plus/4: lobby list and chat | |
 | 5 | Plus/4: table rendering, playing a hand | |
 | 6 | Real hardware over a serial WiFi modem | |
@@ -99,6 +99,53 @@ find out whether flow control works before a real machine has to prove it:
 
 `bridgecheck.py` feeds the bridge a made-up game list, because a lobby with
 games in it is the one thing an empty test server cannot offer.
+
+## Stage 3: the wire
+
+The Plus/4 is the one machine in the 264 family with a 6551 ACIA on board, at
+`$FD00`, and cc65 ships a driver for it - so [echo/echo.c](echo/echo.c) never
+touches the chip. It sends every byte value from 0 to 255 and echoes back
+whatever arrives; [proxy/wirecheck.py](proxy/wirecheck.py) is the other end
+and checks both directions byte for byte.
+
+```sh
+cd echo && ./wiretest.sh          # 32 bytes in flight: passes
+cd echo && ./wiretest.sh 128      # 128: watch it fail
+```
+
+The script builds the program, starts the checker, and runs VICE with its
+ACIA connected to a socket:
+
+```sh
+xplus4 -acia -myaciadev 0 -rsdev1 127.0.0.1:6400 -rsdev1ip232 \
+       -autostart echo/build/echo.prg
+```
+
+## What the wire turned out to be
+
+Four things this cost a rebuild each to find out, all of which the client
+will have to live with.
+
+- **VICE's socket is not a byte pipe.** IP232 claims `0xFF` to carry the
+  modem control lines and doubles it to mean a literal one. A record can hold
+  `0xFF` anywhere - a length, a game id, PETSCII - so an unescaped one would
+  vanish and quietly change what the emulator believes about the carrier.
+  [proxy/ip232.py](proxy/ip232.py) does the escaping, and only for emulator
+  connections: real hardware needs none of it.
+- **The cc65 driver only accepts `SER_HS_HW`.** Any other handshake setting
+  fails `ser_open` with `SER_ERR_INIT_FAILED` and no further explanation.
+- **A full receive buffer stops transmission too.** The driver raises a flag
+  when its own buffer runs low so that it can drop RTS, and its send routine
+  bails out while that flag is up. A program that waits to send before it
+  reads therefore deadlocks in both directions at once - which it did, twice,
+  the second time after exactly seven bytes. Bytes have to come out of the
+  driver unconditionally, into a buffer of the program's own.
+- **32 bytes may be in flight, not 256.** At 2400 baud, 32 bytes arrive
+  perfectly, 64 lose one, 128 lose most. It is not the screen updates - the
+  same run with eight times fewer of them loses just as much. Why the cliff
+  sits between 64 and 128 is not yet understood, so the window is set to the
+  number that measures clean and the question is left open for the stage that
+  can measure it under a real client.
 
 ## What the protocol turned out to be
 

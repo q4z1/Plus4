@@ -9,10 +9,12 @@ Plus/4 never learns that any of the rest exists.
     ./proxy.py --login
     ./proxy.py --login --listen 127.0.0.1:6400 --verbose
 
-The Plus/4 side is a plain TCP socket, which is what VICE's IP232 emulation
-of the Plus/4's ACIA connects to:
+The Plus/4 side is a TCP socket, which is what VICE connects its emulated
+ACIA to. That connection needs --ip232, because the emulator claims 0xFF for
+the modem control lines (see ip232.py); a real serial line does not.
 
-    xplus4 -acia -rsdev1 127.0.0.1:6400 -rsdev1ip232 -myaciadev 0
+    ./proxy.py --login --ip232
+    xplus4 -acia -myaciadev 0 -rsdev1 127.0.0.1:6400 -rsdev1ip232
 
 Until there is 6502 code to run in it, p4client.py plays the part of the
 Plus/4 over the same socket.
@@ -30,6 +32,7 @@ import socket
 import sys
 from collections import deque
 
+import ip232
 import p4wire
 import pokerth_link as L
 from lobbystate import LobbyState, game_flags
@@ -48,9 +51,13 @@ class Plus4Connection:
     # Plus/4 is so far behind that old news has no value.
     MAX_QUEUE = 64
 
-    def __init__(self, sock: socket.socket, addr):
+    def __init__(self, sock: socket.socket, addr, use_ip232: bool = False):
         self.sock = sock
         self.addr = addr
+        # VICE does not carry plain bytes; a real serial line does. The
+        # credit is counted in protocol bytes either way, so that both ends
+        # agree on the same number regardless of what the transport adds.
+        self.decoder = ip232.Decoder() if use_ip232 else None
         self.reader = p4wire.FrameReader()
         self.rx_buffer = 0
         self.credit = 0
@@ -80,9 +87,16 @@ class Plus4Connection:
         self.flush()
 
     def flush(self) -> None:
-        while self.queue and len(self.queue[0]) <= self.credit:
-            frame = self.queue.popleft()
-            self.sock.sendall(frame)
+        while self.queue:
+            frame = self.queue[0]
+            # A frame bigger than the whole window would otherwise wait for
+            # credit that can never arrive. Letting it go when nothing is
+            # outstanding keeps the guarantee that actually matters: one
+            # thing on the wire at a time.
+            if len(frame) > self.credit and self.credit < self.rx_buffer:
+                break
+            self.queue.popleft()
+            self.sock.sendall(ip232.encode(frame) if self.decoder else frame)
             self.credit -= len(frame)
 
     def _trim(self) -> None:
@@ -95,6 +109,19 @@ class Plus4Connection:
             else:
                 self.queue.popleft()
             self.dropped += 1
+
+    def receive(self, data: bytes) -> list[tuple[int, bytes]]:
+        """Bytes off the socket, frames out."""
+        if self.decoder is not None:
+            data, dtr_changes = self.decoder.feed(data)
+            for raised in dtr_changes:
+                log("p4", f"DTR {'raised' if raised else 'lowered'}")
+        return self.reader.feed(data)
+
+    def carrier(self) -> None:
+        """Answer the emulator's modem, which otherwise waits for a carrier."""
+        if self.decoder is not None:
+            self.sock.sendall(ip232.carrier(True))
 
     def close(self) -> None:
         try:
@@ -240,6 +267,9 @@ def main(argv=None) -> int:
     ap.add_argument("--listen", type=parse_listen, default="127.0.0.1:6400",
                     metavar="HOST:PORT",
                     help="where the Plus/4 side connects (default 127.0.0.1:6400)")
+    ap.add_argument("--ip232", action="store_true",
+                    help="speak VICE's IP232 on the Plus/4 side, which is "
+                         "required when the emulator is at the other end")
     ap.add_argument("--verbose", action="store_true",
                     help="log every record in both directions")
     args = ap.parse_args(argv)
@@ -274,7 +304,8 @@ def main(argv=None) -> int:
                     if bridge.plus4 is not None:
                         log("p4", f"replacing the connection from {bridge.plus4.addr}")
                         bridge.plus4.close()
-                    bridge.plus4 = Plus4Connection(sock, addr)
+                    bridge.plus4 = Plus4Connection(sock, addr, args.ip232)
+                    bridge.plus4.carrier()
                     log("p4", f"connection from {addr[0]}:{addr[1]}, "
                               "waiting for its hello")
                 else:
@@ -282,7 +313,7 @@ def main(argv=None) -> int:
                         data = bridge.plus4.sock.recv(4096)
                         if not data:
                             raise ConnectionResetError
-                        for kind, payload in bridge.plus4.reader.feed(data):
+                        for kind, payload in bridge.plus4.receive(data):
                             bridge.from_plus4(kind, payload)
                     except (ConnectionResetError, BrokenPipeError, OSError):
                         log("p4", f"the Plus/4 at {bridge.plus4.addr} is gone")

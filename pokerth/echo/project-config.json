@@ -1,0 +1,9 @@
+{
+    "name": "echo",
+    "description": "ACIA echo test for the PokerTH client",
+    "toolkit": "cc65",
+    "machine": "plus4",
+    "format": "prg",
+    "main": "echo.c",
+    "build": "debug"
+}

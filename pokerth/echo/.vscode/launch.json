@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // F5 in diesem Programmordner: baut mit VS64 und startet VICE xplus4
+            // - mit Quellcode-Debugging und Breakpoints.
+            //
+            // Geladen wird immer das in project-config.json eingetragene Programm.
+            // Da in diesem Ordner nur ein Programm liegt, ist das automatisch die
+            // Datei, an der Du arbeitest.
+            "type": "vice",
+            "request": "launch",
+            "name": "Plus/4: Build & Run (VICE, mit Debugger)",
+            "program": "${workspaceFolder}/build/${workspaceFolderBasename}.prg",
+            "preLaunchTask": "VS64: Build",
+            "hostname": "127.0.0.1",
+            "port": 6502,
+            "timeout": 30
+        }
+    ]
+}

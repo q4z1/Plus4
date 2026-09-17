@@ -129,4 +129,18 @@ print(f"  a STATE record survived {kept.count(p4wire.D_STATE) == 1} while "
       f"{kept.count(p4wire.D_CHAT)} chat frames remain")
 assert kept.count(p4wire.D_STATE) == 1, "dropped something that matters"
 
+# A frame larger than the entire window still has to get through, or the
+# Plus/4 would wait forever for a chat line it can display perfectly well.
+small = Plus4Connection(FakeSocket(), ("test", 0))
+small.hello(32)
+big = p4wire.chat(p4wire.CHAT_LOBBY, "someone", "a line longer than the window")
+small.send(big)
+print(f"\n  a {len(big)} byte frame through a 32 byte window: "
+      f"{len(small.sock.sent)} bytes sent, credit now {small.credit}")
+assert len(small.sock.sent) == len(big), "an oversized frame was never sent"
+small.send(p4wire.notice("and nothing follows until it is acknowledged"))
+assert len(small.queue) == 1, "kept sending with no credit left"
+small.ack(len(big))
+assert not small.queue, "the acknowledgement did not release the next frame"
+
 print("\nall checks passed")

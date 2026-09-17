@@ -109,12 +109,27 @@ The Plus/4 grants credit. It announces the size of its receive buffer in
 - the proxy starts with `credit = rx_buffer`
 - before sending a frame of *n* bytes it needs `credit ≥ n`, and then
   subtracts *n*
+- a frame larger than `rx_buffer` is sent anyway, but only while nothing at
+  all is outstanding; otherwise it could wait for credit that can never
+  arrive
 - every `ACK` adds back the bytes the Plus/4 has consumed, capped at
   `rx_buffer`
 - the count includes the two header bytes, so both ends count the same thing
 
+**The buffer the Plus/4 announces is not the buffer it has.** cc65's driver
+holds 256 bytes, but the number to announce is however much may be in flight
+without anything being lost, and that is a good deal smaller. Measured with
+`echo/wiretest.sh` through VICE at 2400 baud: 32 bytes in flight arrive
+perfectly, 64 lose a byte, 128 lose most of themselves. So 32 it is, until
+the client is real enough to measure again - see "What the wire turned out to
+be" in README.md.
+
 The Plus/4 should acknowledge as it drains rather than at the end, roughly
-every quarter buffer, so the proxy is never idle for want of credit.
+every quarter buffer, so the proxy is never idle for want of credit. And it
+must drain the driver unconditionally, into a buffer of its own, never
+waiting for something it wants to send first: in cc65's driver a full receive
+buffer stops transmission as well, so a program that waits to send before it
+reads deadlocks both directions at once.
 
 This matters more than it looks. A 1.76 MHz machine repainting a screen
 cannot also drain a UART, and a poker server does not wait - a missed action
