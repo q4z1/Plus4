@@ -40,7 +40,7 @@ Each stage is meant to work on its own before the next one starts.
 | Stage | What | State |
 | --- | --- | --- |
 | 1 | `proxy/lobbywatch.py` — log in as guest or with an account, show the lobby and chat on a PC terminal | **done** |
-| 2 | Define the Plus/4 wire protocol, with a reference client in Python | |
+| 2 | [The Plus/4 wire protocol](protocol.md), with a reference client in Python | spec and codec done |
 | 3 | Plus/4: ACIA driver, echo test through VICE's IP232 | |
 | 4 | Plus/4: lobby list and chat | |
 | 5 | Plus/4: table rendering, playing a hand | |
