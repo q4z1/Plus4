@@ -52,6 +52,16 @@
 #define D_GAME_REMOVE 0x13
 #define D_CHAT        0x20
 #define D_PLAYERS     0x21
+#define D_TABLE       0x40
+#define D_SEAT        0x41
+#define D_SEAT_BET    0x42
+#define D_HAND        0x43
+#define D_BOARD       0x44
+#define D_POT         0x45
+#define D_TURN        0x46
+#define D_ASK         0x47
+#define D_RESULT      0x48
+#define D_TABLE_END   0x49
 
 /* Plus/4 -> proxy */
 #define U_HELLO       0x80
@@ -70,6 +80,29 @@
 #define GAME_PRIVATE  0x01
 #define GAME_STARTED  0x02
 #define GAME_RANKING  0x04
+
+#define SEAT_TAKEN       0x01
+#define SEAT_FOLDED      0x02
+#define SEAT_ALL_IN      0x04
+#define SEAT_DEALER      0x08
+#define SEAT_YOU         0x10
+#define SEAT_SITTING_OUT 0x20
+
+#define MAY_FOLD   0x01
+#define MAY_CHECK  0x02
+#define MAY_CALL   0x04
+#define MAY_BET    0x08
+#define MAY_RAISE  0x10
+#define MAY_ALL_IN 0x20
+
+#define ACTION_FOLD  1
+#define ACTION_CHECK 2
+#define ACTION_CALL  3
+#define ACTION_BET   4
+#define ACTION_RAISE 5
+#define ACTION_ALLIN 6
+
+#define CARD_NONE 52
 
 /*
  * Key repeat, off.
@@ -94,6 +127,17 @@
 #define ROW_INPUT     24
 
 #define MAX_GAMES     GAME_ROWS
+
+/* The table view, on the same 25 rows: header, board, our own cards, then a
+** row per seat, then the chat, the status line and the keys. */
+#define MAX_SEATS     10
+#define ROW_BOARD      1
+#define ROW_MINE       2
+#define ROW_SEATS      4
+#define SEAT_NAME_LEN 12
+
+#define VIEW_LOBBY 0
+#define VIEW_TABLE 1
 #define NAME_LEN      26
 #define CHAT_LEN      SCREEN_W
 #define INPUT_LEN     38
@@ -121,6 +165,34 @@ static unsigned char header_dirty = 1;
 
 static char status[SCREEN_W + 1] = "starting";
 static unsigned char status_dirty = 1;
+
+struct seat {
+    unsigned char flags;
+    unsigned long money;
+    unsigned long bet;
+    char name[SEAT_NAME_LEN + 1];
+};
+
+static struct seat seats[MAX_SEATS];
+static unsigned char seat_count = 0;
+static unsigned char my_seat = 0xFF;
+static unsigned char turn_seat = 0xFF;
+static unsigned char dealer_seat = 0xFF;
+static unsigned char table_dirty = 1;
+
+static char table_name[NAME_LEN + 1] = "";
+static unsigned char board[5];
+static unsigned char board_count = 0;
+static unsigned char my_cards[2] = { CARD_NONE, CARD_NONE };
+static unsigned long pot = 0;
+static unsigned int hand_number = 0;
+
+static unsigned char may = 0;          /* what the server would accept */
+static unsigned long to_call = 0;
+static unsigned long min_raise = 0;
+static unsigned long my_money = 0;
+
+static unsigned char view = VIEW_LOBBY;
 
 static char input[INPUT_LEN + 1];
 static unsigned char input_len = 0;
@@ -214,6 +286,7 @@ static void send_chat(void)
 #define SCREEN ((unsigned char *)0x0C00)
 #define COLOUR ((unsigned char *)0x0800)
 #define WHITE 0x71
+#define RED   0x72
 #define REVERSED 0x80
 
 /*
@@ -310,6 +383,79 @@ static unsigned char put_uint(unsigned char x, unsigned char row,
     return x;
 }
 
+/*
+ * Money does not fit in an int. PokerTH counts chips in 32 bits and a stack
+ * that grows all evening would overflow a 16 bit one, so the arithmetic is
+ * long here - slow on a 7501, but it happens only when something changes on
+ * screen.
+ */
+static unsigned char put_ulong(unsigned char x, unsigned char row,
+                               unsigned long value, unsigned char width)
+{
+    unsigned char digits[10];
+    unsigned char count = 0;
+    unsigned int at = (unsigned int)row * SCREEN_W;
+
+    do {
+        digits[count++] = (unsigned char)('0' + (unsigned char)(value % 10));
+        value /= 10;
+    } while (value != 0 && count < sizeof(digits));
+
+    while (width > count && x < SCREEN_W) {
+        SCREEN[at + x] = 0x20;
+        COLOUR[at + x] = WHITE;
+        ++x;
+        --width;
+    }
+    while (count > 0 && x < SCREEN_W) {
+        SCREEN[at + x] = digits[--count];
+        COLOUR[at + x] = WHITE;
+        ++x;
+    }
+    return x;
+}
+
+/*
+ * A card is a number from 0 to 51: the rank is the code modulo 13 counting 2
+ * up to ace, and the suit is the code divided by 13 in the order diamonds,
+ * hearts, spades, clubs. The suits are letters for now and the two red ones
+ * are drawn in red, which costs nothing because the colour cell is written
+ * anyway.
+ */
+static const char *const RANKS[13] = {
+    "2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k", "a"
+};
+static const char SUITS[4] = { 'd', 'h', 's', 'c' };
+
+static unsigned char put_card(unsigned char x, unsigned char row,
+                              unsigned char code)
+{
+    unsigned int at = (unsigned int)row * SCREEN_W;
+    unsigned char suit;
+    unsigned char colour;
+    const char *rank;
+
+    if (code > 51) {
+        return put_text(x, row, "--", 0);
+    }
+    suit = code / 13;
+    rank = RANKS[code % 13];
+    colour = (suit < 2) ? RED : WHITE;
+
+    while (*rank != '\0' && x < SCREEN_W) {
+        SCREEN[at + x] = screen_code((unsigned char)*rank);
+        COLOUR[at + x] = colour;
+        ++rank;
+        ++x;
+    }
+    if (x < SCREEN_W) {
+        SCREEN[at + x] = screen_code((unsigned char)SUITS[suit]);
+        COLOUR[at + x] = colour;
+        ++x;
+    }
+    return x;
+}
+
 static void draw_header(void)
 {
     unsigned char x;
@@ -353,6 +499,73 @@ static void draw_games(void)
     games_dirty = 0;
 }
 
+static void draw_table(void)
+{
+    unsigned char i;
+    unsigned char x;
+    unsigned char flags;
+
+    /* Header: the game, and the pot, which is the one number everybody at a
+    ** table looks at first. */
+    clear_row(ROW_HEADER, 1);
+    x = put_text(1, ROW_HEADER, "pokerth ", REVERSED);
+    put_text(x, ROW_HEADER, table_name, REVERSED);
+    x = put_text(28, ROW_HEADER, "pot ", REVERSED);
+    put_ulong(x, ROW_HEADER, pot, 7);
+
+    clear_row(ROW_BOARD, 0);
+    x = put_text(0, ROW_BOARD, "board  ", 0);
+    if (board_count == 0) {
+        put_text(x, ROW_BOARD, "--", 0);
+    } else {
+        for (i = 0; i < board_count; ++i) {
+            x = put_card(x, ROW_BOARD, board[i]);
+            ++x;
+        }
+    }
+
+    clear_row(ROW_MINE, 0);
+    x = put_text(0, ROW_MINE, "you    ", 0);
+    x = put_card(x, ROW_MINE, my_cards[0]);
+    ++x;
+    put_card(x, ROW_MINE, my_cards[1]);
+    put_ulong(22, ROW_MINE, my_money, 8);
+
+    clear_row(ROW_MINE + 1, 0);
+
+    for (i = 0; i < MAX_SEATS; ++i) {
+        clear_row(ROW_SEATS + i, 0);
+        if (i >= seat_count || !(seats[i].flags & SEAT_TAKEN)) {
+            continue;
+        }
+        flags = seats[i].flags;
+        put_uint(0, ROW_SEATS + i, i, 2, 0);
+        put_text(3, ROW_SEATS + i, seats[i].name, 0);
+        put_ulong(15, ROW_SEATS + i, seats[i].money, 8);
+        if (seats[i].bet != 0) {
+            put_ulong(24, ROW_SEATS + i, seats[i].bet, 6);
+        }
+        /* Four columns of marks, which is all a 40 column line can spare:
+        ** the dealer, whose turn it is, and who is out of the hand. */
+        x = 31;
+        if (flags & SEAT_DEALER) {
+            x = put_text(x, ROW_SEATS + i, "d", 0);
+        }
+        if (i == turn_seat) {
+            x = put_text(x, ROW_SEATS + i, "<", 0);
+        }
+        if (flags & SEAT_FOLDED) {
+            x = put_text(x, ROW_SEATS + i, "-", 0);
+        }
+        if (flags & SEAT_ALL_IN) {
+            put_text(x, ROW_SEATS + i, "a", 0);
+        }
+    }
+
+    clear_row(ROW_SEATS + MAX_SEATS, 0);
+    table_dirty = 0;
+}
+
 static void draw_chat(void)
 {
     unsigned char i;
@@ -380,6 +593,30 @@ static void draw_input(void)
     unsigned char x;
 
     clear_row(ROW_INPUT, 0);
+    /* With something to answer, the keys matter more than the chat line. */
+    if (view == VIEW_TABLE && may != 0 && input_len == 0) {
+        x = 0;
+        if (may & MAY_FOLD) {
+            x = put_text(x, ROW_INPUT, "f1 fold  ", 0);
+        }
+        if (may & MAY_CHECK) {
+            x = put_text(x, ROW_INPUT, "f3 check  ", 0);
+        } else if (may & MAY_CALL) {
+            x = put_text(x, ROW_INPUT, "f3 call ", 0);
+            x = put_ulong(x, ROW_INPUT, to_call, 1);
+            x += 2;
+        }
+        if (may & (MAY_BET | MAY_RAISE)) {
+            x = put_text(x, ROW_INPUT, "f5 +", 0);
+            x = put_ulong(x, ROW_INPUT, min_raise, 1);
+            x += 2;
+        }
+        if (may & MAY_ALL_IN) {
+            put_text(x, ROW_INPUT, "f7 all in", 0);
+        }
+        input_dirty = 0;
+        return;
+    }
     x = put_text(0, ROW_INPUT, ">", 0);
     input[input_len] = '\0';
     x = put_text(x, ROW_INPUT, input, 0);

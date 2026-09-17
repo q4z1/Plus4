@@ -43,7 +43,7 @@ Each stage is meant to work on its own before the next one starts.
 | 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
 | 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
 | 4 | [Plus/4: the lobby itself](client/client.c) | draws a live lobby, but not yet reliably |
-| 5 | Table play: [the records](protocol.md), the proxy side, [a hand on demand](proxy/handcheck.py) | the proxy plays; the screen is next |
+| 5 | Table play: [the records](protocol.md), the proxy side, [a hand on demand](proxy/handcheck.py) | proved against the live server; the Plus/4 table view is half built |
 | 6 | Real hardware over a serial WiFi modem | |
 
 ## Stage 1: the lobby on a terminal
@@ -150,62 +150,43 @@ hand now. And `conio` went with it: the KERNAL is a poor neighbour for a
 program whose serial driver runs off the interrupt, so the screen is written
 cell by cell at `$0C00`, the way [pacman/](../pacman/) does it.
 
-### Where this stands
+### Where this stands: an interrupt storm
 
-It works, played by hand: a chat line from another player read on the Plus/4
-and answered from it, at a real machine's speed. Both directions of the chat
-have been through a real server.
+The client stops partway through a lobby, and the reason is now measured
+rather than guessed. It is not the receive window, not the screen updates,
+not the key repeat flag, and - the hypothesis this section used to carry -
+not the emulator's warp mode either: it stops just the same at a real
+machine's speed.
 
-The automated test harness is a different story, and the difference is
-probably the harness. It drives VICE in warp mode, where emulated time runs
-far ahead of the wall clock the proxy writes on, and there the snapshot often
-arrives with bytes missing and the frames slip out of step - visible as an
-acknowledgement of 5 bytes for records that are 4, 2 and 12 bytes long. The
-receive window is not the cause: 16 behaves no better than 32.
-
-So the open question is narrower than it looked: does the loss happen at real
-speed at all, or only when the emulator is running eight times too fast for
-the socket feeding it? Worth settling before anything is tuned, because the
-one measurement taken mid-run - the CPU inside `out_pump`, the loop that
-hands an outgoing frame to the driver - came from a warp run too.
+What the monitor finds when it stops:
 
 ```
-.C:1124  AD A8 27    LDA $27A8     ; out_pos
-.C:1127  CD A7 27    CMP $27A7     ; out_len
-.C:112a  90 E8       BCC $1114
+ACIA at $FD00:  00 9C 09 1A
+                   ^^ status: bit 7 IRQ asserted, bit 3 a byte waiting,
+                      bit 2 overrun - one is already lost
+CPU:            PC in the KERNAL, flag I set: interrupts masked
+stack:          SP walked from $FF down to $BF, filled with one
+                ten byte pattern repeated over and over
 ```
 
-Key repeat is dealt with: the 264 KERNAL repeats every key, fast enough that
-one press arrives as "hhhhhhhh", so the client turns RPTFLG off while it runs
-and puts it back on the way out.
+So the ACIA raises its interrupt, nobody takes the byte, and because the byte
+is never read the interrupt line stays up: the machine re-enters the handler
+immediately, forever, ten bytes of stack at a time, until it drowns. Every
+symptom since stage three follows from that - the missing bytes, the frames
+slipping out of step, and the cliff between 32 and 64 bytes in flight, which
+is not about how many bytes there are but about how long the burst lasts.
 
-## Stage 5: a hand
+The question worth asking next is why `SER_IRQ` stops being called, since it
+clearly runs at first - two records get through, sometimes five. It is
+reached through cc65's interruptor chain rather than through the vector at
+`$0314`, which holds the KERNAL's own handler, and the driver's own comment
+says it does not have to manage that vector on the Plus/4. So: is the chain
+still installed when the machine wedges, and what does this program do that a
+program which keeps receiving does not?
 
-The records for a table are in [protocol.md](protocol.md) and the proxy
-speaks them: it turns player ids into seat numbers, keeps the pot the server
-never states, works out which actions would be accepted, and decrypts the two
-cards that arrive encrypted because we logged in with an account.
-
-A hand needs a table with people at it, which is the one thing that cannot be
-arranged on demand, so [proxy/handcheck.py](proxy/handcheck.py) builds one
-and shows what the Plus/4 would receive:
-
-```
-D_TABLE     game 1, 10 seats, I am in seat 0, 'Ranking Game'
-D_HAND      hand 1, dealer in seat 0, small blind 50, my cards 2s As
-D_SEAT_BET  seat 1 flags 0x01 money 9900 bet 100
-D_POT       150
-D_TURN      seat 0, round 0
-D_ASK       fold, call, raise, all in; 50 to call, 100 minimum raise, 9950 left
-D_BOARD     2d 2h Ac
-D_RESULT    seat 0 shows 2s As, won 200, has 10100
-```
-
-`D_ASK` is the record that keeps the Plus/4 out of the poker business: the
-server says what is on the table, the proxy works out what may be done about
-it, and the machine only has to offer the choice.
-
-What is left is the screen: a table on 40x25, and the keys to act with.
+Worth knowing while chasing it: the first run that showed a complete lobby
+did so with conio doing the drawing, before any of this was rewritten. That
+is not proof of anything, but it is the one configuration observed to work.
 
 ## What the wire turned out to be
 
