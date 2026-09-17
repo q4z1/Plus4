@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""PokerTH on one side, a Plus/4 on the other.
+
+This is the piece the whole design rests on. It holds a real PokerTH session
+- TLS, protobuf, the player table, the game list - and exposes it to the
+Plus/4 as the handful of small records described in ../protocol.md. The
+Plus/4 never learns that any of the rest exists.
+
+    ./proxy.py --login
+    ./proxy.py --login --listen 127.0.0.1:6400 --verbose
+
+The Plus/4 side is a plain TCP socket, which is what VICE's IP232 emulation
+of the Plus/4's ACIA connects to:
+
+    xplus4 -acia -rsdev1 127.0.0.1:6400 -rsdev1ip232 -myaciadev 0
+
+Until there is 6502 code to run in it, p4client.py plays the part of the
+Plus/4 over the same socket.
+
+One connection at a time. A Plus/4 is switched on and reset rather than
+gracefully closed, so a new connection simply replaces the old one, and a
+HELLO on an existing one means "forget what you sent me, start again".
+"""
+
+from __future__ import annotations
+
+import argparse
+import select
+import socket
+import sys
+from collections import deque
+
+import p4wire
+import pokerth_link as L
+from lobbystate import LobbyState, game_flags
+from lobbywatch import add_connection_arguments, connect_and_login, log
+
+
+class Plus4Connection:
+    """One connected Plus/4, with the credit it has granted us.
+
+    Nothing is written to the socket unless the Plus/4 has said it has room.
+    See "Flow control" in ../protocol.md.
+    """
+
+    # How many frames may wait for credit before the proxy starts throwing
+    # some away. Two screens' worth of updates is plenty; beyond that the
+    # Plus/4 is so far behind that old news has no value.
+    MAX_QUEUE = 64
+
+    def __init__(self, sock: socket.socket, addr):
+        self.sock = sock
+        self.addr = addr
+        self.reader = p4wire.FrameReader()
+        self.rx_buffer = 0
+        self.credit = 0
+        self.queue: deque[bytes] = deque()
+        self.ready = False
+        self.dropped = 0
+
+    def fileno(self) -> int:
+        return self.sock.fileno()
+
+    def hello(self, rx_buffer: int) -> None:
+        """Start again: the far end just told us how much room it has."""
+        self.rx_buffer = rx_buffer
+        self.credit = rx_buffer
+        self.queue.clear()
+        self.ready = True
+
+    def send(self, frame: bytes) -> None:
+        if not self.ready:
+            return
+        self.queue.append(frame)
+        self._trim()
+        self.flush()
+
+    def ack(self, consumed: int) -> None:
+        self.credit = min(self.rx_buffer, self.credit + consumed)
+        self.flush()
+
+    def flush(self) -> None:
+        while self.queue and len(self.queue[0]) <= self.credit:
+            frame = self.queue.popleft()
+            self.sock.sendall(frame)
+            self.credit -= len(frame)
+
+    def _trim(self) -> None:
+        """Make room by dropping what a late arrival would not miss."""
+        while len(self.queue) > self.MAX_QUEUE:
+            for i, frame in enumerate(self.queue):
+                if frame[0] in (p4wire.D_CHAT, p4wire.D_GAME_UPDATE):
+                    del self.queue[i]
+                    break
+            else:
+                self.queue.popleft()
+            self.dropped += 1
+
+    def close(self) -> None:
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+
+class Bridge(LobbyState):
+    """Turns lobby changes into records, and records back into lobby actions."""
+
+    def __init__(self, link: L.Link, user: str, server_name: str,
+                 verbose: bool = False):
+        super().__init__(link)
+        self.user = user
+        self.server_name = server_name
+        self.verbose = verbose
+        self.plus4: Plus4Connection | None = None
+        # PokerTH game ids are 32 bit and keep climbing; the wire carries 16.
+        # So the proxy hands out its own small numbers and remembers which is
+        # which - the Plus/4 sees a short list, not a server counter.
+        self._wire_of: dict[int, int] = {}
+        self._game_of: dict[int, int] = {}
+        self._next_wire_id = 1
+
+    # -- game id mapping --
+
+    def wire_id(self, game_id: int) -> int:
+        if game_id not in self._wire_of:
+            wire = self._next_wire_id
+            while wire in self._game_of:            # after 65535 games, reuse
+                wire = wire % 0xFFFF + 1
+            self._next_wire_id = wire % 0xFFFF + 1
+            self._wire_of[game_id] = wire
+            self._game_of[wire] = game_id
+        return self._wire_of[game_id]
+
+    def forget_game(self, game_id: int) -> int:
+        wire = self.wire_id(game_id)
+        self._wire_of.pop(game_id, None)
+        self._game_of.pop(wire, None)
+        return wire
+
+    # -- sending --
+
+    def to_plus4(self, frame: bytes) -> None:
+        if self.plus4 is None:
+            return
+        if self.verbose:
+            log("out", f"{p4wire.type_name(frame[0])} "
+                       f"{len(frame)} bytes  {p4wire.hexdump(frame[:12])}")
+        self.plus4.send(frame)
+
+    def game_frame(self, game) -> bytes:
+        return p4wire.game_add(self.wire_id(game.gameId), game_flags(game),
+                               len(game.playerIds), game.gameInfo.maxNumPlayers,
+                               game.gameInfo.gameName)
+
+    def snapshot(self) -> None:
+        """Everything a Plus/4 that just said HELLO needs to draw a lobby."""
+        self.to_plus4(p4wire.hello(self.server_name))
+        self.to_plus4(p4wire.state(p4wire.STATE_LOBBY, f"logged in as {self.user}"))
+        self.to_plus4(p4wire.players_online(self.players_online))
+        self.to_plus4(p4wire.game_clear())
+        for game in self.games.values():
+            self.to_plus4(self.game_frame(game))
+        log("p4", f"sent a snapshot of {len(self.games)} games")
+
+    # -- lobby changes, from LobbyState --
+
+    def event(self, name: str, /, **d) -> None:
+        if name == "game_added":
+            self.to_plus4(self.game_frame(d["game"]))
+        elif name == "game_changed":
+            game = d["game"]
+            self.to_plus4(p4wire.game_update(self.wire_id(game.gameId),
+                                             game_flags(game),
+                                             len(game.playerIds)))
+        elif name == "game_removed":
+            self.to_plus4(p4wire.game_remove(self.forget_game(d["game_id"])))
+        elif name == "chat":
+            self.to_plus4(p4wire.chat(d["chat_type"], d["name"], d["text"]))
+        elif name == "chat_rejected":
+            self.to_plus4(p4wire.notice(f"chat refused: {d['text']}"))
+        elif name == "notice":
+            self.to_plus4(p4wire.notice(d["text"]))
+        elif name == "players_online":
+            self.to_plus4(p4wire.players_online(d["count"]))
+
+    # -- records from the Plus/4 --
+
+    def from_plus4(self, kind: int, payload: bytes) -> None:
+        try:
+            record = p4wire.decode_upstream(kind, payload)
+        except p4wire.ProtocolError as e:
+            log("p4", f"ignored: {e}")
+            return
+
+        if self.verbose and record["kind"] != "ack":
+            log("in", f"{p4wire.type_name(kind)} {record}")
+
+        what = record["kind"]
+        if what == "hello":
+            if record["version"] != p4wire.PROTOCOL_VERSION:
+                log("p4", f"version mismatch: the Plus/4 speaks "
+                          f"{record['version']}, this proxy speaks "
+                          f"{p4wire.PROTOCOL_VERSION}")
+                self.plus4.hello(record["rx_buffer"])
+                self.to_plus4(p4wire.state(
+                    p4wire.STATE_ERROR,
+                    f"proxy speaks version {p4wire.PROTOCOL_VERSION}"))
+                return
+            log("p4", f"hello: version {record['version']}, "
+                      f"{record['rx_buffer']} byte receive buffer")
+            self.plus4.hello(record["rx_buffer"])
+            self.snapshot()
+        elif what == "ack":
+            self.plus4.ack(record["consumed"])
+        elif what == "chat":
+            msg, chat = L.make("ChatRequestMessage")
+            chat.chatText = record["text"]
+            self.link.send(msg)
+            log("p4", f"chat: {record['text']}")
+        elif what in ("join", "leave", "action"):
+            # Sitting down at a table is the stage after this one.
+            self.to_plus4(p4wire.notice(f"{what} is not implemented yet"))
+            log("p4", f"{what} requested, not implemented yet")
+        elif what == "bye":
+            log("p4", "the Plus/4 said goodbye")
+            raise ConnectionResetError
+
+
+def parse_listen(text: str) -> tuple[str, int]:
+    host, _, port = text.rpartition(":")
+    if not host or not port.isdigit():
+        raise argparse.ArgumentTypeError(f"expected host:port, got {text!r}")
+    return host, int(port)
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    add_connection_arguments(ap)
+    ap.add_argument("--listen", type=parse_listen, default="127.0.0.1:6400",
+                    metavar="HOST:PORT",
+                    help="where the Plus/4 side connects (default 127.0.0.1:6400)")
+    ap.add_argument("--verbose", action="store_true",
+                    help="log every record in both directions")
+    args = ap.parse_args(argv)
+
+    host, port = args.listen if isinstance(args.listen, tuple) else parse_listen(args.listen)
+
+    link = None
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        link, announce, ack, user = connect_and_login(args)
+        bridge = Bridge(link, user, args.server, verbose=args.verbose)
+        bridge.me = ack.yourPlayerId
+        bridge.players[ack.yourPlayerId] = user
+        bridge.players_online = announce.numPlayersOnServer
+
+        listener.bind((host, port))
+        listener.listen(1)
+        log("p4", f"waiting for a Plus/4 on {host}:{port}")
+        link.set_timeout(None)
+
+        while True:
+            watching = [link, listener]
+            if bridge.plus4 is not None:
+                watching.append(bridge.plus4)
+            for ready in select.select(watching, [], [])[0]:
+                if ready is link:
+                    for msg in link.drain():
+                        bridge.pump(msg)
+                elif ready is listener:
+                    sock, addr = listener.accept()
+                    if bridge.plus4 is not None:
+                        log("p4", f"replacing the connection from {bridge.plus4.addr}")
+                        bridge.plus4.close()
+                    bridge.plus4 = Plus4Connection(sock, addr)
+                    log("p4", f"connection from {addr[0]}:{addr[1]}, "
+                              "waiting for its hello")
+                else:
+                    try:
+                        data = bridge.plus4.sock.recv(4096)
+                        if not data:
+                            raise ConnectionResetError
+                        for kind, payload in bridge.plus4.reader.feed(data):
+                            bridge.from_plus4(kind, payload)
+                    except (ConnectionResetError, BrokenPipeError, OSError):
+                        log("p4", f"the Plus/4 at {bridge.plus4.addr} is gone")
+                        bridge.plus4.close()
+                        bridge.plus4 = None
+                        break
+    except L.LinkError as e:
+        log("net", str(e))
+        return 1
+    except KeyboardInterrupt:
+        log("net", "stopped")
+    finally:
+        listener.close()
+        if link is not None:
+            link.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

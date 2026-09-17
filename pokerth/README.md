@@ -40,7 +40,7 @@ Each stage is meant to work on its own before the next one starts.
 | Stage | What | State |
 | --- | --- | --- |
 | 1 | `proxy/lobbywatch.py` — log in as guest or with an account, show the lobby and chat on a PC terminal | **done** |
-| 2 | [The Plus/4 wire protocol](protocol.md), with a reference client in Python | spec and codec done |
+| 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
 | 3 | Plus/4: ACIA driver, echo test through VICE's IP232 | |
 | 4 | Plus/4: lobby list and chat | |
 | 5 | Plus/4: table rendering, playing a hand | |
@@ -69,6 +69,36 @@ chmod 600 ~/.config/pokerth-plus4/credentials
 
 .venv/bin/python lobbywatch.py --login --say "hello from a Commodore Plus/4"
 ```
+
+## Stage 2: the proxy, and something to test it with
+
+`proxy.py` holds the PokerTH session and offers it on a TCP socket as the
+records described in [protocol.md](protocol.md). That socket is what VICE
+connects the Plus/4's ACIA to:
+
+```sh
+.venv/bin/python proxy.py --login --verbose
+xplus4 -acia -rsdev1 127.0.0.1:6400 -rsdev1ip232 -myaciadev 0
+```
+
+Until there is 6502 code to put in that emulator, `p4client.py` plays the part
+of the Plus/4 over the same socket - same records, same credit, same
+acknowledgements:
+
+```sh
+.venv/bin/python p4client.py
+```
+
+Type to chat, `/games` draws the lobby 40 columns wide the way the Plus/4 will
+have to. It can also pretend to be slow and short of memory, which is how to
+find out whether flow control works before a real machine has to prove it:
+
+```sh
+.venv/bin/python p4client.py --rx-buffer 64 --slow 0.3
+```
+
+`bridgecheck.py` feeds the bridge a made-up game list, because a lobby with
+games in it is the one thing an empty test server cannot offer.
 
 ## What the protocol turned out to be
 

@@ -55,6 +55,11 @@ warnings, rejections - and is never dropped.
 `GAME_ADD` flags: 0x01 private, 0x02 started, 0x04 ranking, 0x08 registered
 players only, 0x10 invitation only.
 
+Game ids are **not** the server's. PokerTH counts games in 32 bits and keeps
+counting, so the proxy hands out its own small numbers, reuses them once a
+game is gone, and translates back when a `JOIN` arrives. The Plus/4 sees a
+short list of short numbers, which is also what fits on its screen.
+
 `CHAT` kinds are numbered as in `pokerth.proto` so that nothing has to be
 translated: 0 lobby, 1 game, 2 bot, 3 broadcast, 4 private. The name comes
 first with its length so the Plus/4 can colour it differently without

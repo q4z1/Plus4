@@ -219,15 +219,54 @@ class Link:
         self._sock.sendall(struct.pack("!I", len(body)) + body)
 
     def recv(self):
-        """Read one message. Raises ServerError on an ErrorMessage."""
+        """Read one message, waiting for it. Raises ServerError on an error."""
         size, = struct.unpack("!I", self._read_exactly(4))
         if not 0 < size <= MAX_PACKET_SIZE:
             raise LinkError(f"implausible packet size {size}")
+        return self._parse(self._read_exactly(size))
+
+    def drain(self) -> list:
+        """Read whatever has arrived and return the complete messages in it.
+
+        For a select loop, where blocking in the middle of a message is not
+        an option. Only call this once the socket says it is readable: a
+        readable TLS socket can still yield no application data, and a single
+        read can carry several messages, so both cases are handled here.
+        """
+        self._sock.setblocking(False)
+        try:
+            while True:
+                try:
+                    chunk = self._sock.recv(65536)
+                except (ssl.SSLWantReadError, BlockingIOError):
+                    break
+                if not chunk:
+                    raise LinkError("server closed the connection")
+                self._buf += chunk
+        finally:
+            self._sock.settimeout(self.timeout)
+
+        messages = []
+        while len(self._buf) >= 4:
+            size, = struct.unpack("!I", self._buf[:4])
+            if not 0 < size <= MAX_PACKET_SIZE:
+                raise LinkError(f"implausible packet size {size}")
+            if len(self._buf) < 4 + size:
+                break
+            body, self._buf = self._buf[4:4 + size], self._buf[4 + size:]
+            messages.append(self._parse(body))
+        return messages
+
+    def _parse(self, body: bytes):
         msg = pb.PokerTHMessage()
-        msg.ParseFromString(self._read_exactly(size))
+        msg.ParseFromString(body)
         if kind_of(msg) == "ErrorMessage":
             raise ServerError(msg.errorMessage.errorReason)
         return msg
+
+    def fileno(self) -> int:
+        """So the connection can go straight into select()."""
+        return self._sock.fileno()
 
     def expect(self, kind: str):
         """Read until a message of `kind` arrives, discarding what comes before."""
