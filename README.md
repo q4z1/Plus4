@@ -165,8 +165,3 @@ remotely. `x` resumes emulation. Note that `-keybuf` does **not** work together 
 ## Controls (Pac-Man)
 
 `W` `A` `S` `D` or the cursor keys, `Q` quits, space starts.
-
----
-
-Comments and identifiers in the sources are German; this README is the English
-front door.

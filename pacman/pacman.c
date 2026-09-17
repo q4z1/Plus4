@@ -1,36 +1,35 @@
 /*
- * Pac-Man fuer den Commodore Plus/4
- * =================================
+ * Pac-Man for the Commodore Plus/4
+ * ================================
  *
- * Der Plus/4 hat keine Sprites. Die Figuren sind deshalb aus Zeichen gebaut,
- * die in jedem Bild neu berechnet werden - dadurch bewegen sie sich pixelweise
- * statt kachelweise und sind mit 12x12 Punkten deutlich groesser als eine
- * Kachel. Das Labyrinth fuellt den Bildschirm randlos aus.
+ * The Plus/4 has no sprites. The figures are therefore built from characters
+ * that are recomputed on every frame - which is what lets them move pixel by
+ * pixel instead of tile by tile, and makes them 12x12 pixels, clearly larger
+ * than a tile. The maze fills the screen edge to edge.
  *
- * Wie das funktioniert:
+ * How it works:
  *
- *   Der TED stellt normalerweise die Zeichencodes ab 128 als invertierte
- *   Kopien von 0..127 dar. Mit Bit 7 in $FF07 laesst sich das abschalten;
- *   dann stehen alle 256 Zeichen frei zur Verfuegung. Die oberen 128 dienen
- *   als Vorrat: jede Figur belegt 3x3 davon. In jedem Bild werden diese
- *   Zeichen mit der pixelgenau verschobenen Figur gefuellt und an der
- *   passenden Stelle auf den Bildschirm gesetzt.
+ *   Normally the TED shows character codes from 128 up as inverted copies of
+ *   0..127. Bit 7 of $FF07 turns that off; all 256 characters are then free
+ *   to use. The upper 128 serve as a pool: each figure claims 3x3 of them.
+ *   On every frame those characters are filled with the pixel-shifted figure
+ *   and placed at the right spot on the screen.
  *
- *   Damit das schnell genug ist, liegen die waagerecht vorgeschobenen
- *   Figurdaten fertig im Speicher (8 Stellungen je Form) und das Mischen
- *   mit dem Labyrinth-Hintergrund erledigt eine kurze Assemblerschleife.
+ *   To make that fast enough, the horizontally pre-shifted figure data sits
+ *   ready in memory (8 phases per shape) and a short assembly loop does the
+ *   merging with the maze background.
  *
- *   Die Mauerlinien sind 2 Pixel vom Kachelrand nach innen gerueckt. Dadurch
- *   ist ein Korridor effektiv 12 statt 8 Pixel breit und die Figur passt
- *   hindurch, ohne die Waende zu ueberdecken.
+ *   The wall lines are inset 2 pixels from the tile edge. That makes a
+ *   corridor effectively 12 instead of 8 pixels wide, so a figure fits
+ *   through without covering the walls.
  *
- * Aufbau der Datei:
- *   1. Hardware          5. Figuren und ihre Daten
- *   2. Zeichensatz       6. Zeichnen (mit dem Blitter)
- *   3. Labyrinth         7. Bewegung, Geister-KI
- *   4. Ton und Eingabe   8. Spielablauf
+ * Layout of this file:
+ *   1. Hardware          5. Figures and their data
+ *   2. Character set     6. Drawing (with the blitter)
+ *   3. Maze              7. Movement, ghost AI
+ *   4. Sound and input   8. Game flow
  *
- * Steuerung: W A S D oder die Cursortasten, Q beendet das Spiel.
+ * Controls: W A S D or the cursor keys, Q quits the game.
  */
 
 #include <conio.h>
@@ -46,17 +45,17 @@
 #define TED_TON2_LO  (*(volatile unsigned char *)0xFF0F)
 #define TED_TON2_HI  (*(volatile unsigned char *)0xFF10)
 #define TED_LAUT     (*(volatile unsigned char *)0xFF11)
-#define TED_ZSATZ_M  (*(volatile unsigned char *)0xFF12)  /* Bit 2: Font aus RAM */
-#define TED_ZSATZ_A  (*(volatile unsigned char *)0xFF13)  /* Bit 2-7: Fontadresse */
+#define TED_ZSATZ_M  (*(volatile unsigned char *)0xFF12)  /* Bit 2: font from RAM */
+#define TED_ZSATZ_A  (*(volatile unsigned char *)0xFF13)  /* Bit 2-7: font address */
 #define TED_HGRUND   (*(volatile unsigned char *)0xFF15)
 #define TED_RAHMEN   (*(volatile unsigned char *)0xFF19)
 #define TED_RASTER   (*(volatile unsigned char *)0xFF1D)
-#define TED_WAAGR    (*(volatile unsigned char *)0xFF07)  /* Bit 7: Invers abschalten */
+#define TED_WAAGR    (*(volatile unsigned char *)0xFF07)  /* Bit 7: turn off inversion */
 #define ROM_EIN      (*(volatile unsigned char *)0xFF3E)
 #define RAM_EIN      (*(volatile unsigned char *)0xFF3F)
 
-/* Farben: Helligkeit * 16 + Farbnummer. Hohe Helligkeiten waschen auf dem
-   Plus/4 zu Weiss aus, kraeftige Farben gibt es bei Helligkeit 3 bis 6. */
+/* Colors: brightness * 16 + hue. High brightness washes out to white on the
+   Plus/4; the strong colors are at brightness 3 to 6. */
 #define C_SCHWARZ  0x00
 #define C_WEISS    0x71
 #define C_GELB     0x77   /* Pac-Man          */
@@ -64,35 +63,34 @@
 #define C_ROSA     0x6B   /* Pinky            */
 #define C_CYAN     0x63   /* Inky             */
 #define C_ORANGE   0x58   /* Clyde            */
-#define C_BLAU     0x36   /* Mauern           */
-#define C_ANGST    0x4E   /* fressbarer Geist */
+#define C_BLAU     0x36   /* walls            */
+#define C_ANGST    0x4E   /* edible ghost     */
 #define C_HELLBLAU 0x5D
 #define C_TUER     0x5B
-#define C_PUNKT    0x62   /* Kruemel          */
+#define C_PUNKT    0x62   /* dot              */
 
 /* ======================================================================
- * 2. Zeichensatz
+ * 2. Character set
  * ==================================================================== */
 
-#define Z_MAUER    64    /* 64..79: 16 Mauerformen         */
+#define Z_MAUER    64    /* 64..79: 16 wall shapes         */
 #define Z_KRUEMEL  80
 #define Z_PILLE    81
 #define Z_TUER     82
-#define Z_VORRAT  128    /* ab hier die Figurzeichen       */
-#define EINZUG      3    /* Einrueckung der Mauerlinie     */
-#define DICKE       2    /* Staerke der Mauerlinie         */
+#define Z_VORRAT  128    /* figure characters start here   */
+#define EINZUG      3    /* inset of the wall line         */
+#define DICKE       2    /* thickness of the wall line     */
 
-/* 2 KB Zeichensatz, ausgerichtet auf eine durch 2048 teilbare Adresse. */
+/* 2 KB character set, aligned to an address divisible by 2048. */
 static unsigned char zeichenspeicher[2048 + 2047];
 static unsigned char *zeichensatz;
 static unsigned rom_index;
 
 /*
- * Holt den ROM-Zeichensatz. cc65 blendet auf dem Plus/4 das ROM aus, um den
- * vollen Speicher nutzen zu koennen; fuer den Zeichengenerator bei $D000 muss
- * es kurz zurueck. In diesem Fenster darf kein C-Stack benutzt werden (der
- * liegt bei $F500-$FCFF und waere verdeckt), darum nur globale Variablen und
- * kein Funktionsaufruf.
+ * Fetches the ROM character set. On the Plus/4 cc65 banks the ROM out to use
+ * all of memory; for the character generator at $D000 it has to come back
+ * briefly. No C stack may be touched inside that window (it lives at
+ * $F500-$FCFF and would be covered), hence globals only and no function call.
  */
 static void font_aus_rom(void)
 {
@@ -105,17 +103,17 @@ static void font_aus_rom(void)
 }
 
 /*
- * Baut die 16 Mauerzeichen. Gezeichnet wird der Umriss der Mauerflaeche:
- * ein Strich kommt nur an die Kante, hinter der ein begehbares Feld liegt,
- * um EINZUG Pixel nach innen versetzt und DICKE Pixel stark.
+ * Builds the 16 wall characters. What gets drawn is the outline of the wall
+ * area: a line goes only on an edge that has a walkable tile behind it, moved
+ * EINZUG pixels inward and DICKE pixels thick.
  *
- * EINZUG und DICKE sind so gewaehlt, dass die Striche gegenueberliegender
- * Kanten genau aufeinanderfallen (beide bei Pixel 3 und 4). Dadurch ist eine
- * eine Kachel dicke Wand genauso ein 2-Pixel-Strich wie der Umriss eines
- * grossen Blocks - die Waende sehen ueberall gleich aus.
+ * EINZUG and DICKE are chosen so that the lines of opposite edges land exactly
+ * on each other (both at pixel 3 and 4). A wall one tile thick is therefore
+ * the same 2-pixel line as the outline of a large block - the walls look the
+ * same everywhere.
  *
- * Die Nummer ist eine Bitmaske:
- *   Bit 0 = oben offen, 1 = unten, 2 = links, 3 = rechts.
+ * The number is a bit mask:
+ *   bit 0 = open at the top, 1 = bottom, 2 = left, 3 = right.
  */
 static void mauerzeichen_bauen(void)
 {
@@ -128,7 +126,7 @@ static void mauerzeichen_bauen(void)
         links  = (unsigned char)(m & 4);
         rechts = (unsigned char)(m & 8);
 
-        /* Ausdehnung der Striche, damit Ecken sauber schliessen */
+        /* extent of the lines, so corners close cleanly */
         x0 = (unsigned char)(links  ? EINZUG : 0);
         x1 = (unsigned char)(rechts ? 7 - EINZUG : 7);
         y0 = (unsigned char)(oben   ? EINZUG : 0);
@@ -136,11 +134,11 @@ static void mauerzeichen_bauen(void)
 
         for (y = 0; y < 8; ++y) {
             b = 0;
-            /* waagerechte Striche */
+            /* horizontal lines */
             if ((oben  && y >= EINZUG && y < EINZUG + DICKE) ||
                 (unten && y > 7 - EINZUG - DICKE && y <= 7 - EINZUG))
                 for (x = x0; x <= x1; ++x) b |= (unsigned char)(0x80 >> x);
-            /* senkrechte Striche */
+            /* vertical lines */
             if (y >= y0 && y <= y1) {
                 for (x = 0; x < DICKE; ++x) {
                     if (links)  b |= (unsigned char)(0x80 >> (EINZUG + x));
@@ -153,18 +151,18 @@ static void mauerzeichen_bauen(void)
 }
 
 static const unsigned char KLEINZEUG[] = {
-    0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00,   /* Kruemel     */
-    0x00, 0x3C, 0x7E, 0x7E, 0x7E, 0x7E, 0x3C, 0x00,   /* Kraftpille  */
-    0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00,   /* Haustuer    */
+    0x00, 0x00, 0x00, 0x18, 0x18, 0x00, 0x00, 0x00,   /* dot         */
+    0x00, 0x3C, 0x7E, 0x7E, 0x7E, 0x7E, 0x3C, 0x00,   /* power pill  */
+    0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00,   /* house door  */
 };
 
 /* ======================================================================
- * 3. Labyrinth
+ * 3. Maze
  * ==================================================================== */
 
-#define KB 40          /* Kacheln waagerecht - der ganze Bildschirm */
-#define KH 24          /* Kacheln senkrecht                         */
-#define OFFY 1         /* Zeile 0 bleibt fuer die Anzeige frei      */
+#define KB 40          /* tiles across - the whole screen            */
+#define KH 24          /* tiles down                                */
+#define OFFY 1         /* row 0 is reserved for the status line      */
 
 #define F_LEER   0
 #define F_PUNKT  1
@@ -172,7 +170,7 @@ static const unsigned char KLEINZEUG[] = {
 #define F_MAUER  3
 #define F_TUER   4
 
-/* '#' Mauer, '.' Kruemel, 'o' Kraftpille, '-' Geisterhaustuer, ' ' leer. */
+/* '#' wall, '.' dot, 'o' power pill, '-' ghost house door, ' ' empty. */
 static const char PLAN[KH][KB + 1] = {
     "########################################",
     "#..................##..................#",
@@ -200,19 +198,19 @@ static const char PLAN[KH][KB + 1] = {
     "########################################",
 };
 
-/* Vorberechnete Zeilenanfaenge im Bildschirmspeicher. Spart in den
-   Zeichenschleifen je Zelle eine 16-Bit-Multiplikation. */
+/* Precomputed row starts in screen memory. Saves a 16-bit multiplication
+   per cell in the drawing loops. */
 static unsigned bildzeile[KH];
-static unsigned char *zeile_zeichen_tab[KH];  /* Zeiger auf feldzeichen[my] */
-static unsigned char *zeile_feld_tab[KH];     /* Zeiger auf feld[my]        */
+static unsigned char *zeile_zeichen_tab[KH];  /* pointer to feldzeichen[my] */
+static unsigned char *zeile_feld_tab[KH];     /* pointer to feld[my]        */
 
-static unsigned char feld[KH][KB];       /* was liegt auf der Kachel   */
-static unsigned char feldzeichen[KH][KB];/* welches Zeichen gehoert hin*/
+static unsigned char feld[KH][KB];       /* what lies on the tile      */
+static unsigned char feldzeichen[KH][KB];/* which character belongs on it */
 static unsigned int  restpunkte;
 static unsigned char pillenx[4], pilleny[4];
 static unsigned char mauerfarbe = C_BLAU;
 
-/* Startplaetze und Geisterhaus */
+/* Starting places and ghost house */
 #define PAC_STARTX 19
 #define PAC_STARTY 18
 #define TUERX      19
@@ -226,7 +224,7 @@ static unsigned char ist_mauer(unsigned char mx, unsigned char my)
 }
 
 
-/* Setzt das Zeichen einer Kachel neu - loescht damit auch eine Figur. */
+/* Redraws the character of a tile - which also erases a figure. */
 static void kachel_zeichnen(unsigned char mx, unsigned char my)
 {
     unsigned pos = bildzeile[my] + mx;
@@ -273,8 +271,8 @@ static void labyrinth_aufbauen(void)
         --restpunkte;
     }
 
-    /* Zeichen je Kachel einmal bestimmen - die Mauerform haengt von den
-       Nachbarn ab und aendert sich waehrend des Spiels nicht mehr. */
+    /* Determine the character of each tile once - the wall shape depends on
+       the neighbours and does not change any more during the game. */
     for (my = 0; my < KH; ++my) {
         for (mx = 0; mx < KB; ++mx) {
             switch (feld[my][mx]) {
@@ -313,7 +311,7 @@ static void mauern_faerben(unsigned char f)
 }
 
 /* ======================================================================
- * 4. Ton und Eingabe
+ * 4. Sound and input
  * ==================================================================== */
 
 static unsigned char ton_rest;
@@ -333,10 +331,9 @@ static void ton_stumm(void)
 }
 
 /*
- * Wartet auf den Strahlruecklauf. Gewartet wird auf Rasterzeile 210, also
- * knapp unterhalb des Spielfelds: danach bleibt der ganze untere Rand und
- * die Austastluecke Zeit, die Figuren neu zu setzen, bevor der Strahl sie
- * wieder erreicht.
+ * Waits for the vertical retrace. It waits for raster line 210, just below
+ * the playfield: after that the whole lower border and the blanking interval
+ * are left to reposition the figures before the beam reaches them again.
  */
 static void bild_warten(void)
 {
@@ -358,7 +355,7 @@ static unsigned char taste_holen(void)
 }
 
 /* ======================================================================
- * 5. Figuren
+ * 5. Figures
  * ==================================================================== */
 
 #define R_OBEN   0
@@ -366,36 +363,36 @@ static unsigned char taste_holen(void)
 #define R_UNTEN  2
 #define R_RECHTS 3
 
-/* Formen: 0 = Mund zu, 1..4 = Mund offen in Richtung 0..3 */
+/* Shapes: 0 = mouth closed, 1..4 = mouth open in direction 0..3 */
 #define FORM_ZU     0
 #define FORM_GEIST  5
 #define FORM_ANGST  6
 #define FORM_AUGEN  7
 
-/* Je Form 16 Zeilen zu 16 Punkten, als zwei Bytes. */
+/* Per shape 16 rows of 16 pixels, as two bytes. */
 static const unsigned char FORMEN[8 * 8] = {
-    /* Pac Mund zu */
+    /* Pac, mouth closed */
     0x18, 0x7E, 0x7E, 0xFF, 0xFF, 0x7E, 0x7E, 0x18,
-    /* Pac oben */
+    /* Pac up */
     0x00, 0x42, 0x66, 0xFF, 0xFF, 0x7E, 0x7E, 0x18,
-    /* Pac links */
+    /* Pac left */
     0x18, 0x7E, 0x3E, 0x1F, 0x1F, 0x3E, 0x7E, 0x18,
-    /* Pac unten */
+    /* Pac down */
     0x18, 0x7E, 0x7E, 0xFF, 0xFF, 0x66, 0x42, 0x00,
-    /* Pac rechts */
+    /* Pac right */
     0x18, 0x7E, 0x7C, 0xF8, 0xF8, 0x7C, 0x7E, 0x18,
-    /* Geist */
+    /* Ghost */
     0x18, 0x7E, 0x7E, 0xBD, 0xFF, 0xFF, 0xFF, 0xDB,
-    /* Geist in Angst */
+    /* Frightened ghost */
     0x18, 0x7E, 0x7E, 0x99, 0xFF, 0xAB, 0xFF, 0xDB,
-    /* nur Augen */
+    /* Eyes only */
     0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x00,
 };
 
-/* Waagerecht vorgeschobene Fassungen: je Form und Versatz drei Spalten
-   zu 16 Zeilen. Wird beim Start einmal ausgerechnet. */
+/* Horizontally pre-shifted versions: three columns of 16 rows per shape
+   and offset. Computed once at startup. */
 static unsigned char vorgeschoben[8 * 8 * 16];
-static unsigned char spalte[2][16];      /* senkrecht eingepasste Figur */
+static unsigned char spalte[2][16];      /* figure fitted vertically    */
 
 static void formen_vorschieben(void)
 {
@@ -414,7 +411,7 @@ static void formen_vorschieben(void)
     }
 }
 
-/* Zustaende eines Geistes */
+/* States of a ghost */
 #define G_HAUS   0
 #define G_RAUS   1
 #define G_JAGD   2
@@ -423,28 +420,28 @@ static void formen_vorschieben(void)
 #define G_REIN   5
 
 typedef struct {
-    unsigned int  cx;        /* Mittelpunkt in Spielfeldpixeln, 0..319 */
+    unsigned int  cx;        /* center in playfield pixels, 0..319     */
     unsigned char cy;        /* 0..191                                 */
     unsigned char r, wunsch;
     unsigned char form, farbe;
-    unsigned char tempo, acc;/* 16 im acc = ein Pixel                  */
+    unsigned char tempo, acc;/* 16 in acc = one pixel                  */
     unsigned char zustand, wartet;
     unsigned char startkx, startky;
     unsigned char zielx, ziely;
     unsigned char alt_sp, alt_ze, sichtbar;
-    unsigned char neu_sp, neu_ze, vsx, vsy;   /* fuer das Zeichnen */
-    unsigned int  alt_cx;                     /* Stand beim letzten Mischen */
+    unsigned char neu_sp, neu_ze, vsx, vsy;   /* for drawing       */
+    unsigned int  alt_cx;                     /* state at the last merge    */
     unsigned char alt_cy, alt_form;
-    unsigned char alt_zb, alt_sb;   /* belegte Zeile/Spalte im letzten Bild */
+    unsigned char alt_zb, alt_sb;   /* row/column used in the last frame    */
     /*
-     * Auffuellen auf genau 32 Byte. Bei krummer Groesse muss cc65 fuer jedes
-     * fig[i] eine 16-Bit-Multiplikation ausfuehren; mit einer Zweierpotenz
-     * wird daraus eine Schiebeoperation. Das passiert dutzendfach je Bild.
+     * Padded to exactly 32 bytes. With an odd size cc65 has to do a 16-bit
+     * multiplication for every fig[i]; with a power of two that becomes a
+     * shift. This happens dozens of times per frame.
      */
     unsigned char fuellung[6];
 } Figur;
 
-static Figur fig[5];         /* 0 = Pac-Man, 1..4 = Geister */
+static Figur fig[5];         /* 0 = Pac-Man, 1..4 = ghosts  */
 
 static const unsigned char GEISTFARBE[5] = {
     C_GELB, C_ROT, C_ROSA, C_CYAN, C_ORANGE
@@ -453,10 +450,10 @@ static const unsigned char GEISTFARBE[5] = {
 #define PAC (&fig[0])
 
 /*
- * Quadrattabelle fuer die Geister-KI. Der Abstand zum Ziel wird als
- * dx*dx + dy*dy gemessen; cc65 ruft fuer jede Multiplikation ein
- * Unterprogramm auf, und bei vier Geistern an jeder Kachelmitte sind das
- * sehr viele. Nachschlagen ist um ein Vielfaches schneller.
+ * Table of squares for the ghost AI. The distance to the target is measured
+ * as dx*dx + dy*dy; cc65 calls a subroutine for every multiplication, and
+ * with four ghosts at every tile center that is a great many. A lookup is
+ * several times faster.
  */
 static unsigned quadrat[KB];
 
@@ -469,18 +466,18 @@ static unsigned char zufall(void)
 }
 
 /* ======================================================================
- * 6. Zeichnen
+ * 6. Drawing
  * ==================================================================== */
 
 static unsigned char *p_quelle, *p_grund, *p_ziel;
 
 /*
- * Mischt acht Bytes: ziel = Figur | Hintergrund.
+ * Merges eight bytes: target = figure | background.
  *
- * Das ist die einzige Assemblerstelle im Programm und zugleich die
- * meistbenutzte: sie laeuft bis zu 45 mal je Bild. In C waere sie etwa
- * doppelt so langsam und das Spiel liefe nur mit halber Bildrate.
- * ptr1..ptr3 sind Zeigerplaetze, die cc65 auf der Zeropage bereithaelt.
+ * This is the only piece of assembly in the program and at the same time the
+ * most used one: it runs up to 45 times per frame. In C it would be about
+ * twice as slow and the game would run at half the frame rate.
+ * ptr1..ptr3 are pointer slots that cc65 keeps on the zero page.
  */
 static void zelle_mischen(void)
 {
@@ -498,7 +495,7 @@ static void zelle_mischen(void)
     __asm__("bpl pmmix");
 }
 
-/* Gibt die neun Kacheln frei, auf denen die Figur zuletzt stand. */
+/* Releases the nine tiles the figure last stood on. */
 static void figur_loeschen(Figur *f)
 {
     unsigned char i, j, mx, my;
@@ -517,36 +514,36 @@ static void figur_loeschen(Figur *f)
 }
 
 /*
- * Das Zeichnen laeuft in drei Schritten ueber alle Figuren hinweg, nicht
- * Figur fuer Figur. Grund: gaebe eine Figur ihre alten Kacheln erst frei,
- * nachdem eine andere schon gemalt wurde, radierte sie diese wieder weg -
- * ueberlappende Geister verschwaenden dann dauerhaft.
+ * Drawing runs in three passes across all figures, not figure by figure.
+ * Reason: if one figure released its old tiles only after another had already
+ * been drawn, it would erase that one again - overlapping ghosts would then
+ * disappear for good.
  */
 
-/* Schritt 1: wo steht die Figur jetzt? */
+/* Pass 1: where is the figure now? */
 static void figur_position(Figur *f)
 {
-    unsigned int bx = f->cx + (KB * 8) - 4;   /* +320 haelt alles positiv */
+    unsigned int bx = f->cx + (KB * 8) - 4;   /* +320 keeps everything positive */
     unsigned char by = (unsigned char)(f->cy - 4);
     unsigned char sp;
 
     f->vsx = (unsigned char)(bx & 7);
     f->vsy = (unsigned char)(by & 7);
-    /* Statt Modulo einmal abziehen - cc65 wuerde fuer % eine ganze
-       Divisionsroutine aufrufen, und das hier laeuft in jedem Bild. */
+    /* Subtract once instead of using modulo - cc65 would call a whole
+       division routine for %, and this runs on every frame. */
     sp = (unsigned char)(bx >> 3);
     if (sp >= KB) sp = (unsigned char)(sp - KB);
     f->neu_sp = sp;
     f->neu_ze = (unsigned char)(by >> 3);
 }
 
-/* Schritt 2: Kacheln freigeben, die die Figur verlassen hat. */
+/* Pass 2: release the tiles the figure has left. */
 /*
- * Gibt die Kacheln frei, die die Figur verlassen hat.
+ * Releases the tiles the figure has left.
  *
- * Der Block aus 3x3 Kacheln wandert nur alle acht Pixel weiter, also in den
- * meisten Bildern gar nicht. Dann ist hier nichts zu tun - diese Abkuerzung
- * war die wichtigste Bremse im Spiel.
+ * The block of 3x3 tiles only moves on every eighth pixel, so in most frames
+ * it does not move at all. Then there is nothing to do here - this shortcut
+ * was the single most important speedup in the game.
  */
 static void figur_freigeben(Figur *f)
 {
@@ -558,7 +555,7 @@ static void figur_freigeben(Figur *f)
         my = (unsigned char)(f->alt_ze + j);
         if (my >= KH) continue;
         if ((unsigned char)(my - f->neu_ze) < 2) {
-            /* Zeile gehoert noch zur Figur - nur die Spalten pruefen. */
+            /* Row still belongs to the figure - only check the columns. */
             for (i = 0; i < 2; ++i) {
                 mx = (unsigned char)(f->alt_sp + i);
                 if (mx >= KB) mx = (unsigned char)(mx - KB);
@@ -578,83 +575,57 @@ static void figur_freigeben(Figur *f)
 }
 
 /*
- * Schritt 3: die neun Zeichen fuellen und auf den Bildschirm setzen.
+ * Pass 3: fill the nine characters and put them on the screen.
  *
- * Das ist die heisseste Stelle des Programms - 45 Zellen in jedem Bild.
- * In C war sie hoffnungslos langsam: cc65 rief fuer jedes feldzeichen[my]
- * eine 16-Bit-Multiplikation auf und schob jeden Bildschirmzugriff ueber
- * seinen Software-Stack, zusammen rund 1200 Takte je Zelle. Deshalb macht
- * eine Assemblerroutine jetzt eine komplette Zeile aus drei Zellen am Stueck.
+ * This is the hottest spot in the program - 45 cells on every frame. In C it
+ * was hopelessly slow: cc65 called a 16-bit multiplication for every
+ * feldzeichen[my] and pushed every screen access through its software stack,
+ * together around 1200 cycles per cell. That is why an assembly routine now
+ * does a whole row of three cells in one go.
  *
- * Die Parameter liegen in globalen Variablen, damit der Assemblerteil sie
- * ohne Stack erreicht.
+ * The parameters live in global variables so that the assembly part can reach
+ * them without the stack.
  */
-static unsigned char *am_q;      /* Figurdaten, Spalte 0 (naechste bei +24) */
-static unsigned char *am_hg;     /* Labyrinthzeichen der drei Spalten       */
-static unsigned char *am_fd;     /* Feldtypen der drei Spalten              */
-static unsigned char *am_bd;     /* Bildschirmzellen                        */
-static unsigned char *am_fa;     /* Farbzellen                              */
-static unsigned char  am_use[3]; /* 1 = Figur hat hier Punkte               */
-static unsigned char  am_z;      /* Zeichencode der ersten Spalte           */
-static unsigned char  am_neu;    /* 0 = Muster steht schon                  */
-static unsigned char  am_fb;     /* Figurfarbe                              */
-static unsigned char  am_mf, am_tf, am_pf;   /* Mauer, Tuer, Kruemel        */
-static unsigned char  am_zshi;   /* hohes Byte der Zeichensatzadresse       */
-static unsigned char *am_tab;    /* vorgeschobene Figurdaten                */
-static unsigned char  am_vsy;    /* senkrechter Versatz                     */
-static unsigned char  am_spn;    /* wieviele Spalten zu bearbeiten sind     */
-/* Arbeitsbytes und Farbtabellen, die nur der Assemblerteil anfasst */
+static unsigned char *am_q;      /* figure data, column 0 (next at +24)     */
+static unsigned char *am_hg;     /* maze characters of the three columns    */
+static unsigned char *am_fd;     /* field types of the three columns        */
+static unsigned char *am_bd;     /* screen cells                            */
+static unsigned char *am_fa;     /* color cells                             */
+static unsigned char  am_use[3]; /* 1 = figure has pixels here              */
+static unsigned char  am_z;      /* character code of the first column      */
+static unsigned char  am_neu;    /* 0 = pattern is already in place         */
+static unsigned char  am_fb;     /* figure color                            */
+static unsigned char  am_mf, am_tf, am_pf;   /* wall, door, dot             */
+static unsigned char  am_zshi;   /* high byte of the charset address        */
+static unsigned char *am_tab;    /* pre-shifted figure data                 */
+static unsigned char  am_vsy;    /* vertical offset                         */
+static unsigned char  am_spn;    /* how many columns to process             */
+/* Work bytes and color tables that only the assembly part touches */
 unsigned char am_i, am_code, am_hgz, am_typ, am_farbe;
-unsigned char am_labtab[5];   /* Farbe je Feldtyp, ohne Figur */
-unsigned char am_figtab[5];   /* Farbe je Feldtyp, mit Figur  */
+unsigned char am_labtab[5];   /* color per field type, without figure */
+unsigned char am_figtab[5];   /* color per field type, with figure    */
 
 /*
- * Malt drei nebeneinanderliegende Zellen.
+ * Fits the figure vertically: three columns of 24 pixel rows, the shape
+ * starting at row am_vsy.
  *
- * Der Zeichensatz liegt auf einer 2-KB-Grenze. Dadurch laesst sich
- * "Zeichensatz + Code * 8" ohne 16-Bit-Rechnung bilden: das niedrige Byte
- * ist Code*8, das hohe Byte ist Zeichensatz-Hochbyte + Code/32.
- *
- * Zeropage: ptr1 Quelle, ptr2 Labyrinthzeichen, ptr3 Bildschirm,
- *           ptr4 Feldtypen, tmp1/tmp2 Hintergrundglyphe,
- *           tmp3/tmp4 Farbspeicher, sreg Zielglyphe.
- */
-/*
- * Malt drei nebeneinanderliegende Zellen.
- *
- * Der Zeichensatz liegt auf einer 2-KB-Grenze. Dadurch laesst sich
- * "Zeichensatz + Code * 8" ohne 16-Bit-Rechnung bilden: das niedrige Byte
- * ist Code*8, das hohe Byte ist Zeichensatz-Hochbyte + Code/32.
- *
- * Die Farben kommen aus zwei kleinen Tabellen, damit der Assemblerteil ohne
- * Verzweigungen auskommt - cc65 wirft naemlich Sprungmarken weg, die nur von
- * unbedingten Spruengen angesprungen werden.
- *
- * Zeropage: ptr1 Quelle, ptr2 Labyrinthzeichen, ptr3 Bildschirm,
- *           ptr4 Feldtypen, tmp1/tmp2 Hintergrundglyphe,
- *           tmp3/tmp4 Farbspeicher, sreg Zielglyphe.
- */
-/*
- * Passt die Figur senkrecht ein: drei Spalten zu 24 Punktzeilen, die Form
- * beginnt in Zeile am_vsy.
- *
- * Frueher standen hier memset() und memcpy(). Die sind bei cc65 fuer so
- * kleine Mengen sehr teuer - rund 700 Takte je Aufruf, und es sind dreissig
- * Aufrufe je Bild. Von Hand geschrieben kostet das Ganze einen Bruchteil.
+ * This used to be memset() and memcpy(). With cc65 those are very expensive
+ * for such small amounts - around 700 cycles per call, and there are thirty
+ * calls per frame. Written out by hand the whole thing costs a fraction.
  */
 static void spalten_fuellen(void)
 {
     __asm__(
     "lda _am_tab\n"    "sta ptr1\n"
     "lda _am_tab+1\n"  "sta ptr1+1\n"
-    ";  alle 32 Byte loeschen\n"
+    ";  clear all 32 bytes\n"
     "lda #$00\n"
     "ldy #$1F\n"
     "sfclr:\n"
     "sta _spalte,y\n"
     "dey\n"
     "bpl sfclr\n"
-    ";  drei Spalten zu 16 Byte an die richtige Stelle kopieren\n"
+    ";  copy three columns of 16 bytes into place\n"
     "lda _am_vsy\n"
     "sta tmp1\n"
     "ldx #$02\n"
@@ -670,7 +641,7 @@ static void spalten_fuellen(void)
     "iny\n"
     "cpy #$08\n"
     "bcc sfcp\n"
-    ";  naechste Spalte: Quelle 8 weiter, Ziel 16 weiter\n"
+    ";  next column: source +8, target +16\n"
     "lda ptr1\n"
     "clc\n"
     "adc #$08\n"
@@ -687,6 +658,21 @@ static void spalten_fuellen(void)
     );
 }
 
+/*
+ * Draws three adjacent cells.
+ *
+ * The character set sits on a 2 KB boundary. That allows "charset + code * 8"
+ * to be formed without 16-bit arithmetic: the low byte is code*8, the high
+ * byte is the charset high byte + code/32.
+ *
+ * The colors come from two small tables so that the assembly part needs no
+ * branches - cc65 throws away labels that are only reached by unconditional
+ * jumps.
+ *
+ * Zero page: ptr1 source, ptr2 maze characters, ptr3 screen,
+ *            ptr4 field types, tmp1/tmp2 background glyph,
+ *            tmp3/tmp4 color memory, sreg target glyph.
+ */
 static void zeile_malen(void)
 {
     __asm__(
@@ -704,7 +690,7 @@ static void zeile_malen(void)
 
     "zmlp:\n"
     "ldy _am_i\n"
-    ";  Vorgabe: einfach das Labyrinth zeigen\n"
+    ";  default: just show the maze\n"
     "lda (ptr2),y\n"
     "sta _am_code\n"
     "lda (ptr4),y\n"
@@ -713,7 +699,7 @@ static void zeile_malen(void)
     "lda _am_labtab,x\n"
     "sta _am_farbe\n"
 
-    ";  liegen hier Punkte der Figur?\n"
+    ";  any figure pixels here?\n"
     "lda _am_use,y\n"
     "beq zmfertig\n"
 
@@ -728,7 +714,7 @@ static void zeile_malen(void)
     "lda _am_neu\n"
     "beq zmfertig\n"
 
-    ";  Zieladresse = Zeichensatz + Code*8\n"
+    ";  target address = charset + code*8\n"
     "lda _am_code\n"
     "asl a\n" "asl a\n" "asl a\n"
     "sta sreg\n"
@@ -738,7 +724,7 @@ static void zeile_malen(void)
     "adc _am_zshi\n"
     "sta sreg+1\n"
 
-    ";  Adresse der Hintergrundglyphe\n"
+    ";  address of the background glyph\n"
     "ldy _am_i\n"
     "lda (ptr2),y\n"
     "sta _am_hgz\n"
@@ -750,7 +736,7 @@ static void zeile_malen(void)
     "adc _am_zshi\n"
     "sta tmp2\n"
 
-    ";  acht Punktzeilen mischen: Figur ueber Labyrinth\n"
+    ";  merge eight pixel rows: figure over maze\n"
     "ldy #$07\n"
     "zmmix:\n"
     "lda (ptr1),y\n"
@@ -766,7 +752,7 @@ static void zeile_malen(void)
     "lda _am_farbe\n"
     "sta (tmp3),y\n"
 
-    ";  Quelle auf die naechste Spalte: 16 Byte weiter\n"
+    ";  source to the next column: 16 bytes on\n"
     "lda ptr1\n"
     "clc\n"
     "adc #$10\n"
@@ -789,8 +775,8 @@ static void figur_malen(Figur *f, unsigned char nr)
     static unsigned      bo, pos;
 
     /*
-     * Hat sich weder Position noch Form geaendert, stimmen die Punktmuster
-     * in den neun Zeichen noch - dann entfaellt das Mischen.
+     * If neither position nor shape has changed, the pixel patterns in the
+     * nine characters are still correct - then the merge is skipped.
      */
     neu = (unsigned char)(f->cx != f->alt_cx || f->cy != f->alt_cy
                           || f->form != f->alt_form);
@@ -804,10 +790,10 @@ static void figur_malen(Figur *f, unsigned char nr)
     }
 
     /*
-     * Die Figur ist genau acht Punkte gross und fuellt damit eine Kachel.
-     * Quer zur Laufrichtung sitzt sie deckungsgleich auf ihrer Kachel, laengs
-     * ragt sie je nach Versatz in die naechste. Ohne Versatz ist also nur
-     * eine Zelle betroffen, sonst zwei.
+     * The figure is exactly eight pixels big and thus fills one tile. Across
+     * its direction of travel it sits flush on its tile, along it the figure
+     * reaches into the next one depending on the offset. Without an offset
+     * only one cell is affected, otherwise two.
      */
     sp_von = 0;
     sp_bis = (unsigned char)(f->vsx ? 1 : 0);
@@ -827,18 +813,18 @@ static void figur_malen(Figur *f, unsigned char nr)
     am_figtab[F_LEER]  = am_fb;
     am_figtab[F_PUNKT] = am_fb;
     am_figtab[F_PILLE] = am_fb;
-    am_figtab[F_MAUER] = mauerfarbe;   /* Mauer behaelt ihre Farbe */
+    am_figtab[F_MAUER] = mauerfarbe;   /* wall keeps its color     */
     am_figtab[F_TUER]  = am_fb;
 
     /*
-     * Quer zur Laufrichtung sitzt die Figur genau auf ihrer Kachel. Die
-     * zweite Zeile bzw. Spalte ist dann leer und muss nur angefasst werden,
-     * wenn sie im letzten Bild noch belegt war - sonst gar nicht.
+     * Across its direction of travel the figure sits exactly on its tile. The
+     * second row or column is then empty and only needs to be touched if it
+     * was still in use on the last frame - otherwise not at all.
      */
     am_spn = (unsigned char)((sp_bis || f->alt_sb) ? 2 : 1);
 
     if (sp0 <= KB - 2) {
-        /* Regelfall: die beiden Spalten liegen nebeneinander. */
+        /* Normal case: the two columns lie next to each other. */
         for (j = 0; j < 2; ++j) {
             if (j == 1 && ze_bis == 0 && f->alt_zb == 0) break;
             my = (unsigned char)(f->neu_ze + j);
@@ -861,7 +847,7 @@ static void figur_malen(Figur *f, unsigned char nr)
             z = (unsigned char)(z + 2);
         }
     } else {
-        /* Am Tunnelrand laufen die Spalten um - selten, daher in C. */
+        /* At the tunnel edge the columns wrap - rare, hence in C. */
         for (j = 0; j < 2; ++j) {
             my = (unsigned char)(f->neu_ze + j);
             if (my < KH) {
@@ -918,7 +904,7 @@ static void alle_zeichnen(void)
 }
 
 /* ======================================================================
- * 7. Bewegung und Geister-KI
+ * 7. Movement and ghost AI
  * ==================================================================== */
 
 static unsigned int  angst_rest;
@@ -931,7 +917,7 @@ static unsigned char pac_anim;
 #define KX(f) ((unsigned char)((f)->cx >> 3))
 #define KY(f) ((unsigned char)((f)->cy >> 3))
 
-/* Ist die Nachbarkachel in Richtung r begehbar? */
+/* Is the neighbouring tile in direction r walkable? */
 static unsigned char frei(unsigned char kx, unsigned char ky,
                           unsigned char r, unsigned char tuer)
 {
@@ -1034,22 +1020,22 @@ static void ziel_bestimmen(unsigned char i)
 
     vx = KX(PAC); vy = KY(PAC);
     switch (i) {
-    case 1:                                  /* Blinky jagt direkt */
+    case 1:                                  /* Blinky chases directly */
         g->zielx = vx; g->ziely = vy;
         break;
-    case 2:                                  /* Pinky zielt vier Felder voraus */
+    case 2:                                  /* Pinky aims four tiles ahead    */
         zx = (signed int)vx + 4 * (PAC->r == R_RECHTS) - 4 * (PAC->r == R_LINKS);
         zy = (signed int)vy + 4 * (PAC->r == R_UNTEN)  - 4 * (PAC->r == R_OBEN);
         g->zielx = (unsigned char)(zx < 0 ? 0 : (zx >= KB ? KB - 1 : zx));
         g->ziely = (unsigned char)(zy < 0 ? 0 : (zy >= KH ? KH - 1 : zy));
         break;
-    case 3:                                  /* Inky spiegelt Blinky an Pac-Man */
+    case 3:                                  /* Inky mirrors Blinky through Pac-Man */
         zx = 2 * (signed int)vx - (signed int)KX(&fig[1]);
         zy = 2 * (signed int)vy - (signed int)KY(&fig[1]);
         g->zielx = (unsigned char)(zx < 0 ? 0 : (zx >= KB ? KB - 1 : zx));
         g->ziely = (unsigned char)(zy < 0 ? 0 : (zy >= KH ? KH - 1 : zy));
         break;
-    default:                                 /* Clyde kneift aus der Naehe */
+    default:                                 /* Clyde backs off up close   */
         ax = (unsigned char)(KX(g) > vx ? KX(g) - vx : vx - KX(g));
         ay = (unsigned char)(KY(g) > vy ? KY(g) - vy : vy - KY(g));
         if ((unsigned)ax + ay > 8) { g->zielx = vx; g->ziely = vy; }
@@ -1058,8 +1044,8 @@ static void ziel_bestimmen(unsigned char i)
     }
 }
 
-/* Waehlt die Richtung, die dem Ziel am naechsten kommt. Umkehren ist
-   verboten; bei Gleichstand gewinnt oben vor links vor unten vor rechts. */
+/* Picks the direction that gets closest to the target. Reversing is not
+   allowed; on a tie up wins over left over down over right. */
 static unsigned char richtung_waehlen(unsigned char i)
 {
     Figur *g = &fig[i];
@@ -1097,7 +1083,7 @@ static void geist_bewegen(unsigned char i)
     Figur *g = &fig[i];
     unsigned char kx, ky;
 
-    /* Tempo je nach Zustand */
+    /* Speed depending on state */
     if (g->zustand == G_ANGST)      g->tempo = 38;
     else if (g->zustand == G_AUGEN) g->tempo = 140;
     else g->tempo = (unsigned char)(level < 6 ? 57 + level * 5 : 82);
@@ -1114,7 +1100,7 @@ static void geist_bewegen(unsigned char i)
         kx = KX(g); ky = KY(g);
 
         if (g->zustand == G_RAUS) {
-            /* Fester Weg aus dem Haus: erst unter die Tuer, dann hinauf. */
+            /* Fixed path out of the house: first under the door, then up. */
             if (!MITTIG(g)) { pixel_schritt(g); continue; }
             if (kx < TUERX)      g->r = R_RECHTS;
             else if (kx > TUERX) g->r = R_LINKS;
@@ -1144,11 +1130,11 @@ static void geist_bewegen(unsigned char i)
         pixel_schritt(g);
     }
 
-    /* Aussehen nach Zustand. Bewusst als Verzweigung und nicht als
-       verschachtelter Bedingungsausdruck - cc65 wertet den falsch aus. */
+    /* Appearance by state. Deliberately written as an if-chain and not as a
+       nested conditional expression - cc65 evaluates that one wrongly. */
     if (g->zustand == G_ANGST) {
         g->form = FORM_ANGST;
-        /* Kurz vor Ablauf der Kraftpille blinkt der Geist weiss. */
+        /* Shortly before the power pill runs out the ghost blinks white. */
         g->farbe = (unsigned char)((angst_rest < 80 && (angst_rest & 8))
                                    ? C_WEISS : C_ANGST);
     } else if (g->zustand == G_AUGEN || g->zustand == G_REIN) {
@@ -1160,7 +1146,7 @@ static void geist_bewegen(unsigned char i)
     }
 }
 
-/* Beruehrung pruefen. Rueckgabe 1 = Pac-Man ist tot. */
+/* Check for contact. Return value 1 = Pac-Man is dead. */
 static unsigned char beruehrung(void)
 {
     unsigned char i, ax, ay;
@@ -1171,7 +1157,7 @@ static unsigned char beruehrung(void)
     for (i = 1; i < 5; ++i) {
         g = &fig[i];
         d = (g->cx > px) ? (g->cx - px) : (px - g->cx);
-        if (d > KB * 4) d = KB * 8 - d;            /* ueber den Tunnel */
+        if (d > KB * 4) d = KB * 8 - d;            /* across the tunnel */
         ax = (unsigned char)d;
         ay = (unsigned char)(g->cy > py ? g->cy - py : py - g->cy);
         if (ax >= 7 || ay >= 7) continue;
@@ -1191,7 +1177,7 @@ static unsigned char beruehrung(void)
 }
 
 /* ======================================================================
- * 8. Anzeige und Spielablauf
+ * 8. Display and game flow
  * ==================================================================== */
 
 static void zeichen_setzen(unsigned char sx, unsigned char sy,
@@ -1203,9 +1189,10 @@ static void zeichen_setzen(unsigned char sx, unsigned char sy,
 }
 
 /*
- * cc65 uebersetzt Zeichenliterale fuer CBM-Ziele nach PETSCII: aus 'A' wird
- * 193, nicht 65. Darum wird relativ zu 'a' bzw. 'A' gerechnet - das stimmt in
- * beiden Zeichensaetzen. Mit festen 64 bzw. 96 landet man 128 zu hoch.
+ * For CBM targets cc65 translates character literals to PETSCII: 'A' becomes
+ * 193, not 65. That is why this computes relative to 'a' resp. 'A' - which is
+ * correct in both character sets. With a fixed 64 or 96 everything would land
+ * 128 too high.
  */
 static void text_zeigen(unsigned char sx, unsigned char sy,
                         const char *s, unsigned char f)
@@ -1262,7 +1249,7 @@ static void figuren_setzen(void)
         fig[i].wunsch = R_LINKS;
         fig[i].acc = 0;
         fig[i].sichtbar = 0;
-        fig[i].alt_form = 255;   /* erzwingt das erste Mischen */
+        fig[i].alt_form = 255;   /* forces the first merge     */
         fig[i].alt_zb = 1;
         fig[i].alt_sb = 1;
         fig[i].wartet = (unsigned char)(i * 25);
@@ -1270,18 +1257,17 @@ static void figuren_setzen(void)
         fig[i].form = (unsigned char)(i == 0 ? FORM_ZU : FORM_GEIST);
     }
     /*
-     * Tempo in Sechzehnteln eines Punktes je Schleifendurchlauf.
+     * Speed in sixteenths of a pixel per loop pass.
      *
-     * Das Zeichnen kostet weiterhin mehr als ein Bildschirmbild, das Spiel
-     * schafft rund vierzehn Durchlaeufe je Sekunde. Die Werte sind darauf
-     * abgestimmt: 72/16 sind viereinhalb Punkte je Durchlauf, also etwa
-     * 63 Punkte je Sekunde - so schnell wie der Automat.
+     * Drawing still costs more than one screen frame, the game manages about
+     * fourteen passes per second. The values are tuned to that: 72/16 is four
+     * and a half pixels per pass, so roughly 63 pixels per second - as fast
+     * as the arcade machine.
      *
-     * Wird das Zeichnen schneller, gehoeren die Werte kleiner, damit die
-     * Bewegung feiner wird statt schneller. Die Bewegung selbst bleibt in
-     * jedem Fall korrekt: die Schleife in pac_bewegen() geht immer Punkt
-     * fuer Punkt und trifft deshalb jede Kachelmitte, egal wie gross der
-     * Schritt insgesamt ist.
+     * If drawing gets faster, the values belong lower, so that the movement
+     * becomes finer rather than faster. The movement itself stays correct
+     * either way: the loop in pac_bewegen() always goes pixel by pixel and
+     * therefore hits every tile center, no matter how big the overall step.
      */
     PAC->tempo = (unsigned char)(level < 5 ? 66 + level * 6 : 90);
     fig[0].zustand = G_JAGD;
@@ -1419,11 +1405,11 @@ static void zeichensatz_einrichten(void)
     TED_ZSATZ_A = (unsigned char)((((unsigned)zeichensatz) >> 8) & 0xFC)
                 | (TED_ZSATZ_A & 0x02);
     TED_ZSATZ_M = TED_ZSATZ_M & ~0x04;
-    /* Bit 7 schaltet die automatische Invertierung ab: erst dadurch sind die
-       Codes ab 128 eigene Zeichen und koennen als Figurvorrat dienen. */
+    /* Bit 7 turns off the automatic inversion: only that makes the codes
+       from 128 up characters of their own, usable as the figure pool. */
     TED_WAAGR = TED_WAAGR | 0x80;
 
-    /* feste Angaben fuer die Assemblerroutine */
+    /* fixed values for the assembly routine */
     am_zshi = (unsigned char)(((unsigned)zeichensatz) >> 8);
     am_tf = C_TUER;
     am_pf = C_PUNKT;

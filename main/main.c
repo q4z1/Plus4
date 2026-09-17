@@ -2,19 +2,19 @@
 #include <conio.h>
 
 int main(void) {
-    // Bildschirm löschen (eine Funktion aus conio.h)
+    // Clear the screen (a function from conio.h)
     clrscr();
     
-    // Textfarbe ändern (0 = Schwarz, 1 = Weiß, etc. - je nach System)
+    // Change the text color (0 = black, 1 = white, etc. - depends on the system)
     textcolor(1); 
     
-    // Klassische Ausgabe auf dem Bildschirm
+    // Classic output on the screen
     printf("hello world!\n");
     printf("c-programmierung fuer\n");
     printf("retro-computer...\n");
     
-    // Verhindert, dass das Programm sofort beendet wird 
-    // Wartet auf einen Tastendruck
+    // Keeps the program from ending right away
+    // Waits for a key press
     cgetc(); 
     
     return 0;
