@@ -1,0 +1,9 @@
+{
+    "name": "main",
+    "description": "Commodore Plus/4 Programm",
+    "toolkit": "cc65",
+    "machine": "plus4",
+    "format": "prg",
+    "main": "main.c",
+    "build": "debug"
+}

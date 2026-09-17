@@ -1,0 +1,8 @@
+# Ergebnisse der cc65-Uebersetzung
+build/
+
+# Objekt- und Programmdateien, falls cl65 sie neben der Quelle ablegt
+*.o
+*.prg
+*.map
+*.lbl

@@ -1,0 +1,14 @@
+{
+    // Dieser Ordner ist die Gesamtansicht - hier liegt bewusst KEINE
+    // project-config.json, denn VS64 kann nur ein Programm pro Workspace bauen.
+    // Gebaut und gestartet wird hier ueber F5 bzw. die Tasks, die immer die
+    // aktive .c-Datei nehmen.
+    //
+    // VS64 hat hier also nichts zu tun - autoBuild bleibt aus, damit die
+    // Extension nicht vergeblich nach einem Projekt sucht.
+    "vs64.autoBuild": false,
+    // Pfade trotzdem gesetzt, damit VS64 sie kennt, falls doch mal gebraucht.
+    "vs64.cc65InstallDir": "/home/min/.local/share/cc65-vs64",
+    "vs64.viceExecutable": "/home/min/.local/share/cc65-vs64/bin/xplus4",
+    "vs64.vicePort": "6502"
+}

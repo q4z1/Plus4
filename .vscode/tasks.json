@@ -1,0 +1,50 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // Strg+Shift+B: baut die aktive .c-Datei, ohne den Emulator zu starten.
+            "label": "Plus/4: Build (aktive Datei)",
+            "type": "shell",
+            "command": "mkdir -p build && \"$CL65\" -t plus4 -O -g -c -o \"build/${fileBasenameNoExtension}.o\" \"${fileBasename}\" && \"$CL65\" -t plus4 -o \"build/${fileBasenameNoExtension}.prg\" \"build/${fileBasenameNoExtension}.o\"",
+            "options": {
+                // Im Ordner der Quelldatei bauen, damit das Ergebnis in
+                // <programm>/build/ landet.
+                "cwd": "${fileDirname}",
+                "env": {
+                    "CL65": "/home/min/.local/share/cc65-vs64/bin/cl65"
+                }
+            },
+            "problemMatcher": {
+                "owner": "cc65",
+                "fileLocation": [
+                    "autoDetect",
+                    "${fileDirname}"
+                ],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s+(Error|Warning):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "message": 4
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            // Wie F5, nur als Task - baut die aktive .c-Datei und startet VICE.
+            "label": "Plus/4: Build & Run (aktive Datei)",
+            "type": "shell",
+            "command": "${workspaceFolder}/.vscode/run-current.sh",
+            "args": [
+                "${file}"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

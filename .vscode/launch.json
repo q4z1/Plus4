@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // F5: baut die gerade im Editor aktive .c-Datei und startet sie in VICE.
+            //
+            // Der Typ "node-terminal" ist hier nur das Vehikel, um per F5 einen
+            // Befehl auszufuehren - es ist kein JavaScript im Spiel. VS64s eigener
+            // Debugger kommt bewusst nicht zum Einsatz: er laedt immer das in
+            // project-config.json eingetragene Programm und kann der aktiven Datei
+            // nicht folgen.
+            //
+            // Quellcode-Debugging mit Breakpoints gibt es, wenn der jeweilige
+            // Programmordner (main/ oder pacman/) direkt als Ordner geoeffnet wird -
+            // dort greift dann dessen eigene launch.json.
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Plus/4: Aktive .c-Datei bauen & starten",
+            "command": "${workspaceFolder}/.vscode/run-current.sh '${file}'",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

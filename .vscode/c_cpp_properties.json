@@ -1,0 +1,24 @@
+{
+    // IntelliSense fuer den Blick auf den Gesamtordner (main/ und pacman/).
+    //
+    // Diese Datei ist handgeschrieben. Wird ein Programmordner direkt geoeffnet,
+    // erzeugt VS64 dort seine eigene c_cpp_properties.json mit den Angaben aus
+    // dessen project-config.json.
+    "configurations": [
+        {
+            "name": "Plus/4 (cc65)",
+            "cStandard": "c99",
+            "intelliSenseMode": "linux-gcc-x64",
+            "includePath": [
+                // cc65-Header des Hosts, ueber das Shim-Prefix erreichbar.
+                "/home/min/.local/share/cc65-vs64/include",
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "__CC65__",
+                "__PLUS4__"
+            ]
+        }
+    ],
+    "version": 4
+}
