@@ -14,6 +14,7 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 | --- | --- |
 | [main/](main/) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
 | [pacman/](pacman/) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
+| [pokerth/](pokerth/) | Work in progress: a [PokerTH](https://github.com/pokerth/pokerth) client. TLS, protobuf and authentication are handled by a proxy on a PC, which hands the Plus/4 a protocol small enough to parse in 6502. Logging in and watching a lobby works; the Plus/4 end is next. |
 
 ### Why Pac-Man is the interesting one
 
