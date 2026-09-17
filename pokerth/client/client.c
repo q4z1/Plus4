@@ -71,6 +71,18 @@
 #define GAME_STARTED  0x02
 #define GAME_RANKING  0x04
 
+/*
+ * Key repeat, off.
+ *
+ * The 264 KERNAL repeats every key rather than just the cursor keys, and
+ * fast enough that an ordinary press arrives as "hhhhhhhh". RPTFLG is at
+ * $0540 with the same meaning as on the C64: $80 repeats everything, $40
+ * repeats nothing, $00 repeats only the cursor keys, space and delete. The
+ * old value goes back on the way out - it belongs to whatever runs next.
+ */
+#define RPTFLG      (*(unsigned char *)0x0540)
+#define RPTFLG_NONE 0x40
+
 /* --------------------------------------------------------------- screen */
 
 #define SCREEN_W      40
@@ -655,6 +667,7 @@ int main(void)
 {
     unsigned char byte;
     unsigned char err;
+    unsigned char saved_repeat;
 
     clrscr();
     bordercolor(COLOR_BLACK);
@@ -670,6 +683,9 @@ int main(void)
         put_uint(put_text(0, 0, "cannot open the port, error ", 0), 0, err, 1, 0);
         return 1;
     }
+
+    saved_repeat = RPTFLG;
+    RPTFLG = RPTFLG_NONE;
 
     clear_row(1, 0);
     clear_row(ROW_GAMES + GAME_ROWS + 1, 0);
@@ -706,6 +722,7 @@ int main(void)
 
     out_frame(U_BYE, 0);
     out_pump();
+    RPTFLG = saved_repeat;
     ser_close();
     ser_uninstall();
     clrscr();

@@ -152,15 +152,22 @@ cell by cell at `$0C00`, the way [pacman/](../pacman/) does it.
 
 ### Where this stands
 
-Not reliably, is the honest answer. The run above is one of several, and the
-others stop partway: the snapshot arrives with bytes missing and the frames
-slip out of step, which shows up as an acknowledgement of 5 bytes for records
-that are 4, 2 and 12 bytes long. The receive window is the obvious suspect
-and is not the culprit - 16 behaves no better than 32.
+It works, played by hand: a chat line from another player read on the Plus/4
+and answered from it, at a real machine's speed. Both directions of the chat
+have been through a real server.
 
-What is worth following next is the last measurement rather than another
-guess. Attaching the monitor mid-run puts the CPU inside `out_pump`, the loop
-that hands the outgoing frame to the driver:
+The automated test harness is a different story, and the difference is
+probably the harness. It drives VICE in warp mode, where emulated time runs
+far ahead of the wall clock the proxy writes on, and there the snapshot often
+arrives with bytes missing and the frames slip out of step - visible as an
+acknowledgement of 5 bytes for records that are 4, 2 and 12 bytes long. The
+receive window is not the cause: 16 behaves no better than 32.
+
+So the open question is narrower than it looked: does the loss happen at real
+speed at all, or only when the emulator is running eight times too fast for
+the socket feeding it? Worth settling before anything is tuned, because the
+one measurement taken mid-run - the CPU inside `out_pump`, the loop that
+hands an outgoing frame to the driver - came from a warp run too.
 
 ```
 .C:1124  AD A8 27    LDA $27A8     ; out_pos
@@ -168,12 +175,9 @@ that hands the outgoing frame to the driver:
 .C:112a  90 E8       BCC $1114
 ```
 
-That loop cannot spin on its own - `ser_put` either takes the byte or reports
-an overflow - so either it is being re-entered, or `ser_put` is not returning
-what the loop thinks it is when the driver has stopped itself. The driver
-stops transmission while its receive buffer is low, which is the same
-mechanism that deadlocked the echo program twice in stage 3, and this client
-sends its acknowledgements through exactly that path.
+Key repeat is dealt with: the 264 KERNAL repeats every key, fast enough that
+one press arrives as "hhhhhhhh", so the client turns RPTFLG off while it runs
+and puts it back on the way out.
 
 ## What the wire turned out to be
 
