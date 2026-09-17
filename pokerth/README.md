@@ -42,7 +42,7 @@ Each stage is meant to work on its own before the next one starts.
 | 1 | `proxy/lobbywatch.py` — log in as guest or with an account, show the lobby and chat on a PC terminal | **done** |
 | 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
 | 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
-| 4 | Plus/4: lobby list and chat | |
+| 4 | [Plus/4: the lobby itself](client/client.c) | draws a live lobby, but not yet reliably |
 | 5 | Plus/4: table rendering, playing a hand | |
 | 6 | Real hardware over a serial WiFi modem | |
 
@@ -120,6 +120,60 @@ ACIA connected to a socket:
 xplus4 -acia -myaciadev 0 -rsdev1 127.0.0.1:6400 -rsdev1ip232 \
        -autostart echo/build/echo.prg
 ```
+
+## Stage 4: the lobby on the machine
+
+[client/client.c](client/client.c) is the client proper: the game list, who
+is online, the chat, and a line to type into, on a 40x25 screen in about 6 KB.
+Start the proxy, then the emulator:
+
+```sh
+../proxy/proxy.py --login --ip232
+./run.sh
+```
+
+It has shown a live lobby - the game "Alien" on pthsrv.pokerth.net, a ranking
+game with one of ten seats taken, logged in as akali - with credit flowing
+back frame for frame:
+
+```
+in   U_ACK {'consumed': 21}    out  D_HELLO 21 bytes
+in   U_ACK {'consumed': 21}    out  D_STATE 21 bytes
+in   U_ACK {'consumed': 4}     out  D_PLAYERS 4 bytes
+in   U_ACK {'consumed': 2}     out  D_GAME_CLEAR 2 bytes
+in   U_ACK {'consumed': 12}    out  D_GAME_ADD 12 bytes  "Alien"
+```
+
+Two things had to go to get that far. cc65's `cprintf` was found with the
+monitor wedged in its division loop at `$23D7`, so numbers are formatted by
+hand now. And `conio` went with it: the KERNAL is a poor neighbour for a
+program whose serial driver runs off the interrupt, so the screen is written
+cell by cell at `$0C00`, the way [pacman/](../pacman/) does it.
+
+### Where this stands
+
+Not reliably, is the honest answer. The run above is one of several, and the
+others stop partway: the snapshot arrives with bytes missing and the frames
+slip out of step, which shows up as an acknowledgement of 5 bytes for records
+that are 4, 2 and 12 bytes long. The receive window is the obvious suspect
+and is not the culprit - 16 behaves no better than 32.
+
+What is worth following next is the last measurement rather than another
+guess. Attaching the monitor mid-run puts the CPU inside `out_pump`, the loop
+that hands the outgoing frame to the driver:
+
+```
+.C:1124  AD A8 27    LDA $27A8     ; out_pos
+.C:1127  CD A7 27    CMP $27A7     ; out_len
+.C:112a  90 E8       BCC $1114
+```
+
+That loop cannot spin on its own - `ser_put` either takes the byte or reports
+an overflow - so either it is being re-entered, or `ser_put` is not returning
+what the loop thinks it is when the driver has stopped itself. The driver
+stops transmission while its receive buffer is low, which is the same
+mechanism that deadlocked the echo program twice in stage 3, and this client
+sends its acknowledgements through exactly that path.
 
 ## What the wire turned out to be
 

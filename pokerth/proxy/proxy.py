@@ -220,7 +220,7 @@ class Bridge(LobbyState):
             log("p4", f"ignored: {e}")
             return
 
-        if self.verbose and record["kind"] != "ack":
+        if self.verbose:
             log("in", f"{p4wire.type_name(kind)} {record}")
 
         what = record["kind"]
