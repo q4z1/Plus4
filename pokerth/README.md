@@ -43,7 +43,7 @@ Each stage is meant to work on its own before the next one starts.
 | 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
 | 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
 | 4 | [Plus/4: the lobby itself](client/client.c) | draws a live lobby, but not yet reliably |
-| 5 | Plus/4: table rendering, playing a hand | |
+| 5 | Table play: [the records](protocol.md), the proxy side, [a hand on demand](proxy/handcheck.py) | the proxy plays; the screen is next |
 | 6 | Real hardware over a serial WiFi modem | |
 
 ## Stage 1: the lobby on a terminal
@@ -178,6 +178,34 @@ hands an outgoing frame to the driver - came from a warp run too.
 Key repeat is dealt with: the 264 KERNAL repeats every key, fast enough that
 one press arrives as "hhhhhhhh", so the client turns RPTFLG off while it runs
 and puts it back on the way out.
+
+## Stage 5: a hand
+
+The records for a table are in [protocol.md](protocol.md) and the proxy
+speaks them: it turns player ids into seat numbers, keeps the pot the server
+never states, works out which actions would be accepted, and decrypts the two
+cards that arrive encrypted because we logged in with an account.
+
+A hand needs a table with people at it, which is the one thing that cannot be
+arranged on demand, so [proxy/handcheck.py](proxy/handcheck.py) builds one
+and shows what the Plus/4 would receive:
+
+```
+D_TABLE     game 1, 10 seats, I am in seat 0, 'Ranking Game'
+D_HAND      hand 1, dealer in seat 0, small blind 50, my cards 2s As
+D_SEAT_BET  seat 1 flags 0x01 money 9900 bet 100
+D_POT       150
+D_TURN      seat 0, round 0
+D_ASK       fold, call, raise, all in; 50 to call, 100 minimum raise, 9950 left
+D_BOARD     2d 2h Ac
+D_RESULT    seat 0 shows 2s As, won 200, has 10100
+```
+
+`D_ASK` is the record that keeps the Plus/4 out of the poker business: the
+server says what is on the table, the proxy works out what may be done about
+it, and the machine only has to offer the choice.
+
+What is left is the screen: a table on 40x25, and the keys to act with.
 
 ## What the wire turned out to be
 

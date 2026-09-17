@@ -32,6 +32,7 @@ import socket
 import sys
 from collections import deque
 
+import cards
 import ip232
 import p4wire
 import pokerth_link as L
@@ -159,6 +160,13 @@ class Bridge(LobbyState):
             self._game_of[wire] = game_id
         return self._wire_of[game_id]
 
+    def wire_id_for(self, game_id: int) -> int:
+        """LobbyState asks this when it needs the downstream number."""
+        return self.wire_id(game_id)
+
+    def game_id_of(self, wire: int) -> int | None:
+        return self._game_of.get(wire)
+
     def forget_game(self, game_id: int) -> int:
         wire = self.wire_id(game_id)
         self._wire_of.pop(game_id, None)
@@ -211,6 +219,66 @@ class Bridge(LobbyState):
         elif name == "players_online":
             self.to_plus4(p4wire.players_online(d["count"]))
 
+        # -- at a table --
+
+        elif name == "table_joined":
+            table = d["table"]
+            self.to_plus4(table.table_frame())
+            self.to_plus4(p4wire.state(p4wire.STATE_TABLE, table.name))
+            log("p4", f"sat down at {table.name} (game {table.game_id})")
+        elif name in ("table_seated", "table_seat_changed"):
+            # The seats are handed out after the acknowledgement, so the
+            # table record is sent again: until now it could not say which
+            # seat is ours, and that is what the screen is drawn around.
+            self.to_plus4(d["table"].table_frame())
+            for frame in d["table"].seat_frames(self.name_of):
+                self.to_plus4(frame)
+        elif name == "hand_started":
+            table = d["table"]
+            self.to_plus4(p4wire.hand(table.hand_number,
+                                      table.seat_of(table.dealer),
+                                      d["small_blind"],
+                                      table.my_cards[0], table.my_cards[1]))
+            for frame in table.seat_frames(self.name_of):
+                self.to_plus4(frame)
+            self.to_plus4(p4wire.board([]))
+            self.to_plus4(p4wire.pot(0))
+        elif name == "turn":
+            table = d["table"]
+            self.to_plus4(p4wire.turn(table.seat_of(d["player_id"]),
+                                      table.betting_round))
+            if d["mine"]:
+                self.to_plus4(p4wire.ask(*table.what_may_i_do()))
+        elif name == "action_done":
+            table = d["table"]
+            if d["seat"] is not None:
+                self.to_plus4(table.seat_bet_frame(d["seat"]))
+            self.to_plus4(p4wire.pot(table.pot))
+        elif name == "board":
+            self.to_plus4(p4wire.board(d["table"].board))
+        elif name in ("hand_over", "cards_shown"):
+            table = d["table"]
+            if table is None:
+                return
+            won = {r.playerId: r.moneyWon for r in d.get("results", [])}
+            for seat in table.seats:
+                if seat.player_id and seat.cards[0] != cards.CARD_NONE:
+                    self.to_plus4(p4wire.result(seat.number, seat.cards[0],
+                                                seat.cards[1],
+                                                won.get(seat.player_id, 0),
+                                                seat.money))
+        elif name == "table_ended":
+            self.to_plus4(p4wire.table_end(d["reason"]))
+            self.to_plus4(p4wire.state(p4wire.STATE_LOBBY,
+                                       f"logged in as {self.user}"))
+        elif name == "table_failed":
+            self.to_plus4(p4wire.notice("cannot join that game"))
+        elif name == "action_rejected":
+            self.to_plus4(p4wire.notice("the server refused that move"))
+        elif name == "cards_unreadable":
+            log("p4", f"hole cards: {d['reason']}")
+            self.to_plus4(p4wire.notice("cannot read my own cards"))
+
     # -- records from the Plus/4 --
 
     def from_plus4(self, kind: int, payload: bytes) -> None:
@@ -245,10 +313,19 @@ class Bridge(LobbyState):
             chat.chatText = record["text"]
             self.link.send(msg)
             log("p4", f"chat: {record['text']}")
-        elif what in ("join", "leave", "action"):
-            # Sitting down at a table is the stage after this one.
-            self.to_plus4(p4wire.notice(f"{what} is not implemented yet"))
-            log("p4", f"{what} requested, not implemented yet")
+        elif what == "join":
+            game_id = self.game_id_of(record["game_id"])
+            if game_id is None:
+                self.to_plus4(p4wire.notice("no such game"))
+            else:
+                log("p4", f"joining game {game_id}")
+                self.join_game(game_id)
+        elif what == "leave":
+            log("p4", "leaving the table")
+            self.leave_game()
+        elif what == "action":
+            log("p4", f"action {record['action']} for {record['amount']}")
+            self.act(record["action"], record["amount"])
         elif what == "bye":
             log("p4", "the Plus/4 said goodbye")
             raise ConnectionResetError
@@ -282,6 +359,9 @@ def main(argv=None) -> int:
     try:
         link, announce, ack, user = connect_and_login(args)
         bridge = Bridge(link, user, args.server, verbose=args.verbose)
+        if args.login:
+            # Our own hole cards come encrypted with this; see cards.py.
+            bridge.password = L.read_credentials(args.credentials)[1]
         bridge.me = ack.yourPlayerId
         bridge.players[ack.yourPlayerId] = user
         bridge.players_online = announce.numPlayersOnServer

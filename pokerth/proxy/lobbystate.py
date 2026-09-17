@@ -14,8 +14,11 @@ never showed, there is one place to add it.
 
 from __future__ import annotations
 
+import cards
+import p4wire
 import pokerth_link as L
 from pokerth_link import pb
+from table import Table
 
 
 class LobbyState:
@@ -27,6 +30,8 @@ class LobbyState:
         self.games: dict[int, object] = {}  # game id -> GameListNewMessage
         self.me = 0
         self.players_online = 0
+        self.password = ""          # needed to decrypt our own hole cards
+        self.table: Table | None = None
 
     # -- what subclasses implement --
 
@@ -36,6 +41,38 @@ class LobbyState:
         `name` is positional only on purpose: events carry keywords of their
         own, and a chat event has a name= of its own to pass.
         """
+
+    def wire_id_for(self, game_id: int) -> int:
+        """The small number this game is known by downstream. Overridden."""
+        return game_id & 0xFFFF
+
+    # -- sitting down and playing --
+
+    def join_game(self, game_id: int) -> None:
+        msg, join = L.make("JoinExistingGameMessage")
+        join.gameId = game_id
+        self.link.send(msg)
+
+    def leave_game(self) -> None:
+        msg, _ = L.make("LeaveGameRequestMessage")
+        self.link.send(msg)
+
+    def act(self, action: int, relative_bet: int = 0) -> None:
+        """Answer the server's invitation to act.
+
+        The bet is relative - what goes in on top of what this seat has
+        already put in - which is how pokerth_bot.cpp does it: a call is
+        highestSet minus mySet, a check or a fold is nothing.
+        """
+        if self.table is None:
+            return
+        msg, mine = L.make("MyActionRequestMessage")
+        mine.gameId = self.table.game_id
+        mine.handNum = self.table.hand_number
+        mine.gameState = self.table.betting_round
+        mine.myAction = action
+        mine.myRelativeBet = relative_bet
+        self.link.send(msg)
 
     # -- helpers --
 
@@ -142,6 +179,150 @@ class LobbyState:
 
     def on_DialogMessage(self, m) -> None:
         self.event("notice", text=m.notificationText)
+
+    # -- at a table --
+
+    def on_JoinGameAckMessage(self, m) -> None:
+        self.table = Table(m.gameId, self.wire_id_for(m.gameId), m.gameInfo,
+                           self.me, spectator=m.spectateOnly)
+        self.event("table_joined", table=self.table)
+
+    def on_JoinGameFailedMessage(self, m) -> None:
+        self.event("table_failed", game_id=m.gameId, reason=m.joinGameFailureReason)
+
+    def on_GameStartInitialMessage(self, m) -> None:
+        if self.table is None:
+            return
+        self.table.place(m.playerSeats)
+        self.table.dealer = m.startDealerPlayerId
+        self.table.started = True
+        for seat in self.table.seats:
+            if seat.player_id:
+                seat.money = self.table.info.startMoney
+        self.request_player_info(*m.playerSeats)
+        self.event("table_seated", table=self.table)
+
+    def on_GameStartRejoinMessage(self, m) -> None:
+        if self.table is None:
+            return
+        self.table.place([d.playerId for d in m.rejoinPlayerData])
+        self.table.dealer = m.startDealerPlayerId
+        self.table.hand_number = m.handNum
+        self.table.started = True
+        for data in m.rejoinPlayerData:
+            seat = self.table.seat_for(data.playerId)
+            if seat is not None:
+                seat.money = data.playerMoney
+        self.request_player_info(*[d.playerId for d in m.rejoinPlayerData])
+        self.event("table_seated", table=self.table)
+
+    def on_GamePlayerJoinedMessage(self, m) -> None:
+        if self.table is None:
+            return
+        # The message says who joined, not what they brought; their money
+        # arrives with their first action.
+        self.table.take_a_seat(m.playerId)
+        self.request_player_info(m.playerId)
+        self.event("table_seat_changed", table=self.table, player_id=m.playerId)
+
+    def on_GamePlayerLeftMessage(self, m) -> None:
+        if self.table is None:
+            return
+        seat = self.table.seat_for(m.playerId)
+        if seat is not None:
+            seat.player_id = 0
+        self.event("table_seat_changed", table=self.table, player_id=m.playerId)
+
+    def on_HandStartMessage(self, m) -> None:
+        if self.table is None:
+            return
+        table = self.table
+        expected_hand = table.hand_number + 1
+        table.start_hand(expected_hand,
+                         m.dealerPlayerId if m.HasField("dealerPlayerId")
+                         else table.dealer,
+                         list(m.seatStates))
+        table.my_cards = (cards.CARD_NONE, cards.CARD_NONE)
+        if m.HasField("plainCards"):
+            table.my_cards = (m.plainCards.plainCard1, m.plainCards.plainCard2)
+        elif m.HasField("encryptedCards") and self.password:
+            try:
+                table.my_cards = cards.decrypt_hole_cards(
+                    self.password, m.encryptedCards, self.me, table.game_id,
+                    expected_hand)
+            except cards.CardError as e:
+                self.event("cards_unreadable", reason=str(e))
+        self.event("hand_started", table=table, small_blind=m.smallBlind)
+
+    def on_PlayersTurnMessage(self, m) -> None:
+        if self.table is None:
+            return
+        self.table.betting_round = m.gameState
+        self.event("turn", table=self.table, player_id=m.playerId,
+                   mine=m.playerId == self.me)
+
+    def on_PlayersActionDoneMessage(self, m) -> None:
+        if self.table is None:
+            return
+        self.table.betting_round = m.gameState
+        seat = self.table.action_done(m.playerId, m.playerAction, m.totalPlayerBet,
+                                      m.playerMoney, m.highestSet, m.minimumRaise)
+        self.event("action_done", table=self.table, seat=seat,
+                   player_id=m.playerId, action=m.playerAction)
+
+    def on_YourActionRejectedMessage(self, m) -> None:
+        self.event("action_rejected", reason=m.rejectionReason)
+
+    def on_DealFlopCardsMessage(self, m) -> None:
+        self._deal([m.flopCard1, m.flopCard2, m.flopCard3], p4wire.ROUND_FLOP)
+
+    def on_DealTurnCardMessage(self, m) -> None:
+        self._deal([m.turnCard], p4wire.ROUND_TURN)
+
+    def on_DealRiverCardMessage(self, m) -> None:
+        self._deal([m.riverCard], p4wire.ROUND_RIVER)
+
+    def _deal(self, new_cards, betting_round) -> None:
+        if self.table is None:
+            return
+        self.table.board.extend(new_cards)
+        self.table.betting_round = betting_round
+        self.event("board", table=self.table)
+
+    def on_AllInShowCardsMessage(self, m) -> None:
+        if self.table is None:
+            return
+        for shown in m.playersAllIn:
+            seat = self.table.seat_for(shown.playerId)
+            if seat is not None:
+                seat.cards = (shown.allInCard1, shown.allInCard2)
+        self.event("cards_shown", table=self.table)
+
+    def on_EndOfHandShowCardsMessage(self, m) -> None:
+        if self.table is None:
+            return
+        for outcome in m.playerResults:
+            seat = self.table.seat_for(outcome.playerId)
+            if seat is not None:
+                seat.cards = (outcome.resultCard1, outcome.resultCard2)
+                seat.money = outcome.playerMoney
+        self.event("hand_over", table=self.table, results=list(m.playerResults))
+
+    def on_EndOfHandHideCardsMessage(self, m) -> None:
+        self.event("hand_over", table=self.table, results=[])
+
+    def on_EndOfGameMessage(self, m) -> None:
+        self.event("table_ended", reason=p4wire.END_GAME_OVER)
+        self.table = None
+
+    def on_RemovedFromGameMessage(self, m) -> None:
+        reason = p4wire.END_GAME_OVER
+        if m.removedFromGameReason == pb.RemovedFromGameMessage.removedOnRequest:
+            reason = p4wire.END_LEFT
+        elif m.removedFromGameReason == pb.RemovedFromGameMessage.kickedFromGame:
+            reason = p4wire.END_KICKED
+        self.event("table_ended", reason=reason)
+        self.table = None
 
     # Avatars are of no use to a 40x25 text screen.
     def on_AvatarHeaderMessage(self, m) -> None:
