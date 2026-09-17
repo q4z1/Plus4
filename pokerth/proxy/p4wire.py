@@ -65,10 +65,21 @@ U_LEAVE = 0x84        # -
 U_ACTION = 0x85       # action(1), amount(4)   reserved for the table stage
 U_BYE = 0x8F          # -
 
-# Types 0x40..0x5F downstream and 0x86..0x8E upstream are reserved for the
-# table: seats, cards, pot, whose turn it is. They are deliberately not
-# invented here - that layout should follow the first screen that draws them,
-# not precede it.
+# The table. Money is four bytes because PokerTH counts it in 32 bits, and a
+# card is one byte holding 0..51 with CARD_NONE for one that is not known or
+# not there - see cards.py for what the number means.
+D_TABLE = 0x40        # game id(2), seats(1), my seat(1), name
+D_SEAT = 0x41         # seat(1), flags(1), money(4), name
+D_SEAT_BET = 0x42     # seat(1), flags(1), money(4), bet(4)
+D_HAND = 0x43         # hand(2), dealer seat(1), small blind(4), card(1), card(1)
+D_BOARD = 0x44        # count(1), that many cards
+D_POT = 0x45          # pot(4)
+D_TURN = 0x46         # seat(1), betting round(1)
+D_ASK = 0x47          # allowed(1), to call(4), minimum raise(4), my money(4)
+D_RESULT = 0x48       # seat(1), card(1), card(1), won(4), money(4)
+D_TABLE_END = 0x49    # reason(1)
+
+# Upstream 0x86..0x8E stays reserved.
 
 TYPE_NAMES = {value: name for name, value in list(globals().items())
               if (name.startswith(("D_", "U_")) and isinstance(value, int))}
@@ -109,6 +120,40 @@ ACTION_CALL = 3
 ACTION_BET = 4
 ACTION_RAISE = 5
 ACTION_ALLIN = 6
+
+# D_SEAT and D_SEAT_BET flags.
+SEAT_TAKEN = 0x01
+SEAT_FOLDED = 0x02
+SEAT_ALL_IN = 0x04
+SEAT_DEALER = 0x08
+SEAT_YOU = 0x10
+SEAT_SITTING_OUT = 0x20
+
+# D_ASK: which actions the server would accept, as bits in the same order as
+# the actions themselves.
+MAY_FOLD = 0x01
+MAY_CHECK = 0x02
+MAY_CALL = 0x04
+MAY_BET = 0x08
+MAY_RAISE = 0x10
+MAY_ALL_IN = 0x20
+
+# D_TURN's second byte, numbered as NetGameState in pokerth.proto.
+ROUND_PREFLOP = 0
+ROUND_FLOP = 1
+ROUND_TURN = 2
+ROUND_RIVER = 3
+ROUND_SMALL_BLIND = 4
+ROUND_BIG_BLIND = 5
+
+# D_TABLE_END.
+END_LEFT = 0
+END_GAME_OVER = 1
+END_KICKED = 2
+END_FAILED = 3
+
+# A card that is not known or not there; cards themselves are 0..51.
+CARD_NONE = 52
 
 # What the proxy cuts text down to. The screen is 40 columns, so a name that
 # survives to the far end has to be short; the limits are here rather than in
@@ -244,6 +289,59 @@ def chat(kind: int, name: str, text: str) -> bytes:
     return frame(D_CHAT, bytes((kind, len(who))) + who + said)
 
 
+# --- The table ---
+
+def table(game_id: int, seats: int, my_seat: int, name: str) -> bytes:
+    return frame(D_TABLE,
+                 struct.pack("<HBB", game_id, seats, my_seat)
+                 + petscii(name, GAME_NAME_MAX))
+
+
+def seat(number: int, flags: int, money: int, name: str) -> bytes:
+    return frame(D_SEAT,
+                 struct.pack("<BBI", number, flags, money)
+                 + petscii(name, NAME_MAX))
+
+
+def seat_bet(number: int, flags: int, money: int, bet: int) -> bytes:
+    return frame(D_SEAT_BET, struct.pack("<BBII", number, flags, money, bet))
+
+
+def hand(number: int, dealer_seat: int, small_blind: int,
+         card1: int, card2: int) -> bytes:
+    return frame(D_HAND,
+                 struct.pack("<HBIBB", number, dealer_seat, small_blind,
+                             card1, card2))
+
+
+def board(cards) -> bytes:
+    cards = list(cards)
+    if len(cards) > 5:
+        raise ProtocolError(f"a board of {len(cards)} cards")
+    return frame(D_BOARD, bytes([len(cards)]) + bytes(cards))
+
+
+def pot(amount: int) -> bytes:
+    return frame(D_POT, struct.pack("<I", amount))
+
+
+def turn(number: int, betting_round: int) -> bytes:
+    return frame(D_TURN, struct.pack("<BB", number, betting_round))
+
+
+def ask(allowed: int, to_call: int, minimum_raise: int, my_money: int) -> bytes:
+    return frame(D_ASK, struct.pack("<BIII", allowed, to_call, minimum_raise,
+                                    my_money))
+
+
+def result(number: int, card1: int, card2: int, won: int, money: int) -> bytes:
+    return frame(D_RESULT, struct.pack("<BBBII", number, card1, card2, won, money))
+
+
+def table_end(reason: int) -> bytes:
+    return frame(D_TABLE_END, bytes((reason,)))
+
+
 def players_online(count: int) -> bytes:
     return frame(D_PLAYERS, struct.pack("<H", min(count, 0xFFFF)))
 
@@ -328,6 +426,20 @@ def _selftest() -> int:
           {"kind": "join", "game_id": 4711})
     check("action", decode_upstream(U_ACTION, struct.pack("<BI", ACTION_RAISE, 200)),
           {"kind": "action", "action": ACTION_RAISE, "amount": 200})
+
+    # The table records pack and stay within a frame.
+    at_table = [table(4711, 10, 3, "Ranking Game"),
+                seat(3, SEAT_TAKEN | SEAT_YOU | SEAT_DEALER, 10000, "akali"),
+                seat_bet(3, SEAT_TAKEN | SEAT_YOU, 9900, 100),
+                hand(7, 3, 50, 26, 38),
+                board([0, 13, 51]),
+                pot(450),
+                turn(3, ROUND_FLOP),
+                ask(MAY_FOLD | MAY_CALL | MAY_RAISE, 100, 200, 9900),
+                result(3, 26, 38, 450, 10350),
+                table_end(END_GAME_OVER)]
+    check("table frames", len(FrameReader().feed(b"".join(at_table))), len(at_table))
+    check("board of none", FrameReader().feed(board([]))[0][1], b"\x00")
 
     print("\nWhat a lobby record looks like on the wire:")
     for record in whole:

@@ -25,10 +25,8 @@ resynchronise on either — if a stream is ever cut mid-frame, both ends are in
 trouble that a resync would only paper over, and the Plus/4 should be reset.
 
 The high bit of the type byte gives the direction: clear means proxy to
-Plus/4, set means Plus/4 to proxy. Types 0x40–0x5F and 0x86–0x8E are reserved
-for the table stage - seats, cards, pot, whose turn it is - and are left
-undefined on purpose, because that layout should follow the first screen that
-draws them rather than precede it.
+Plus/4, set means Plus/4 to proxy. Upstream types 0x86–0x8E are still
+reserved.
 
 Integers are little endian, which is what the 6502 wants. Text is PETSCII and
 carries no terminator; it runs to the end of the payload.
@@ -64,6 +62,49 @@ short list of short numbers, which is also what fits on its screen.
 translated: 0 lobby, 1 game, 2 bot, 3 broadcast, 4 private. The name comes
 first with its length so the Plus/4 can colour it differently without
 scanning for a separator.
+
+## Proxy → Plus/4, at a table
+
+| Type | Name | Payload |
+| --- | --- | --- |
+| 0x40 | `TABLE` | id(2), seats(1), my seat(1), name |
+| 0x41 | `SEAT` | seat(1), flags(1), money(4), name |
+| 0x42 | `SEAT_BET` | seat(1), flags(1), money(4), bet(4) |
+| 0x43 | `HAND` | number(2), dealer seat(1), small blind(4), card(1), card(1) |
+| 0x44 | `BOARD` | count(1), that many cards |
+| 0x45 | `POT` | pot(4) |
+| 0x46 | `TURN` | seat(1), betting round(1) |
+| 0x47 | `ASK` | allowed(1), to call(4), minimum raise(4), my money(4) |
+| 0x48 | `RESULT` | seat(1), card(1), card(1), won(4), money(4) |
+| 0x49 | `TABLE_END` | reason(1) |
+
+Seats, not player ids. The server speaks in ids that mean nothing on a
+screen; the proxy maps them to the seat numbers the table is drawn with, the
+same way it hands out its own game ids.
+
+`SEAT` flags: 0x01 taken, 0x02 folded, 0x04 all in, 0x08 dealer, 0x10 you,
+0x20 sitting out.
+
+`ASK` says it is your turn and what the server would accept, as bits in the
+order of the actions: 0x01 fold, 0x02 check, 0x04 call, 0x08 bet, 0x10 raise,
+0x20 all in. The three amounts are what the Plus/4 needs to offer a sensible
+choice without doing any poker arithmetic of its own.
+
+**Money is four bytes** because PokerTH counts it in 32 bits. A ranking game
+starts everyone at 10000, which would fit in two, but a stack that grows all
+evening would not, and truncating somebody's chips is not a rounding error.
+
+**A card is one byte**, 0 to 51: rank is the code modulo 13 counting 2 up to
+ace, suit is the code divided by 13 in the order diamonds, hearts, spades,
+clubs. 52 means a card that is unknown or not there. The encoding is
+PokerTH's own and crosses unchanged, so the Plus/4 needs one small table to
+draw it and no conversion at all.
+
+Hole cards take a detour worth knowing about: a player who logged in with an
+account is sent them encrypted, with a key derived from that account's
+password, so that nobody watching the connection can read them. The proxy
+decrypts them (see proxy/cards.py) and what reaches the Plus/4 in `HAND` is
+two plain card bytes.
 
 ## Plus/4 → proxy
 
