@@ -203,6 +203,8 @@ static const char PLAN[KH][KB + 1] = {
 /* Vorberechnete Zeilenanfaenge im Bildschirmspeicher. Spart in den
    Zeichenschleifen je Zelle eine 16-Bit-Multiplikation. */
 static unsigned bildzeile[KH];
+static unsigned char *zeile_zeichen_tab[KH];  /* Zeiger auf feldzeichen[my] */
+static unsigned char *zeile_feld_tab[KH];     /* Zeiger auf feld[my]        */
 
 static unsigned char feld[KH][KB];       /* was liegt auf der Kachel   */
 static unsigned char feldzeichen[KH][KB];/* welches Zeichen gehoert hin*/
@@ -243,8 +245,11 @@ static void labyrinth_aufbauen(void)
 {
     unsigned char mx, my, m, n = 0;
 
-    for (my = 0; my < KH; ++my)
+    for (my = 0; my < KH; ++my) {
         bildzeile[my] = (unsigned)(OFFY + my) * 40;
+        zeile_zeichen_tab[my] = feldzeichen[my];
+        zeile_feld_tab[my] = feld[my];
+    }
 
     restpunkte = 0;
     for (my = 0; my < KH; ++my) {
@@ -472,6 +477,14 @@ static const unsigned char GEISTFARBE[5] = {
 
 #define PAC (&fig[0])
 
+/*
+ * Quadrattabelle fuer die Geister-KI. Der Abstand zum Ziel wird als
+ * dx*dx + dy*dy gemessen; cc65 ruft fuer jede Multiplikation ein
+ * Unterprogramm auf, und bei vier Geistern an jeder Kachelmitte sind das
+ * sehr viele. Nachschlagen ist um ein Vielfaches schneller.
+ */
+static unsigned quadrat[KB];
+
 static unsigned zufallswert = 0x1234;
 
 static unsigned char zufall(void)
@@ -592,41 +605,223 @@ static void figur_freigeben(Figur *f)
 /*
  * Schritt 3: die neun Zeichen fuellen und auf den Bildschirm setzen.
  *
- * Diese Schleife laeuft 45 mal je Bild und ist damit die heisseste Stelle des
- * Programms. Sie ist bewusst umstaendlich geschrieben, weil cc65 sonst teuren
- * Code erzeugt:
+ * Das ist die heisseste Stelle des Programms - 45 Zellen in jedem Bild.
+ * In C war sie hoffnungslos langsam: cc65 rief fuer jedes feldzeichen[my]
+ * eine 16-Bit-Multiplikation auf und schob jeden Bildschirmzugriff ueber
+ * seinen Software-Stack, zusammen rund 1200 Takte je Zelle. Deshalb macht
+ * eine Assemblerroutine jetzt eine komplette Zeile aus drei Zellen am Stueck.
  *
- *   - Alle Hilfsvariablen sind static. Lokale Variablen liegen bei cc65 auf
- *     einem Software-Stack, jeder Zugriff kostet einen Unterprogrammaufruf.
- *   - Aus "Z_VORRAT + nr*9 + j*3 + i" wird ein einfaches ++z. Multiplikationen
- *     mit krummen Zahlen ruft cc65 als Unterprogramm auf.
- *   - Die Spaltenzeiger und Bildschirmspalten werden einmal je Figur
- *     ausgerechnet statt in jeder Zelle neu.
+ * Die Parameter liegen in globalen Variablen, damit der Assemblerteil sie
+ * ohne Stack erreicht.
  */
-static unsigned char *qs[3];        /* Quelle je Spalte, wandert zeilenweise */
-static unsigned char mxs[3];        /* Bildschirmspalten der Figur           */
+static unsigned char *am_q;      /* Figurdaten, Spalte 0 (naechste bei +24) */
+static unsigned char *am_hg;     /* Labyrinthzeichen der drei Spalten       */
+static unsigned char *am_fd;     /* Feldtypen der drei Spalten              */
+static unsigned char *am_bd;     /* Bildschirmzellen                        */
+static unsigned char *am_fa;     /* Farbzellen                              */
+static unsigned char  am_use[3]; /* 1 = Figur hat hier Punkte               */
+static unsigned char  am_z;      /* Zeichencode der ersten Spalte           */
+static unsigned char  am_neu;    /* 0 = Muster steht schon                  */
+static unsigned char  am_fb;     /* Figurfarbe                              */
+static unsigned char  am_mf, am_tf, am_pf;   /* Mauer, Tuer, Kruemel        */
+static unsigned char  am_zshi;   /* hohes Byte der Zeichensatzadresse       */
+static unsigned char *am_tab;    /* vorgeschobene Figurdaten                */
+static unsigned char  am_vsy;    /* senkrechter Versatz                     */
+/* Arbeitsbytes und Farbtabellen, die nur der Assemblerteil anfasst */
+unsigned char am_i, am_code, am_hgz, am_typ, am_farbe;
+unsigned char am_labtab[5];   /* Farbe je Feldtyp, ohne Figur */
+unsigned char am_figtab[5];   /* Farbe je Feldtyp, mit Figur  */
+
+/*
+ * Malt drei nebeneinanderliegende Zellen.
+ *
+ * Der Zeichensatz liegt auf einer 2-KB-Grenze. Dadurch laesst sich
+ * "Zeichensatz + Code * 8" ohne 16-Bit-Rechnung bilden: das niedrige Byte
+ * ist Code*8, das hohe Byte ist Zeichensatz-Hochbyte + Code/32.
+ *
+ * Zeropage: ptr1 Quelle, ptr2 Labyrinthzeichen, ptr3 Bildschirm,
+ *           ptr4 Feldtypen, tmp1/tmp2 Hintergrundglyphe,
+ *           tmp3/tmp4 Farbspeicher, sreg Zielglyphe.
+ */
+/*
+ * Malt drei nebeneinanderliegende Zellen.
+ *
+ * Der Zeichensatz liegt auf einer 2-KB-Grenze. Dadurch laesst sich
+ * "Zeichensatz + Code * 8" ohne 16-Bit-Rechnung bilden: das niedrige Byte
+ * ist Code*8, das hohe Byte ist Zeichensatz-Hochbyte + Code/32.
+ *
+ * Die Farben kommen aus zwei kleinen Tabellen, damit der Assemblerteil ohne
+ * Verzweigungen auskommt - cc65 wirft naemlich Sprungmarken weg, die nur von
+ * unbedingten Spruengen angesprungen werden.
+ *
+ * Zeropage: ptr1 Quelle, ptr2 Labyrinthzeichen, ptr3 Bildschirm,
+ *           ptr4 Feldtypen, tmp1/tmp2 Hintergrundglyphe,
+ *           tmp3/tmp4 Farbspeicher, sreg Zielglyphe.
+ */
+/*
+ * Passt die Figur senkrecht ein: drei Spalten zu 24 Punktzeilen, die Form
+ * beginnt in Zeile am_vsy.
+ *
+ * Frueher standen hier memset() und memcpy(). Die sind bei cc65 fuer so
+ * kleine Mengen sehr teuer - rund 700 Takte je Aufruf, und es sind dreissig
+ * Aufrufe je Bild. Von Hand geschrieben kostet das Ganze einen Bruchteil.
+ */
+static void spalten_fuellen(void)
+{
+    __asm__(
+    "lda _am_tab\n"    "sta ptr1\n"
+    "lda _am_tab+1\n"  "sta ptr1+1\n"
+    ";  alle 72 Byte loeschen\n"
+    "lda #$00\n"
+    "ldy #$47\n"
+    "sfclr:\n"
+    "sta _spalte,y\n"
+    "dey\n"
+    "bpl sfclr\n"
+    ";  drei Spalten zu 16 Byte an die richtige Stelle kopieren\n"
+    "lda _am_vsy\n"
+    "sta tmp1\n"
+    "ldx #$03\n"
+    "sfsp:\n"
+    "ldy #$00\n"
+    "sfcp:\n"
+    "lda (ptr1),y\n"
+    "sty tmp2\n"
+    "ldy tmp1\n"
+    "sta _spalte,y\n"
+    "inc tmp1\n"
+    "ldy tmp2\n"
+    "iny\n"
+    "cpy #$10\n"
+    "bcc sfcp\n"
+    ";  naechste Spalte: Quelle 16 weiter, Ziel 24 weiter\n"
+    "lda ptr1\n"
+    "clc\n"
+    "adc #$10\n"
+    "sta ptr1\n"
+    "bcc sfnc\n"
+    "inc ptr1+1\n"
+    "sfnc:\n"
+    "lda tmp1\n"
+    "clc\n"
+    "adc #$08\n"
+    "sta tmp1\n"
+    "dex\n"
+    "bne sfsp\n"
+    );
+}
+
+static void zeile_malen(void)
+{
+    __asm__(
+    "lda _am_q\n"      "sta ptr1\n"
+    "lda _am_q+1\n"    "sta ptr1+1\n"
+    "lda _am_hg\n"     "sta ptr2\n"
+    "lda _am_hg+1\n"   "sta ptr2+1\n"
+    "lda _am_bd\n"     "sta ptr3\n"
+    "lda _am_bd+1\n"   "sta ptr3+1\n"
+    "lda _am_fd\n"     "sta ptr4\n"
+    "lda _am_fd+1\n"   "sta ptr4+1\n"
+    "lda _am_fa\n"     "sta tmp3\n"
+    "lda _am_fa+1\n"   "sta tmp4\n"
+    "lda #$00\n"       "sta _am_i\n"
+
+    "zmlp:\n"
+    "ldy _am_i\n"
+    ";  Vorgabe: einfach das Labyrinth zeigen\n"
+    "lda (ptr2),y\n"
+    "sta _am_code\n"
+    "lda (ptr4),y\n"
+    "sta _am_typ\n"
+    "tax\n"
+    "lda _am_labtab,x\n"
+    "sta _am_farbe\n"
+
+    ";  liegen hier Punkte der Figur?\n"
+    "lda _am_use,y\n"
+    "beq zmfertig\n"
+
+    "lda _am_z\n"
+    "clc\n"
+    "adc _am_i\n"
+    "sta _am_code\n"
+    "ldx _am_typ\n"
+    "lda _am_figtab,x\n"
+    "sta _am_farbe\n"
+
+    "lda _am_neu\n"
+    "beq zmfertig\n"
+
+    ";  Zieladresse = Zeichensatz + Code*8\n"
+    "lda _am_code\n"
+    "asl a\n" "asl a\n" "asl a\n"
+    "sta sreg\n"
+    "lda _am_code\n"
+    "lsr a\n" "lsr a\n" "lsr a\n" "lsr a\n" "lsr a\n"
+    "clc\n"
+    "adc _am_zshi\n"
+    "sta sreg+1\n"
+
+    ";  Adresse der Hintergrundglyphe\n"
+    "ldy _am_i\n"
+    "lda (ptr2),y\n"
+    "sta _am_hgz\n"
+    "asl a\n" "asl a\n" "asl a\n"
+    "sta tmp1\n"
+    "lda _am_hgz\n"
+    "lsr a\n" "lsr a\n" "lsr a\n" "lsr a\n" "lsr a\n"
+    "clc\n"
+    "adc _am_zshi\n"
+    "sta tmp2\n"
+
+    ";  acht Punktzeilen mischen: Figur ueber Labyrinth\n"
+    "ldy #$07\n"
+    "zmmix:\n"
+    "lda (ptr1),y\n"
+    "ora (tmp1),y\n"
+    "sta (sreg),y\n"
+    "dey\n"
+    "bpl zmmix\n"
+
+    "zmfertig:\n"
+    "ldy _am_i\n"
+    "lda _am_code\n"
+    "sta (ptr3),y\n"
+    "lda _am_farbe\n"
+    "sta (tmp3),y\n"
+
+    ";  Quelle auf die naechste Spalte: 24 Byte weiter\n"
+    "lda ptr1\n"
+    "clc\n"
+    "adc #$18\n"
+    "sta ptr1\n"
+    "bcc zmnc\n"
+    "inc ptr1+1\n"
+    "zmnc:\n"
+    "inc _am_i\n"
+    "lda _am_i\n"
+    "cmp #$03\n"
+    "jcc zmlp\n"
+    );
+}
 
 static void figur_malen(Figur *f, unsigned char nr)
 {
-    static unsigned char i, j, my, z, hg, neu, farbe;
+    static unsigned char i, j, my, z, neu, sp0, mx, hg;
     static unsigned char sp_von, sp_bis, ze_von, ze_bis;
-    static unsigned char *zeile_zeichen, *zeile_feld, *tab;
-    static unsigned      zeile_bild, pos;
-    static unsigned char mx;
+    static unsigned char *zz, *zf;
+    static unsigned      bo, pos;
 
     /*
-     * Hat sich weder Position noch Form geaendert, stehen in den neun
-     * Zeichen dieser Figur noch die richtigen Punktmuster - dann muss nur
-     * neu eingepasst werden, was ohnehin schon stimmt.
+     * Hat sich weder Position noch Form geaendert, stimmen die Punktmuster
+     * in den neun Zeichen noch - dann entfaellt das Mischen.
      */
     neu = (unsigned char)(f->cx != f->alt_cx || f->cy != f->alt_cy
                           || f->form != f->alt_form);
     if (neu) {
-        tab = vorgeschoben + ((unsigned)f->form * 8 + f->vsx) * 48;
-        for (i = 0; i < 3; ++i) {
-            memset(spalte[i], 0, 24);
-            memcpy(spalte[i] + f->vsy, tab + i * 16, 16);
-        }
+        am_tab = vorgeschoben + ((unsigned)f->form * 8 + f->vsx) * 48;
+        am_vsy = f->vsy;
+        spalten_fuellen();
         f->alt_cx = f->cx;
         f->alt_cy = f->cy;
         f->alt_form = f->form;
@@ -635,64 +830,89 @@ static void figur_malen(Figur *f, unsigned char nr)
     /*
      * Alle Formen liegen in den Zeilen und Spalten 3..12 der 16x16-Schachtel.
      * Je nach Versatz beruehrt die Figur nur zwei der drei Zeilen bzw.
-     * Spalten - leere Zellen brauchen kein Mischen.
+     * Spalten - die uebrigen Zellen zeigen einfach das Labyrinth.
      */
     sp_von = (unsigned char)(f->vsx >= 5 ? 1 : 0);
     sp_bis = (unsigned char)(f->vsx <= 3 ? 1 : 2);
     ze_von = (unsigned char)(f->vsy >= 5 ? 1 : 0);
     ze_bis = (unsigned char)(f->vsy <= 3 ? 1 : 2);
 
-    for (i = 0; i < 3; ++i) {
-        mx = (unsigned char)(f->neu_sp + i);
-        if (mx >= KB) mx = (unsigned char)(mx - KB);
-        mxs[i] = mx;
-        qs[i] = spalte[i];
-    }
+    sp0 = f->neu_sp;
     z = (unsigned char)(Z_VORRAT + nr * 9);
-    farbe = f->farbe;
+    am_neu = neu;
+    am_fb = f->farbe;
+    am_mf = mauerfarbe;
+    am_labtab[F_LEER]  = C_SCHWARZ;
+    am_labtab[F_PUNKT] = C_PUNKT;
+    am_labtab[F_PILLE] = C_PUNKT;
+    am_labtab[F_MAUER] = mauerfarbe;
+    am_labtab[F_TUER]  = C_TUER;
+    am_figtab[F_LEER]  = am_fb;
+    am_figtab[F_PUNKT] = am_fb;
+    am_figtab[F_PILLE] = am_fb;
+    am_figtab[F_MAUER] = mauerfarbe;   /* Mauer behaelt ihre Farbe */
+    am_figtab[F_TUER]  = am_fb;
 
-    for (j = 0; j < 3; ++j) {
-        my = (unsigned char)(f->neu_ze + j);
-        if (my < KH) {
-            zeile_zeichen = feldzeichen[my];
-            zeile_feld    = feld[my];
-            zeile_bild    = bildzeile[my];
-
-            for (i = 0; i < 3; ++i) {
-                mx = mxs[i];
-                pos = zeile_bild + mx;
-
-                if (j < ze_von || j > ze_bis || i < sp_von || i > sp_bis) {
-                    /* Kein Punkt der Figur: Labyrinth zeigen. */
-                    BILD[pos] = zeile_zeichen[mx];
-                    switch (zeile_feld[mx]) {
-                    case F_MAUER: FARBE[pos] = mauerfarbe; break;
-                    case F_TUER:  FARBE[pos] = C_TUER;     break;
-                    case F_PUNKT:
-                    case F_PILLE: FARBE[pos] = C_PUNKT;    break;
-                    default:      FARBE[pos] = C_SCHWARZ;  break;
-                    }
+    if (sp0 <= KB - 3) {
+        /* Regelfall: die drei Spalten liegen nebeneinander. */
+        for (j = 0; j < 3; ++j) {
+            my = (unsigned char)(f->neu_ze + j);
+            if (my < KH) {
+                bo = bildzeile[my] + sp0;
+                am_q  = spalte[0] + ((unsigned)j << 3);
+                am_hg = zeile_zeichen_tab[my] + sp0;
+                am_fd = zeile_feld_tab[my] + sp0;
+                am_bd = BILD + bo;
+                am_fa = FARBE + bo;
+                am_z  = z;
+                if (j >= ze_von && j <= ze_bis) {
+                    am_use[0] = (unsigned char)(sp_von == 0);
+                    am_use[1] = 1;
+                    am_use[2] = (unsigned char)(sp_bis == 2);
                 } else {
-                    if (neu) {
-                        hg = zeile_zeichen[mx];
-                        p_quelle = qs[i];
-                        p_grund  = zeichensatz + ((unsigned)hg << 3);
-                        p_ziel   = zeichensatz + ((unsigned)z << 3);
-                        zelle_mischen();
-                    }
-                    BILD[pos] = z;
-                    /* Ueber einer Mauer behaelt die Mauer ihre Farbe - eine
-                       Zelle kann nur eine tragen, und ein dunkler Figurrand
-                       faellt weniger auf als eine mitgefaerbte Wand. */
-                    FARBE[pos] = (unsigned char)(zeile_feld[mx] == F_MAUER
-                                                 ? mauerfarbe : farbe);
+                    am_use[0] = am_use[1] = am_use[2] = 0;
                 }
-                ++z;
+                zeile_malen();
             }
-        } else {
             z = (unsigned char)(z + 3);
         }
-        qs[0] += 8; qs[1] += 8; qs[2] += 8;
+    } else {
+        /* Am Tunnelrand laufen die Spalten um - selten, daher in C. */
+        for (j = 0; j < 3; ++j) {
+            my = (unsigned char)(f->neu_ze + j);
+            if (my < KH) {
+                zz = zeile_zeichen_tab[my];
+                zf = zeile_feld_tab[my];
+                bo = bildzeile[my];
+                for (i = 0; i < 3; ++i) {
+                    mx = (unsigned char)(sp0 + i);
+                    if (mx >= KB) mx = (unsigned char)(mx - KB);
+                    pos = bo + mx;
+                    if (j < ze_von || j > ze_bis || i < sp_von || i > sp_bis) {
+                        BILD[pos] = zz[mx];
+                        switch (zf[mx]) {
+                        case F_MAUER: FARBE[pos] = mauerfarbe; break;
+                        case F_TUER:  FARBE[pos] = C_TUER;     break;
+                        case F_PUNKT:
+                        case F_PILLE: FARBE[pos] = C_PUNKT;    break;
+                        default:      FARBE[pos] = C_SCHWARZ;  break;
+                        }
+                    } else {
+                        if (neu) {
+                            hg = zz[mx];
+                            p_quelle = spalte[i] + ((unsigned)j << 3);
+                            p_grund  = zeichensatz + ((unsigned)hg << 3);
+                            p_ziel   = zeichensatz + ((unsigned)(z + i) << 3);
+                            zelle_mischen();
+                        }
+                        BILD[pos] = (unsigned char)(z + i);
+                        FARBE[pos] = (unsigned char)(zf[mx] == F_MAUER
+                                                     ? mauerfarbe : f->farbe);
+                    }
+                }
+            }
+            z = (unsigned char)(z + 3);
+        }
     }
 
     f->alt_sp = f->neu_sp;
@@ -862,7 +1082,7 @@ static unsigned char richtung_waehlen(unsigned char i)
     unsigned char r, beste = 255, anzahl = 0, moeglich[4];
     unsigned char kx = KX(g), ky = KY(g), nx, ny;
     unsigned int  abstand, bester = 0xFFFF;
-    signed int dx, dy;
+    unsigned char dx, dy;
 
     for (r = 0; r < 4; ++r) {
         if (r == gegen) continue;
@@ -875,9 +1095,9 @@ static unsigned char richtung_waehlen(unsigned char i)
         default:       nx = (unsigned char)(kx >= KB - 1 ? 0 : kx + 1); break;
         }
         moeglich[anzahl++] = r;
-        dx = (signed int)nx - (signed int)g->zielx;
-        dy = (signed int)ny - (signed int)g->ziely;
-        abstand = (unsigned int)(dx * dx + dy * dy);
+        dx = (unsigned char)(nx > g->zielx ? nx - g->zielx : g->zielx - nx);
+        dy = (unsigned char)(ny > g->ziely ? ny - g->ziely : g->ziely - ny);
+        abstand = quadrat[dx] + quadrat[dy];
         if (abstand < bester) { bester = abstand; beste = r; }
     }
 
@@ -1212,6 +1432,15 @@ static void zeichensatz_einrichten(void)
     /* Bit 7 schaltet die automatische Invertierung ab: erst dadurch sind die
        Codes ab 128 eigene Zeichen und koennen als Figurvorrat dienen. */
     TED_WAAGR = TED_WAAGR | 0x80;
+
+    /* feste Angaben fuer die Assemblerroutine */
+    am_zshi = (unsigned char)(((unsigned)zeichensatz) >> 8);
+    am_tf = C_TUER;
+    am_pf = C_PUNKT;
+
+    {   unsigned char i;
+        for (i = 0; i < KB; ++i) quadrat[i] = (unsigned)i * i;
+    }
 }
 
 int main(void)
