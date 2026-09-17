@@ -27,9 +27,12 @@ HELLO on an existing one means "forget what you sent me, start again".
 from __future__ import annotations
 
 import argparse
+import os
 import select
+import signal
 import socket
 import sys
+import time
 from collections import deque
 
 import cards
@@ -331,6 +334,36 @@ class Bridge(LobbyState):
             raise ConnectionResetError
 
 
+def stop_older_proxies() -> None:
+    """Send any previous copy of this proxy on its way.
+
+    Two of these must not run at once: they fight over the listening port,
+    and worse, the second login as the same account makes the server drop the
+    first one. A test run that quietly used a stale proxy has cost an evening
+    once already, so this is not left to the person at the keyboard.
+    """
+    me = os.getpid()
+    mine = os.path.basename(__file__)
+    killed = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit() or int(entry) == me:
+            continue
+        try:
+            with open(f"/proc/{entry}/cmdline", "rb") as f:
+                command = f.read().split(b"\0")
+        except OSError:
+            continue                    # gone, or not ours to look at
+        if any(arg.endswith(mine.encode()) for arg in command):
+            try:
+                os.kill(int(entry), signal.SIGTERM)
+                killed.append(entry)
+            except OSError:
+                pass
+    if killed:
+        log("net", f"stopped an older proxy ({', '.join(killed)})")
+        time.sleep(1)                   # let it close its socket
+
+
 def parse_listen(text: str) -> tuple[str, int]:
     host, _, port = text.rpartition(":")
     if not host or not port.isdigit():
@@ -352,6 +385,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     host, port = args.listen if isinstance(args.listen, tuple) else parse_listen(args.listen)
+
+    stop_older_proxies()
 
     link = None
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

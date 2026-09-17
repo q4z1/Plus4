@@ -25,9 +25,7 @@
  *     the bytes have been consumed
  */
 
-#include <conio.h>
 #include <plus4.h>
-#include <serial.h>
 #include <string.h>
 
 /* ------------------------------------------------------------------ wire */
@@ -116,6 +114,53 @@
 #define RPTFLG      (*(unsigned char *)0x0540)
 #define RPTFLG_NONE 0x40
 
+/*
+ * The keyboard, read out of the buffer the KERNAL fills, rather than through
+ * conio.
+ *
+ * cc65 keeps the ROM switched out on this machine so that the RAM interrupt
+ * vector is the one that counts - which is how the serial driver gets to see
+ * the ACIA at all. conio switches the ROM back in to call KERNAL routines,
+ * and a byte that arrives during that window is delivered to the KERNAL's
+ * handler instead, which knows nothing about an ACIA. It leaves the byte
+ * unread, so the interrupt line stays up, so the handler is entered again
+ * immediately: the storm described in ../README.md. Polling kbhit() every
+ * time round the loop opens that window thousands of times a second.
+ *
+ * The buffer at $0527 and its length at $EF are plain RAM, filled by the
+ * keyboard scan that runs in the interrupt anyway. Reading them costs no
+ * ROM window at all.
+ */
+/* What conio.h used to provide: plain PETSCII codes as the KERNAL puts them
+** in the buffer. The function keys are not in PETSCII order. */
+#define CH_ENTER 13
+#define CH_DEL   20
+#define CH_F1   133
+#define CH_F3   134
+#define CH_F5   135
+#define CH_F7   136
+#define CH_F8   140
+
+#define KEY_BUFFER  ((unsigned char *)0x0527)
+#define KEY_COUNT   (*(unsigned char *)0x00EF)
+
+static unsigned char read_key(void)
+{
+    unsigned char count = KEY_COUNT;
+    unsigned char key;
+    unsigned char i;
+
+    if (count == 0) {
+        return 0;
+    }
+    key = KEY_BUFFER[0];
+    for (i = 1; i < count; ++i) {
+        KEY_BUFFER[i - 1] = KEY_BUFFER[i];
+    }
+    KEY_COUNT = count - 1;
+    return key;
+}
+
 /* --------------------------------------------------------------- screen */
 
 #define SCREEN_W      40
@@ -200,13 +245,75 @@ static unsigned char input_dirty = 1;
 
 /* ---------------------------------------------------------------- serial */
 
-static const struct ser_params params = {
-    SER_BAUD_2400,
-    SER_BITS_8,
-    SER_STOP_1,
-    SER_PAR_NONE,
-    SER_HS_HW           /* the only value the cc65 driver accepts */
-};
+/*
+ * The ACIA, polled, without an interrupt.
+ *
+ * cc65 ships a driver for this chip and we used it for three stages. It cost
+ * us three surprises: it accepts only SER_HS_HW, its flow-stop flag blocks
+ * transmission as well as reception, and - the one that ended the argument -
+ * its interrupt stops being serviced. The monitor caught the machine with
+ * the ACIA asking for attention, a byte unread, an overrun already recorded,
+ * and the stack walking downwards in one repeating pattern: an interrupt
+ * storm, entered again the moment it returns, because nobody ever takes the
+ * byte that keeps the line asserted.
+ *
+ * So the interrupt is switched off and this program fetches bytes itself.
+ * That trades one risk for another - a byte must be collected within the
+ * 4 milliseconds before the next arrives at 2400 baud - and the trade is
+ * worth it, because this end controls how often it looks. Nothing here
+ * blocks, and serial_poll() is cheap enough to call from inside the drawing
+ * loops, which is where the time goes.
+ *
+ * The registers (plus4.h has them as ACIA):
+ *   $FD00 data    $FD01 status    $FD02 command    $FD03 control
+ */
+#define ACIA_RDRF 0x08          /* a byte has arrived */
+#define ACIA_OVRN 0x04          /* and one was lost before it */
+#define ACIA_TDRE 0x10          /* the transmitter will take one */
+
+/* 8 bits, one stop bit, receiver clocked by the baud generator, and 1200
+** baud rather than 2400: at 2400 a byte arrives every 4 milliseconds, which
+** is less than this machine needs to paint a row of the screen in C. Halving
+** the rate doubles the margin and costs nothing anybody will notice - a chat
+** line is forty bytes. */
+#define ACIA_CONTROL 0x18
+/* DTR asserted, RTS asserted, receive interrupt disabled - that last bit is
+** the whole point. */
+#define ACIA_COMMAND 0x0B
+
+static void serial_open(void)
+{
+    ACIA.ctrl = ACIA_CONTROL;
+    ACIA.cmd = ACIA_COMMAND;
+}
+
+static void serial_close(void)
+{
+    ACIA.cmd = 0x0A;            /* drop DTR, leave the interrupt off */
+}
+
+static void feed(unsigned char byte);
+
+/*
+ * Take whatever has arrived. Called from the main loop and from the middle
+ * of a redraw, because a redraw takes longer than the gap between two bytes.
+ */
+static unsigned int overruns = 0;
+
+static void serial_poll(void)
+{
+    unsigned char status = ACIA.status;
+
+    while (status & ACIA_RDRF) {
+        /* A byte arrived before the last one was collected: it is gone, and
+        ** the count belongs on screen rather than in a theory. */
+        if (status & ACIA_OVRN) {
+            ++overruns;
+        }
+        feed(ACIA.data);
+        status = ACIA.status;
+    }
+}
 
 /* One outgoing frame at a time is plenty: this end sends acknowledgements,
 ** the occasional chat line, and nothing else. */
@@ -224,10 +331,12 @@ static unsigned char out_idle(void)
 static void out_pump(void)
 {
     while (out_pos < out_len) {
-        if (ser_put((char)out[out_pos]) == SER_ERR_OVERFLOW) {
-            return;                 /* try again next time round, never wait */
+        if (!(ACIA.status & ACIA_TDRE)) {
+            return;                 /* the line is busy; try again shortly */
         }
+        ACIA.data = out[out_pos];
         ++out_pos;
+        serial_poll();              /* sending must not cost us a byte */
     }
 }
 
@@ -317,6 +426,10 @@ static void clear_row(unsigned char row, unsigned char reverse)
     unsigned int at = (unsigned int)row * SCREEN_W;
     unsigned char i;
 
+    /* Forty cells of C on a 7501 take longer than the 4 milliseconds between
+    ** two bytes at 2400 baud, so the line is checked before every row rather
+    ** than between them. */
+    serial_poll();
     for (i = 0; i < SCREEN_W; ++i) {
         SCREEN[at + i] = reverse ? (0x20 | REVERSED) : 0x20;
         COLOUR[at + i] = WHITE;
@@ -328,6 +441,7 @@ static unsigned char put_text(unsigned char x, unsigned char row,
 {
     unsigned int at = (unsigned int)row * SCREEN_W;
 
+    serial_poll();
     while (*text != '\0' && x < SCREEN_W) {
         SCREEN[at + x] = screen_code((unsigned char)*text) | reverse;
         COLOUR[at + x] = WHITE;
@@ -397,6 +511,7 @@ static unsigned char put_ulong(unsigned char x, unsigned char row,
     unsigned int at = (unsigned int)row * SCREEN_W;
 
     do {
+        serial_poll();          /* a 32 bit division costs more than a byte */
         digits[count++] = (unsigned char)('0' + (unsigned char)(value % 10));
         value /= 10;
     } while (value != 0 && count < sizeof(digits));
@@ -463,8 +578,15 @@ static void draw_header(void)
     clear_row(ROW_HEADER, 1);
     x = put_text(1, ROW_HEADER, "pokerth ", REVERSED);
     put_text(x, ROW_HEADER, server, REVERSED);
-    x = put_uint(30, ROW_HEADER, players_online, 5, REVERSED);
-    put_text(x, ROW_HEADER, " on", REVERSED);
+    x = put_uint(28, ROW_HEADER, players_online, 3, REVERSED);
+    x = put_text(x, ROW_HEADER, " on", REVERSED);
+    /* Bytes the ACIA dropped because we were too slow to collect them. It
+    ** belongs on screen: it is the number that says whether this machine is
+    ** keeping up, and it should stay at nought. */
+    if (overruns != 0) {
+        x = put_text(x + 1, ROW_HEADER, "!", REVERSED);
+        put_uint(x, ROW_HEADER, overruns, 1, REVERSED);
+    }
     header_dirty = 0;
 }
 
@@ -475,6 +597,7 @@ static void draw_games(void)
     unsigned char flags;
 
     for (i = 0; i < GAME_ROWS; ++i) {
+        serial_poll();   /* a row takes longer than a byte does */
         clear_row(ROW_GAMES + i, 0);
         if (i >= game_count) {
             continue;
@@ -534,6 +657,7 @@ static void draw_table(void)
     clear_row(ROW_MINE + 1, 0);
 
     for (i = 0; i < MAX_SEATS; ++i) {
+        serial_poll();   /* a row takes longer than a byte does */
         clear_row(ROW_SEATS + i, 0);
         if (i >= seat_count || !(seats[i].flags & SEAT_TAKEN)) {
             continue;
@@ -572,6 +696,7 @@ static void draw_chat(void)
     unsigned char line;
 
     for (i = 0; i < CHAT_ROWS; ++i) {
+        serial_poll();   /* a row takes longer than a byte does */
         clear_row(ROW_CHAT + i, 0);
         if (i < chat_used) {
             line = (chat_first + i) % CHAT_ROWS;
@@ -852,8 +977,37 @@ static void handle_frame(void)
     }
 }
 
+/*
+ * Getting back in step.
+ *
+ * There is no sync mark in the protocol and no checksum: it was written for
+ * a transport that delivers bytes or nothing. A byte does go missing now and
+ * then, and the damage is out of all proportion - the next byte is read as a
+ * type, the one after as a length, and the parser settles down to wait for a
+ * payload that will never arrive. Everything stops, quietly.
+ *
+ * So a frame that stays unfinished while nothing arrives is abandoned, and
+ * the proxy is greeted again. A HELLO means "forget what you sent me" at
+ * that end, so the whole lobby comes back and the hiccup costs a redraw
+ * instead of the session.
+ */
+#define PATIENCE 2000           /* turns of the loop, roughly a second */
+
+static unsigned int waited = 0;
+
+static void resynchronise(void)
+{
+    frame_state = 0;
+    frame_have = 0;
+    acked = 0;
+    waited = 0;
+    set_status("lost the thread - asking again");
+    send_hello();
+}
+
 static void feed(unsigned char byte)
 {
+    waited = 0;
     switch (frame_state) {
     case 0:
         frame_type = byte;
@@ -903,23 +1057,18 @@ static void handle_key(unsigned char key)
 int main(void)
 {
     unsigned char byte;
-    unsigned char err;
     unsigned char saved_repeat;
+    unsigned char i;
 
-    clrscr();
-    bordercolor(COLOR_BLACK);
-    bgcolor(COLOR_BLACK);
+    /* Screen and colour memory cleared by hand, since conio is no longer
+    ** linked in; the border and background registers are TED, not KERNAL. */
+    for (i = 0; i < 25; ++i) {
+        clear_row(i, 0);
+    }
+    *(unsigned char *)0xFF19 = 0;      /* border black */
+    *(unsigned char *)0xFF15 = 0;      /* background black */
 
-    err = ser_install(plus4_stdser_ser);
-    if (err != SER_ERR_OK) {
-        put_uint(put_text(0, 0, "no serial driver, error ", 0), 0, err, 1, 0);
-        return 1;
-    }
-    err = ser_open(&params);
-    if (err != SER_ERR_OK) {
-        put_uint(put_text(0, 0, "cannot open the port, error ", 0), 0, err, 1, 0);
-        return 1;
-    }
+    serial_open();
 
     saved_repeat = RPTFLG;
     RPTFLG = RPTFLG_NONE;
@@ -930,11 +1079,12 @@ int main(void)
     send_hello();
 
     for (;;) {
-        /* Always take what has arrived. A record may repaint half the
-        ** screen, which is slow, but the proxy is never allowed more than
-        ** RX_WINDOW bytes in flight, so nothing can pile up behind it. */
-        while (ser_get((char *)&byte) == SER_ERR_OK) {
-            feed(byte);
+        serial_poll();
+
+        /* Nothing arriving while a frame is half read means a byte was
+        ** lost; sitting here for ever is the one outcome worth avoiding. */
+        if (frame_state != 0 && ++waited > PATIENCE) {
+            resynchronise();
         }
 
         out_pump();
@@ -948,8 +1098,8 @@ int main(void)
         if (status_dirty) draw_status();
         if (input_dirty)  draw_input();
 
-        if (kbhit()) {
-            byte = (unsigned char)cgetc();
+        byte = read_key();
+        if (byte != 0) {
             if (byte == CH_F8) {
                 break;
             }
@@ -960,9 +1110,10 @@ int main(void)
     out_frame(U_BYE, 0);
     out_pump();
     RPTFLG = saved_repeat;
-    ser_close();
-    ser_uninstall();
-    clrscr();
+    serial_close();
+    for (i = 0; i < 25; ++i) {
+        clear_row(i, 0);
+    }
     put_text(0, 0, "stopped", 0);
     return 0;
 }
