@@ -9,6 +9,6 @@ build/
 *.mp4
 
 # Python environment and generated protobuf code of the PokerTH proxy
-poker/proxy/.venv/
-poker/proxy/gen/
+pokerth/proxy/.venv/
+pokerth/proxy/gen/
 __pycache__/

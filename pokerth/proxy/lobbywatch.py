@@ -22,8 +22,8 @@ import argparse
 import sys
 import time
 
-import pthlink as L
-from pthlink import pb
+import pokerth_link as L
+from pokerth_link import pb
 
 
 def log(tag: str, text: str) -> None:
