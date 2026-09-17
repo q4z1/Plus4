@@ -168,6 +168,12 @@ def main(argv=None) -> int:
     ap.add_argument("--server", default="pthsrv.pokerth.net")
     ap.add_argument("--port", type=int, default=L.DEFAULT_PORT)
     ap.add_argument("--nick", default="Plus4Proxy", help="guest nickname")
+    ap.add_argument("--login", action="store_true",
+                    help="log in with the registered account from the credentials "
+                         "file instead of as a guest (guests may not chat)")
+    ap.add_argument("--credentials", default=L.DEFAULT_CREDENTIALS, metavar="PATH",
+                    help="key=value file with user= and password= "
+                         f"(default: {L.DEFAULT_CREDENTIALS})")
     ap.add_argument("--no-tls", dest="tls", action="store_false",
                     help="plain TCP, for a local server without TLS")
     ap.add_argument("--pin", metavar="BASE64",
@@ -194,16 +200,23 @@ def main(argv=None) -> int:
         log("net", "no pin for this host - encrypted but unauthenticated")
 
     try:
-        announce, ack = L.guest_login(link, args.nick)
+        if args.login:
+            user, password = L.read_credentials(args.credentials)
+            announce, ack = L.password_login(link, user, password)
+            who = f"'{user}'"
+        else:
+            user = args.nick
+            announce, ack = L.guest_login(link, user)
+            who = f"guest '{user}'"
         version = announce.protocolVersion
         server_type = pb.AnnounceMessage.ServerType.Name(announce.serverType)
         log("net", f"protocol {version.majorVersion}.{version.minorVersion}, "
                    f"{server_type}, {announce.numPlayersOnServer} players online")
-        log("net", f"logged in as guest '{args.nick}', player id {ack.yourPlayerId}")
+        log("net", f"logged in as {who}, player id {ack.yourPlayerId}")
 
         watcher = LobbyWatcher(link, dump=args.dump)
         watcher.me = ack.yourPlayerId
-        watcher.players[ack.yourPlayerId] = args.nick
+        watcher.players[ack.yourPlayerId] = user
 
         if args.say:
             msg, chat = L.make("ChatRequestMessage")

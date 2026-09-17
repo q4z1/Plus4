@@ -248,23 +248,83 @@ class Link:
 
 # --- Handshake --------------------------------------------------------------
 
-def guest_login(link: Link, nickname: str, build_id: int = DEFAULT_BUILD_ID):
-    """Announce/Init/InitAck as a guest.
+DEFAULT_CREDENTIALS = "~/.config/pokerth-plus4/credentials"
 
-    Returns (AnnounceMessage, InitAckMessage). The server opens the
-    conversation with its announcement, so the requested protocol version can
-    simply be the one it just named.
+
+def read_credentials(path: str = DEFAULT_CREDENTIALS) -> tuple[str, str]:
+    """Read "user=" and "password=" from a key=value file outside the repo."""
+    values = {}
+    with open(os.path.expanduser(path), encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                values[key.strip()] = value.strip()
+    missing = {"user", "password"} - values.keys()
+    if missing:
+        raise LinkError(f"{path} is missing: {', '.join(sorted(missing))}")
+    return values["user"], values["password"]
+
+
+def _login(link: Link, build_id: int):
+    """Wait for the announcement and start an InitMessage that matches it.
+
+    The server opens the conversation, so the requested protocol version can
+    simply be the one it was just told.
     """
     announce = payload_of(link.expect("AnnounceMessage"))
 
     msg, init = make("InitMessage")
     init.requestedVersion.CopyFrom(announce.protocolVersion)
     init.buildId = build_id
-    init.login = pb.InitMessage.guestLogin
-    init.nickName = nickname
     # The protocol has no platform for a 1984 home computer; this describes
     # the machine the proxy runs on, which is what the server logs.
     init.clientPlatform = pb.InitMessage.platformLinux
-    link.send(msg)
+    return announce, msg, init
 
-    return announce, payload_of(link.expect("InitAckMessage"))
+
+def _wait_for_ack(link: Link):
+    """Read until the login is acknowledged.
+
+    The client states still know a challenge/response exchange, but the
+    current client just sends the password inside the TLS connection
+    (src/net/clientstate.cpp:1614). If a server ever does challenge us, say so
+    plainly rather than hanging.
+    """
+    while True:
+        msg = link.recv()
+        kind = kind_of(msg)
+        if kind == "InitAckMessage":
+            return payload_of(msg)
+        if kind == "AuthServerChallengeMessage":
+            raise LinkError(
+                "server started a SCRAM challenge, which is not implemented yet"
+            )
+
+
+def guest_login(link: Link, nickname: str, build_id: int = DEFAULT_BUILD_ID):
+    """Log in as a guest. Returns (AnnounceMessage, InitAckMessage).
+
+    Guests may watch, but not chat: the server refuses chat from anyone with
+    guest rights (src/net/serverlobbythread.cpp:1776).
+    """
+    announce, msg, init = _login(link, build_id)
+    init.login = pb.InitMessage.guestLogin
+    init.nickName = nickname
+    link.send(msg)
+    return announce, _wait_for_ack(link)
+
+
+def password_login(link: Link, user: str, password: str,
+                   build_id: int = DEFAULT_BUILD_ID):
+    """Log in with a registered account. Returns (AnnounceMessage, InitAckMessage).
+
+    The password travels as clientUserData, in the clear but inside TLS -
+    which is what makes the pinned key above worth having.
+    """
+    announce, msg, init = _login(link, build_id)
+    init.login = pb.InitMessage.authenticatedLogin
+    init.nickName = user
+    init.clientUserData = password.encode("utf-8")
+    link.send(msg)
+    return announce, _wait_for_ack(link)

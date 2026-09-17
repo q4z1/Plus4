@@ -39,7 +39,7 @@ Each stage is meant to work on its own before the next one starts.
 
 | Stage | What | State |
 | --- | --- | --- |
-| 1 | `proxy/lobbywatch.py` — log in, show the lobby and chat on a PC terminal | **done** |
+| 1 | `proxy/lobbywatch.py` — log in as guest or with an account, show the lobby and chat on a PC terminal | **done** |
 | 2 | Define the Plus/4 wire protocol, with a reference client in Python | |
 | 3 | Plus/4: ACIA driver, echo test through VICE's IP232 | |
 | 4 | Plus/4: lobby list and chat | |
@@ -57,6 +57,18 @@ cd proxy
 `--dump` logs the kind of every message that arrives, which is the fastest way
 to learn what the lobby actually sends. `--server localhost --no-tls` points it
 at a locally built server.
+
+Guests may watch but not chat, so to send anything there has to be a registered
+account. Credentials are read from a `key=value` file outside the repository,
+so they cannot end up in a commit:
+
+```sh
+mkdir -p ~/.config/pokerth-plus4
+printf 'user=NAME\npassword=SECRET\n' > ~/.config/pokerth-plus4/credentials
+chmod 600 ~/.config/pokerth-plus4/credentials
+
+.venv/bin/python lobbywatch.py --login --say "hello from a Commodore Plus/4"
+```
 
 ## What the protocol turned out to be
 
@@ -90,8 +102,12 @@ rediscover them. File references are into the upstream repository.
   logged-in session stays open. A `StatisticsMessage` arrives every few
   seconds anyway, which doubles as a sign of life.
 - **Guests may not chat** (`src/net/serverlobbythread.cpp:1776`), and chat is
-  rate limited by a token per session. So chat needs a registered account,
-  which means SCRAM-SHA-1 in the proxy.
+  rate limited by a token per session, so chat needs a registered account.
+  Logging into one is simpler than the message names suggest: despite the
+  challenge/response states in the client and the SCRAM comment in the
+  `.proto`, the current client just sends the password as `clientUserData`
+  inside the TLS connection (`src/net/clientstate.cpp:1614`). Which is
+  precisely why the pinned key above is worth having.
 - **Names are not in the events.** The lobby identifies players by id only;
   names come from `PlayerInfoRequest`. The proxy keeps that table so the
   Plus/4 does not have to.
