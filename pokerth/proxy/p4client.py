@@ -25,6 +25,7 @@ import struct
 import sys
 import time
 
+import cards
 import p4wire
 
 SCREEN_WIDTH = 40
@@ -47,16 +48,30 @@ CHAT_NAMES = {
 
 
 class Plus4Client:
-    def __init__(self, sock: socket.socket, rx_buffer: int, slow: float = 0.0):
+    def __init__(self, sock: socket.socket, rx_buffer: int, slow: float = 0.0,
+                 auto: bool = False):
         self.sock = sock
         self.rx_buffer = rx_buffer
         self.slow = slow
+        # Answering by hand is not possible when a turn lasts thirty seconds
+        # and the person at the keyboard is a language model; auto goes along
+        # with whatever is on the table, exactly as pokerth_bot.cpp does.
+        self.auto = auto
         self.reader = p4wire.FrameReader()
         self.games: dict[int, dict] = {}
         self.server = "?"
         self.state = p4wire.STATE_OFFLINE
         self.players_online = 0
         self.unacked = 0
+        self.seats: dict[int, dict] = {}
+        self.my_seat = None
+        self.board: list[int] = []
+        self.pot = 0
+        self.hand = 0
+        self.may = 0
+        self.to_call = 0
+        self.min_raise = 0
+        self.my_money = 0
 
     # -- talking --
 
@@ -122,10 +137,125 @@ class Plus4Client:
         elif kind == p4wire.D_PLAYERS:
             self.players_online, = struct.unpack("<H", payload)
             print(f"({self.players_online} players online)")
+        elif kind == p4wire.D_TABLE:
+            game_id, seats, mine = struct.unpack("<HBB", payload[:4])
+            self.my_seat = None if mine == 0xFF else mine
+            print(f"=== table: game {game_id}, {seats} seats, "
+                  f"{p4wire.unpetscii(payload[4:])}"
+                  + (f", you are in seat {mine}" if self.my_seat is not None
+                     else ", not seated yet"))
+        elif kind == p4wire.D_SEAT:
+            number, flags, money = struct.unpack("<BBI", payload[:6])
+            self.seats[number] = {"flags": flags, "money": money, "bet": 0,
+                                  "name": p4wire.unpetscii(payload[6:]),
+                                  "cards": None}
+            print(f"  seat {number}: {self.seats[number]['name']} "
+                  f"{money}{self.marks(flags)}")
+        elif kind == p4wire.D_SEAT_BET:
+            number, flags, money, bet = struct.unpack("<BBII", payload)
+            seat = self.seats.setdefault(number, {"name": f"seat {number}",
+                                                  "cards": None})
+            seat.update(flags=flags, money=money, bet=bet)
+            print(f"  {seat['name']}: {money} left, {bet} in{self.marks(flags)}")
+        elif kind == p4wire.D_HAND:
+            self.hand, dealer, blind, card1, card2 = struct.unpack("<HBIBB", payload)
+            self.board = []
+            self.pot = 0
+            for seat in self.seats.values():
+                seat["bet"] = 0
+                seat["cards"] = None
+            print(f"--- hand {self.hand}, dealer in seat {dealer}, "
+                  f"small blind {blind}, your cards: "
+                  f"{cards.card_name(card1, True)} {cards.card_name(card2, True)}")
+        elif kind == p4wire.D_BOARD:
+            self.board = list(payload[1:])
+            if self.board:
+                print("  board: " + " ".join(cards.card_name(c, True)
+                                             for c in self.board))
+        elif kind == p4wire.D_POT:
+            self.pot, = struct.unpack("<I", payload)
+            print(f"  pot: {self.pot}")
+        elif kind == p4wire.D_TURN:
+            seat = self.seats.get(payload[0], {})
+            rounds = ("preflop", "flop", "turn", "river", "small blind",
+                      "big blind")
+            where = rounds[payload[1]] if payload[1] < len(rounds) else payload[1]
+            print(f"  {seat.get('name', 'seat ' + str(payload[0]))} to act "
+                  f"({where})")
+        elif kind == p4wire.D_ASK:
+            (self.may, self.to_call, self.min_raise,
+             self.my_money) = struct.unpack("<BIII", payload)
+            print(f"*** YOUR TURN: {self.choices()}", flush=True)
+            if self.auto:
+                if self.may & p4wire.MAY_CHECK:
+                    print("    (auto) check", flush=True)
+                    self.act(p4wire.ACTION_CHECK)
+                elif self.may & p4wire.MAY_CALL:
+                    print(f"    (auto) call {self.to_call}", flush=True)
+                    self.act(p4wire.ACTION_CALL, self.to_call)
+                else:
+                    print("    (auto) fold", flush=True)
+                    self.act(p4wire.ACTION_FOLD)
+        elif kind == p4wire.D_RESULT:
+            number, card1, card2, won, money = struct.unpack("<BBBII", payload)
+            seat = self.seats.get(number, {})
+            print(f"  {seat.get('name', 'seat ' + str(number))} shows "
+                  f"{cards.card_name(card1, True)} {cards.card_name(card2, True)}"
+                  + (f" and wins {won}" if won else "") + f", has {money}")
+        elif kind == p4wire.D_TABLE_END:
+            reasons = ("left", "game over", "kicked out", "could not join")
+            print(f"=== table over: "
+                  f"{reasons[payload[0]] if payload[0] < 4 else payload[0]}")
+            self.seats.clear()
+            self.my_seat = None
         else:
             print(f"? unknown record {p4wire.type_name(kind)}")
 
+    @staticmethod
+    def marks(flags: int) -> str:
+        names = [n for bit, n in [(p4wire.SEAT_DEALER, "dealer"),
+                                  (p4wire.SEAT_YOU, "you"),
+                                  (p4wire.SEAT_FOLDED, "folded"),
+                                  (p4wire.SEAT_ALL_IN, "all in"),
+                                  (p4wire.SEAT_SITTING_OUT, "sitting out")]
+                 if flags & bit]
+        return f"  [{', '.join(names)}]" if names else ""
+
+    def choices(self) -> str:
+        offers = []
+        if self.may & p4wire.MAY_FOLD:
+            offers.append("/fold")
+        if self.may & p4wire.MAY_CHECK:
+            offers.append("/check")
+        if self.may & p4wire.MAY_CALL:
+            offers.append(f"/call ({self.to_call})")
+        if self.may & p4wire.MAY_BET:
+            offers.append(f"/bet N (at least {self.min_raise})")
+        if self.may & p4wire.MAY_RAISE:
+            offers.append(f"/raise N (at least {self.min_raise} more)")
+        if self.may & p4wire.MAY_ALL_IN:
+            offers.append(f"/allin ({self.my_money})")
+        return "  ".join(offers)
+
+    def act(self, action: int, amount: int = 0) -> None:
+        self.send(p4wire.U_ACTION, struct.pack("<BI", action, amount))
+        self.may = 0
+
     # -- the 40 column view --
+
+    def show_table(self) -> None:
+        print("+" + "-" * SCREEN_WIDTH + "+")
+        board = " ".join(cards.card_name(c, True) for c in self.board) or "-"
+        print(f"|{f'board {board}   pot {self.pot}':<{SCREEN_WIDTH}}|")
+        print(f"|{'':-<{SCREEN_WIDTH}}|")
+        for number in sorted(self.seats):
+            seat = self.seats[number]
+            line = (f"{number} {seat['name'][:12]:<12} {seat['money']:>7} "
+                    f"{seat.get('bet', 0):>6}{self.marks(seat['flags'])}")
+            print(f"|{line[:SCREEN_WIDTH]:<{SCREEN_WIDTH}}|")
+        print("+" + "-" * SCREEN_WIDTH + "+")
+        if self.may:
+            print(self.choices())
 
     def show_games(self) -> None:
         print("+" + "-" * SCREEN_WIDTH + "+")
@@ -163,11 +293,25 @@ class Plus4Client:
             self.send(p4wire.U_JOIN, struct.pack("<H", int(rest)))
         elif word == "/leave":
             self.send(p4wire.U_LEAVE)
+        elif word == "/table":
+            self.show_table()
+        elif word == "/fold":
+            self.act(p4wire.ACTION_FOLD)
+        elif word == "/check":
+            self.act(p4wire.ACTION_CHECK)
+        elif word == "/call":
+            self.act(p4wire.ACTION_CALL, self.to_call)
+        elif word == "/allin":
+            self.act(p4wire.ACTION_ALLIN, self.my_money)
+        elif word in ("/bet", "/raise") and rest.strip().isdigit():
+            self.act(p4wire.ACTION_BET if word == "/bet" else p4wire.ACTION_RAISE,
+                     int(rest))
         elif word in ("/quit", "/exit"):
             self.send(p4wire.U_BYE)
             return False
         else:
-            print("commands: /games  /join N  /leave  /quit")
+            print("commands: /games  /join N  /table  /leave  /quit"
+                  "   at a turn: /fold /check /call /bet N /raise N /allin")
         return True
 
 
@@ -178,11 +322,14 @@ def main(argv=None) -> int:
                     help="receive buffer to claim, as the Plus/4 will (default 512)")
     ap.add_argument("--slow", type=float, default=0.0, metavar="SECONDS",
                     help="pretend each record takes this long to process")
+    ap.add_argument("--auto", action="store_true",
+                    help="answer every turn by checking or calling, so that a "
+                         "hand can be watched without anyone typing fast enough")
     args = ap.parse_args(argv)
 
     host, _, port = args.connect.rpartition(":")
     with socket.create_connection((host, int(port))) as sock:
-        client = Plus4Client(sock, args.rx_buffer, args.slow)
+        client = Plus4Client(sock, args.rx_buffer, args.slow, args.auto)
         client.say_hello()
         print(f"connected to {host}:{port}, claiming a {args.rx_buffer} byte "
               "buffer - type to chat, /games for the lobby, /quit to stop")
