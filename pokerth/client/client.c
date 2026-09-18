@@ -290,7 +290,8 @@ static unsigned char read_key(void)
 #define ROW_GAMES      2
 #define GAME_ROWS     12
 #define ROW_CHAT      15
-#define CHAT_ROWS      8
+#define CHAT_ROWS      6
+#define ROW_ANNOUNCE  21        /* who won: its own line, two above the status */
 #define ROW_INPUT     24
 
 #define MAX_GAMES     GAME_ROWS
@@ -329,6 +330,16 @@ static unsigned char header_dirty = 1;
 
 static char status[SCREEN_W + 1] = "starting";
 static unsigned char status_dirty = 1;
+
+/*
+ * What the table has to announce - who took the pot, and with what.
+ *
+ * It had been going into the chat, where the next line pushed it off the
+ * screen before it could be read. It gets a line of its own instead, kept
+ * until there is something new to say.
+ */
+static char announce[SCREEN_W + 1] = "";
+static unsigned char announce_dirty = 1;
 
 
 
@@ -1096,6 +1107,15 @@ static void draw_chat(void)
     chat_dirty = 0;
 }
 
+static void draw_announce(void)
+{
+    pen = YELLOW;
+    clear_row(ROW_ANNOUNCE, 0);
+    put_text(0, ROW_ANNOUNCE, announce, 0);
+    pen = WHITE;
+    announce_dirty = 0;
+}
+
 static void draw_status(void)
 {
     clear_row(ROW_INPUT - 1, 0);
@@ -1253,7 +1273,9 @@ static void game_remove(void)
 
 static void chat_record(void)
 {
-    /* kind(1), name length(1), name, text - rendered as "name: text". */
+    /* kind(1), name length(1), name, text - rendered as "name: text", or as
+    ** it stands when there is no name, which is how the proxy announces a
+    ** winner. Those go on their own line rather than into the chat. */
     unsigned char name_len = frame[1];
     unsigned char i;
     unsigned char out_i = 0;
@@ -1261,6 +1283,19 @@ static void chat_record(void)
 
     if (name_len > frame_want - 2) {
         name_len = frame_want - 2;
+    }
+    if (name_len == 0) {
+        unsigned char length = frame_want - 2;
+
+        if (length > SCREEN_W) {
+            length = SCREEN_W;
+        }
+        for (i = 0; i < length; ++i) {
+            announce[i] = (char)frame[2 + i];
+        }
+        announce[length] = '\0';
+        announce_dirty = 1;
+        return;
     }
     for (i = 0; i < name_len && out_i < CHAT_LEN; ++i) {
         line[out_i++] = (char)frame[2 + i];
@@ -1833,6 +1868,7 @@ int main(void)
             table_head_dirty = 1;
             seat_dirty = 0x03FF;
             chat_dirty = 1;
+            announce_dirty = 1;
             status_dirty = 1;
             input_dirty = 1;
             view_dirty = 0;
@@ -1843,8 +1879,9 @@ int main(void)
             if (header_dirty) draw_header();
             if (games_dirty)  draw_games();
         }
-        /* Chat sits in the same rows in both views. */
-        if (chat_dirty) draw_chat();
+        /* Chat and the announcement sit in the same rows in both views. */
+        if (chat_dirty)     draw_chat();
+        if (announce_dirty) draw_announce();
     }
 
     RPTFLG = saved_repeat;
