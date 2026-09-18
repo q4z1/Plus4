@@ -1265,11 +1265,15 @@ static void chat_record(void)
     for (i = 0; i < name_len && out_i < CHAT_LEN; ++i) {
         line[out_i++] = (char)frame[2 + i];
     }
-    if (out_i < CHAT_LEN) {
-        line[out_i++] = ':';
-    }
-    if (out_i < CHAT_LEN) {
-        line[out_i++] = ' ';
+    /* A line with no name in front of it is written as it stands - which is
+    ** how the proxy says who won a hand. */
+    if (name_len > 0) {
+        if (out_i < CHAT_LEN) {
+            line[out_i++] = ':';
+        }
+        if (out_i < CHAT_LEN) {
+            line[out_i++] = ' ';
+        }
     }
     for (i = 2 + name_len; i < frame_want && out_i < CHAT_LEN; ++i) {
         line[out_i++] = (char)frame[i];

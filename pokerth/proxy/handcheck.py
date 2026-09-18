@@ -164,6 +164,8 @@ def main() -> int:
     won = over.playerResults.add()
     won.playerId, won.resultCard1, won.resultCard2 = ME, 26, 38
     won.moneyWon, won.playerMoney = 200, 10100
+    # Which five of the seven made the hand: our two and three of the board.
+    won.bestHandPosition.extend([0, 1, 2, 3, 4])
     lost = over.playerResults.add()
     lost.playerId, lost.resultCard1, lost.resultCard2 = OPPONENT, 1, 14
     lost.moneyWon, lost.playerMoney = 0, 9900

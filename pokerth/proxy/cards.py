@@ -29,7 +29,7 @@ import hashlib
 
 CARD_NONE = 52
 
-RANKS = ("2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A")
+RANKS = ("2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A")
 SUITS = ("d", "h", "s", "c")
 SUIT_SYMBOLS = ("♦", "♥", "♠", "♣")
 
@@ -118,6 +118,7 @@ def _selftest() -> int:
 
     check("first card", card_name(0), "2d")
     check("last card", card_name(51), "Ac")
+    check("the ten", card_name(8), "Td")
     check("ace of spades", card_name(38), "As")
     check("two of hearts", card_name(13), "2h")
     check("not a card", card_name(CARD_NONE), "?")

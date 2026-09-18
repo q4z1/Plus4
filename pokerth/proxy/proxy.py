@@ -191,6 +191,16 @@ class Bridge(LobbyState):
                                len(game.playerIds), game.gameInfo.maxNumPlayers,
                                game.gameInfo.gameName)
 
+    def winning_hand(self, outcome, table) -> str:
+        """The five cards that won it, if the server said which."""
+        if not outcome.bestHandPosition:
+            return ""
+        pool = [outcome.resultCard1, outcome.resultCard2] + list(table.board)
+        picked = [pool[i] for i in outcome.bestHandPosition if 0 <= i < len(pool)]
+        if not picked:
+            return ""
+        return " with " + " ".join(cards.card_name(c) for c in picked)
+
     def snapshot(self) -> None:
         """Everything a Plus/4 that just said HELLO needs to draw a lobby."""
         self.to_plus4(p4wire.hello(self.server_name))
@@ -289,6 +299,16 @@ class Bridge(LobbyState):
                                                 seat.cards[1],
                                                 won.get(seat.player_id, 0),
                                                 seat.money))
+            # Who won is the one thing a table of numbers does not say, so it
+            # is said in words, in the chat where it stays put. A line with no
+            # name is written as it stands.
+            for outcome in d.get("results", []):
+                if outcome.moneyWon:
+                    self.to_plus4(p4wire.chat(
+                        p4wire.CHAT_GAME, "",
+                        f"{self.name_of(outcome.playerId)} wins "
+                        f"{outcome.moneyWon}"
+                        f"{self.winning_hand(outcome, table)}"))
         elif name == "table_ended":
             self.to_plus4(p4wire.table_end(d["reason"]))
             self.to_plus4(p4wire.state(p4wire.STATE_LOBBY,
