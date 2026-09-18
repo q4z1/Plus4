@@ -42,7 +42,7 @@ Each stage is meant to work on its own before the next one starts.
 | 1 | `proxy/lobbywatch.py` — log in as guest or with an account, show the lobby and chat on a PC terminal | **done** |
 | 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
 | 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
-| 4 | [Plus/4: the lobby itself](client/client.c) | draws a live lobby, but not yet reliably |
+| 4 | [Plus/4: the lobby itself](client/client.c) | **done** - the lobby, and chat both ways |
 | 5 | Table play: [the records](protocol.md), the proxy side, [a hand on demand](proxy/handcheck.py) | proved against the live server; the Plus/4 table view is half built |
 | 6 | Real hardware over a serial WiFi modem | |
 
@@ -165,43 +165,47 @@ hand now. And `conio` went with it: the KERNAL is a poor neighbour for a
 program whose serial driver runs off the interrupt, so the screen is written
 cell by cell at `$0C00`, the way [pacman/](../pacman/) does it.
 
-### Where this stands: an interrupt storm
+### What it took: the interrupt had to go
 
-The client stops partway through a lobby, and the reason is now measured
-rather than guessed. It is not the receive window, not the screen updates,
-not the key repeat flag, and - the hypothesis this section used to carry -
-not the emulator's warp mode either: it stops just the same at a real
-machine's speed.
-
-What the monitor finds when it stops:
+For three stages the client would stop partway through a lobby, and the
+reason turned out to be one thing with many faces. The monitor caught it:
 
 ```
 ACIA at $FD00:  00 9C 09 1A
-                   ^^ status: bit 7 IRQ asserted, bit 3 a byte waiting,
-                      bit 2 overrun - one is already lost
-CPU:            PC in the KERNAL, flag I set: interrupts masked
-stack:          SP walked from $FF down to $BF, filled with one
-                ten byte pattern repeated over and over
+                   ^^ status: interrupt asserted, a byte waiting,
+                      and an overrun already recorded
+CPU:            in the KERNAL, interrupts masked
+stack:          walked from $FF down to $BF, one pattern repeated
 ```
 
-So the ACIA raises its interrupt, nobody takes the byte, and because the byte
-is never read the interrupt line stays up: the machine re-enters the handler
-immediately, forever, ten bytes of stack at a time, until it drowns. Every
-symptom since stage three follows from that - the missing bytes, the frames
-slipping out of step, and the cliff between 32 and 64 bytes in flight, which
-is not about how many bytes there are but about how long the burst lasts.
+An interrupt storm. cc65's serial driver stops being serviced, the byte that
+keeps the ACIA's interrupt line asserted is never taken, and the machine
+re-enters the handler for ever, ten bytes of stack at a time. Everything
+since stage three follows from it - the missing bytes, the frames slipping
+out of step, and the cliff between 32 and 64 bytes in flight, which was never
+about how many bytes there were but about how long a burst lasted.
 
-The question worth asking next is why `SER_IRQ` stops being called, since it
-clearly runs at first - two records get through, sometimes five. It is
-reached through cc65's interruptor chain rather than through the vector at
-`$0314`, which holds the KERNAL's own handler, and the driver's own comment
-says it does not have to manage that vector on the Plus/4. So: is the chain
-still installed when the machine wedges, and what does this program do that a
-program which keeps receiving does not?
+Three hypotheses died on the way, and they are worth listing because each
+looked convincing: the emulator's warp mode (it stops at real speed too), the
+key repeat flag (removing that change made it stop sooner), and conio's
+keyboard polling (no difference).
 
-Worth knowing while chasing it: the first run that showed a complete lobby
-did so with conio doing the drawing, before any of this was rewritten. That
-is not proof of anything, but it is the one configuration observed to work.
+What fixed it was removing the driver. The client sets up the 6551 itself
+with the receive interrupt **switched off** and collects bytes when it looks,
+which means this end decides how often it looks - and that turned out to be
+the real work. A row of forty cells written from C takes longer than the gap
+between two bytes at 2400 baud, and a 32 bit division, which is how money
+reaches the screen, takes several times that. So the line is checked at the
+top of every row, inside both number formatters, and between the bytes of an
+outgoing frame, and the rate is halved to 1200 baud for the margin.
+
+Two things guard what is left. A frame that stays unfinished while nothing
+arrives is abandoned and the proxy greeted again, so one lost byte costs a
+redraw instead of the session - without that, a single missing byte was
+permanent, because the next one is read as a length and the parser waits for
+a payload that never comes. And the count of bytes the ACIA dropped is shown
+in the header: `!2` after a session means the machine fell behind twice and
+caught up twice, which is a number to watch rather than a fault.
 
 ## What the wire turned out to be
 
