@@ -67,6 +67,7 @@
 #define U_CHAT        0x82
 #define U_JOIN        0x83
 #define U_LEAVE       0x84
+#define U_ACTION      0x85
 #define U_BYE         0x8F
 
 #define STATE_OFFLINE    0
@@ -215,6 +216,7 @@ struct seat {
     unsigned char flags;
     unsigned long money;
     unsigned long bet;
+    unsigned char cards[2];     /* shown at a showdown, CARD_NONE otherwise */
     char name[SEAT_NAME_LEN + 1];
 };
 
@@ -224,6 +226,8 @@ static unsigned char my_seat = 0xFF;
 static unsigned char turn_seat = 0xFF;
 static unsigned char dealer_seat = 0xFF;
 static unsigned char table_dirty = 1;
+static unsigned char table_head_dirty = 1;
+static unsigned int seat_dirty = 0x03FF;    /* one bit per seat */
 
 static char table_name[NAME_LEN + 1] = "";
 static unsigned char board[5];
@@ -238,6 +242,7 @@ static unsigned long min_raise = 0;
 static unsigned long my_money = 0;
 
 static unsigned char view = VIEW_LOBBY;
+static unsigned char view_dirty = 1;
 
 static char input[INPUT_LEN + 1];
 static unsigned char input_len = 0;
@@ -273,10 +278,14 @@ static unsigned char input_dirty = 1;
 
 /* 8 bits, one stop bit, receiver clocked by the baud generator, and 1200
 ** baud rather than 2400: at 2400 a byte arrives every 4 milliseconds, which
-** is less than this machine needs to paint a row of the screen in C. Halving
-** the rate doubles the margin and costs nothing anybody will notice - a chat
-** line is forty bytes. */
-#define ACIA_CONTROL 0x18
+** is less than this machine needs to paint a row of the screen in C.
+**
+** 600 now, not 1200. A table is ten seats of seventeen bytes each where the
+** lobby was a line or two, and at 1200 the burst that arrives when a hand
+** starts was costing bytes. At 600 there are 16 milliseconds between them,
+** which is more than a redraw takes. It can go back up when the drawing is
+** cheaper, and the counter in the header will say when that is true. */
+#define ACIA_CONTROL 0x17
 /* DTR asserted, RTS asserted, receive interrupt disabled - that last bit is
 ** the whole point. */
 #define ACIA_COMMAND 0x0B
@@ -363,6 +372,26 @@ static void send_ack(void)
     out[3] = acked >> 8;
     acked = 0;
     out_frame(U_ACK, 2);
+}
+
+static void send_join(unsigned int game_id)
+{
+    out[2] = (unsigned char)game_id;
+    out[3] = (unsigned char)(game_id >> 8);
+    out_frame(U_JOIN, 2);
+}
+
+static void send_action(unsigned char action, unsigned long amount)
+{
+    out[2] = action;
+    out[3] = (unsigned char)amount;
+    out[4] = (unsigned char)(amount >> 8);
+    out[5] = (unsigned char)(amount >> 16);
+    out[6] = (unsigned char)(amount >> 24);
+    out_frame(U_ACTION, 5);
+    /* Nothing more to answer until the server asks again. */
+    may = 0;
+    input_dirty = 1;
 }
 
 static void send_chat(void)
@@ -516,6 +545,19 @@ static unsigned char put_ulong(unsigned char x, unsigned char row,
         value /= 10;
     } while (value != 0 && count < sizeof(digits));
 
+    /* Too wide for its column means the value is nonsense - a byte went
+    ** missing somewhere. Better a row of hashes than digits spilling into
+    ** the next field and looking like data. */
+    if (count > width && width > 0) {
+        while (width > 0 && x < SCREEN_W) {
+            SCREEN[at + x] = screen_code('#');
+            COLOUR[at + x] = WHITE;
+            ++x;
+            --width;
+        }
+        return x;
+    }
+
     while (width > count && x < SCREEN_W) {
         SCREEN[at + x] = 0x20;
         COLOUR[at + x] = WHITE;
@@ -622,19 +664,27 @@ static void draw_games(void)
     games_dirty = 0;
 }
 
-static void draw_table(void)
+/*
+ * The table is drawn a row at a time, not all at once.
+ *
+ * Every pot update used to repaint ten seats, which flickers and, worse,
+ * spends the milliseconds in which the next byte arrives. So each seat
+ * carries a bit saying whether it has changed, and only those rows are
+ * touched.
+ */
+static void draw_table_head(void)
 {
-    unsigned char i;
     unsigned char x;
-    unsigned char flags;
+    unsigned char i;
 
-    /* Header: the game, and the pot, which is the one number everybody at a
-    ** table looks at first. */
     clear_row(ROW_HEADER, 1);
     x = put_text(1, ROW_HEADER, "pokerth ", REVERSED);
     put_text(x, ROW_HEADER, table_name, REVERSED);
-    x = put_text(28, ROW_HEADER, "pot ", REVERSED);
-    put_ulong(x, ROW_HEADER, pot, 7);
+    x = put_text(28, ROW_HEADER, "pot", REVERSED);
+    put_ulong(x, ROW_HEADER, pot, 8);
+    if (overruns != 0) {
+        put_text(SCREEN_W - 1, ROW_HEADER, "!", REVERSED);
+    }
 
     clear_row(ROW_BOARD, 0);
     x = put_text(0, ROW_BOARD, "board  ", 0);
@@ -655,37 +705,63 @@ static void draw_table(void)
     put_ulong(22, ROW_MINE, my_money, 8);
 
     clear_row(ROW_MINE + 1, 0);
+    table_head_dirty = 0;
+    header_dirty = 0;
+}
 
-    for (i = 0; i < MAX_SEATS; ++i) {
-        serial_poll();   /* a row takes longer than a byte does */
-        clear_row(ROW_SEATS + i, 0);
-        if (i >= seat_count || !(seats[i].flags & SEAT_TAKEN)) {
-            continue;
-        }
-        flags = seats[i].flags;
-        put_uint(0, ROW_SEATS + i, i, 2, 0);
-        put_text(3, ROW_SEATS + i, seats[i].name, 0);
-        put_ulong(15, ROW_SEATS + i, seats[i].money, 8);
-        if (seats[i].bet != 0) {
-            put_ulong(24, ROW_SEATS + i, seats[i].bet, 6);
-        }
-        /* Four columns of marks, which is all a 40 column line can spare:
-        ** the dealer, whose turn it is, and who is out of the hand. */
-        x = 31;
-        if (flags & SEAT_DEALER) {
-            x = put_text(x, ROW_SEATS + i, "d", 0);
-        }
-        if (i == turn_seat) {
-            x = put_text(x, ROW_SEATS + i, "<", 0);
-        }
-        if (flags & SEAT_FOLDED) {
-            x = put_text(x, ROW_SEATS + i, "-", 0);
-        }
-        if (flags & SEAT_ALL_IN) {
-            put_text(x, ROW_SEATS + i, "a", 0);
-        }
+static void draw_seat(unsigned char i)
+{
+    unsigned char row = ROW_SEATS + i;
+    unsigned char flags = seats[i].flags;
+    unsigned char x;
+
+    clear_row(row, 0);
+    if (i >= seat_count || !(flags & SEAT_TAKEN)) {
+        return;
     }
 
+    put_uint(0, row, i, 2, 0);
+    put_text(3, row, seats[i].name, 0);
+    put_ulong(15, row, seats[i].money, 8);
+
+    if (seats[i].cards[0] <= 51) {
+        /* At a showdown the cards matter more than the bet did. */
+        x = put_card(24, row, seats[i].cards[0]);
+        put_card(x + 1, row, seats[i].cards[1]);
+    } else if (seats[i].bet != 0) {
+        put_ulong(24, row, seats[i].bet, 6);
+    }
+
+    /* Four columns of marks, which is all a 40 column line can spare: the
+    ** dealer, whose turn it is, and who is out of the hand. */
+    x = 31;
+    if (flags & SEAT_DEALER) {
+        x = put_text(x, row, "d", 0);
+    }
+    if (i == turn_seat) {
+        x = put_text(x, row, "<", 0);
+    }
+    if (flags & SEAT_FOLDED) {
+        x = put_text(x, row, "-", 0);
+    }
+    if (flags & SEAT_ALL_IN) {
+        put_text(x, row, "a", 0);
+    }
+}
+
+static void draw_table(void)
+{
+    unsigned char i;
+
+    if (table_head_dirty) {
+        draw_table_head();
+    }
+    for (i = 0; i < MAX_SEATS; ++i) {
+        if (seat_dirty & (1U << i)) {
+            seat_dirty &= ~(1U << i);
+            draw_seat(i);
+        }
+    }
     clear_row(ROW_SEATS + MAX_SEATS, 0);
     table_dirty = 0;
 }
@@ -793,6 +869,15 @@ static unsigned char frame_want;
 static unsigned char frame_have;
 static unsigned char frame[255];
 static unsigned char frame_state = 0;   /* 0 type, 1 length, 2 payload */
+
+/* Four bytes of a record, little endian, as the money and the amounts come. */
+static unsigned long read_long(unsigned char at)
+{
+    return (unsigned long)frame[at]
+           | ((unsigned long)frame[at + 1] << 8)
+           | ((unsigned long)frame[at + 2] << 16)
+           | ((unsigned long)frame[at + 3] << 24);
+}
 
 static struct game *find_game(unsigned int id)
 {
@@ -972,6 +1057,160 @@ static void handle_frame(void)
         header_dirty = 1;
         break;
 
+    /* ------------------------------------------------------------ table */
+
+    case D_TABLE:
+        {
+            /* id(2), seats(1), my seat(1), name. It arrives twice: once on
+            ** sitting down, and again once the seats have been handed out,
+            ** because only then is it known which one is ours. */
+            unsigned char length = frame_want > 4 ? (unsigned char)(frame_want - 4) : 0;
+            unsigned char i;
+
+            seat_count = frame[2] > MAX_SEATS ? MAX_SEATS : frame[2];
+            my_seat = frame[3];
+            if (length > NAME_LEN) {
+                length = NAME_LEN;
+            }
+            for (i = 0; i < length; ++i) {
+                table_name[i] = (char)frame[4 + i];
+            }
+            table_name[length] = '\0';
+            if (view != VIEW_TABLE) {
+                view = VIEW_TABLE;
+                view_dirty = 1;
+            }
+            table_head_dirty = 1;
+            seat_dirty = 0x03FF;
+            table_dirty = 1;
+        }
+        break;
+
+    case D_SEAT:
+        {
+            /* seat(1), flags(1), money(4), name */
+            unsigned char n = frame[0];
+            unsigned char length = frame_want > 6 ? (unsigned char)(frame_want - 6) : 0;
+            unsigned char i;
+
+            if (n < MAX_SEATS) {
+                seats[n].flags = frame[1];
+                seats[n].money = read_long(2);
+                seats[n].bet = 0;
+                seats[n].cards[0] = CARD_NONE;
+                seats[n].cards[1] = CARD_NONE;
+                if (length > SEAT_NAME_LEN) {
+                    length = SEAT_NAME_LEN;
+                }
+                for (i = 0; i < length; ++i) {
+                    seats[n].name[i] = (char)frame[6 + i];
+                }
+                seats[n].name[length] = '\0';
+                seat_dirty |= 1U << n;
+                table_dirty = 1;
+            }
+        }
+        break;
+
+    case D_SEAT_BET:
+        /* seat(1), flags(1), money(4), bet(4) */
+        if (frame[0] < MAX_SEATS) {
+            seats[frame[0]].flags = frame[1];
+            seats[frame[0]].money = read_long(2);
+            seats[frame[0]].bet = read_long(6);
+            seat_dirty |= 1U << frame[0];
+            table_dirty = 1;
+        }
+        break;
+
+    case D_HAND:
+        {
+            /* hand(2), dealer seat(1), small blind(4), card(1), card(1) */
+            unsigned char i;
+
+            hand_number = frame[0] | ((unsigned int)frame[1] << 8);
+            dealer_seat = frame[2];
+            my_cards[0] = frame[7];
+            my_cards[1] = frame[8];
+            board_count = 0;
+            pot = 0;
+            for (i = 0; i < MAX_SEATS; ++i) {
+                seats[i].bet = 0;
+                seats[i].cards[0] = CARD_NONE;
+                seats[i].cards[1] = CARD_NONE;
+            }
+            may = 0;
+            table_head_dirty = 1;
+            seat_dirty = 0x03FF;
+            table_dirty = 1;
+            input_dirty = 1;
+        }
+        break;
+
+    case D_BOARD:
+        {
+            unsigned char i;
+
+            board_count = frame[0] > 5 ? 5 : frame[0];
+            for (i = 0; i < board_count; ++i) {
+                board[i] = frame[1 + i];
+            }
+            table_head_dirty = 1;
+            table_dirty = 1;
+        }
+        break;
+
+    case D_POT:
+        pot = read_long(0);
+        table_head_dirty = 1;
+        table_dirty = 1;
+        break;
+
+    case D_TURN:
+        /* Both the seat that had the mark and the one that gets it. */
+        if (turn_seat < MAX_SEATS) {
+            seat_dirty |= 1U << turn_seat;
+        }
+        turn_seat = frame[0];
+        if (turn_seat < MAX_SEATS) {
+            seat_dirty |= 1U << turn_seat;
+        }
+        table_dirty = 1;
+        break;
+
+    case D_ASK:
+        /* allowed(1), to call(4), minimum raise(4), my money(4) */
+        may = frame[0];
+        to_call = read_long(1);
+        min_raise = read_long(5);
+        my_money = read_long(9);
+        set_status("your turn");
+        input_dirty = 1;
+        break;
+
+    case D_RESULT:
+        /* seat(1), card(1), card(1), won(4), money(4) */
+        if (frame[0] < MAX_SEATS) {
+            seats[frame[0]].cards[0] = frame[1];
+            seats[frame[0]].cards[1] = frame[2];
+            seats[frame[0]].money = read_long(7);
+            seat_dirty |= 1U << frame[0];
+            table_dirty = 1;
+        }
+        break;
+
+    case D_TABLE_END:
+        view = VIEW_LOBBY;
+        view_dirty = 1;
+        may = 0;
+        switch (frame[0]) {
+        case 1:  set_status("the game is over"); break;
+        case 2:  set_status("removed from the table"); break;
+        case 3:  set_status("could not join"); break;
+        default: set_status("left the table"); break;
+        }
+        break;
+
     default:
         break;                      /* a record from a later stage: ignore */
     }
@@ -994,15 +1233,47 @@ static void handle_frame(void)
 #define PATIENCE 2000           /* turns of the loop, roughly a second */
 
 static unsigned int waited = 0;
+static unsigned char want_hello = 0;
 
+/*
+ * A type byte that is not a record is proof that the stream has slipped, and
+ * waiting a second to find out is a second of nonsense on screen.
+ */
+static unsigned char known_record(unsigned char type)
+{
+    if (type >= D_TABLE && type <= D_TABLE_END) {
+        return 1;
+    }
+    switch (type) {
+    case D_HELLO:
+    case D_STATE:
+    case D_NOTICE:
+    case D_GAME_CLEAR:
+    case D_GAME_ADD:
+    case D_GAME_UPDATE:
+    case D_GAME_REMOVE:
+    case D_CHAT:
+    case D_PLAYERS:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
+ * The greeting is asked for rather than sent from here: this runs inside
+ * serial_poll(), which is itself called from the middle of sending, and a
+ * frame built while another is going out would trample it. The main loop
+ * sends it when the line is free.
+ */
 static void resynchronise(void)
 {
     frame_state = 0;
     frame_have = 0;
     acked = 0;
     waited = 0;
+    want_hello = 1;
     set_status("lost the thread - asking again");
-    send_hello();
 }
 
 static void feed(unsigned char byte)
@@ -1010,6 +1281,10 @@ static void feed(unsigned char byte)
     waited = 0;
     switch (frame_state) {
     case 0:
+        if (!known_record(byte)) {
+            resynchronise();
+            break;
+        }
         frame_type = byte;
         frame_state = 1;
         break;
@@ -1035,11 +1310,80 @@ static void feed(unsigned char byte)
 
 /* ------------------------------------------------------------------- main */
 
+/*
+ * A line beginning with a slash is a command rather than something to say.
+ * There are only two, because everything else at a table is a function key:
+ * /j <number> sits down at a game from the list, /l gets up again.
+ */
+static void run_command(void)
+{
+    unsigned int value = 0;
+    unsigned char i;
+
+    if (input[1] == 'j') {
+        for (i = 2; i < input_len; ++i) {
+            if (input[i] >= '0' && input[i] <= '9') {
+                value = value * 10 + (unsigned int)(input[i] - '0');
+            }
+        }
+        if (value != 0) {
+            send_join(value);
+            set_status("sitting down");
+        } else {
+            set_status("which game? /j 1");
+        }
+    } else if (input[1] == 'l') {
+        out_frame(U_LEAVE, 0);
+        set_status("leaving the table");
+    } else {
+        set_status("/j <number> sits down, /l leaves");
+    }
+}
+
 static void handle_key(unsigned char key)
 {
+    /* With something to answer, the function keys are the answer. They do
+    ** nothing when it is not our turn, so a stray press cannot fold a hand. */
+    if (view == VIEW_TABLE && may != 0 && out_idle()) {
+        if (key == CH_F1 && (may & MAY_FOLD)) {
+            send_action(ACTION_FOLD, 0);
+            return;
+        }
+        if (key == CH_F3) {
+            if (may & MAY_CHECK) {
+                send_action(ACTION_CHECK, 0);
+                return;
+            }
+            if (may & MAY_CALL) {
+                send_action(ACTION_CALL, to_call);
+                return;
+            }
+        }
+        if (key == CH_F5) {
+            /* The bet is relative: what goes in on top of what is already
+            ** in front of this seat. */
+            if (may & MAY_RAISE) {
+                send_action(ACTION_RAISE, to_call + min_raise);
+                return;
+            }
+            if (may & MAY_BET) {
+                send_action(ACTION_BET, min_raise);
+                return;
+            }
+        }
+        if (key == CH_F7 && (may & MAY_ALL_IN)) {
+            send_action(ACTION_ALLIN, my_money);
+            return;
+        }
+    }
+
     if (key == CH_ENTER) {
         if (input_len > 0 && out_idle()) {
-            send_chat();
+            if (input[0] == '/') {
+                run_command();
+            } else {
+                send_chat();
+            }
             input_len = 0;
             input_dirty = 1;
         }
@@ -1088,12 +1432,39 @@ int main(void)
         }
 
         out_pump();
-        if (out_idle() && acked > 0) {
-            send_ack();
+        if (out_idle()) {
+            if (want_hello) {
+                want_hello = 0;
+                send_hello();
+            } else if (acked > 0) {
+                send_ack();
+            }
         }
 
-        if (header_dirty) draw_header();
-        if (games_dirty)  draw_games();
+        if (view_dirty) {
+            /* The other view owns the top half of the screen; wipe it and
+            ** draw everything again. */
+            for (i = 0; i < 25; ++i) {
+                clear_row(i, 0);
+            }
+            header_dirty = 1;
+            games_dirty = 1;
+            table_dirty = 1;
+            table_head_dirty = 1;
+            seat_dirty = 0x03FF;
+            chat_dirty = 1;
+            status_dirty = 1;
+            input_dirty = 1;
+            view_dirty = 0;
+        }
+        if (view == VIEW_TABLE) {
+            if (table_dirty || header_dirty) draw_table();
+        } else {
+            if (header_dirty) draw_header();
+            if (games_dirty)  draw_games();
+        }
+        /* The lower half - chat, status, the line you type on - belongs to
+        ** both views and sits in the same rows either way. */
         if (chat_dirty)   draw_chat();
         if (status_dirty) draw_status();
         if (input_dirty)  draw_input();
