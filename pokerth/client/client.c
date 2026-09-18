@@ -250,12 +250,19 @@ static unsigned char read_key(void)
     unsigned char i;
 
     /* A function key waiting to be expanded, taken before the buffer so the
-    ** macro never gets the chance to type itself out. */
+    ** macro never gets the chance to type itself out.
+    **
+    ** What the byte counts is still not certain - f2 and f4 were the only
+    ** two inside the range first guessed at - so every plausible value is
+    ** taken now and the raw one is shown, which is the only way to learn the
+    ** rest. The four actions repeat over it, so whichever key is pressed,
+    ** something sensible happens. */
     key = FKEY_PENDING;
-    if (key >= 1 && key <= 8) {
+    if (key != 0 && key <= 16) {
         FKEY_PENDING = 0;
         FKEY_STEP = 0;
-        return KEY_F1 + (key - 1);
+        last_fkey = key;
+        return KEY_F1 + ((key - 1) & 7);
     }
 
     count = KEY_COUNT;
@@ -330,6 +337,7 @@ static unsigned char status_dirty = 1;
  * never reached the buffer at all.
  */
 static unsigned int last_key = 0;
+static unsigned int last_fkey = 0;      /* the raw byte, before any guessing */
 
 struct seat {
     unsigned char flags;
@@ -907,6 +915,10 @@ static void draw_status(void)
 
     clear_row(ROW_INPUT - 1, 0);
     put_text(0, ROW_INPUT - 1, status, 0);
+    if (last_fkey != 0) {
+        x = put_text(24, ROW_INPUT - 1, "fk ", 0);
+        put_uint(x, ROW_INPUT - 1, last_fkey, 2, 0);
+    }
     if (last_key != 0) {
         x = put_text(31, ROW_INPUT - 1, "key ", 0);
         put_uint(x, ROW_INPUT - 1, last_key, 3, 0);
