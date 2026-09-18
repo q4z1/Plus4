@@ -43,7 +43,7 @@ Each stage is meant to work on its own before the next one starts.
 | 2 | [The Plus/4 wire protocol](protocol.md), the proxy, and a reference client in Python | **done** |
 | 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
 | 4 | [Plus/4: the lobby itself](client/client.c) | **done** - the lobby, and chat both ways |
-| 5 | Table play: [the records](protocol.md), the proxy side, [a hand on demand](proxy/handcheck.py) | proved against the live server; the Plus/4 table view is half built |
+| 5 | [Table play](client/client.c), end to end | **done** - a hand is played on the machine |
 | 6 | Real hardware over a serial WiFi modem | |
 
 ## Stage 1: the lobby on a terminal

@@ -207,11 +207,6 @@
 #define FKEY_PENDING (*(unsigned char *)0x055D)
 #define FKEY_STEP    (*(unsigned char *)0x055E)
 
-/* Shown in the status line, so that the machine can be asked rather than
-** argued with. */
-static unsigned int last_fkey = 0;      /* $055D, whatever it counts */
-static unsigned int last_fkey_which = 0;/* $055E, the likelier identity */
-
 #define KEY_BUFFER  ((unsigned char *)0x0527)
 #define KEY_COUNT   (*(unsigned char *)0x00EF)
 
@@ -270,8 +265,6 @@ static unsigned char read_key(void)
         /* $055D counts what is left to feed out and $055E says where it
         ** started, which is what names the key - and every definition being
         ** one byte long, that start is the key number. */
-        last_fkey = key;
-        last_fkey_which = FKEY_STEP;
         key = FKEY_STEP;
         FKEY_PENDING = 0;
         FKEY_STEP = 0;
@@ -340,16 +333,7 @@ static unsigned char header_dirty = 1;
 static char status[SCREEN_W + 1] = "starting";
 static unsigned char status_dirty = 1;
 
-/*
- * The code of the last key, at the right hand end of the status line.
- *
- * Which byte a key produces on this machine has been guesswork twice over -
- * the function keys are text macros, and what reaches the buffer depends on
- * whether the KERNAL has expanded them yet. So the machine is asked instead
- * of argued with: every key shows its number, and a key that shows nothing
- * never reached the buffer at all.
- */
-static unsigned int last_key = 0;
+
 
 struct seat {
     unsigned char flags;
@@ -923,20 +907,8 @@ static void draw_chat(void)
 
 static void draw_status(void)
 {
-    unsigned char x;
-
     clear_row(ROW_INPUT - 1, 0);
     put_text(0, ROW_INPUT - 1, status, 0);
-    if (last_fkey != 0) {
-        x = put_text(22, ROW_INPUT - 1, "fk ", 0);
-        x = put_uint(x, ROW_INPUT - 1, last_fkey, 2, 0);
-        x = put_text(x, ROW_INPUT - 1, "/", 0);
-        put_uint(x, ROW_INPUT - 1, last_fkey_which, 2, 0);
-    }
-    if (last_key != 0) {
-        x = put_text(31, ROW_INPUT - 1, "key ", 0);
-        put_uint(x, ROW_INPUT - 1, last_key, 3, 0);
-    }
     status_dirty = 0;
 }
 
@@ -1629,8 +1601,6 @@ int main(void)
             if (byte == KEY_STOP) {
                 break;              /* run/stop leaves */
             }
-            last_key = byte;
-            status_dirty = 1;
             handle_key(byte);
         }
         if (status_dirty) draw_status();
