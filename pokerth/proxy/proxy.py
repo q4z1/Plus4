@@ -453,7 +453,18 @@ def main(argv=None) -> int:
                         if not data:
                             raise ConnectionResetError
                         for kind, payload in bridge.plus4.receive(data):
-                            bridge.from_plus4(kind, payload)
+                            try:
+                                bridge.from_plus4(kind, payload)
+                            except L.LinkError:
+                                raise
+                            except Exception as e:
+                                # One bad record must not take the session
+                                # with it. The Plus/4 has no way of knowing
+                                # why the line went silent, and a crash here
+                                # looks exactly like a cable falling out.
+                                log("p4", f"{p4wire.type_name(kind)} failed: "
+                                          f"{e.__class__.__name__}: {e}")
+                                bridge.to_plus4(p4wire.notice("that did not work"))
                     except (ConnectionResetError, BrokenPipeError, OSError):
                         log("p4", f"the Plus/4 at {bridge.plus4.addr} is gone")
                         bridge.plus4.close()

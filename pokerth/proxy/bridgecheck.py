@@ -143,4 +143,40 @@ assert len(small.queue) == 1, "kept sending with no credit left"
 small.ack(len(big))
 assert not small.queue, "the acknowledgement did not release the next frame"
 
+# --- What the Plus/4 asks for --------------------------------------------
+#
+# Every message the proxy sends upstream has required fields, and one left
+# unset does not fail quietly: it raises while being serialized, which killed
+# the proxy and looked from the Plus/4 like the cable falling out. So each
+# command is built here and serialized, which is the whole test.
+
+print("\nwhat the Plus/4 can ask for:")
+asked = Bridge(FakeLink(), "akali", "pthsrv.pokerth.net")
+asked.me = 42
+asked.plus4 = Plus4Connection(FakeSocket(), ("test", 0))
+asked.plus4.hello(512)
+
+msg, ack = L.make("JoinGameAckMessage")
+ack.gameId, ack.areYouGameAdmin = 4711, False
+info = ack.gameInfo
+info.gameName = "Ranking Game"
+info.netGameType = pb.NetGameInfo.rankingGame
+info.maxNumPlayers = 10
+info.raiseIntervalMode = pb.NetGameInfo.raiseOnHandNum
+info.endRaiseMode = pb.NetGameInfo.doubleBlinds
+info.proposedGuiSpeed = 4
+info.delayBetweenHands = 7
+info.playerActionTimeout = 30
+info.firstSmallBlind = 50
+info.startMoney = 10000
+asked.pump(msg)
+
+asked.join_game(4711)
+asked.act(p4wire.ACTION_CALL, 100)
+asked.leave_game()
+for sent in asked.link.sent:
+    encoded = sent.SerializeToString()      # raises if a field is missing
+    print(f"  {L.kind_of(sent):<28} {len(encoded):>3} bytes")
+assert len(asked.link.sent) >= 3, "not every command produced a message"
+
 print("\nall checks passed")

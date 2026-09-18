@@ -54,7 +54,12 @@ class LobbyState:
         self.link.send(msg)
 
     def leave_game(self) -> None:
-        msg, _ = L.make("LeaveGameRequestMessage")
+        """Get up from the table. The game has to be named: the field is
+        required, and a message missing one cannot even be serialized."""
+        if self.table is None:
+            return
+        msg, leave = L.make("LeaveGameRequestMessage")
+        leave.gameId = self.table.game_id
         self.link.send(msg)
 
     def act(self, action: int, relative_bet: int = 0) -> None:
