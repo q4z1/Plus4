@@ -295,12 +295,9 @@ static unsigned char read_key(void)
 
 #define MAX_GAMES     GAME_ROWS
 
-/* The table view, on the same 25 rows: header, board, our own cards, then a
-** row per seat, then the chat, the status line and the keys. */
+/* The table view shares the 25 rows with the lobby: the top half is drawn by
+** whichever view is showing, the chat and the two bottom lines by both. */
 #define MAX_SEATS     10
-#define ROW_BOARD      1
-#define ROW_MINE       2
-#define ROW_SEATS      4
 #define SEAT_NAME_LEN 12
 
 #define VIEW_LOBBY 0
@@ -544,11 +541,95 @@ static void send_chat(void)
  * Setting bit 7 of a character code gives the reversed glyph, which is what
  * the header bar is made of.
  */
+/*
+ * Four characters of our own: the card suits.
+ *
+ * Letters said d, h, s and c, which reads like a hand history rather than a
+ * card. The TED can take its character set from RAM, so the ROM one is
+ * copied there and four unused codes are given the shapes they should have.
+ *
+ * Getting at the ROM set is the awkward part, and pacman/ has been here
+ * first: cc65 keeps the ROM switched out to use all of memory, so it has to
+ * come back for the length of the copy - and inside that window the C stack
+ * is covered by it, which means globals only and no function calls.
+ *
+ * Only 128 characters are copied. The codes above that are the reversed
+ * ones, which the TED makes itself as long as bit 7 of $FF07 is left alone -
+ * and this program needs them, for the header bar and the felt.
+ */
+#define TED_CHARSET_MODE (*(volatile unsigned char *)0xFF12)  /* bit 2: from RAM */
+#define TED_CHARSET_ADDR (*(volatile unsigned char *)0xFF13)  /* bits 2-7 */
+#define ROM_IN           (*(volatile unsigned char *)0xFF3E)
+#define RAM_IN           (*(volatile unsigned char *)0xFF3F)
+#define ROM_CHARSET      ((unsigned char *)0xD400)   /* the mixed case set */
+
+#define SUIT_GLYPH 0x5B         /* four codes this program never prints */
+
+static unsigned char charset_store[1024 + 1023];
+static unsigned char *charset;
+static unsigned int rom_index;          /* global: no C stack in the window */
+static unsigned char saved_charset_mode;
+static unsigned char saved_charset_addr;
+
+/* Diamonds, hearts, spades, clubs - in the order the card codes use. */
+static const unsigned char SUIT_SHAPES[4][8] = {
+    { 0x18, 0x3C, 0x7E, 0xFF, 0x7E, 0x3C, 0x18, 0x00 },
+    { 0x66, 0xFF, 0xFF, 0xFF, 0x7E, 0x3C, 0x18, 0x00 },
+    { 0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x5A, 0x18, 0x3C },
+    { 0x18, 0x3C, 0x3C, 0xDB, 0xFF, 0xDB, 0x18, 0x3C }
+};
+
+static void install_charset(void)
+{
+    unsigned int i;
+    unsigned char suit;
+
+    /* The set has to start on a 1 KB boundary, so room is taken for one and
+    ** the start moved up to the next. */
+    charset = (unsigned char *)
+              ((((unsigned int)charset_store) + 0x03FF) & 0xFC00);
+
+    __asm__("sei");
+    ROM_IN = 0;
+    for (rom_index = 0; rom_index < 1024; ++rom_index) {
+        charset[rom_index] = ROM_CHARSET[rom_index];
+    }
+    RAM_IN = 0;
+    __asm__("cli");
+
+    for (suit = 0; suit < 4; ++suit) {
+        for (i = 0; i < 8; ++i) {
+            charset[(SUIT_GLYPH + suit) * 8 + i] = SUIT_SHAPES[suit][i];
+        }
+    }
+
+    saved_charset_mode = TED_CHARSET_MODE;
+    saved_charset_addr = TED_CHARSET_ADDR;
+    TED_CHARSET_ADDR = (unsigned char)((((unsigned int)charset) >> 8) & 0xFC)
+                       | (TED_CHARSET_ADDR & 0x02);
+    TED_CHARSET_MODE = TED_CHARSET_MODE & ~0x04;
+}
+
+static void restore_charset(void)
+{
+    TED_CHARSET_MODE = saved_charset_mode;
+    TED_CHARSET_ADDR = saved_charset_addr;
+}
+
 #define SCREEN ((unsigned char *)0x0C00)
 #define COLOUR ((unsigned char *)0x0800)
-#define WHITE 0x71
-#define RED   0x72
+/* Colour is luminance in the high nibble, colour in the low one. */
+#define WHITE  0x71
+#define RED    0x72
+#define GREEN  0x35             /* the felt: dark enough to read on */
+#define CYAN   0x73             /* our own seat */
+#define YELLOW 0x77             /* all in */
+#define GREY   0x11             /* folded, and out of the hand */
 #define REVERSED 0x80
+
+/* What the drawing routines colour with. One variable rather than an extra
+** argument on every call, because almost everything is white. */
+static unsigned char pen = WHITE;
 
 /*
  * PETSCII in, screen codes out.
@@ -584,7 +665,7 @@ static void clear_row(unsigned char row, unsigned char reverse)
     serial_poll();
     for (i = 0; i < SCREEN_W; ++i) {
         SCREEN[at + i] = reverse ? (0x20 | REVERSED) : 0x20;
-        COLOUR[at + i] = WHITE;
+        COLOUR[at + i] = pen;
     }
 }
 
@@ -596,7 +677,7 @@ static unsigned char put_text(unsigned char x, unsigned char row,
     serial_poll();
     while (*text != '\0' && x < SCREEN_W) {
         SCREEN[at + x] = screen_code((unsigned char)*text) | reverse;
-        COLOUR[at + x] = WHITE;
+        COLOUR[at + x] = pen;
         ++text;
         ++x;
     }
@@ -610,7 +691,7 @@ static unsigned char put_chars(unsigned char x, unsigned char row,
 
     while (length > 0 && x < SCREEN_W) {
         SCREEN[at + x] = screen_code(*text);
-        COLOUR[at + x] = WHITE;
+        COLOUR[at + x] = pen;
         ++text;
         ++x;
         --length;
@@ -637,13 +718,13 @@ static unsigned char put_uint(unsigned char x, unsigned char row,
 
     while (width > count && x < SCREEN_W) {
         SCREEN[at + x] = 0x20 | reverse;
-        COLOUR[at + x] = WHITE;
+        COLOUR[at + x] = pen;
         ++x;
         --width;
     }
     while (count > 0 && x < SCREEN_W) {
         SCREEN[at + x] = digits[--count] | reverse;
-        COLOUR[at + x] = WHITE;
+        COLOUR[at + x] = pen;
         ++x;
     }
     return x;
@@ -674,7 +755,7 @@ static unsigned char put_ulong(unsigned char x, unsigned char row,
     if (count > width && width > 0) {
         while (width > 0 && x < SCREEN_W) {
             SCREEN[at + x] = screen_code('#');
-            COLOUR[at + x] = WHITE;
+            COLOUR[at + x] = pen;
             ++x;
             --width;
         }
@@ -683,13 +764,13 @@ static unsigned char put_ulong(unsigned char x, unsigned char row,
 
     while (width > count && x < SCREEN_W) {
         SCREEN[at + x] = 0x20;
-        COLOUR[at + x] = WHITE;
+        COLOUR[at + x] = pen;
         ++x;
         --width;
     }
     while (count > 0 && x < SCREEN_W) {
         SCREEN[at + x] = digits[--count];
-        COLOUR[at + x] = WHITE;
+        COLOUR[at + x] = pen;
         ++x;
     }
     return x;
@@ -702,10 +783,12 @@ static unsigned char put_ulong(unsigned char x, unsigned char row,
  * are drawn in red, which costs nothing because the colour cell is written
  * anyway.
  */
+/* Every card two characters wide, ten written as t the way a hand history
+** does - which is what lets five of them fit across the table. */
 static const char *const RANKS[13] = {
-    "2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k", "a"
+    "2", "3", "4", "5", "6", "7", "8", "9", "t", "j", "q", "k", "a"
 };
-static const char SUITS[4] = { 'd', 'h', 's', 'c' };
+/* The suits are characters of our own now; see install_charset. */
 
 static unsigned char put_card(unsigned char x, unsigned char row,
                               unsigned char code)
@@ -720,7 +803,7 @@ static unsigned char put_card(unsigned char x, unsigned char row,
     }
     suit = code / 13;
     rank = RANKS[code % 13];
-    colour = (suit < 2) ? RED : WHITE;
+    colour = (suit < 2) ? RED : pen;
 
     while (*rank != '\0' && x < SCREEN_W) {
         SCREEN[at + x] = screen_code((unsigned char)*rank);
@@ -729,7 +812,7 @@ static unsigned char put_card(unsigned char x, unsigned char row,
         ++x;
     }
     if (x < SCREEN_W) {
-        SCREEN[at + x] = screen_code((unsigned char)SUITS[suit]);
+        SCREEN[at + x] = SUIT_GLYPH + suit;
         COLOUR[at + x] = colour;
         ++x;
     }
@@ -788,88 +871,174 @@ static void draw_games(void)
 }
 
 /*
- * The table is drawn a row at a time, not all at once.
+ * The table, as a table.
  *
- * Every pot update used to repaint ten seats, which flickers and, worse,
- * spends the milliseconds in which the next byte arrives. So each seat
- * carries a bit saying whether it has changed, and only those rows are
- * touched.
+ * Ten places around an oval, our own at the bottom where a player sits, the
+ * board and the pot on the felt between them. The felt is nothing but
+ * reversed spaces in green: a character cell has one colour and the
+ * background belongs to the whole screen, so a solid shape can only be made
+ * of reversed characters - which is exactly what is wanted here.
+ *
+ * State is colour rather than punctuation, there being no room for symbols:
+ * our own seat is cyan, a folded one goes grey, all in is yellow, and whose
+ * turn it is shows as the name in reverse. Only the dealer keeps a letter.
+ *
+ * Drawing stays a row at a time: each seat carries a bit saying whether it
+ * has changed, and repainting all ten for every pot update both flickers and
+ * costs the milliseconds in which the next byte arrives.
  */
+#define FELT_TOP   3
+#define FELT_ROWS  7
+#define ROW_YOU   12
+
+static const unsigned char felt_left[FELT_ROWS]  = { 12, 10,  9,  9,  9, 10, 12 };
+static const unsigned char felt_right[FELT_ROWS] = { 27, 29, 30, 30, 30, 29, 27 };
+static const unsigned char felt_solid[FELT_ROWS] = {  1,  0,  0,  0,  0,  0,  1 };
+
+/* The ten places, starting at the bottom middle and going round. Twelve
+** columns above and below, nine at the sides where the felt leaves less. */
+static const unsigned char place_x[MAX_SEATS] = { 14,  1,  0,  0,  1, 14, 27, 31, 31, 27 };
+static const unsigned char place_y[MAX_SEATS] = { 10, 10,  7,  4,  1,  1,  1,  4,  7, 10 };
+static const unsigned char place_w[MAX_SEATS] = { 12, 12,  9,  9, 12, 12, 12,  9,  9, 12 };
+
+static void blank(unsigned char x, unsigned char row, unsigned char width)
+{
+    unsigned int at = (unsigned int)row * SCREEN_W;
+
+    while (width > 0 && x < SCREEN_W) {
+        SCREEN[at + x] = 0x20;
+        COLOUR[at + x] = pen;
+        ++x;
+        --width;
+    }
+}
+
+static void fill(unsigned char x, unsigned char row, unsigned char last)
+{
+    unsigned int at = (unsigned int)row * SCREEN_W;
+
+    while (x <= last && x < SCREEN_W) {
+        SCREEN[at + x] = 0x20 | REVERSED;
+        COLOUR[at + x] = GREEN;
+        ++x;
+    }
+}
+
+/* Where a seat sits on screen: our own at the bottom, the rest in order
+** round the table from there. */
+static unsigned char place_of(unsigned char number)
+{
+    if (my_seat >= MAX_SEATS) {
+        return number;
+    }
+    return (unsigned char)((number + MAX_SEATS - my_seat) % MAX_SEATS);
+}
+
+static void draw_felt(void)
+{
+    unsigned char r;
+    unsigned char row;
+    unsigned char x;
+
+    for (r = 0; r < FELT_ROWS; ++r) {
+        row = FELT_TOP + r;
+        serial_poll();
+        pen = WHITE;
+        blank(felt_left[r], row, felt_right[r] - felt_left[r] + 1);
+        if (felt_solid[r]) {
+            fill(felt_left[r], row, felt_right[r]);
+        } else {
+            fill(felt_left[r], row, felt_left[r] + 1);
+            fill(felt_right[r] - 1, row, felt_right[r]);
+        }
+    }
+
+    /* The board, on the felt. Five cards of two characters and the gaps
+    ** between them come to fourteen, centred in what the felt leaves. */
+    pen = WHITE;
+    x = 13;
+    if (board_count == 0) {
+        put_text(x, FELT_TOP + 2, "-- -- -- -- --", 0);
+    } else {
+        for (r = 0; r < board_count; ++r) {
+            x = put_card(x, FELT_TOP + 2, board[r]) + 1;
+        }
+        while (r < 5) {
+            x = put_text(x, FELT_TOP + 2, "--", 0) + 1;
+            ++r;
+        }
+    }
+
+    x = put_text(15, FELT_TOP + 4, "pot ", 0);
+    put_ulong(x, FELT_TOP + 4, pot, 0);
+}
+
 static void draw_table_head(void)
 {
     unsigned char x;
-    unsigned char i;
 
+    pen = WHITE;
     clear_row(ROW_HEADER, 1);
     x = put_text(1, ROW_HEADER, "pokerth ", REVERSED);
     put_text(x, ROW_HEADER, table_name, REVERSED);
-    x = put_text(28, ROW_HEADER, "pot", REVERSED);
-    put_ulong(x, ROW_HEADER, pot, 8);
     if (overruns != 0) {
         put_text(SCREEN_W - 1, ROW_HEADER, "!", REVERSED);
     }
 
-    clear_row(ROW_BOARD, 0);
-    x = put_text(0, ROW_BOARD, "board  ", 0);
-    if (board_count == 0) {
-        put_text(x, ROW_BOARD, "--", 0);
-    } else {
-        for (i = 0; i < board_count; ++i) {
-            x = put_card(x, ROW_BOARD, board[i]);
-            ++x;
-        }
-    }
+    /* Our own two cards and what is left of our money, under our seat. */
+    clear_row(ROW_YOU, 0);
+    x = put_text(14, ROW_YOU, "", 0);
+    x = put_card(14, ROW_YOU, my_cards[0]);
+    x = put_card(x + 1, ROW_YOU, my_cards[1]);
+    put_ulong(x + 2, ROW_YOU, my_money, 0);
 
-    clear_row(ROW_MINE, 0);
-    x = put_text(0, ROW_MINE, "you    ", 0);
-    x = put_card(x, ROW_MINE, my_cards[0]);
-    ++x;
-    put_card(x, ROW_MINE, my_cards[1]);
-    put_ulong(22, ROW_MINE, my_money, 8);
-
-    clear_row(ROW_MINE + 1, 0);
+    draw_felt();
     table_head_dirty = 0;
     header_dirty = 0;
 }
 
 static void draw_seat(unsigned char i)
 {
-    unsigned char row = ROW_SEATS + i;
+    unsigned char place = place_of(i);
+    unsigned char x = place_x[place];
+    unsigned char y = place_y[place];
+    unsigned char width = place_w[place];
     unsigned char flags = seats[i].flags;
-    unsigned char x;
+    unsigned char reverse = 0;
+    unsigned char at;
 
-    clear_row(row, 0);
+    pen = WHITE;
+    blank(x, y, width);
+    blank(x, y + 1, width);
     if (i >= seat_count || !(flags & SEAT_TAKEN)) {
         return;
     }
 
-    put_uint(0, row, i, 2, 0);
-    put_text(3, row, seats[i].name, 0);
-    put_ulong(15, row, seats[i].money, 8);
-
-    if (seats[i].cards[0] <= 51) {
-        /* At a showdown the cards matter more than the bet did. */
-        x = put_card(24, row, seats[i].cards[0]);
-        put_card(x + 1, row, seats[i].cards[1]);
-    } else if (seats[i].bet != 0) {
-        put_ulong(24, row, seats[i].bet, 6);
-    }
-
-    /* Four columns of marks, which is all a 40 column line can spare: the
-    ** dealer, whose turn it is, and who is out of the hand. */
-    x = 31;
-    if (flags & SEAT_DEALER) {
-        x = put_text(x, row, "d", 0);
+    if (flags & SEAT_FOLDED) {
+        pen = GREY;
+    } else if (flags & SEAT_ALL_IN) {
+        pen = YELLOW;
+    } else if (flags & SEAT_YOU) {
+        pen = CYAN;
     }
     if (i == turn_seat) {
-        x = put_text(x, row, "<", 0);
+        reverse = REVERSED;         /* whose turn it is, without a symbol */
     }
-    if (flags & SEAT_FOLDED) {
-        x = put_text(x, row, "-", 0);
+
+    at = put_text(x, y, seats[i].name, reverse);
+    if ((flags & SEAT_DEALER) && at < x + width) {
+        put_text(at + 1 < x + width ? at + 1 : at, y, "d", 0);
     }
-    if (flags & SEAT_ALL_IN) {
-        put_text(x, row, "a", 0);
+
+    /* Money, and what is in front of them, in as many columns as there are. */
+    at = put_ulong(x, y + 1, seats[i].money, 0);
+    if (seats[i].cards[0] <= 51) {
+        at = put_card(at + 1, y + 1, seats[i].cards[0]);
+        put_card(at + 1, y + 1, seats[i].cards[1]);
+    } else if (seats[i].bet != 0) {
+        put_ulong(at + 1, y + 1, seats[i].bet, 0);
     }
+    pen = WHITE;
 }
 
 static void draw_table(void)
@@ -885,7 +1054,6 @@ static void draw_table(void)
             draw_seat(i);
         }
     }
-    clear_row(ROW_SEATS + MAX_SEATS, 0);
     table_dirty = 0;
 }
 
@@ -947,7 +1115,7 @@ static void draw_input(void)
     /* A block where the next character will land, so the machine looks awake. */
     if (x < SCREEN_W) {
         SCREEN[(unsigned int)ROW_INPUT * SCREEN_W + x] = 0x20 | REVERSED;
-        COLOUR[(unsigned int)ROW_INPUT * SCREEN_W + x] = WHITE;
+        COLOUR[(unsigned int)ROW_INPUT * SCREEN_W + x] = pen;
     }
     input_dirty = 0;
 }
@@ -1564,6 +1732,7 @@ int main(void)
 
     serial_open();
 
+    install_charset();
     saved_repeat = RPTFLG;
     RPTFLG = RPTFLG_NONE;
 #if TAKE_FUNCTION_KEYS
@@ -1598,8 +1767,8 @@ int main(void)
         ** feel like typing. */
         byte = read_key();
         if (byte != 0) {
-            if (byte == KEY_STOP) {
-                break;              /* run/stop leaves */
+            if (byte == KEY_STOP && input_len == 0) {
+                break;              /* run/stop leaves, on an empty line */
             }
             handle_key(byte);
         }
@@ -1641,6 +1810,7 @@ int main(void)
     }
 
     RPTFLG = saved_repeat;
+    restore_charset();
 #if TAKE_FUNCTION_KEYS
     return_function_keys();
 #endif
