@@ -698,11 +698,14 @@ static void clear_row(unsigned char row, unsigned char reverse)
     unsigned int at = (unsigned int)row * SCREEN_W;
     unsigned char i;
 
-    /* Forty cells of C on a 7501 take longer than the 4 milliseconds between
-    ** two bytes at 2400 baud, so the line is checked before every row rather
-    ** than between them. */
-    serial_poll();
+    /* Once a row is not enough. Forty cells of C on a 7501 take longer than
+    ** the gap between two bytes, and how much longer is not something to
+    ** estimate - so the line is checked every eighth cell, which bounds the
+    ** wait whatever the compiler makes of this loop. */
     for (i = 0; i < SCREEN_W; ++i) {
+        if ((i & 7) == 0) {
+            serial_poll();
+        }
         SCREEN[at + i] = reverse ? (0x20 | REVERSED) : 0x20;
         COLOUR[at + i] = pen;
     }
@@ -713,9 +716,12 @@ static unsigned char put_text(unsigned char x, unsigned char row,
 {
     unsigned int at = (unsigned int)row * SCREEN_W;
 
-    serial_poll();
     while (*text != '\0' && x < SCREEN_W) {
         unsigned char here = (unsigned char)*text;
+
+        if ((x & 7) == 0) {
+            serial_poll();
+        }
         unsigned char next = (unsigned char)text[1];
         unsigned char colour = pen;
 
@@ -743,6 +749,9 @@ static unsigned char put_chars(unsigned char x, unsigned char row,
     unsigned int at = (unsigned int)row * SCREEN_W;
 
     while (length > 0 && x < SCREEN_W) {
+        if ((x & 7) == 0) {
+            serial_poll();
+        }
         SCREEN[at + x] = screen_code(*text);
         COLOUR[at + x] = pen;
         ++text;
@@ -959,6 +968,9 @@ static void blank(unsigned char x, unsigned char row, unsigned char width)
     unsigned int at = (unsigned int)row * SCREEN_W;
 
     while (width > 0 && x < SCREEN_W) {
+        if ((x & 7) == 0) {
+            serial_poll();
+        }
         SCREEN[at + x] = 0x20;
         COLOUR[at + x] = pen;
         ++x;
@@ -971,6 +983,9 @@ static void fill(unsigned char x, unsigned char row, unsigned char last)
     unsigned int at = (unsigned int)row * SCREEN_W;
 
     while (x <= last && x < SCREEN_W) {
+        if ((x & 7) == 0) {
+            serial_poll();
+        }
         SCREEN[at + x] = 0x20 | REVERSED;
         COLOUR[at + x] = GREEN;
         ++x;
@@ -1612,6 +1627,7 @@ static void handle_frame(void)
 
 static unsigned int waited = 0;
 static unsigned char want_hello = 0;
+static unsigned char discarding = 0;
 
 /*
  * Drawing waits until the line goes quiet.
@@ -1655,10 +1671,19 @@ static unsigned char known_record(unsigned char type)
 }
 
 /*
- * The greeting is asked for rather than sent from here: this runs inside
- * serial_poll(), which is itself called from the middle of sending, and a
- * frame built while another is going out would trample it. The main loop
- * sends it when the line is free.
+ * Losing a byte used to be the start of a long argument rather than the end
+ * of one. Asking for everything again while the rest of the old burst was
+ * still arriving meant those bytes met a parser that had just been reset,
+ * and threw it out of step immediately - a hundred greetings in one session,
+ * each begetting the next.
+ *
+ * So what is still in flight is thrown away first. Everything is swallowed
+ * until the line has been quiet for a moment, and only then is the proxy
+ * asked to start again. One lost byte then costs one redraw.
+ *
+ * The greeting is asked for rather than sent from here for a second reason:
+ * this runs inside serial_poll(), which is called from the middle of sending
+ * as well, and a frame built while another is going out would trample it.
  */
 static void resynchronise(void)
 {
@@ -1666,14 +1691,19 @@ static void resynchronise(void)
     frame_have = 0;
     acked = 0;
     waited = 0;
-    want_hello = 1;
-    set_status("lost the thread - asking again");
+    discarding = 1;
+    set_status("lost the thread - waiting for quiet");
 }
 
 static void feed(unsigned char byte)
 {
     waited = 0;
     quiet = 0;
+
+    /* Out of step: the rest of what is coming belongs to the old picture. */
+    if (discarding) {
+        return;
+    }
     switch (frame_state) {
     case 0:
         if (!known_record(byte)) {
@@ -1835,6 +1865,12 @@ int main(void)
             ** thread again, then answering a turn before it times out, then
             ** what was typed, and the acknowledgement last - it is the only
             ** one that will still be true a moment later. */
+            if (discarding && quiet >= QUIET_ENOUGH) {
+                /* The line has been quiet: whatever was in flight is gone,
+                ** and it is safe to start again. */
+                discarding = 0;
+                want_hello = 1;
+            }
             if (want_hello) {
                 want_hello = 0;
                 send_hello();
