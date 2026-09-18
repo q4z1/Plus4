@@ -148,16 +148,19 @@
  * to whatever runs next, as the repeat flag does.
  */
 /*
- * Off for now, and deliberately.
+ * On, and now for a reason rather than a hope.
  *
- * The memory map calls $055F a table of lengths, but if those are offsets
- * instead then writing ones into all eight is exactly how to break every
- * definition - which would explain keys that do nothing at all. So the
- * machine gets to behave as it does, the status line reports the code of
- * whatever arrives, and this goes back on only if that turns out to be the
- * thing that helps.
+ * Asking the machine settled it. Pressing the five keys reported, as length
+ * and position: f1 18/0, f2 6/18, f3 10/24, f4 7/34, help 5/56 - and
+ * 0+18=18, 18+6=24, 24+10=34. So $055F really is a table of lengths, $055E
+ * is where in the definitions the key being fed out starts, and that offset
+ * is the only thing that names the key.
+ *
+ * Which makes this the fix rather than a workaround: with every length set
+ * to one, the offsets become 0 to 7 - the key number, plainly. The originals
+ * go back on the way out.
  */
-#define TAKE_FUNCTION_KEYS 0
+#define TAKE_FUNCTION_KEYS 1
 
 #define FKEY_LENGTHS ((unsigned char *)0x055F)
 #define FKEY_TEXT    ((unsigned char *)0x0567)
@@ -264,11 +267,9 @@ static unsigned char read_key(void)
     ** something sensible happens. */
     key = FKEY_PENDING;
     if (key != 0) {
-        /* $055D turned out to be a count, not a name: the two keys that
-        ** worked reported six and seven, which are exactly the lengths of
-        ** their default macros - dload" and scnclr plus a return. A count
-        ** cannot tell two keys apart, so the identity has to be the other
-        ** byte. Both are shown until that is certain. */
+        /* $055D counts what is left to feed out and $055E says where it
+        ** started, which is what names the key - and every definition being
+        ** one byte long, that start is the key number. */
         last_fkey = key;
         last_fkey_which = FKEY_STEP;
         key = FKEY_STEP;
