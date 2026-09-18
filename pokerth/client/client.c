@@ -809,7 +809,7 @@ static unsigned char put_ulong(unsigned char x, unsigned char row,
 /* Every card two characters wide, ten written as t the way a hand history
 ** does - which is what lets five of them fit across the table. */
 static const char *const RANKS[13] = {
-    "2", "3", "4", "5", "6", "7", "8", "9", "t", "j", "q", "k", "a"
+    "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"
 };
 /* The suits are characters of our own now; see install_charset. */
 
