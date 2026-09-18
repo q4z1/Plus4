@@ -1057,7 +1057,13 @@ static void handle_frame(void)
     case D_STATE:
         switch (frame[0]) {
         case STATE_CONNECTING: set_status("connecting"); break;
-        case STATE_LOBBY:      set_status("in the lobby"); break;
+        case STATE_LOBBY:
+            set_status("in the lobby");
+            if (view != VIEW_LOBBY) {
+                view = VIEW_LOBBY;
+                view_dirty = 1;
+            }
+            break;
         case STATE_TABLE:      set_status("at a table"); break;
         case STATE_ERROR:      set_status("error"); break;
         default:               set_status("offline"); break;
@@ -1303,6 +1309,21 @@ static unsigned int waited = 0;
 static unsigned char want_hello = 0;
 
 /*
+ * Drawing waits until the line goes quiet.
+ *
+ * This is the answer to a burst. When a hand starts, a table arrives as a
+ * dozen records back to back, and repainting after each one spends exactly
+ * the milliseconds in which the next byte turns up - so bytes were lost and
+ * a name came out as "oppera". Taking the record costs almost nothing; it is
+ * the painting that is slow. So the burst is taken in whole, and the screen
+ * is brought up to date once, afterwards. Nothing is lost by waiting: the
+ * intermediate states were never worth seeing.
+ */
+#define QUIET_ENOUGH 400        /* turns of the loop with nothing arriving */
+
+static unsigned int quiet = 0;
+
+/*
  * A type byte that is not a record is proof that the stream has slipped, and
  * waiting a second to find out is a second of nonsense on screen.
  */
@@ -1346,6 +1367,7 @@ static void resynchronise(void)
 static void feed(unsigned char byte)
 {
     waited = 0;
+    quiet = 0;
     switch (frame_state) {
     case 0:
         if (!known_record(byte)) {
@@ -1521,6 +1543,26 @@ int main(void)
             }
         }
 
+        /* The keyboard and the two cheap rows stay immediate - typing has to
+        ** feel like typing. */
+        byte = read_key();
+        if (byte != 0) {
+            if (byte == KEY_STOP) {
+                break;              /* run/stop leaves */
+            }
+            handle_key(byte);
+        }
+        if (status_dirty) draw_status();
+        if (input_dirty)  draw_input();
+
+        /* Everything else waits until nothing is arriving. Painting a table
+        ** costs more than the gap between two bytes, so a burst is taken in
+        ** whole and the screen brought up to date once, afterwards. */
+        if (quiet < QUIET_ENOUGH) {
+            ++quiet;
+            continue;
+        }
+
         if (view_dirty) {
             /* The other view owns the top half of the screen; wipe it and
             ** draw everything again. */
@@ -1543,23 +1585,10 @@ int main(void)
             if (header_dirty) draw_header();
             if (games_dirty)  draw_games();
         }
-        /* The lower half - chat, status, the line you type on - belongs to
-        ** both views and sits in the same rows either way. */
-        if (chat_dirty)   draw_chat();
-        if (status_dirty) draw_status();
-        if (input_dirty)  draw_input();
-
-        byte = read_key();
-        if (byte != 0) {
-            if (byte == KEY_STOP) {
-                break;              /* run/stop leaves */
-            }
-            handle_key(byte);
-        }
+        /* Chat sits in the same rows in both views. */
+        if (chat_dirty) draw_chat();
     }
 
-    out_frame(U_BYE, 0);
-    out_pump();
     RPTFLG = saved_repeat;
     return_function_keys();
     serial_close();

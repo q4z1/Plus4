@@ -201,6 +201,25 @@ class Bridge(LobbyState):
             self.to_plus4(self.game_frame(game))
         log("p4", f"sent a snapshot of {len(self.games)} games")
 
+        # A greeting can arrive in the middle of a hand: the Plus/4 sends one
+        # when it has lost the thread, and it needs the table back as well,
+        # or it sits looking at a dead one. The hand goes before the seats,
+        # since starting a hand is what clears the bets.
+        table = self.table
+        if table is not None:
+            self.to_plus4(table.table_frame())
+            self.to_plus4(p4wire.state(p4wire.STATE_TABLE, table.name))
+            if table.hand_number:
+                self.to_plus4(p4wire.hand(table.hand_number,
+                                          table.seat_of(table.dealer),
+                                          table.info.firstSmallBlind,
+                                          table.my_cards[0], table.my_cards[1]))
+            for frame in table.seat_frames(self.name_of):
+                self.to_plus4(frame)
+            self.to_plus4(p4wire.board(table.board))
+            self.to_plus4(p4wire.pot(table.pot))
+            log("p4", f"and the table {table.name} as it stands")
+
     # -- lobby changes, from LobbyState --
 
     def event(self, name: str, /, **d) -> None:
