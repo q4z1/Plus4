@@ -206,7 +206,8 @@
 
 /* Shown in the status line, so that the machine can be asked rather than
 ** argued with. */
-static unsigned int last_fkey = 0;      /* the raw byte, before any guessing */
+static unsigned int last_fkey = 0;      /* $055D, whatever it counts */
+static unsigned int last_fkey_which = 0;/* $055E, the likelier identity */
 
 #define KEY_BUFFER  ((unsigned char *)0x0527)
 #define KEY_COUNT   (*(unsigned char *)0x00EF)
@@ -262,11 +263,18 @@ static unsigned char read_key(void)
     ** rest. The four actions repeat over it, so whichever key is pressed,
     ** something sensible happens. */
     key = FKEY_PENDING;
-    if (key != 0 && key <= 16) {
+    if (key != 0) {
+        /* $055D turned out to be a count, not a name: the two keys that
+        ** worked reported six and seven, which are exactly the lengths of
+        ** their default macros - dload" and scnclr plus a return. A count
+        ** cannot tell two keys apart, so the identity has to be the other
+        ** byte. Both are shown until that is certain. */
+        last_fkey = key;
+        last_fkey_which = FKEY_STEP;
+        key = FKEY_STEP;
         FKEY_PENDING = 0;
         FKEY_STEP = 0;
-        last_fkey = key;
-        return KEY_F1 + ((key - 1) & 7);
+        return KEY_F1 + (key & 7);
     }
 
     count = KEY_COUNT;
@@ -919,8 +927,10 @@ static void draw_status(void)
     clear_row(ROW_INPUT - 1, 0);
     put_text(0, ROW_INPUT - 1, status, 0);
     if (last_fkey != 0) {
-        x = put_text(24, ROW_INPUT - 1, "fk ", 0);
-        put_uint(x, ROW_INPUT - 1, last_fkey, 2, 0);
+        x = put_text(22, ROW_INPUT - 1, "fk ", 0);
+        x = put_uint(x, ROW_INPUT - 1, last_fkey, 2, 0);
+        x = put_text(x, ROW_INPUT - 1, "/", 0);
+        put_uint(x, ROW_INPUT - 1, last_fkey_which, 2, 0);
     }
     if (last_key != 0) {
         x = put_text(31, ROW_INPUT - 1, "key ", 0);
