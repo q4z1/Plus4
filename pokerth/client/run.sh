@@ -27,18 +27,11 @@ if [ -z "$PRG" ]; then
     PRG="$DIR/build/client.prg"
 fi
 
-# Which Python, and therefore which environment, depends on whether this was
-# started from the editor or from a host terminal. env.sh works it out and
-# builds the environment if it is not there yet.
-PYTHON=$("$PROXY/env.sh")
-if [ ! -f "$PROXY/gen/pokerth_pb2.py" ]; then
-    "$PROXY/build-proto.sh"
-fi
-
 LOG="$DIR/build/proxy.log"
 echo "Starting the proxy, logging to $LOG ..."
-"$PYTHON" "$PROXY/proxy.py" --login --ip232 \
-    --listen "127.0.0.1:$PORT" > "$LOG" 2>&1 &
+# start.sh sees to the environment and the bindings itself, so there is
+# nothing to do first.
+"$PROXY/start.sh" --login --ip232 --listen "127.0.0.1:$PORT" > "$LOG" 2>&1 &
 PROXY_PID=$!
 trap 'kill $PROXY_PID 2>/dev/null' EXIT INT TERM
 

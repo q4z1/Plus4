@@ -18,11 +18,9 @@ PORT=${PORT:-6400}
 LOG="$DIR/build/proxy.log"
 
 mkdir -p "$DIR/build"
-PYTHON=$("$PROXY/env.sh" 2>/dev/null || true)
-if [ -n "$PYTHON" ]; then
-    [ -f "$PROXY/gen/pokerth_pb2.py" ] || "$PROXY/build-proto.sh" >&2
-    "$PYTHON" "$PROXY/proxy.py" --login --ip232 \
-        --listen "127.0.0.1:$PORT" > "$LOG" 2>&1 &
+if [ -x "$PROXY/start.sh" ]; then
+    # start.sh sees to the environment and the bindings itself.
+    "$PROXY/start.sh" --login --ip232 --listen "127.0.0.1:$PORT" > "$LOG" 2>&1 &
     PROXY_PID=$!
     trap 'kill $PROXY_PID 2>/dev/null' EXIT INT TERM
 
@@ -34,7 +32,7 @@ if [ -n "$PYTHON" ]; then
         waited=$((waited + 1))
     done
 else
-    echo "No Python for the proxy - see $PROXY/env.sh." >&2
+    echo "No proxy to start - $PROXY/start.sh is missing." >&2
 fi
 
 exec "$BIN/xplus4" \

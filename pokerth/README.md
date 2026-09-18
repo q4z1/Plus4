@@ -52,16 +52,20 @@ Each stage is meant to work on its own before the next one starts.
 
 ```sh
 cd proxy
-./build-proto.sh                      # environment + bindings for pokerth.proto
-$(./env.sh) lobbywatch.py --nick Plus4
+./start.sh lobbywatch.py --nick Plus4
 ```
 
-`env.sh` prints the Python to use and builds its environment the first time.
-There are two of them: VS Code runs as a Flatpak with one version of Python
-and a host terminal has another, a virtual environment only works with the
-interpreter that made it, and the failure reads "No module named google",
-which is a confusing way to say "wrong Python". So each version gets its own
-and it does not matter which one you start from.
+`start.sh` is the only thing to call. It builds the Python environment the
+first time and generates the protobuf bindings if they are missing, then runs
+what was asked for - the proxy by default, or any tool named before the
+arguments. There is nothing to set up first.
+
+Which environment is the right one is a question worth knowing about: VS Code
+runs as a Flatpak with one version of Python and a host terminal has another,
+a virtual environment only works with the interpreter that made it, and the
+failure reads "No module named google", which is a confusing way to say
+"wrong Python". So each version gets its own, `env.sh` picks it, and it does
+not matter which side you start from.
 
 `--dump` logs the kind of every message that arrives, which is the fastest way
 to learn what the lobby actually sends. `--server localhost --no-tls` points it
@@ -76,7 +80,7 @@ mkdir -p ~/.config/pokerth-plus4
 printf 'user=NAME\npassword=SECRET\n' > ~/.config/pokerth-plus4/credentials
 chmod 600 ~/.config/pokerth-plus4/credentials
 
-$(./env.sh) lobbywatch.py --login --say "hello from a Commodore Plus/4"
+./start.sh lobbywatch.py --login --say "hello from a Commodore Plus/4"
 ```
 
 The Plus/4 does not need that file: it asks for a name and a password itself,
@@ -92,7 +96,7 @@ records described in [protocol.md](protocol.md). That socket is what VICE
 connects the Plus/4's ACIA to:
 
 ```sh
-$(./env.sh) proxy.py --login --verbose
+./start.sh proxy.py --login --verbose
 xplus4 -acia -rsdev1 127.0.0.1:6400 -rsdev1ip232 -myaciadev 0
 ```
 
@@ -101,7 +105,7 @@ of the Plus/4 over the same socket - same records, same credit, same
 acknowledgements:
 
 ```sh
-$(./env.sh) p4client.py
+./start.sh p4client.py
 ```
 
 Type to chat, `/games` draws the lobby 40 columns wide the way the Plus/4 will
@@ -109,7 +113,7 @@ have to. It can also pretend to be slow and short of memory, which is how to
 find out whether flow control works before a real machine has to prove it:
 
 ```sh
-$(./env.sh) p4client.py --rx-buffer 64 --slow 0.3
+./start.sh p4client.py --rx-buffer 64 --slow 0.3
 ```
 
 `bridgecheck.py` feeds the bridge a made-up game list, because a lobby with
