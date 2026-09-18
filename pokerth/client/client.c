@@ -204,6 +204,10 @@
 #define FKEY_PENDING (*(unsigned char *)0x055D)
 #define FKEY_STEP    (*(unsigned char *)0x055E)
 
+/* Shown in the status line, so that the machine can be asked rather than
+** argued with. */
+static unsigned int last_fkey = 0;      /* the raw byte, before any guessing */
+
 #define KEY_BUFFER  ((unsigned char *)0x0527)
 #define KEY_COUNT   (*(unsigned char *)0x00EF)
 
@@ -337,7 +341,6 @@ static unsigned char status_dirty = 1;
  * never reached the buffer at all.
  */
 static unsigned int last_key = 0;
-static unsigned int last_fkey = 0;      /* the raw byte, before any guessing */
 
 struct seat {
     unsigned char flags;
