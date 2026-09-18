@@ -718,12 +718,12 @@ static unsigned char put_text(unsigned char x, unsigned char row,
 
     while (*text != '\0' && x < SCREEN_W) {
         unsigned char here = (unsigned char)*text;
+        unsigned char next = (unsigned char)text[1];
+        unsigned char colour = pen;
 
         if ((x & 7) == 0) {
             serial_poll();
         }
-        unsigned char next = (unsigned char)text[1];
-        unsigned char colour = pen;
 
         /* A card takes its own colour, all of it: the suit byte, and the
         ** rank standing in front of it. Otherwise a line drawn in yellow
