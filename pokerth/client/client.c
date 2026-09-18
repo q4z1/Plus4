@@ -133,17 +133,73 @@
  * ROM window at all.
  */
 /* What conio.h used to provide: plain PETSCII codes as the KERNAL puts them
-** in the buffer. The function keys are not in PETSCII order. */
+** in the buffer. */
 #define CH_ENTER 13
 #define CH_DEL   20
-#define CH_F1   133
-#define CH_F3   134
-#define CH_F5   135
-#define CH_F7   136
-#define CH_F8   140
+
+/*
+ * The function keys, taken over for the duration.
+ *
+ * On this machine they are not keys that deliver a code: they are text
+ * macros, and pressing F1 puts the whole word "graphic" into the keyboard
+ * buffer. Eight definitions live at $0567, their lengths in the eight bytes
+ * from $055F. So each is redefined here as a single byte that no ordinary
+ * key produces, and the originals are put back on the way out - they belong
+ * to whatever runs next, as the repeat flag does.
+ */
+#define FKEY_LENGTHS ((unsigned char *)0x055F)
+#define FKEY_TEXT    ((unsigned char *)0x0567)
+#define FKEY_TEXT_SIZE 128
+
+#define KEY_F1 0x80
+#define KEY_F8 0x87
+#define KEY_STOP 3              /* RUN/STOP, and nothing else produces it */
+
+/*
+ * Which of the eight definitions belongs to which key on the case is not
+ * something to be sure of from here - this machine has F1, F2, F3 and HELP,
+ * and shift reaches the rest. So all eight are accepted and the four actions
+ * repeat: whichever key is pressed, its position decides what it does.
+ */
+#define KEY_ACTION(key) (((key) - KEY_F1) & 3)
+#define ACT_FOLD  0
+#define ACT_CALL  1
+#define ACT_RAISE 2
+#define ACT_ALLIN 3
 
 #define KEY_BUFFER  ((unsigned char *)0x0527)
 #define KEY_COUNT   (*(unsigned char *)0x00EF)
+
+static unsigned char saved_fkeys[8 + FKEY_TEXT_SIZE];
+
+static void take_function_keys(void)
+{
+    unsigned char i;
+
+    for (i = 0; i < 8; ++i) {
+        saved_fkeys[i] = FKEY_LENGTHS[i];
+    }
+    for (i = 0; i < FKEY_TEXT_SIZE; ++i) {
+        saved_fkeys[8 + i] = FKEY_TEXT[i];
+    }
+    /* One byte each, laid out consecutively because every length is one. */
+    for (i = 0; i < 8; ++i) {
+        FKEY_LENGTHS[i] = 1;
+        FKEY_TEXT[i] = KEY_F1 + i;
+    }
+}
+
+static void return_function_keys(void)
+{
+    unsigned char i;
+
+    for (i = 0; i < 8; ++i) {
+        FKEY_LENGTHS[i] = saved_fkeys[i];
+    }
+    for (i = 0; i < FKEY_TEXT_SIZE; ++i) {
+        FKEY_TEXT[i] = saved_fkeys[8 + i];
+    }
+}
 
 static unsigned char read_key(void)
 {
@@ -801,19 +857,19 @@ static void draw_input(void)
             x = put_text(x, ROW_INPUT, "f1 fold  ", 0);
         }
         if (may & MAY_CHECK) {
-            x = put_text(x, ROW_INPUT, "f3 check  ", 0);
+            x = put_text(x, ROW_INPUT, "f2 check  ", 0);
         } else if (may & MAY_CALL) {
-            x = put_text(x, ROW_INPUT, "f3 call ", 0);
+            x = put_text(x, ROW_INPUT, "f2 call ", 0);
             x = put_ulong(x, ROW_INPUT, to_call, 1);
             x += 2;
         }
         if (may & (MAY_BET | MAY_RAISE)) {
-            x = put_text(x, ROW_INPUT, "f5 +", 0);
+            x = put_text(x, ROW_INPUT, "f3 +", 0);
             x = put_ulong(x, ROW_INPUT, min_raise, 1);
             x += 2;
         }
         if (may & MAY_ALL_IN) {
-            put_text(x, ROW_INPUT, "f7 all in", 0);
+            put_text(x, ROW_INPUT, "f4 all in", 0);
         }
         input_dirty = 0;
         return;
@@ -1345,35 +1401,35 @@ static void handle_key(unsigned char key)
     /* With something to answer, the function keys are the answer. They do
     ** nothing when it is not our turn, so a stray press cannot fold a hand. */
     if (view == VIEW_TABLE && may != 0 && out_idle()) {
-        if (key == CH_F1 && (may & MAY_FOLD)) {
-            send_action(ACTION_FOLD, 0);
-            return;
-        }
-        if (key == CH_F3) {
-            if (may & MAY_CHECK) {
-                send_action(ACTION_CHECK, 0);
+        if (key >= KEY_F1 && key <= KEY_F8) {
+            switch (KEY_ACTION(key)) {
+            case ACT_FOLD:
+                if (may & MAY_FOLD) {
+                    send_action(ACTION_FOLD, 0);
+                }
+                return;
+            case ACT_CALL:
+                if (may & MAY_CHECK) {
+                    send_action(ACTION_CHECK, 0);
+                } else if (may & MAY_CALL) {
+                    send_action(ACTION_CALL, to_call);
+                }
+                return;
+            case ACT_RAISE:
+                /* The bet is relative: what goes in on top of what is
+                ** already in front of this seat. */
+                if (may & MAY_RAISE) {
+                    send_action(ACTION_RAISE, to_call + min_raise);
+                } else if (may & MAY_BET) {
+                    send_action(ACTION_BET, min_raise);
+                }
+                return;
+            default:
+                if (may & MAY_ALL_IN) {
+                    send_action(ACTION_ALLIN, my_money);
+                }
                 return;
             }
-            if (may & MAY_CALL) {
-                send_action(ACTION_CALL, to_call);
-                return;
-            }
-        }
-        if (key == CH_F5) {
-            /* The bet is relative: what goes in on top of what is already
-            ** in front of this seat. */
-            if (may & MAY_RAISE) {
-                send_action(ACTION_RAISE, to_call + min_raise);
-                return;
-            }
-            if (may & MAY_BET) {
-                send_action(ACTION_BET, min_raise);
-                return;
-            }
-        }
-        if (key == CH_F7 && (may & MAY_ALL_IN)) {
-            send_action(ACTION_ALLIN, my_money);
-            return;
         }
     }
 
@@ -1392,7 +1448,8 @@ static void handle_key(unsigned char key)
             --input_len;
             input_dirty = 1;
         }
-    } else if (key >= ' ' && key != 127 && input_len < INPUT_LEN) {
+    } else if (key >= ' ' && key != 127 && input_len < INPUT_LEN
+               && !(key >= KEY_F1 && key <= KEY_F8)) {
         input[input_len++] = (char)key;
         input_dirty = 1;
     }
@@ -1416,6 +1473,7 @@ int main(void)
 
     saved_repeat = RPTFLG;
     RPTFLG = RPTFLG_NONE;
+    take_function_keys();
 
     clear_row(1, 0);
     clear_row(ROW_GAMES + GAME_ROWS + 1, 0);
@@ -1471,8 +1529,8 @@ int main(void)
 
         byte = read_key();
         if (byte != 0) {
-            if (byte == CH_F8) {
-                break;
+            if (byte == KEY_STOP) {
+                break;              /* run/stop leaves */
             }
             handle_key(byte);
         }
@@ -1481,6 +1539,7 @@ int main(void)
     out_frame(U_BYE, 0);
     out_pump();
     RPTFLG = saved_repeat;
+    return_function_keys();
     serial_close();
     for (i = 0; i < 25; ++i) {
         clear_row(i, 0);
