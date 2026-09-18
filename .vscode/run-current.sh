@@ -45,5 +45,14 @@ echo "Baue $NAME.c ..."
 "$BIN_DIR/cl65" -t plus4 -o "$OUT/$NAME.prg" "$OUT/$NAME.o"
 echo "Fertig: $OUT/$NAME.prg"
 
+# A program may bring its own runner. The PokerTH client needs a proxy
+# started next to the emulator and the ACIA wired to it, which is nobody
+# else's business - so if <programm>/run.sh exists, it takes over from here
+# and gets the finished .prg passed to it.
+if [ -x "$DIR/run.sh" ]; then
+    echo "Starte ueber $DIR/run.sh ..."
+    exec "$DIR/run.sh" "$OUT/$NAME.prg"
+fi
+
 echo "Starte VICE ..."
 exec "$BIN_DIR/xplus4" -autostartprgmode 1 "$OUT/$NAME.prg"

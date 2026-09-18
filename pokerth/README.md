@@ -124,13 +124,21 @@ xplus4 -acia -myaciadev 0 -rsdev1 127.0.0.1:6400 -rsdev1ip232 \
 ## Stage 4: the lobby on the machine
 
 [client/client.c](client/client.c) is the client proper: the game list, who
-is online, the chat, and a line to type into, on a 40x25 screen in about 6 KB.
-Start the proxy, then the emulator:
+is online, the chat, and a line to type into, on a 40x25 screen in about 7 KB.
+
+**F5 starts both**, the proxy and the emulator, whichever way round you press
+it. With `client.c` open at the top of the repository, the usual build script
+notices `client/run.sh` and hands over to it; inside `client/`, where F5 goes
+through VS64 and the debugger, `vice-with-proxy.sh` stands in for the
+emulator and does the same. Either way the proxy is started first, the ACIA
+is wired to it, and the proxy is stopped again on the way out. By hand:
 
 ```sh
-../proxy/proxy.py --login --ip232
 ./run.sh
 ```
+
+The proxy logs to `client/build/proxy.log`, which is where to look when the
+screen stays empty.
 
 It has shown a live lobby - the game "Alien" on pthsrv.pokerth.net, a ranking
 game with one of ten seats taken, logged in as akali - with credit flowing

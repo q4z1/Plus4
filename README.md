@@ -102,6 +102,10 @@ Two steps on purpose: `cl65` otherwise drops the object file next to the source.
 3. Copy `project-config.json` and set `name` and `main` to the new name.
 4. Write `foo/foo.c`.
 
+If a program needs more than an emulator - the PokerTH client needs a proxy
+running beside it - put a `run.sh` in its folder. F5 builds as usual, notices
+it, and hands the finished `.prg` over to it instead of starting VICE.
+
 Convention: **the folder, the source file and the output all share one name.**
 `foo/foo.c` builds to `foo/build/foo.prg`. Build output never goes into git.
 
