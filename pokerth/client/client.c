@@ -156,11 +156,22 @@
 #define KEY_STOP 3              /* RUN/STOP, and nothing else produces it */
 
 /*
- * Which of the eight definitions belongs to which key on the case is not
- * something to be sure of from here - this machine has F1, F2, F3 and HELP,
- * and shift reaches the rest. So all eight are accepted and the four actions
- * repeat: whichever key is pressed, its position decides what it does.
+ * There are two ways a function key can arrive here, and both are accepted.
+ *
+ * The KERNAL expands the macro when a character is fetched with GETIN, and
+ * this client does not use GETIN - it reads the buffer the keyboard scan
+ * fills, which is what keeps the ROM switched out. So what lands in the
+ * buffer is the bare key code, $85 upwards, and the redefinition above is
+ * only insurance in case a machine expands it earlier.
+ *
+ * Which code belongs to which key on the case is not worth being sure of
+ * from here - this machine has F1, F2, F3 and HELP, and shift reaches the
+ * rest. All of them are accepted and the four actions repeat, so whichever
+ * key is pressed, its position decides what it does. An unexpected code is
+ * put in the status line rather than swallowed, which is how this was found.
  */
+#define KEY_RAW_F1 0x85         /* what the keyboard scan actually delivers */
+#define KEY_RAW_F8 0x8C
 #define KEY_ACTION(key) (((key) - KEY_F1) & 3)
 #define ACT_FOLD  0
 #define ACT_CALL  1
@@ -336,12 +347,12 @@ static unsigned char input_dirty = 1;
 ** baud rather than 2400: at 2400 a byte arrives every 4 milliseconds, which
 ** is less than this machine needs to paint a row of the screen in C.
 **
-** 600 now, not 1200. A table is ten seats of seventeen bytes each where the
-** lobby was a line or two, and at 1200 the burst that arrives when a hand
-** starts was costing bytes. At 600 there are 16 milliseconds between them,
-** which is more than a redraw takes. It can go back up when the drawing is
-** cheaper, and the counter in the header will say when that is true. */
-#define ACIA_CONTROL 0x17
+** 1200. It was dropped to 600 while every update repainted ten seats; now
+** that only the row that changed is touched, the drawing fits in the 8
+** milliseconds between two bytes again - and at 600 a table of ten seats
+** was filling in at about one seat a second, which is a long time to watch.
+** The counter in the header says whether this is too fast. */
+#define ACIA_CONTROL 0x18
 /* DTR asserted, RTS asserted, receive interrupt disabled - that last bit is
 ** the whole point. */
 #define ACIA_COMMAND 0x0B
@@ -860,12 +871,12 @@ static void draw_input(void)
             x = put_text(x, ROW_INPUT, "f2 check  ", 0);
         } else if (may & MAY_CALL) {
             x = put_text(x, ROW_INPUT, "f2 call ", 0);
-            x = put_ulong(x, ROW_INPUT, to_call, 1);
+            x = put_ulong(x, ROW_INPUT, to_call, 0);
             x += 2;
         }
         if (may & (MAY_BET | MAY_RAISE)) {
             x = put_text(x, ROW_INPUT, "f3 +", 0);
-            x = put_ulong(x, ROW_INPUT, min_raise, 1);
+            x = put_ulong(x, ROW_INPUT, min_raise, 0);
             x += 2;
         }
         if (may & MAY_ALL_IN) {
@@ -1401,7 +1412,7 @@ static void handle_key(unsigned char key)
     /* With something to answer, the function keys are the answer. They do
     ** nothing when it is not our turn, so a stray press cannot fold a hand. */
     if (view == VIEW_TABLE && may != 0 && out_idle()) {
-        if (key >= KEY_F1 && key <= KEY_F8) {
+        if (key >= KEY_F1 && key <= KEY_RAW_F8) {
             switch (KEY_ACTION(key)) {
             case ACT_FOLD:
                 if (may & MAY_FOLD) {
@@ -1433,6 +1444,17 @@ static void handle_key(unsigned char key)
         }
     }
 
+    if (view == VIEW_TABLE && key >= KEY_F1 && key <= KEY_RAW_F8 && may == 0) {
+        set_status("not your turn");
+        return;
+    }
+    if (key >= 0x80 && key < 0xC1) {
+        /* Some key we have no use for; show it rather than lose it. */
+        set_status("key");
+        put_uint(4, ROW_INPUT - 1, key, 3, 0);
+        return;
+    }
+
     if (key == CH_ENTER) {
         if (input_len > 0 && out_idle()) {
             if (input[0] == '/') {
@@ -1449,7 +1471,7 @@ static void handle_key(unsigned char key)
             input_dirty = 1;
         }
     } else if (key >= ' ' && key != 127 && input_len < INPUT_LEN
-               && !(key >= KEY_F1 && key <= KEY_F8)) {
+               && !(key >= KEY_F1 && key <= KEY_RAW_F8)) {
         input[input_len++] = (char)key;
         input_dirty = 1;
     }

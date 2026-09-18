@@ -314,6 +314,11 @@ class Bridge(LobbyState):
         elif what == "chat":
             msg, chat = L.make("ChatRequestMessage")
             chat.chatText = record["text"]
+            # Sitting at a table, what is typed belongs to that table. Sent
+            # without one it is lobby chat, which the server refuses from a
+            # player who is in a game - "chat refused" on the Plus/4.
+            if self.table is not None:
+                chat.targetGameId = self.table.game_id
             self.link.send(msg)
             log("p4", f"chat: {record['text']}")
         elif what == "join":
