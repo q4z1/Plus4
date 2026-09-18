@@ -44,7 +44,8 @@ Each stage is meant to work on its own before the next one starts.
 | 3 | [Plus/4: the ACIA, and a byte that survives the trip](echo/echo.c) | **done** |
 | 4 | [Plus/4: the lobby itself](client/client.c) | **done** - the lobby, and chat both ways |
 | 5 | [Table play](client/client.c), end to end | **done** - a hand is played on the machine |
-| 6 | Real hardware over a serial WiFi modem | |
+| 6 | [A client, not a display](client/client.c): a start screen that asks who you are | **done** |
+| 7 | Real hardware over a serial WiFi modem | |
 
 ## Stage 1: the lobby on a terminal
 
@@ -131,7 +132,9 @@ xplus4 -acia -myaciadev 0 -rsdev1 127.0.0.1:6400 -rsdev1ip232 \
 ## Stage 4: the lobby on the machine
 
 [client/client.c](client/client.c) is the client proper: the game list, who
-is online, the chat, and a line to type into, on a 40x25 screen in about 7 KB.
+is online, the chat, and a line to type into, on a 40x25 screen. It grew into
+a table and a start screen in the stages below, and is about 16 KB with all
+three - a quarter of which is the character set it carries.
 
 **F5 starts both**, the proxy and the emulator, whichever way round you press
 it. With `client.c` open at the top of the repository, the usual build script
@@ -197,15 +200,106 @@ the real work. A row of forty cells written from C takes longer than the gap
 between two bytes at 2400 baud, and a 32 bit division, which is how money
 reaches the screen, takes several times that. So the line is checked at the
 top of every row, inside both number formatters, and between the bytes of an
-outgoing frame, and the rate is halved to 1200 baud for the margin.
+outgoing frame, and the rate is halved to 1200 baud for the margin. Once per
+row was not enough either - a row of forty cells is checked every eighth cell
+now, which bounds the wait whatever the compiler makes of the loop.
 
 Two things guard what is left. A frame that stays unfinished while nothing
-arrives is abandoned and the proxy greeted again, so one lost byte costs a
-redraw instead of the session - without that, a single missing byte was
+arrives is abandoned, everything still coming is thrown away until the line
+is quiet, and only then is the proxy greeted again - asking sooner meant the
+rest of the old burst met a parser that had just been reset, and one session
+collected a hundred and seven greetings. So one lost byte costs a redraw
+instead of the session - without that, a single missing byte was
 permanent, because the next one is read as a length and the parser waits for
 a payload that never comes. And the count of bytes the ACIA dropped is shown
 in the header: `!2` after a session means the machine fell behind twice and
 caught up twice, which is a number to watch rather than a fault.
+
+## Stage 5: a hand
+
+The records for a table are in [protocol.md](protocol.md), the proxy speaks
+them, and the machine draws them. The proxy turns player ids into seat
+numbers, keeps the pot the server never states, works out which actions would
+be accepted, and decrypts the two cards that arrive encrypted because we
+logged in with an account.
+
+A hand needs a table with people at it, which is the one thing that cannot be
+arranged on demand, so [proxy/handcheck.py](proxy/handcheck.py) builds one:
+
+```
+D_TABLE     game 1, 10 seats, I am in seat 0, 'Ranking Game'
+D_HAND      hand 1, dealer in seat 0, small blind 50, my cards 2s As
+D_POT       150
+D_ASK       fold, call, raise, all in; 50 to call, 100 minimum raise, 9950 left
+D_RESULT    seat 0 shows 2s As, won 200, has 10100
+```
+
+`D_ASK` is the record that keeps the Plus/4 out of the poker business: the
+server says what is on the table, the proxy works out what may be done about
+it, and the machine only has to offer the choice.
+
+### The table, as a table
+
+Ten places around an oval of green felt, our own at the bottom where a player
+sits, the board and the pot between them. The felt is nothing but reversed
+spaces: a character cell has one colour and the background belongs to the
+whole screen, so a solid shape can only be made that way.
+
+```
+       Computer5        Computer3 d     Computer6
+       9850             9850            9850    50
+  hopper     ####################    Computer7
+  10100      #  -- -- -- -- --  #    10050  100
+  Computer1  #    pot 150       #    Computer4
+  10000      ####################    10000
+       Computer2        akali           Computer8
+       10000            10075           10075
+                        7h Js   10075
+
+akali wins 4664 with As Ac Ks Qs 7d
+your turn
+f1 fold  f2 call 100  f3 +100  f4 all in
+```
+
+State is colour rather than punctuation, there being no room for symbols: our
+own seat cyan, a folded one grey, all in yellow, and whose turn it is shown
+by their name in reverse. Only the dealer keeps a letter. Who won is said in
+words on a line of its own, because a table of numbers does not say it - the
+money simply moves.
+
+The suits are characters of our own. The ROM character set is copied into
+RAM, four unused codes are given the shapes they should have, and text
+carries them as four reserved byte values so that a card reads as a card in
+the middle of a sentence too. Diamonds and hearts are drawn red, rank
+included.
+
+The function keys took the longest to find, and the answer is worth writing
+down. They are not keys that deliver a code: they are text macros, and the
+KERNAL feeds one out a character at a time when a program fetches with GETIN
+- which this client does not use, that being what keeps the ROM switched out.
+So nothing at all arrives in the keyboard buffer. What the scan leaves
+instead is two bytes: how much of the macro is left, and where in the
+definition area it started. Only the second identifies the key, and only as
+an offset - so every definition is redefined to one byte long, which puts
+those offsets at 0 to 7, and the originals go back when the client exits.
+
+## Stage 6: a client, not a display
+
+The machine asks who you are before anything else happens, under the PokerTH
+logo, and the proxy waits with nothing but a listening socket until it is
+told. An empty password joins as a guest; an empty name falls back to the
+proxy's credentials file, which is how a test run gets going with nobody at
+the keyboard. Nothing of the password is kept on the Plus/4 once it is sent.
+
+The logo is characters too. There is no bitmap to spare and none is needed:
+the codes from 128 up are free the moment the TED is told to stop inverting
+them, which is 128 characters of eight by eight pixels - a logo, if the tiles
+that repeat are stored once and the blank ones left as spaces.
+[client/make-logo.py](client/make-logo.py) renders the SVG large, crops away
+the margin it is drawn inside, scales to twelve characters square and writes
+`logo.h`. It needs rsvg-convert and Pillow, and only when the logo changes.
+The inversion goes off for that screen and back on for the game, which is
+also why the logo is only ever seen there.
 
 ## What the wire turned out to be
 
@@ -226,12 +320,13 @@ will have to live with.
   reads therefore deadlocks in both directions at once - which it did, twice,
   the second time after exactly seven bytes. Bytes have to come out of the
   driver unconditionally, into a buffer of the program's own.
-- **32 bytes may be in flight, not 256.** At 2400 baud, 32 bytes arrive
-  perfectly, 64 lose one, 128 lose most. It is not the screen updates - the
-  same run with eight times fewer of them loses just as much. Why the cliff
-  sits between 64 and 128 is not yet understood, so the window is set to the
-  number that measures clean and the question is left open for the stage that
-  can measure it under a real client.
+- **32 bytes may be in flight, not 256.** At 2400 baud, 32 bytes arrived
+  perfectly, 64 lost one, 128 lost most - and the cliff between them was a
+  puzzle until the interrupt storm above explained it. It was never about how
+  many bytes there were but about how long a burst lasted, since what the
+  storm needed was one byte arriving while nobody was collecting them. The
+  window stays at 32 regardless: it is a reasonable amount to have in flight
+  over a line this slow.
 
 ## What the protocol turned out to be
 
