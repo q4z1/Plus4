@@ -190,10 +190,26 @@
 #define ACT_RAISE 2
 #define ACT_ALLIN 3
 
+/*
+ * A function key never reaches the keyboard buffer.
+ *
+ * Pressing one leaves no code there at all - the status line showed nothing
+ * while every ordinary key showed its number. What the scan does instead is
+ * note which key is waiting, in the two bytes the memory map describes as
+ * being for the programmable keys, and the KERNAL then feeds the macro out
+ * one character at a time when a program fetches with GETIN. This one does
+ * not use GETIN, so the note is simply taken from there and cleared, which
+ * turns a text macro back into the single keypress it looks like.
+ */
+#define FKEY_PENDING (*(unsigned char *)0x055D)
+#define FKEY_STEP    (*(unsigned char *)0x055E)
+
 #define KEY_BUFFER  ((unsigned char *)0x0527)
 #define KEY_COUNT   (*(unsigned char *)0x00EF)
 
+#if TAKE_FUNCTION_KEYS
 static unsigned char saved_fkeys[8 + FKEY_TEXT_SIZE];
+#endif
 
 #if TAKE_FUNCTION_KEYS
 static void take_function_keys(void)
@@ -229,10 +245,20 @@ static void return_function_keys(void)
 
 static unsigned char read_key(void)
 {
-    unsigned char count = KEY_COUNT;
+    unsigned char count;
     unsigned char key;
     unsigned char i;
 
+    /* A function key waiting to be expanded, taken before the buffer so the
+    ** macro never gets the chance to type itself out. */
+    key = FKEY_PENDING;
+    if (key >= 1 && key <= 8) {
+        FKEY_PENDING = 0;
+        FKEY_STEP = 0;
+        return KEY_F1 + (key - 1);
+    }
+
+    count = KEY_COUNT;
     if (count == 0) {
         return 0;
     }
