@@ -501,6 +501,29 @@ static void send_join(unsigned int game_id)
     out_frame(U_JOIN, 2);
 }
 
+/*
+ * A keypress is never dropped for want of a free line.
+ *
+ * Both the return key and the function keys used to act only if nothing was
+ * being sent at that moment - and at 1200 baud something usually is, an
+ * acknowledgement being four bytes and a third of a second apart. So the
+ * line sat there with "/j 1" typed into it and nothing happening, which from
+ * the keyboard is indistinguishable from a broken program. What is pressed
+ * is remembered instead, and goes out as soon as the line is free.
+ */
+static unsigned char want_send = 0;         /* the typed line */
+static unsigned char pending_action = 0;    /* an answer at a turn, plus one */
+static unsigned long pending_amount = 0;
+
+static void remember_action(unsigned char action, unsigned long amount)
+{
+    pending_action = action + 1;
+    pending_amount = amount;
+    /* Nothing more to answer: the server asked once. */
+    may = 0;
+    input_dirty = 1;
+}
+
 static void send_action(unsigned char action, unsigned long amount)
 {
     out[2] = action;
@@ -1547,6 +1570,7 @@ static unsigned char want_hello = 0;
 
 static unsigned int quiet = 0;
 
+
 /*
  * A type byte that is not a record is proof that the stream has slipped, and
  * waiting a second to find out is a second of nonsense on screen.
@@ -1657,33 +1681,33 @@ static void handle_key(unsigned char key)
 {
     /* With something to answer, the function keys are the answer. They do
     ** nothing when it is not our turn, so a stray press cannot fold a hand. */
-    if (view == VIEW_TABLE && may != 0 && out_idle()) {
+    if (view == VIEW_TABLE && may != 0) {
         if (key >= KEY_F1 && key <= KEY_RAW_F8) {
             switch (KEY_ACTION(key)) {
             case ACT_FOLD:
                 if (may & MAY_FOLD) {
-                    send_action(ACTION_FOLD, 0);
+                    remember_action(ACTION_FOLD, 0);
                 }
                 return;
             case ACT_CALL:
                 if (may & MAY_CHECK) {
-                    send_action(ACTION_CHECK, 0);
+                    remember_action(ACTION_CHECK, 0);
                 } else if (may & MAY_CALL) {
-                    send_action(ACTION_CALL, to_call);
+                    remember_action(ACTION_CALL, to_call);
                 }
                 return;
             case ACT_RAISE:
                 /* The bet is relative: what goes in on top of what is
                 ** already in front of this seat. */
                 if (may & MAY_RAISE) {
-                    send_action(ACTION_RAISE, to_call + min_raise);
+                    remember_action(ACTION_RAISE, to_call + min_raise);
                 } else if (may & MAY_BET) {
-                    send_action(ACTION_BET, min_raise);
+                    remember_action(ACTION_BET, min_raise);
                 }
                 return;
             default:
                 if (may & MAY_ALL_IN) {
-                    send_action(ACTION_ALLIN, my_money);
+                    remember_action(ACTION_ALLIN, my_money);
                 }
                 return;
             }
@@ -1695,14 +1719,8 @@ static void handle_key(unsigned char key)
         return;
     }
     if (key == CH_ENTER) {
-        if (input_len > 0 && out_idle()) {
-            if (input[0] == '/') {
-                run_command();
-            } else {
-                send_chat();
-            }
-            input_len = 0;
-            input_dirty = 1;
+        if (input_len > 0) {
+            want_send = 1;
         }
     } else if (key == CH_DEL) {
         if (input_len > 0) {
@@ -1755,9 +1773,25 @@ int main(void)
 
         out_pump();
         if (out_idle()) {
+            /* What was asked for, in the order it matters: finding the
+            ** thread again, then answering a turn before it times out, then
+            ** what was typed, and the acknowledgement last - it is the only
+            ** one that will still be true a moment later. */
             if (want_hello) {
                 want_hello = 0;
                 send_hello();
+            } else if (pending_action != 0) {
+                send_action(pending_action - 1, pending_amount);
+                pending_action = 0;
+            } else if (want_send) {
+                want_send = 0;
+                if (input[0] == '/') {
+                    run_command();
+                } else {
+                    send_chat();
+                }
+                input_len = 0;
+                input_dirty = 1;
             } else if (acked > 0) {
                 send_ack();
             }
