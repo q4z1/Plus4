@@ -67,9 +67,9 @@ and it does not matter which one you start from.
 to learn what the lobby actually sends. `--server localhost --no-tls` points it
 at a locally built server.
 
-Guests may watch but not chat, so to send anything there has to be a registered
-account. Credentials are read from a `key=value` file outside the repository,
-so they cannot end up in a commit:
+Guests may watch but not chat, so to send anything there has to be a
+registered account. The terminal tools read one from a `key=value` file
+outside the repository, so it cannot end up in a commit:
 
 ```sh
 mkdir -p ~/.config/pokerth-plus4
@@ -78,6 +78,12 @@ chmod 600 ~/.config/pokerth-plus4/credentials
 
 $(./env.sh) lobbywatch.py --login --say "hello from a Commodore Plus/4"
 ```
+
+The Plus/4 does not need that file: it asks for a name and a password itself,
+on the start screen described under stage six, and what is typed there is what
+logs in. The file is only what the proxy falls back to when the machine sends
+an empty name, which is how a test run gets going with nobody at the
+keyboard.
 
 ## Stage 2: the proxy, and something to test it with
 
