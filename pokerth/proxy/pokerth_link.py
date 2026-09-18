@@ -325,10 +325,11 @@ def _login(link: Link, build_id: int):
 def _wait_for_ack(link: Link):
     """Read until the login is acknowledged.
 
-    The client states still know a challenge/response exchange, but the
-    current client just sends the password inside the TLS connection
-    (src/net/clientstate.cpp:1614). If a server ever does challenge us, say so
-    plainly rather than hanging.
+    No challenge and response takes place: the password goes inside the TLS
+    connection and the server answers (src/net/clientstate.cpp:1614). The
+    message names and a comment in the .proto suggest otherwise, but they are
+    leftovers from a design that is not what runs. If a server ever does
+    challenge us, say so plainly rather than hanging.
     """
     while True:
         msg = link.recv()
@@ -337,7 +338,8 @@ def _wait_for_ack(link: Link):
             return payload_of(msg)
         if kind == "AuthServerChallengeMessage":
             raise LinkError(
-                "server started a SCRAM challenge, which is not implemented yet"
+                "the server asked for a challenge and response, which this "
+                "proxy does not do"
             )
 
 

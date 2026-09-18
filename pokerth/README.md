@@ -4,9 +4,10 @@ A networked client for a 1984 machine: join the lobby of a
 [PokerTH](https://github.com/pokerth/pokerth) server from a Commodore Plus/4,
 see the games, chat, and play a hand.
 
-The Plus/4 cannot do any of what a PokerTH client normally does. TLS 1.3,
-protobuf, SCRAM authentication — none of that fits in 64 KB behind a 1.76 MHz
-7501, and none of it is interesting to write in 6502 assembly. So it does not:
+The Plus/4 cannot do any of what a PokerTH client normally does. TLS 1.3
+against a pinned key, protobuf, hole cards that arrive encrypted — none of
+that fits in 64 KB behind a 1.76 MHz 7501, and none of it is interesting to
+write in 6502 assembly. So it does not:
 a proxy on a PC speaks PokerTH on one side and something deliberately tiny on
 the other.
 
@@ -361,11 +362,13 @@ rediscover them. File references are into the upstream repository.
   seconds anyway, which doubles as a sign of life.
 - **Guests may not chat** (`src/net/serverlobbythread.cpp:1776`), and chat is
   rate limited by a token per session, so chat needs a registered account.
-  Logging into one is simpler than the message names suggest: despite the
-  challenge/response states in the client and the SCRAM comment in the
-  `.proto`, the current client just sends the password as `clientUserData`
-  inside the TLS connection (`src/net/clientstate.cpp:1614`). Which is
-  precisely why the pinned key above is worth having.
+  Logging into one is simply a matter of sending the password as
+  `clientUserData` inside the TLS connection
+  (`src/net/clientstate.cpp:1614`) - which is precisely why the pinned key
+  above is worth having. The message names suggest something more elaborate,
+  and the `.proto` still carries a comment about SCRAM, but no challenge and
+  response takes place: those are leftovers from a design that is not what
+  runs.
 - **Names are not in the events.** The lobby identifies players by id only;
   names come from `PlayerInfoRequest`. The proxy keeps that table so the
   Plus/4 does not have to.
