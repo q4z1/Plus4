@@ -147,6 +147,18 @@
  * key produces, and the originals are put back on the way out - they belong
  * to whatever runs next, as the repeat flag does.
  */
+/*
+ * Off for now, and deliberately.
+ *
+ * The memory map calls $055F a table of lengths, but if those are offsets
+ * instead then writing ones into all eight is exactly how to break every
+ * definition - which would explain keys that do nothing at all. So the
+ * machine gets to behave as it does, the status line reports the code of
+ * whatever arrives, and this goes back on only if that turns out to be the
+ * thing that helps.
+ */
+#define TAKE_FUNCTION_KEYS 0
+
 #define FKEY_LENGTHS ((unsigned char *)0x055F)
 #define FKEY_TEXT    ((unsigned char *)0x0567)
 #define FKEY_TEXT_SIZE 128
@@ -183,6 +195,7 @@
 
 static unsigned char saved_fkeys[8 + FKEY_TEXT_SIZE];
 
+#if TAKE_FUNCTION_KEYS
 static void take_function_keys(void)
 {
     unsigned char i;
@@ -211,6 +224,8 @@ static void return_function_keys(void)
         FKEY_TEXT[i] = saved_fkeys[8 + i];
     }
 }
+
+#endif /* TAKE_FUNCTION_KEYS */
 
 static unsigned char read_key(void)
 {
@@ -278,6 +293,17 @@ static unsigned char header_dirty = 1;
 
 static char status[SCREEN_W + 1] = "starting";
 static unsigned char status_dirty = 1;
+
+/*
+ * The code of the last key, at the right hand end of the status line.
+ *
+ * Which byte a key produces on this machine has been guesswork twice over -
+ * the function keys are text macros, and what reaches the buffer depends on
+ * whether the KERNAL has expanded them yet. So the machine is asked instead
+ * of argued with: every key shows its number, and a key that shows nothing
+ * never reached the buffer at all.
+ */
+static unsigned int last_key = 0;
 
 struct seat {
     unsigned char flags;
@@ -851,8 +877,14 @@ static void draw_chat(void)
 
 static void draw_status(void)
 {
+    unsigned char x;
+
     clear_row(ROW_INPUT - 1, 0);
     put_text(0, ROW_INPUT - 1, status, 0);
+    if (last_key != 0) {
+        x = put_text(31, ROW_INPUT - 1, "key ", 0);
+        put_uint(x, ROW_INPUT - 1, last_key, 3, 0);
+    }
     status_dirty = 0;
 }
 
@@ -1470,13 +1502,6 @@ static void handle_key(unsigned char key)
         set_status("not your turn");
         return;
     }
-    if (key >= 0x80 && key < 0xC1) {
-        /* Some key we have no use for; show it rather than lose it. */
-        set_status("key");
-        put_uint(4, ROW_INPUT - 1, key, 3, 0);
-        return;
-    }
-
     if (key == CH_ENTER) {
         if (input_len > 0 && out_idle()) {
             if (input[0] == '/') {
@@ -1517,7 +1542,9 @@ int main(void)
 
     saved_repeat = RPTFLG;
     RPTFLG = RPTFLG_NONE;
+#if TAKE_FUNCTION_KEYS
     take_function_keys();
+#endif
 
     clear_row(1, 0);
     clear_row(ROW_GAMES + GAME_ROWS + 1, 0);
@@ -1550,6 +1577,8 @@ int main(void)
             if (byte == KEY_STOP) {
                 break;              /* run/stop leaves */
             }
+            last_key = byte;
+            status_dirty = 1;
             handle_key(byte);
         }
         if (status_dirty) draw_status();
@@ -1590,7 +1619,9 @@ int main(void)
     }
 
     RPTFLG = saved_repeat;
+#if TAKE_FUNCTION_KEYS
     return_function_keys();
+#endif
     serial_close();
     for (i = 0; i < 25; ++i) {
         clear_row(i, 0);
