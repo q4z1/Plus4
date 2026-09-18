@@ -1126,8 +1126,23 @@ static void draw_table_head(void)
     header_dirty = 0;
 }
 
+/* How many columns a number will want, so that it can be left out when
+** there are not that many. */
+static unsigned char digits_of(unsigned long value)
+{
+    unsigned char n = 1;
+
+    while (value >= 10) {
+        value /= 10;
+        ++n;
+    }
+    return n;
+}
+
 static void draw_seat(unsigned char i)
 {
+    char shown[SEAT_NAME_LEN + 1];
+    unsigned char n;
     unsigned char place = place_of(i);
     unsigned char x = place_x[place];
     unsigned char y = place_y[place];
@@ -1154,18 +1169,41 @@ static void draw_seat(unsigned char i)
         reverse = REVERSED;         /* whose turn it is, without a symbol */
     }
 
-    at = put_text(x, y, seats[i].name, reverse);
-    if ((flags & SEAT_DEALER) && at < x + width) {
-        put_text(at + 1 < x + width ? at + 1 : at, y, "d", 0);
+    /* The name, cut to the place rather than to the twelve characters the
+    ** protocol allows - the places at the sides are nine wide, and the felt
+    ** starts where they end. */
+    n = (flags & SEAT_DEALER) ? width - 2 : width;
+    for (at = 0; at < n && seats[i].name[at] != '\0'; ++at) {
+        shown[at] = seats[i].name[at];
+    }
+    shown[at] = '\0';
+    at = put_text(x, y, shown, reverse);
+    if (flags & SEAT_DEALER) {
+        put_text(at + 1, y, "d", 0);
     }
 
-    /* Money, and what is in front of them, in as many columns as there are. */
-    at = put_ulong(x, y + 1, seats[i].money, 0);
-    if (seats[i].cards[0] <= 51) {
-        at = put_card(at + 1, y + 1, seats[i].cards[0]);
+    /*
+     * Money, and what is in front of them - but never past the place they
+     * sit in. The places at the sides are nine columns wide and the felt
+     * begins immediately after, so anything written beyond that lands on the
+     * table and stays there: only the place itself is wiped before drawing.
+     * Where there is no room for both, the cards win, a showdown being the
+     * moment they matter.
+     */
+    if (seats[i].cards[0] <= 51 && width < 12) {
+        at = put_card(x, y + 1, seats[i].cards[0]);
         put_card(at + 1, y + 1, seats[i].cards[1]);
-    } else if (seats[i].bet != 0) {
-        put_ulong(at + 1, y + 1, seats[i].bet, 0);
+    } else {
+        at = put_ulong(x, y + 1, seats[i].money, 0);
+        if (seats[i].cards[0] <= 51) {
+            if (at + 6 <= x + width) {
+                at = put_card(at + 1, y + 1, seats[i].cards[0]);
+                put_card(at + 1, y + 1, seats[i].cards[1]);
+            }
+        } else if (seats[i].bet != 0
+                   && at + 1 + digits_of(seats[i].bet) <= x + width) {
+            put_ulong(at + 1, y + 1, seats[i].bet, 0);
+        }
     }
     pen = WHITE;
 }
