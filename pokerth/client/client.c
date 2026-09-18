@@ -715,10 +715,22 @@ static unsigned char put_text(unsigned char x, unsigned char row,
 
     serial_poll();
     while (*text != '\0' && x < SCREEN_W) {
-        SCREEN[at + x] = screen_code((unsigned char)*text) | reverse;
-        /* Diamonds and hearts are red wherever they appear, including in the
-        ** middle of a sentence. */
-        COLOUR[at + x] = (*text == 1 || *text == 2) ? RED : pen;
+        unsigned char here = (unsigned char)*text;
+        unsigned char next = (unsigned char)text[1];
+        unsigned char colour = pen;
+
+        /* A card takes its own colour, all of it: the suit byte, and the
+        ** rank standing in front of it. Otherwise a line drawn in yellow
+        ** gives a yellow ten with a red diamond after it, which is not what
+        ** a card looks like. */
+        if (here >= 1 && here <= 4) {
+            colour = here <= 2 ? RED : WHITE;
+        } else if (next >= 1 && next <= 4) {
+            colour = next <= 2 ? RED : WHITE;
+        }
+
+        SCREEN[at + x] = screen_code(here) | reverse;
+        COLOUR[at + x] = colour;
         ++text;
         ++x;
     }
