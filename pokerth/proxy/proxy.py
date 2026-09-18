@@ -137,9 +137,10 @@ class Plus4Connection:
 class Bridge(LobbyState):
     """Turns lobby changes into records, and records back into lobby actions."""
 
-    def __init__(self, link: L.Link, user: str, server_name: str,
-                 verbose: bool = False):
+    def __init__(self, link, user: str, server_name: str,
+                 verbose: bool = False, args=None):
         super().__init__(link)
+        self.args = args
         self.user = user
         self.server_name = server_name
         self.verbose = verbose
@@ -204,6 +205,11 @@ class Bridge(LobbyState):
     def snapshot(self) -> None:
         """Everything a Plus/4 that just said HELLO needs to draw a lobby."""
         self.to_plus4(p4wire.hello(self.server_name))
+        if self.link is None:
+            # Not logged in yet: the machine is showing its start screen and
+            # waiting to be told what to do with what is typed there.
+            self.to_plus4(p4wire.state(p4wire.STATE_OFFLINE, "who are you?"))
+            return
         self.to_plus4(p4wire.state(p4wire.STATE_LOBBY, f"logged in as {self.user}"))
         self.to_plus4(p4wire.players_online(self.players_online))
         self.to_plus4(p4wire.game_clear())
@@ -323,6 +329,35 @@ class Bridge(LobbyState):
 
     # -- records from the Plus/4 --
 
+    def log_in(self, user: str, password: str) -> None:
+        """Open the PokerTH session, with what was typed on the Plus/4.
+
+        An empty name falls back to the credentials file, which is how a test
+        run gets going without anybody typing; an empty password joins as a
+        guest, which the server allows for watching but not for chatting.
+        """
+        if self.link is not None:
+            self.to_plus4(p4wire.notice("already connected"))
+            return
+        self.to_plus4(p4wire.state(p4wire.STATE_CONNECTING, "connecting"))
+        try:
+            link, announce, ack, name = connect_and_login(
+                self.args, user=user or None, password=password or None)
+        except L.LinkError as e:
+            log("net", f"login failed: {e}")
+            self.to_plus4(p4wire.state(p4wire.STATE_ERROR, str(e)[:38]))
+            return
+
+        self.link = link
+        self.user = name
+        self.password = password
+        self.me = ack.yourPlayerId
+        self.players[ack.yourPlayerId] = name
+        self.players_online = announce.numPlayersOnServer
+        link.set_timeout(None)
+        log("net", f"logged in as {name} on the Plus/4's say-so")
+        self.snapshot()
+
     def from_plus4(self, kind: int, payload: bytes) -> None:
         try:
             record = p4wire.decode_upstream(kind, payload)
@@ -373,6 +408,8 @@ class Bridge(LobbyState):
         elif what == "action":
             log("p4", f"action {record['action']} for {record['amount']}")
             self.act(record["action"], record["amount"])
+        elif what == "login":
+            self.log_in(record["user"], record["password"])
         elif what == "bye":
             log("p4", "the Plus/4 said goodbye")
             raise ConnectionResetError
@@ -432,31 +469,27 @@ def main(argv=None) -> int:
 
     stop_older_proxies()
 
-    link = None
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    try:
-        link, announce, ack, user = connect_and_login(args)
-        bridge = Bridge(link, user, args.server, verbose=args.verbose)
-        if args.login:
-            # Our own hole cards come encrypted with this; see cards.py.
-            bridge.password = L.read_credentials(args.credentials)[1]
-        bridge.me = ack.yourPlayerId
-        bridge.players[ack.yourPlayerId] = user
-        bridge.players_online = announce.numPlayersOnServer
 
+    # No session until the Plus/4 says who it is. Its start screen asks, and
+    # what is typed there is what logs in - so the proxy waits here with
+    # nothing but a listening socket.
+    bridge = Bridge(None, "", args.server, verbose=args.verbose, args=args)
+    try:
         listener.bind((host, port))
         listener.listen(1)
         log("p4", f"waiting for a Plus/4 on {host}:{port}")
-        link.set_timeout(None)
 
         while True:
-            watching = [link, listener]
+            watching = [listener]
+            if bridge.link is not None:
+                watching.append(bridge.link)
             if bridge.plus4 is not None:
                 watching.append(bridge.plus4)
             for ready in select.select(watching, [], [])[0]:
-                if ready is link:
-                    for msg in link.drain():
+                if ready is bridge.link:
+                    for msg in bridge.link.drain():
                         bridge.pump(msg)
                 elif ready is listener:
                     sock, addr = listener.accept()
@@ -497,8 +530,8 @@ def main(argv=None) -> int:
         log("net", "stopped")
     finally:
         listener.close()
-        if link is not None:
-            link.close()
+        if bridge.link is not None:
+            bridge.link.close()
     return 0
 
 

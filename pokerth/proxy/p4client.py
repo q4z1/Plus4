@@ -75,6 +75,13 @@ class Plus4Client:
 
     # -- talking --
 
+    def log_in(self, user: str, password: str) -> None:
+        """Say who we are, as the Plus/4's start screen does."""
+        name = p4wire.petscii(user, p4wire.NAME_MAX)
+        self.sock.sendall(p4wire.frame(
+            p4wire.U_LOGIN,
+            bytes((len(name),)) + name + p4wire.petscii(password)))
+
     def say_hello(self) -> None:
         self.sock.sendall(p4wire.frame(
             p4wire.U_HELLO,
@@ -291,6 +298,9 @@ class Plus4Client:
             self.show_games()
         elif word == "/join" and rest.strip().isdigit():
             self.send(p4wire.U_JOIN, struct.pack("<H", int(rest)))
+        elif word == "/login":
+            name, _, word_pass = rest.partition(" ")
+            self.log_in(name, word_pass)
         elif word == "/leave":
             self.send(p4wire.U_LEAVE)
         elif word == "/table":
@@ -322,6 +332,10 @@ def main(argv=None) -> int:
                     help="receive buffer to claim, as the Plus/4 will (default 512)")
     ap.add_argument("--slow", type=float, default=0.0, metavar="SECONDS",
                     help="pretend each record takes this long to process")
+    ap.add_argument("--user", default="", metavar="NAME",
+                    help="log in as this player once connected; without it "
+                         "the proxy falls back to its credentials file")
+    ap.add_argument("--password", default="", metavar="WORD")
     ap.add_argument("--auto", action="store_true",
                     help="answer every turn by checking or calling, so that a "
                          "hand can be watched without anyone typing fast enough")
@@ -331,6 +345,7 @@ def main(argv=None) -> int:
     with socket.create_connection((host, int(port))) as sock:
         client = Plus4Client(sock, args.rx_buffer, args.slow, args.auto)
         client.say_hello()
+        client.log_in(args.user, args.password)
         print(f"connected to {host}:{port}, claiming a {args.rx_buffer} byte "
               "buffer - type to chat, /games for the lobby, /quit to stop")
         try:

@@ -63,6 +63,7 @@ U_CHAT = 0x82         # text
 U_JOIN = 0x83         # id(2)
 U_LEAVE = 0x84        # -
 U_ACTION = 0x85       # action(1), amount(4)   reserved for the table stage
+U_LOGIN = 0x86        # name length(1), name, password
 U_BYE = 0x8F          # -
 
 # The table. Money is four bytes because PokerTH counts it in 32 bits, and a
@@ -381,6 +382,11 @@ def decode_upstream(kind: int, payload: bytes) -> dict:
         if kind == U_ACTION:
             action, amount = struct.unpack("<BI", payload)
             return {"kind": "action", "action": action, "amount": amount}
+        if kind == U_LOGIN:
+            name_length = payload[0]
+            return {"kind": "login",
+                    "user": unpetscii(payload[1:1 + name_length]),
+                    "password": unpetscii(payload[1 + name_length:])}
         if kind == U_BYE:
             return {"kind": "bye"}
     except struct.error as e:

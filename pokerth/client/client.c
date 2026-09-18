@@ -28,6 +28,8 @@
 #include <plus4.h>
 #include <string.h>
 
+#include "logo.h"
+
 /* ------------------------------------------------------------------ wire */
 
 #define PROTOCOL_VERSION 1
@@ -68,6 +70,7 @@
 #define U_JOIN        0x83
 #define U_LEAVE       0x84
 #define U_ACTION      0x85
+#define U_LOGIN       0x86
 #define U_BYE         0x8F
 
 #define STATE_OFFLINE    0
@@ -303,6 +306,14 @@ static unsigned char read_key(void)
 
 #define VIEW_LOBBY 0
 #define VIEW_TABLE 1
+#define VIEW_LOGIN 2
+
+/* The start screen: who are you, and the logo above it. */
+#define LOGIN_LEN   16
+#define ROW_LOGO     1
+#define ROW_NAME    15
+#define ROW_PASSWORD 17
+#define LOGIN_COLUMN 11
 #define NAME_LEN      26
 #define CHAT_LEN      SCREEN_W
 #define INPUT_LEN     38
@@ -372,8 +383,15 @@ static unsigned long to_call = 0;
 static unsigned long min_raise = 0;
 static unsigned long my_money = 0;
 
-static unsigned char view = VIEW_LOBBY;
+static unsigned char view = VIEW_LOGIN;
 static unsigned char view_dirty = 1;
+
+static char login_name[LOGIN_LEN + 1] = "";
+static char login_password[LOGIN_LEN + 1] = "";
+static unsigned char login_name_len = 0;
+static unsigned char login_password_len = 0;
+static unsigned char login_field = 0;       /* 0 the name, 1 the password */
+static unsigned char login_dirty = 1;
 
 static char input[INPUT_LEN + 1];
 static unsigned char input_len = 0;
@@ -523,6 +541,7 @@ static void send_join(unsigned int game_id)
  * is remembered instead, and goes out as soon as the line is free.
  */
 static unsigned char want_send = 0;         /* the typed line */
+static unsigned char want_login = 0;        /* who we are */
 static unsigned char pending_action = 0;    /* an answer at a turn, plus one */
 static unsigned long pending_amount = 0;
 
@@ -546,6 +565,33 @@ static void send_action(unsigned char action, unsigned long amount)
     /* Nothing more to answer until the server asks again. */
     may = 0;
     input_dirty = 1;
+}
+
+/*
+ * Who we are. The name and the password go up together, the name with its
+ * length in front so the two can be told apart - and nothing of either is
+ * kept on this machine afterwards, which is the only sensible place for a
+ * password to not be.
+ */
+static void send_login(void)
+{
+    unsigned char i;
+    unsigned char at = 2;
+
+    out[at++] = login_name_len;
+    for (i = 0; i < login_name_len; ++i) {
+        out[at++] = (unsigned char)login_name[i];
+    }
+    for (i = 0; i < login_password_len; ++i) {
+        out[at++] = (unsigned char)login_password[i];
+    }
+    out_frame(U_LOGIN, at - 2);
+
+    /* The password has served its purpose. */
+    for (i = 0; i < LOGIN_LEN; ++i) {
+        login_password[i] = '\0';
+    }
+    login_password_len = 0;
 }
 
 static void send_chat(void)
@@ -587,9 +633,12 @@ static void send_chat(void)
  * come back for the length of the copy - and inside that window the C stack
  * is covered by it, which means globals only and no function calls.
  *
- * Only 128 characters are copied. The codes above that are the reversed
- * ones, which the TED makes itself as long as bit 7 of $FF07 is left alone -
- * and this program needs them, for the header bar and the felt.
+ * The set is 2 KB, not 1. The lower 128 characters come from the ROM; the
+ * upper 128 are the logo, cut into tiles. Those codes are only characters of
+ * their own while the TED is told not to invert - and this program needs the
+ * inversion everywhere else, for the header bar and the felt. So it is
+ * switched off for the start screen and back on for the game, which is also
+ * why the logo is only ever seen there.
  */
 #define TED_CHARSET_MODE (*(volatile unsigned char *)0xFF12)  /* bit 2: from RAM */
 #define TED_CHARSET_ADDR (*(volatile unsigned char *)0xFF13)  /* bits 2-7 */
@@ -598,8 +647,9 @@ static void send_chat(void)
 #define ROM_CHARSET      ((unsigned char *)0xD400)   /* the mixed case set */
 
 #define SUIT_GLYPH 0x5B         /* four codes this program never prints */
+#define TED_INVERT       (*(volatile unsigned char *)0xFF07)  /* bit 7 off = own */
 
-static unsigned char charset_store[1024 + 1023];
+static unsigned char charset_store[2048 + 2047];
 static unsigned char *charset;
 static unsigned int rom_index;          /* global: no C stack in the window */
 static unsigned char saved_charset_mode;
@@ -618,10 +668,10 @@ static void install_charset(void)
     unsigned int i;
     unsigned char suit;
 
-    /* The set has to start on a 1 KB boundary, so room is taken for one and
+    /* The set has to start on a 2 KB boundary, so room is taken for one and
     ** the start moved up to the next. */
     charset = (unsigned char *)
-              ((((unsigned int)charset_store) + 0x03FF) & 0xFC00);
+              ((((unsigned int)charset_store) + 0x07FF) & 0xF800);
 
     __asm__("sei");
     ROM_IN = 0;
@@ -634,6 +684,17 @@ static void install_charset(void)
     for (suit = 0; suit < 4; ++suit) {
         for (i = 0; i < 8; ++i) {
             charset[(SUIT_GLYPH + suit) * 8 + i] = SUIT_SHAPES[suit][i];
+        }
+    }
+
+    /* The logo goes in the upper half, where the codes are otherwise the
+    ** inverted characters. Anything past the tiles stays blank. */
+    for (i = 1024; i < 2048; ++i) {
+        charset[i] = 0;
+    }
+    for (suit = 0; suit < LOGO_SHAPES; ++suit) {
+        for (i = 0; i < 8; ++i) {
+            charset[(LOGO_FIRST_CODE + suit) * 8 + i] = LOGO_SHAPE[suit][i];
         }
     }
 
@@ -1139,6 +1200,64 @@ static void draw_chat(void)
         }
     }
     chat_dirty = 0;
+}
+
+/*
+ * The start screen.
+ *
+ * The logo is drawn from the upper half of the character set, which is only
+ * ours while the TED's inversion is switched off - so nothing on this screen
+ * uses reverse video, and the fields are marked out with brackets instead.
+ */
+static void draw_login(void)
+{
+    unsigned char row;
+    unsigned char column;
+    unsigned char x;
+    unsigned char i;
+
+    pen = WHITE;
+    for (row = 0; row < LOGO_CELLS; ++row) {
+        serial_poll();
+        for (column = 0; column < LOGO_CELLS; ++column) {
+            SCREEN[(unsigned int)(ROW_LOGO + row) * SCREEN_W
+                   + (SCREEN_W - LOGO_CELLS) / 2 + column] = LOGO_MAP[row][column];
+            COLOUR[(unsigned int)(ROW_LOGO + row) * SCREEN_W
+                   + (SCREEN_W - LOGO_CELLS) / 2 + column] = WHITE;
+        }
+    }
+
+    clear_row(ROW_NAME, 0);
+    put_text(2, ROW_NAME, "name", 0);
+    x = put_text(LOGIN_COLUMN, ROW_NAME, "[", 0);
+    x = put_text(x, ROW_NAME, login_name, 0);
+    blank(x, ROW_NAME, LOGIN_COLUMN + 1 + LOGIN_LEN - x);
+    put_text(LOGIN_COLUMN + 1 + LOGIN_LEN, ROW_NAME, "]", 0);
+
+    clear_row(ROW_PASSWORD, 0);
+    put_text(2, ROW_PASSWORD, "password", 0);
+    put_text(LOGIN_COLUMN, ROW_PASSWORD, "[", 0);
+    for (i = 0; i < LOGIN_LEN; ++i) {
+        SCREEN[(unsigned int)ROW_PASSWORD * SCREEN_W + LOGIN_COLUMN + 1 + i] =
+            i < login_password_len ? screen_code('*') : 0x20;
+        COLOUR[(unsigned int)ROW_PASSWORD * SCREEN_W + LOGIN_COLUMN + 1 + i] = WHITE;
+    }
+    put_text(LOGIN_COLUMN + 1 + LOGIN_LEN, ROW_PASSWORD, "]", 0);
+
+    /* Where the next character will land. */
+    row = login_field == 0 ? ROW_NAME : ROW_PASSWORD;
+    x = LOGIN_COLUMN + 1
+        + (login_field == 0 ? login_name_len : login_password_len);
+    if (x <= LOGIN_COLUMN + LOGIN_LEN) {
+        SCREEN[(unsigned int)row * SCREEN_W + x] = screen_code('_');
+        COLOUR[(unsigned int)row * SCREEN_W + x] = CYAN;
+    }
+
+    clear_row(ROW_PASSWORD + 2, 0);
+    put_text(2, ROW_PASSWORD + 2,
+             login_field == 0 ? "return goes to the password"
+                              : "return connects", 0);
+    login_dirty = 0;
 }
 
 static void draw_announce(void)
@@ -1765,8 +1884,45 @@ static void run_command(void)
     }
 }
 
+/* The start screen takes the keyboard to itself: two fields and a return. */
+static void handle_login_key(unsigned char key)
+{
+    char *field = login_field == 0 ? login_name : login_password;
+    unsigned char length = login_field == 0 ? login_name_len : login_password_len;
+
+    if (key == CH_ENTER) {
+        if (login_field == 0) {
+            login_field = 1;
+        } else {
+            want_login = 1;
+            set_status("connecting");
+        }
+    } else if (key == CH_DEL) {
+        if (length > 0) {
+            --length;
+            field[length] = '\0';
+        }
+    } else if (key >= ' ' && key != 127 && length < LOGIN_LEN
+               && !(key >= KEY_F1 && key <= KEY_RAW_F8)) {
+        field[length++] = (char)key;
+        field[length] = '\0';
+    }
+
+    if (login_field == 0) {
+        login_name_len = length;
+    } else {
+        login_password_len = length;
+    }
+    login_dirty = 1;
+}
+
 static void handle_key(unsigned char key)
 {
+    if (view == VIEW_LOGIN) {
+        handle_login_key(key);
+        return;
+    }
+
     /* With something to answer, the function keys are the answer. They do
     ** nothing when it is not our turn, so a stray press cannot fold a hand. */
     if (view == VIEW_TABLE && may != 0) {
@@ -1845,9 +2001,7 @@ int main(void)
     take_function_keys();
 #endif
 
-    clear_row(1, 0);
-    clear_row(ROW_GAMES + GAME_ROWS + 1, 0);
-    set_status("waiting for the proxy");
+    set_status("who are you?");
     send_hello();
 
     for (;;) {
@@ -1877,6 +2031,9 @@ int main(void)
             } else if (pending_action != 0) {
                 send_action(pending_action - 1, pending_amount);
                 pending_action = 0;
+            } else if (want_login) {
+                want_login = 0;
+                send_login();
             } else if (want_send) {
                 want_send = 0;
                 if (input[0] == '/') {
@@ -1901,7 +2058,7 @@ int main(void)
             handle_key(byte);
         }
         if (status_dirty) draw_status();
-        if (input_dirty)  draw_input();
+        if (input_dirty && view != VIEW_LOGIN) draw_input();
 
         /* Everything else waits until nothing is arriving. Painting a table
         ** costs more than the gap between two bytes, so a burst is taken in
@@ -1917,6 +2074,15 @@ int main(void)
             for (i = 0; i < 25; ++i) {
                 clear_row(i, 0);
             }
+            /* The start screen wants the upper half of the character set for
+            ** the logo; everything else wants the reverse video the TED
+            ** makes from it. */
+            if (view == VIEW_LOGIN) {
+                TED_INVERT = TED_INVERT | 0x80;
+            } else {
+                TED_INVERT = TED_INVERT & 0x7F;
+            }
+            login_dirty = 1;
             header_dirty = 1;
             games_dirty = 1;
             table_dirty = 1;
@@ -1928,15 +2094,20 @@ int main(void)
             input_dirty = 1;
             view_dirty = 0;
         }
-        if (view == VIEW_TABLE) {
+        if (view == VIEW_LOGIN) {
+            if (login_dirty) draw_login();
+        } else if (view == VIEW_TABLE) {
             if (table_dirty || header_dirty) draw_table();
         } else {
             if (header_dirty) draw_header();
             if (games_dirty)  draw_games();
         }
-        /* Chat and the announcement sit in the same rows in both views. */
-        if (chat_dirty)     draw_chat();
-        if (announce_dirty) draw_announce();
+        /* Chat and the announcement sit in the same rows in both views that
+        ** have them. */
+        if (view != VIEW_LOGIN) {
+            if (chat_dirty)     draw_chat();
+            if (announce_dirty) draw_announce();
+        }
     }
 
     RPTFLG = saved_repeat;

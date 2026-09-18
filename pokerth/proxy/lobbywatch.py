@@ -106,8 +106,13 @@ def add_connection_arguments(ap: argparse.ArgumentParser) -> None:
                     help="accept any certificate (encrypted, not authenticated)")
 
 
-def connect_and_login(args, report=log):
-    """Open a link and log in. Returns (link, announcement, acknowledgement, name)."""
+def connect_and_login(args, report=log, user=None, password=None):
+    """Open a link and log in. Returns (link, announcement, acknowledgement, name).
+
+    A name given here is used instead of whatever the options say - that is
+    how the Plus/4 gets to say who it is. Without a password it joins as a
+    guest, which is a reasonable thing to want and costs nothing to allow.
+    """
     pin = None if args.insecure else (args.pin or "auto")
     link = L.Link(args.server, args.port, tls=args.tls, pin=pin)
     link.connect()
@@ -116,11 +121,13 @@ def connect_and_login(args, report=log):
     if args.tls and not link.expected_pin:
         report("net", "no pin for this host - encrypted but unauthenticated")
 
-    if args.login:
+    if not user and args.login:
         user, password = L.read_credentials(args.credentials)
+    if not user:
+        user = args.nick
+    if password:
         announce, ack = L.password_login(link, user, password)
     else:
-        user = args.nick
         announce, ack = L.guest_login(link, user)
 
     version = announce.protocolVersion
