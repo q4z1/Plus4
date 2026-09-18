@@ -676,6 +676,11 @@ static unsigned char pen = WHITE;
  */
 static unsigned char screen_code(unsigned char petscii)
 {
+    /* Four bytes of text stand for the card suits, which are characters of
+    ** our own and so cannot travel as text themselves. */
+    if (petscii >= 1 && petscii <= 4) {
+        return SUIT_GLYPH + petscii - 1;
+    }
     if (petscii >= 0xC1 && petscii <= 0xDA) {
         return petscii - 0x80;          /* A-Z */
     }
@@ -711,7 +716,9 @@ static unsigned char put_text(unsigned char x, unsigned char row,
     serial_poll();
     while (*text != '\0' && x < SCREEN_W) {
         SCREEN[at + x] = screen_code((unsigned char)*text) | reverse;
-        COLOUR[at + x] = pen;
+        /* Diamonds and hearts are red wherever they appear, including in the
+        ** middle of a sentence. */
+        COLOUR[at + x] = (*text == 1 || *text == 2) ? RED : pen;
         ++text;
         ++x;
     }

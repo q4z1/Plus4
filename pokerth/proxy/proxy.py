@@ -199,7 +199,7 @@ class Bridge(LobbyState):
         picked = [pool[i] for i in outcome.bestHandPosition if 0 <= i < len(pool)]
         if not picked:
             return ""
-        return " with " + " ".join(cards.card_name(c) for c in picked)
+        return " with " + " ".join(cards.card_text(c) for c in picked)
 
     def snapshot(self) -> None:
         """Everything a Plus/4 that just said HELLO needs to draw a lobby."""

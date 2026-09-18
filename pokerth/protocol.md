@@ -31,6 +31,13 @@ reserved.
 Integers are little endian, which is what the 6502 wants. Text is PETSCII and
 carries no terminator; it runs to the end of the payload.
 
+Four byte values are taken out of that text for the card suits: 1 diamonds,
+2 hearts, 3 spades, 4 clubs. The Plus/4 draws them with characters of its
+own, which are screen codes rather than PETSCII and so cannot travel as
+themselves - and a suit spelled "s" in the middle of a sentence reads like a
+hand history rather than a card. The red two are drawn red wherever they
+appear.
+
 ## Proxy → Plus/4
 
 | Type | Name | Payload |

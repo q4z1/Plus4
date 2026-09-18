@@ -171,6 +171,15 @@ _GERMAN = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe",
            "Ü": "Ue", "ß": "ss"}
 
 
+# Four bytes of text mean the card suits, which the Plus/4 has characters of
+# its own for: text is PETSCII and those glyphs are screen codes, so they
+# cannot travel as themselves. 1 to 4, in the order the card codes use.
+SUIT_DIAMONDS = 1
+SUIT_HEARTS = 2
+SUIT_SPADES = 3
+SUIT_CLUBS = 4
+
+
 def petscii(text: str, limit: int | None = None) -> bytes:
     """Transliterate text to PETSCII, dropping what the machine cannot show."""
     for src, dst in _GERMAN.items():
@@ -191,6 +200,8 @@ def petscii(text: str, limit: int | None = None) -> bytes:
             continue                  # the accent of a decomposed letter
         elif code == 0x60 or 0x7B <= code <= 0x7E:
             out.append(ord("?"))      # backtick and braces have no home here
+        elif 1 <= code <= 4:
+            out.append(code)            # a card suit, drawn as a suit
         elif code >= 0x80 or code < 0x20:
             out.append(ord("?"))
         if limit is not None and len(out) >= limit:
@@ -202,6 +213,9 @@ def unpetscii(data: bytes) -> str:
     """PETSCII back to ASCII, for logs and the reference client."""
     out = []
     for byte in data:
+        if 1 <= byte <= 4:
+            out.append("dhsc"[byte - 1])
+            continue
         if 0x41 <= byte <= 0x5A:
             out.append(chr(byte + 0x20))
         elif 0xC1 <= byte <= 0xDA:

@@ -46,6 +46,18 @@ def card_name(code: int, symbols: bool = False) -> str:
     return RANKS[code % 13] + suits[code // 13]
 
 
+def card_text(code: int) -> str:
+    """A card for the wire: the rank, then one byte standing for the suit.
+
+    The Plus/4 draws the suits with characters of its own, which are screen
+    codes and cannot survive as text - so the four low bytes carry them
+    instead, and the far end turns them back into the right glyph.
+    """
+    if not 0 <= code <= 51:
+        return "?"
+    return RANKS[code % 13] + chr(1 + code // 13)
+
+
 def _key_and_iv(password: bytes) -> tuple[bytes, bytes]:
     """Key and IV from a password, the way CryptHelper::BytesToKey does it.
 
