@@ -2042,11 +2042,6 @@ int main(void)
     serial_open();
 
     install_charset();
-    /* Whatever the autostart was typing is still in the buffer, and the
-    ** start screen would take it for a name - "aka" was the first thing it
-    ** ever asked to log in as. */
-    KEY_COUNT = 0;
-    FKEY_PENDING = 0;
     saved_repeat = RPTFLG;
     RPTFLG = RPTFLG_NONE;
 #if TAKE_FUNCTION_KEYS
