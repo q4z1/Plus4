@@ -1884,12 +1884,32 @@ static void run_command(void)
     }
 }
 
-/* The start screen takes the keyboard to itself: two fields and a return. */
+/*
+ * The start screen takes the keyboard to itself: two fields and a return.
+ *
+ * Each field keeps its own length, and the earlier version copied the one
+ * belonging to the field being left into the field being entered - so
+ * pressing return after a five letter name gave a five character password of
+ * nothing at all, and the server refused the login. The fields are edited
+ * where they live now.
+ */
+static void login_edit(char *field, unsigned char *length, unsigned char key)
+{
+    if (key == CH_DEL) {
+        if (*length > 0) {
+            --(*length);
+            field[*length] = '\0';
+        }
+    } else if (key >= ' ' && key != 127 && *length < LOGIN_LEN
+               && !(key >= KEY_F1 && key <= KEY_RAW_F8)) {
+        field[*length] = (char)key;
+        ++(*length);
+        field[*length] = '\0';
+    }
+}
+
 static void handle_login_key(unsigned char key)
 {
-    char *field = login_field == 0 ? login_name : login_password;
-    unsigned char length = login_field == 0 ? login_name_len : login_password_len;
-
     if (key == CH_ENTER) {
         if (login_field == 0) {
             login_field = 1;
@@ -1897,21 +1917,10 @@ static void handle_login_key(unsigned char key)
             want_login = 1;
             set_status("connecting");
         }
-    } else if (key == CH_DEL) {
-        if (length > 0) {
-            --length;
-            field[length] = '\0';
-        }
-    } else if (key >= ' ' && key != 127 && length < LOGIN_LEN
-               && !(key >= KEY_F1 && key <= KEY_RAW_F8)) {
-        field[length++] = (char)key;
-        field[length] = '\0';
-    }
-
-    if (login_field == 0) {
-        login_name_len = length;
+    } else if (login_field == 0) {
+        login_edit(login_name, &login_name_len, key);
     } else {
-        login_password_len = length;
+        login_edit(login_password, &login_password_len, key);
     }
     login_dirty = 1;
 }
