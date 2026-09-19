@@ -20,6 +20,8 @@ the other.
                                                 Plus/4
 ```
 
+![A hand at the table on the Plus/4](screenshots/table.png)
+
 The Plus/4 never sees a protobuf message. It receives records like "seat 3 has
 1200 chips", "your turn, 30 seconds", "chat line" and sends back `FOLD`,
 `CALL`, `RAISE 200`. Everything that needs a heap, a hash function or a

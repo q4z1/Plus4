@@ -12,30 +12,27 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 
 | Folder | What it is |
 | --- | --- |
-| [main/](main/) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
-| [pacman/](pacman/) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
-| [pokerth/](pokerth/) | Work in progress: a [PokerTH](https://github.com/pokerth/pokerth) client. TLS, protobuf and authentication are handled by a proxy on a PC, which hands the Plus/4 a protocol small enough to parse in 6502. Logging in and watching a lobby works; the Plus/4 end is next. |
+| [main/](main/README.md) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
+| [pacman/](pacman/README.md) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
+| [phoenix/](phoenix/README.md) | A rebuild of the Atari 2600 **Phoenix**: all five waves, the force field, the mothership, two-voice sound with the arcade melodies, and a starfield that scrolls pixel by pixel. |
+| [pokerth/](pokerth/README.md) | Work in progress: a [PokerTH](https://github.com/pokerth/pokerth) client. TLS, protobuf and authentication are handled by a proxy on a PC, which hands the Plus/4 a protocol small enough to parse in 6502. Logging in and watching a lobby works; the Plus/4 end is next. |
 
-### Why Pac-Man is the interesting one
+### The two games
 
-The Plus/4 has **no sprites**. Everything on screen is a character cell, so the
-figures are drawn by rewriting the character set on every frame:
+| | |
+| --- | --- |
+| [![Phoenix](phoenix/screenshots/wave3.png)](phoenix/README.md) | [![Pac-Man](pacman/screenshots/pacman.png)](pacman/README.md) |
+| **[Phoenix](phoenix/README.md)** — all five waves of the 2600 game, the force field, the mothership, a starfield scrolling a pixel at a time. One 2600 pixel is two Plus/4 pixels, so 160×192 lands exactly on 40×24 cells. | **[Pac-Man](pacman/README.md)** — the whole maze on one screen, four ghosts with their own ways of hunting, pixel-by-pixel movement. |
 
-- Bit 7 of `$FF07` turns off the TED's automatic inversion of codes 128–255, which
-  frees those 128 characters as a scratch pool. Each figure claims 3×3 of them.
-- Horizontally pre-shifted figure bitmaps (8 phases per shape) live in RAM, so per
-  frame it is only a merge of figure over maze background — not a shift.
-- That merge is the one place where C was hopeless: cc65 emitted a 16-bit multiply
-  and a software-stack round trip per cell, ~1200 cycles each, 45 cells per frame.
-  Two assembly routines do the same work and roughly doubled the frame rate.
+The Plus/4 has no sprites at all, so both games build their figures out of
+characters that are rewritten as the figures move — and they do it in opposite
+ways, which is the interesting part. Pac-Man works the cells out on every frame. Phoenix
+cannot afford that with a dozen figures on screen, so it works out all 32 ways
+a figure can sit inside its cells when a wave starts and then only copies
+finished blocks. That is the difference between 4000 cycles per figure and a
+few hundred; a frame has 17784.
 
-Result: 12×12-pixel characters moving **pixel by pixel** rather than snapping to the
-8×8 grid. The maze walls are inset 2 pixels so a corridor is effectively 12 pixels
-wide and the figures fit through without overdrawing the walls.
-
-[pacman/pacman.c](pacman/pacman.c) is commented throughout and is meant to be read
-top to bottom — hardware, character set, maze, sound/input, figures, drawing,
-movement/AI, game loop.
+Both folders have a README of their own with the details.
 
 ## Toolchain
 
@@ -106,6 +103,11 @@ If a program needs more than an emulator - the PokerTH client needs a proxy
 running beside it - put a `run.sh` in its folder. F5 builds as usual, notices
 it, and hands the finished `.prg` over to it instead of starting VICE.
 
+If it needs its own compiler switches, put them in a `cflags` file next to the
+source. Phoenix uses that for `-Cl`: cc65 otherwise keeps local variables on
+its software stack, which costs a sixth of the running time in a game that is
+busy every frame.
+
 Convention: **the folder, the source file and the output all share one name.**
 `foo/foo.c` builds to `foo/build/foo.prg`. Build output never goes into git.
 
@@ -145,6 +147,19 @@ emulator.
   Plus/4; the strong colors live at brightness 3–6.
 - **Avoid `%` and `*` in per-frame code.** cc65 calls a full division routine for a
   modulo; a single conditional subtraction or a small lookup table is far cheaper.
+- **Comparing a byte against a plain constant costs a 16-bit compare.** `if (zeile >=
+  ZEILEN)` with `ZEILEN` an `int` constant makes cc65 widen both sides and push them
+  through its software stack. Casting the constant to `unsigned char` turns four such
+  comparisons in the drawing routine back into byte compares — in Phoenix that alone
+  was worth more than the assembly around it.
+- **`-Cl` is worth a sixth of the running time** in a program that is busy every
+  frame: cc65 otherwise keeps every local on its software stack, and each access is
+  an indexed load through a zero-page pointer. There is no recursion in a game loop,
+  so static locals cost nothing.
+- **Measure with an autopilot and an immortality switch.** A game left alone dies in
+  seconds, and then the numbers describe BASIC sitting at its prompt rather than the
+  game. An early Phoenix measurement said 0.8 passes per second for exactly that
+  reason; the truth was twenty times better.
 
 ### Testing without looking at the screen
 
@@ -167,6 +182,11 @@ display as text is more precise than diffing screenshots — and writing to `$05
 remotely. `x` resumes emulation. Note that `-keybuf` does **not** work together with
 `-autostart`: autostart consumes the buffer itself.
 
-## Controls (Pac-Man)
+## Controls
 
-`W` `A` `S` `D` or the cursor keys, `Q` quits, space starts.
+Each program lists its own; see the README in its folder.
+
+| | |
+| --- | --- |
+| [Pac-Man](pacman/README.md) | `W` `A` `S` `D` or the cursor keys, `Q` quits, space starts |
+| [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
