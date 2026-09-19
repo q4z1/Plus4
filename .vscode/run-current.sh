@@ -38,10 +38,20 @@ OUT="$DIR/build"
 
 mkdir -p "$OUT"
 
+# Ein Programm darf eigene Uebersetzerschalter mitbringen: liegt neben der
+# Quelle eine Datei cflags, wird ihr Inhalt an cl65 angehaengt. Phoenix
+# braucht so -Cl, weil cc65 lokale Variablen sonst ueber seinen
+# Software-Stack fuehrt und das dort ein Sechstel der Rechenzeit kostet.
+EXTRA=""
+if [ -f "$DIR/cflags" ]; then
+    EXTRA=$(cat "$DIR/cflags")
+fi
+
 # Zwei Stufen, damit die Objektdatei in build/ landet - cl65 legt sie sonst
 # immer neben der Quelldatei ab.
 echo "Baue $NAME.c ..."
-"$BIN_DIR/cl65" -t plus4 -O -g -c -o "$OUT/$NAME.o" "$SRC"
+# shellcheck disable=SC2086
+"$BIN_DIR/cl65" -t plus4 -O $EXTRA -g -c -o "$OUT/$NAME.o" "$SRC"
 "$BIN_DIR/cl65" -t plus4 -o "$OUT/$NAME.prg" "$OUT/$NAME.o"
 echo "Fertig: $OUT/$NAME.prg"
 

@@ -1,0 +1,9 @@
+{
+    "name": "phoenix",
+    "description": "Phoenix fuer den Commodore Plus/4",
+    "toolkit": "cc65",
+    "machine": "plus4",
+    "format": "prg",
+    "main": "phoenix.c",
+    "build": "debug"
+}
