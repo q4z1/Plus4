@@ -77,6 +77,8 @@
 #define Z_KRUEMEL  80
 #define Z_PILLE    81
 #define Z_TUER     82
+#define Z_T_PAC    84   /* fixed pictures for the title screen */
+#define Z_T_GEIST  85
 #define Z_VORRAT  128    /* figure characters start here   */
 #define EINZUG      3    /* inset of the wall line         */
 #define DICKE       2    /* thickness of the wall line     */
@@ -205,8 +207,24 @@ static unsigned char *zeile_zeichen_tab[KH];  /* pointer to feldzeichen[my] */
 static unsigned char *zeile_feld_tab[KH];     /* pointer to feld[my]        */
 
 static unsigned char feld[KH][KB];       /* what lies on the tile      */
+
+/*
+ * Steps from every tile back to the door of the ghost house.
+ *
+ * Eaten ghosts used to head home the same way they hunt: always take the
+ * step that shortens the straight-line distance, never turn back. That gets
+ * stuck. In a maze with loops the rule can cycle forever, and players saw
+ * pairs of eyes circling the level and never getting home. A breadth-first
+ * search laid down once per level cannot cycle: every tile knows exactly how
+ * far home is, so walking downhill always arrives.
+ */
+static unsigned char heimweg[KH][KB];
+
+/* Filled further down - the routine needs the direction constants. */
+static void heimweg_berechnen(void);
 static unsigned char feldzeichen[KH][KB];/* which character belongs on it */
 static unsigned int  restpunkte;
+static unsigned int  gesamtpunkte;       /* dots at the start of a level */
 static unsigned char pillenx[4], pilleny[4];
 static unsigned char mauerfarbe = C_BLAU;
 
@@ -291,6 +309,9 @@ static void labyrinth_aufbauen(void)
             }
         }
     }
+
+    gesamtpunkte = restpunkte;
+    heimweg_berechnen();
 }
 
 static void labyrinth_zeichnen(void)
@@ -442,6 +463,27 @@ typedef struct {
 } Figur;
 
 static Figur fig[5];         /* 0 = Pac-Man, 1..4 = ghosts  */
+
+/*
+ * Roughly how many loop passes the game manages per second. Every duration
+ * below is given in seconds and converted with this - the loop does not run
+ * at the screen rate, so counting frames would be meaningless.
+ */
+#define TAKTE_JE_SEK 14
+
+/*
+ * Corner spell and hunt alternate the way the arcade machine does it: a few
+ * seconds in which the ghosts head for their corners, then a long stretch
+ * where they come after Pac-Man. After the last entry the hunt never stops.
+ */
+static const unsigned char PHASEN[] = { 4, 20, 4, 20, 4, 0 };
+static unsigned char phase_nr;
+
+/* Base speed per ghost - Blinky leads, Clyde trails. */
+static const unsigned char GEIST_TEMPO[5] = { 0, 66, 62, 58, 54 };
+
+/* How many dots have to be gone before a ghost leaves the house. */
+static const unsigned char HAUS_SCHWELLE[5] = { 0, 0, 0, 30, 60 };
 
 static const unsigned char GEISTFARBE[5] = {
     C_GELB, C_ROT, C_ROSA, C_CYAN, C_ORANGE
@@ -969,7 +1011,8 @@ static void fressen(unsigned char kx, unsigned char ky)
         ton(300, 12);
         statuszeile();
 
-        angst_rest = (unsigned int)(level < 10 ? 300 - level * 20 : 100);
+        /* Six seconds at the start, shorter as the levels climb. */
+        angst_rest = (unsigned int)(level < 6 ? (7 - level) : 2) * TAKTE_JE_SEK;
         gefressen = 0;
         for (i = 1; i < 5; ++i) {
             if (fig[i].zustand == G_JAGD) {
@@ -998,6 +1041,39 @@ static void pac_bewegen(void)
         ++pac_anim;
     }
     f->form = (unsigned char)((pac_anim & 4) ? FORM_ZU : (1 + f->r));
+}
+
+/* Fills heimweg[] by breadth-first search outwards from the door. */
+static void heimweg_berechnen(void)
+{
+    static unsigned char qx[KB * KH], qy[KB * KH];
+    unsigned kopf = 0, ende = 0;
+    unsigned char mx, my, nx, ny, r, d;
+
+    for (my = 0; my < KH; ++my)
+        for (mx = 0; mx < KB; ++mx)
+            heimweg[my][mx] = 255;
+
+    heimweg[AUSY][TUERX] = 0;
+    qx[ende] = TUERX; qy[ende] = AUSY; ++ende;
+
+    while (kopf < ende) {
+        mx = qx[kopf]; my = qy[kopf]; ++kopf;
+        d = (unsigned char)(heimweg[my][mx] + 1);
+        for (r = 0; r < 4; ++r) {
+            nx = mx; ny = my;
+            switch (r) {
+            case R_OBEN:   if (my == 0) continue; --ny; break;
+            case R_UNTEN:  if (my >= KH - 1) continue; ++ny; break;
+            case R_LINKS:  nx = (unsigned char)(mx == 0 ? KB - 1 : mx - 1); break;
+            default:       nx = (unsigned char)(mx >= KB - 1 ? 0 : mx + 1); break;
+            }
+            if (feld[ny][nx] == F_MAUER) continue;
+            if (heimweg[ny][nx] != 255) continue;
+            heimweg[ny][nx] = d;
+            qx[ende] = nx; qy[ende] = ny; ++ende;
+        }
+    }
 }
 
 static void ziel_bestimmen(unsigned char i)
@@ -1044,8 +1120,14 @@ static void ziel_bestimmen(unsigned char i)
     }
 }
 
-/* Picks the direction that gets closest to the target. Reversing is not
-   allowed; on a tie up wins over left over down over right. */
+/*
+ * Picks the direction to take at a tile center.
+ *
+ * Hunting ghosts do it the way the arcade machine does: take the step that
+ * shortens the straight line to their target, and never turn back. Eaten
+ * ghosts cannot use that rule - it can circle forever - so they walk down
+ * the precomputed heimweg[] field instead, and they may turn back.
+ */
 static unsigned char richtung_waehlen(unsigned char i)
 {
     Figur *g = &fig[i];
@@ -1055,6 +1137,26 @@ static unsigned char richtung_waehlen(unsigned char i)
     unsigned char kx = KX(g), ky = KY(g), nx, ny;
     unsigned int  abstand, bester = 0xFFFF;
     unsigned char dx, dy;
+
+    if (g->zustand == G_AUGEN) {
+        beste = gegen;
+        bester = 255;
+        for (r = 0; r < 4; ++r) {
+            if (!frei(kx, ky, r, 1)) continue;
+            nx = kx; ny = ky;
+            switch (r) {
+            case R_OBEN:   --ny; break;
+            case R_UNTEN:  ++ny; break;
+            case R_LINKS:  nx = (unsigned char)(kx == 0 ? KB - 1 : kx - 1); break;
+            default:       nx = (unsigned char)(kx >= KB - 1 ? 0 : kx + 1); break;
+            }
+            if (heimweg[ny][nx] < bester) {
+                bester = heimweg[ny][nx];
+                beste = r;
+            }
+        }
+        return beste;
+    }
 
     for (r = 0; r < 4; ++r) {
         if (r == gegen) continue;
@@ -1083,14 +1185,32 @@ static void geist_bewegen(unsigned char i)
     Figur *g = &fig[i];
     unsigned char kx, ky;
 
-    /* Speed depending on state */
+    /* Speed depending on state and on which ghost this is */
     if (g->zustand == G_ANGST)      g->tempo = 38;
     else if (g->zustand == G_AUGEN) g->tempo = 140;
-    else g->tempo = (unsigned char)(level < 6 ? 57 + level * 5 : 82);
+    else {
+        unsigned char t = (unsigned char)(GEIST_TEMPO[i]
+                                          + (level < 6 ? level * 3 : 18));
+        /*
+         * Blinky picks up the pace as the maze empties. The arcade calls
+         * this Cruise Elroy; it is what keeps a thinned-out level from
+         * dragging, and it makes him feel like a hunter rather than a
+         * wanderer.
+         */
+        if (i == 1) {
+            if (restpunkte < 40)       t = (unsigned char)(t + 12);
+            else if (restpunkte < 100) t = (unsigned char)(t + 6);
+        }
+        g->tempo = t;
+    }
 
     if (g->zustand == G_HAUS) {
-        if (g->wartet) --g->wartet;
-        else g->zustand = G_RAUS;
+        /* Out once enough dots are gone - or after the timeout at the
+           latest, so a cautious player cannot keep them locked up. */
+        if (gesamtpunkte - restpunkte >= HAUS_SCHWELLE[i] || g->wartet == 0)
+            g->zustand = G_RAUS;
+        else
+            --g->wartet;
         return;
     }
 
@@ -1120,7 +1240,7 @@ static void geist_bewegen(unsigned char i)
         }
 
         if (MITTIG(g)) {
-            ziel_bestimmen(i);
+            if (g->zustand != G_AUGEN) ziel_bestimmen(i);
             g->r = richtung_waehlen(i);
             if (g->zustand == G_AUGEN && kx == TUERX && ky == AUSY) {
                 g->zustand = G_REIN;
@@ -1135,8 +1255,8 @@ static void geist_bewegen(unsigned char i)
     if (g->zustand == G_ANGST) {
         g->form = FORM_ANGST;
         /* Shortly before the power pill runs out the ghost blinks white. */
-        g->farbe = (unsigned char)((angst_rest < 80 && (angst_rest & 8))
-                                   ? C_WEISS : C_ANGST);
+        g->farbe = (unsigned char)((angst_rest < 2 * TAKTE_JE_SEK
+                                    && (angst_rest & 4)) ? C_WEISS : C_ANGST);
     } else if (g->zustand == G_AUGEN || g->zustand == G_REIN) {
         g->form = FORM_AUGEN;
         g->farbe = C_WEISS;
@@ -1252,7 +1372,7 @@ static void figuren_setzen(void)
         fig[i].alt_form = 255;   /* forces the first merge     */
         fig[i].alt_zb = 1;
         fig[i].alt_sb = 1;
-        fig[i].wartet = (unsigned char)(i * 25);
+        fig[i].wartet = (unsigned char)(i * 3 * TAKTE_JE_SEK);
         fig[i].zustand = (unsigned char)(i == 1 ? G_JAGD : G_HAUS);
         fig[i].form = (unsigned char)(i == 0 ? FORM_ZU : FORM_GEIST);
     }
@@ -1276,7 +1396,8 @@ static void figuren_setzen(void)
     angst_rest = 0;
     gefressen = 0;
     streunen = 1;
-    modus_rest = 300;
+    phase_nr = 0;
+    modus_rest = (unsigned int)PHASEN[0] * TAKTE_JE_SEK;
     pac_anim = 0;
 }
 
@@ -1322,8 +1443,10 @@ static unsigned char runde_spielen(void)
                 for (i = 1; i < 5; ++i)
                     if (fig[i].zustand == G_ANGST) fig[i].zustand = G_JAGD;
         } else if (modus_rest && --modus_rest == 0) {
+            ++phase_nr;
             streunen ^= 1;
-            modus_rest = streunen ? 300 : 900;
+            /* A zero in the table means: from here on they never stop. */
+            modus_rest = (unsigned int)PHASEN[phase_nr] * TAKTE_JE_SEK;
             for (i = 1; i < 5; ++i)
                 if (fig[i].zustand == G_JAGD) fig[i].r ^= 2;
         }
@@ -1373,13 +1496,22 @@ static void level_geschafft(void)
 static unsigned char titelbild(void)
 {
     bildschirm_leeren();
-    text_zeigen(16, 5, "PAC-MAN", C_GELB);
-    text_zeigen(9, 7, "FUER COMMODORE PLUS/4", C_HELLBLAU);
+    /* The title screen carries the name the game is released under. */
+    text_zeigen(13, 4, "PAC-MAN CLONE", C_GELB);
+    text_zeigen(8, 6, "FOR THE COMMODORE PLUS/4", C_HELLBLAU);
 
-    text_zeigen(8, 12, "STEUERUNG", C_WEISS);
-    text_zeigen(8, 14, "W A S D  ODER CURSORTASTEN", C_PUNKT);
-    text_zeigen(8, 16, "Q BEENDET DAS SPIEL", C_PUNKT);
-    text_zeigen(10, 20, "LEERTASTE ZUM STARTEN", C_GELB);
+    /* A ghost and Pac-Man either side of the name, as a small sampler. */
+    zeichen_setzen(11, 4, Z_T_PAC, C_GELB);
+    zeichen_setzen(27, 4, Z_T_GEIST, C_ROT);
+
+    text_zeigen(8, 11, "CONTROLS", C_WEISS);
+    text_zeigen(8, 13, "W A S D   OR CURSOR KEYS", C_PUNKT);
+    text_zeigen(8, 15, "Q ENDS THE GAME", C_PUNKT);
+
+    text_zeigen(8, 18, "EAT THE DOTS, AVOID THE GHOSTS.", C_WEISS);
+    text_zeigen(8, 19, "A POWER PILL TURNS THE TABLES.", C_WEISS);
+
+    text_zeigen(10, 22, "PRESS SPACE TO START", C_GELB);
 
     while (taste_holen()) { }
     for (;;) {
@@ -1401,6 +1533,13 @@ static void zeichensatz_einrichten(void)
     mauerzeichen_bauen();
     for (i = 0; i < sizeof(KLEINZEUG); ++i)
         zeichensatz[Z_KRUEMEL * 8 + i] = KLEINZEUG[i];
+
+    /* The pool characters only hold a picture while figures are moving, so
+       the title screen gets two fixed ones of its own. */
+    for (i = 0; i < 8; ++i) {
+        zeichensatz[Z_T_PAC * 8 + i]   = FORMEN[4 * 8 + i];   /* Pac-Man */
+        zeichensatz[Z_T_GEIST * 8 + i] = FORMEN[5 * 8 + i];   /* a ghost */
+    }
 
     TED_ZSATZ_A = (unsigned char)((((unsigned)zeichensatz) >> 8) & 0xFC)
                 | (TED_ZSATZ_A & 0x02);
