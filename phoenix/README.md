@@ -92,6 +92,24 @@ constant and no magic number for the shield's second and a half.
   the ship crosses the screen and the birds dive at about the original pace;
   the movement is coarser, not slower.
 
+## Reading the keyboard
+
+Worth knowing before touching the input code: the row goes to **both** latches,
+`$FD30` and `$FF08`, and `$FF08` then has to be read **twice**. The write
+leaves its own value on the data bus and the TED samples the keyboard lines a
+cycle later, so a read in the instruction right after the write hands back what
+was just written — which looks exactly like the key on that row's own line
+being held down. With row `$7F` that is Run/Stop, and the game quit the moment
+it started.
+
+A test program easily misses this: as soon as a few instructions happen to sit
+between the write and the read, array indexing is enough, the answer is right.
+It has to be measured in the real program.
+
+The matrix itself was read out of the KERNAL's own table at `$E026` rather than
+taken from documentation; its scan routine sits at `$DB70` and is the best
+source for both.
+
 ## Testing
 
 Two switches at the top of [phoenix.c](phoenix.c) exist so the game can be

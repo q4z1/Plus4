@@ -469,17 +469,35 @@ static void anzeige_zeichnen(void)
 /* ======================================================================
  * 5. Input
  *
- * Keyboard and joysticks share one port. Two latches feed it: $FD30 picks a
- * keyboard row, $FF08 picks a joystick, and both answer at $FF08 with a zero
- * bit per closed contact.
+ * Keyboard and joysticks hang on the same port, and two latches feed it:
+ * $FD30 and $FF08. The KERNAL's own scan routine at $DB70 settles what to
+ * write where - it puts the row on *both* of them and then reads $FF08:
  *
- * There is a catch. Writing to $FF08 puts that value on the data bus at the
- * moment the TED samples its inputs, so whatever bit was written low reads
- * back low - a joystick selected through $FF08 therefore always looks as if
- * its own select line were pressed. To stay clear of that, every read is done
- * twice, once with each latch doing the selecting, and the bit that the write
- * itself pulled down is put back before the two are combined. Whichever of
- * the two ways the machine actually honours, the answer is right.
+ *     sta $FD30
+ *     sta $FF08
+ *     lda $FF08
+ *
+ * Writing $FF to $FF08 instead, as this file did at first, selects no row at
+ * all, and then nothing is ever pressed. Reading $FF08 gives a zero bit per
+ * closed contact; $FF means nobody is touching that row.
+ *
+ * And it has to be read *twice*. The write leaves its own value on the data
+ * bus, and the TED samples the keyboard lines a cycle later - so a read in
+ * the instruction right after the write hands back what was just written,
+ * which looks exactly like the key on that row's own line being held down.
+ * With the row $7F that is Run/Stop, and the game quit the moment it started.
+ * The second read gets the TED's own sample.
+ *
+ * A row value with bit 1 or 2 low would also switch a joystick onto the same
+ * lines. None of the rows used here does, so keyboard and joystick stay
+ * apart: the joystick is asked with no keyboard row selected at all.
+ *
+ * The matrix, read out of the KERNAL's own table at $E026 rather than taken
+ * from documentation (bit 0 first):
+ *
+ *   $DF  crsr down, P, L, crsr up, ., :, -, ,
+ *   $BF  crsr left, *, ;, crsr right, Esc, =, +, /
+ *   $7F  1, Clr/Home, F3, 2, Space, Shift, Q, Run/Stop
  * ==================================================================== */
 
 #define ST_LINKS   0x01
@@ -490,43 +508,36 @@ static void anzeige_zeichnen(void)
 
 static unsigned char tasten_lesen(unsigned char reihe)
 {
-    unsigned char a, b;
+    unsigned char wert;
 
     __asm__("sei");
-    TASTENTOR = 0xFF;
     TASTENREIHE = reihe;
-    TASTENTOR = 0xFF;
-    a = TASTENTOR;
-
-    TASTENREIHE = 0xFF;
     TASTENTOR = reihe;
-    b = TASTENTOR;
+    wert = TASTENTOR;            /* still the value the write left behind */
+    wert = TASTENTOR;            /* now what the TED sampled              */
     TASTENTOR = 0xFF;
     __asm__("cli");
 
-    return (unsigned char)(a & (b | (unsigned char)~reihe));
+    return wert;
 }
 
 static unsigned char joystick_lesen(void)
 {
-    unsigned char a, b;
+    unsigned char wert;
 
     __asm__("sei");
-    TASTENTOR = 0xFF;
-    TASTENREIHE = 0xFB;          /* bit 2 low selects joystick 1 */
-    TASTENTOR = 0xFF;
-    a = TASTENTOR;
-
-    TASTENREIHE = 0xFF;
-    TASTENTOR = 0xFB;
-    b = TASTENTOR;
+    TASTENREIHE = 0xFF;          /* no keyboard row, so no keys mixed in */
+    TASTENTOR = 0xFB;            /* bit 2 low selects joystick 1         */
+    wert = TASTENTOR;            /* the write's own value, still on the bus */
+    wert = TASTENTOR;            /* the sampled one                         */
     TASTENTOR = 0xFF;
     __asm__("cli");
 
-    return (unsigned char)(a & (b | 0x04));
+    return wert;
 }
 
-static unsigned char steuerung(void)
+/* Reads the state of everything right now. */
+static unsigned char steuerung_roh(void)
 {
     unsigned char s = 0, w;
 
@@ -548,6 +559,27 @@ static unsigned char steuerung(void)
     if (!(w & 0x40)) s |= ST_ENDE;
     if (!(w & 0x80)) s |= ST_ENDE;
 
+    return s;
+}
+
+/*
+ * A pass through the game takes an eighth of a second, and a tap on a key is
+ * often shorter than that - asked once per pass, it would simply not be
+ * there. So the port is read again while the program waits for the beam, and
+ * anything seen in between is remembered until the next pass picks it up.
+ * For a key that is held down this changes nothing.
+ */
+static unsigned char eingang_gesehen;
+
+static void eingang_abtasten(void)
+{
+    eingang_gesehen |= steuerung_roh();
+}
+
+static unsigned char steuerung(void)
+{
+    unsigned char s = (unsigned char)(eingang_gesehen | steuerung_roh());
+    eingang_gesehen = 0;
     return s;
 }
 
@@ -2273,8 +2305,8 @@ static void abspann(void)
 static void bild_warten(void)
 {
     ++durchlaeufe;
-    while (TED_RASTER >= 210) { }
-    while (TED_RASTER <  210) { }
+    while (TED_RASTER >= 210) { eingang_abtasten(); }
+    while (TED_RASTER <  210) { eingang_abtasten(); }
     TED_SENKR = (unsigned char)(0x10 | yfein);   /* 24 rows, fine scroll */
 }
 
