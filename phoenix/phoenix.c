@@ -630,6 +630,7 @@ static unsigned char steuerung(void)
 
 #define FIG_N     14         /* ship and birds                             */
 #define SCH_N      6         /* shot, eggs and the force field             */
+#define SCHILD_ZEICHEN 12    /* the ship in its field is five cells by two   */
 #define SCH_SP     3         /* a shot is never wider than three cells     */
 #define SCH_ZE     2
 #define SCH_ZN     (SCH_SP * SCH_ZE)
@@ -662,10 +663,12 @@ static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
 
     fig_n = voegel;
     code = Z_VORRAT;
-    fig_basis[0] = code;                 /* the ship is always small */
+    /* The ship's slot also carries it standing in its force field, which is
+       five cells by two - the ship alone is three by two. */
+    fig_basis[0] = code;
     fig_zeiger[0] = zeichensatz + ((unsigned)code << 3);
-    fig_zahl[0] = 8;
-    code = (unsigned char)(code + 8);
+    fig_zahl[0] = SCHILD_ZEICHEN;
+    code = (unsigned char)(code + SCHILD_ZEICHEN);
 
     for (i = 1; i < FIG_N; ++i) {
         fig_basis[i] = code;
@@ -673,6 +676,9 @@ static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
         fig_zahl[i] = (unsigned char)(i <= voegel ? gross : 0);
         if (i <= voegel) code = (unsigned char)(code + gross);
     }
+    /* The shot and the shots the birds drop need six characters each and
+       get eight; the force field is five cells by two and needs ten. Writing
+       more characters than a figure owns runs straight into the next one. */
     for (i = 0; i < SCH_N; ++i) {
         fig_basis[FIG_N + i] = code;
         fig_zeiger[FIG_N + i] = zeichensatz + ((unsigned)code << 3);
@@ -691,17 +697,47 @@ static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
  * colours are the dominant one of each.
  */
 
-/* The player's ship: five 2600 pixels across, nine tall. */
-static const unsigned char SCHIFF[9] = {
-    0x44,   /*  #   #   */
-    0x44,   /*  #   #   */
-    0x54,   /*  # # #   */
-    0x54,   /*  # # #   */
-    0x54,   /*  # # #   */
-    0x7C,   /*  #####   */
-    0x7C,   /*  #####   */
-    0x54,   /*  # # #   */
-    0x54    /*  # # #   */
+/*
+ * Where the ship and its field stand. Two things to know before moving
+ * these: the blitter puts a figure eight pixels below the y it is given - an
+ * old scroll compensation that stayed behind when the scrolling went - and a
+ * figure's block must not reach character row 23, which is the ground band,
+ * or it cuts a hole in it and leaves it there.
+ *
+ * The 2600 stands its ship right on the band with a pixel to spare, and
+ * closes the field around it down to the band itself. Both come out exactly
+ * that way here.
+ */
+#define SCHIFF_Y     165     /* shows at 173..182, the band starts at 184   */
+#define EI_UNTEN     167     /* the lowest a falling shot may be drawn      */
+#define SCHIFF_BREIT   8
+#define SCHIFF_HOCH   10
+/* the field reaches four pixels past the ship on either side, so the ship
+   keeps that much clear of both edges */
+#define SCHILD_LINKS   4
+#define SCHILD_OBEN    4
+#define SCHILD_BREIT  16
+#define SCHILD_HOCH   15
+#define SCHILD_Y      (SCHIFF_Y - SCHILD_OBEN)
+#define SCHIFF_LINKS  SCHILD_LINKS
+#define SCHIFF_RECHTS 148
+
+/*
+ * The player's ship, read out of a running original: seven 2600 pixels
+ * across and ten tall, a nose with two pods beside it. The shape here was
+ * drawn off a still picture before and had the pods in the wrong place.
+ */
+static const unsigned char SCHIFF[10] = {
+    0x10,   /*  ...#....  */
+    0x92,   /*  #..#..#.  */
+    0xD6,   /*  ##.#.##.  */
+    0x54,   /*  .#.#.#..  */
+    0x38,   /*  ..###...  */
+    0x38,   /*  ..###...  */
+    0x7C,   /*  .#####..  */
+    0xD6,   /*  ##.#.##.  */
+    0x92,   /*  #..#..#.  */
+    0x82    /*  #.....#.  */
 };
 
 /*
@@ -811,13 +847,40 @@ static const unsigned char EI[5] = {
     0x10, 0x10, 0x10, 0x10, 0x10
 };
 
-/* The force field above the ship, shimmering in two frames. */
-static const unsigned char SCHILD1[3] = {
-    0xDB, 0x66, 0x00
-};
-
-static const unsigned char SCHILD2[3] = {
-    0x66, 0xDB, 0x00
+/*
+ * The ship standing in its force field, read out of a running original as
+ * one picture: an arch sixteen 2600 pixels across and fifteen tall with the
+ * ship inside it, four pixels down and four in from the left, open at the
+ * bottom where the ship stands on the ground.
+ *
+ * It is one shape here and not an arch drawn over the ship, because the two
+ * are only fifteen pixels tall together and would share both of their
+ * character rows - and a cell holds one character and one colour. As one
+ * shape there is nothing to share: while the field is up the ship is drawn
+ * as this instead, in white.
+ *
+ * The console draws the field on every other frame and leaves it off in
+ * between, which is how a 2600 shows two things that share one sprite. At
+ * fifty frames a second that reads as a shimmer; we redraw twenty times a
+ * second, where the same trick would be a ten hertz blink, so the field
+ * simply stands while it is up.
+ */
+static const unsigned char SCHILD[30] = {
+    0x03, 0xC0,   /*  ......####......  */
+    0x0F, 0xF0,   /*  ....########....  */
+    0x3F, 0xFC,   /*  ..############..  */
+    0xFC, 0x3F,   /*  ######....######  */
+    0xF1, 0x0F,   /*  ####...#....####  */
+    0xC9, 0x23,   /*  ##..#..#..#...##  */
+    0xCD, 0x63,   /*  ##..##.#.##...##  */
+    0xC5, 0x43,   /*  ##...#.#.#....##  */
+    0xC3, 0x83,   /*  ##....###.....##  */
+    0xC3, 0x83,   /*  ##....###.....##  */
+    0xC7, 0xC3,   /*  ##...#####....##  */
+    0xCD, 0x63,   /*  ##..##.#.##...##  */
+    0xC9, 0x23,   /*  ##..#..#..#...##  */
+    0xC8, 0x23,   /*  ##..#.....#...##  */
+    0xF0, 0x0F    /*  ####........####  */
 };
 
 /* ---- ready made character blocks ---------------------------------------
@@ -840,7 +903,7 @@ static const unsigned char SCHILD2[3] = {
 #define FORM_SCHUSS  1
 #define FORM_KNALL   2    /* two frames                                   */
 #define FORM_EI      4
-#define FORM_SCHILD  5    /* two frames                                   */
+#define FORM_SCHILD  5
 #define FORM_VOGEL   7    /* small bird, two flapping frames              */
 #define FORM_GROSS   7    /* large bird, two flapping frames              */
 #define FORM_GROSS_L 9    /* right wing shot off                          */
@@ -851,12 +914,14 @@ static const unsigned char SCHILD2[3] = {
 
 /*
  * Room for all views of all shapes of one wave, with a little to spare. The
- * largest set is waves three and four: seven small shapes and the egg at 48
- * bytes a view, five large birds at 120, each shape in 32 views - 31488
- * bytes. Going over this would quietly write past the end of the array, so
- * the number wants checking when a shape is added.
+ * largest set is waves three and four, which needs 27648 bytes: five large
+ * birds at 120 bytes a view and the rest at 48, each in 32 views, plus the
+ * ship and the force field at 72 bytes in four views each - those two never
+ * leave the bottom of the screen and do not need the other 28. Going over
+ * this would quietly write past the end of the array, so the number wants
+ * checking when a shape grows.
  */
-#define BLOCKRAUM 31744
+#define BLOCKRAUM 27904
 
 static unsigned char bloecke[BLOCKRAUM];
 static unsigned blockende;
@@ -885,9 +950,23 @@ static unsigned char *zeile_hgf[ZEILEN];
  * maske1 and maske2 are laid over the shape data first. That is how the
  * large birds lose a wing: the same picture, with one side masked away.
  */
+/*
+ * lage is which of the eight vertical positions a shape needs. Most shapes
+ * can stand anywhere and take LAGE_ALLE, which builds all 32 views. The ship
+ * and its force field never leave the bottom of the screen, so they only
+ * ever ask for one of the eight - building the other seven would cost two
+ * kilobytes each, and there is not that much room.
+ */
+#define LAGE_ALLE 255
+/* where the blitter looks a figure up: (y + 8 - fine scroll) & 7, and the
+   fine scroll has stood at zero since the stars took over the scrolling */
+#define LAGE_SCHIFF ((SCHIFF_Y + 8) & 7)
+#define LAGE_SCHILD ((SCHILD_Y + 8) & 7)
+
 static void form_ablegen(unsigned char nr, const unsigned char *daten,
                          unsigned char w2, unsigned char h,
-                         unsigned char maske1, unsigned char maske2)
+                         unsigned char maske1, unsigned char maske2,
+                         unsigned char lage)
 {
     unsigned char zeile[16][5];
     unsigned char breit[4];
@@ -897,19 +976,27 @@ static void form_ablegen(unsigned char nr, const unsigned char *daten,
 
     w = (unsigned char)(w2 + w2);
     sp = (unsigned char)(w + 1);
-    ze = (unsigned char)((h + 14) >> 3);
+    /* A shape that can stand anywhere has to reserve a row for the worst
+       case. One that always stands at the same height needs exactly as many
+       rows as it covers there, which for the ship and the field is one row
+       less - and that one row is what keeps them off the ground band. */
+    ze = (unsigned char)(lage == LAGE_ALLE ? (h + 14) >> 3
+                                           : (lage + h + 7) >> 3);
     f_sp[nr] = sp;
     f_ze[nr] = ze;
     f_n[nr] = (unsigned char)(sp * ze);
     gr = (unsigned)f_n[nr] * 8;
     form_stufe[nr] = gr;
     form_block[nr] = bloecke + blockende;
-    blockende += gr * 32;
+    blockende += gr * (lage == LAGE_ALLE ? 32 : 4);
 
     f_laenge[nr] = (unsigned char)(f_n[nr] * 8 - 1);
     form_sicht_von[nr] = &form_sicht[nr * 32];
+    /* A shape with a fixed height has four blocks, one per horizontal
+       position, and all eight entries of a position point at the same one. */
     for (p = 0; p < 32; ++p)
-        form_sicht[nr * 32 + p] = form_block[nr] + (unsigned)p * gr;
+        form_sicht[nr * 32 + p] = form_block[nr]
+            + (unsigned)(lage == LAGE_ALLE ? p : (p >> 3)) * gr;
 
     for (p = 0; p < 4; ++p) {
         s = (unsigned char)(p + p);
@@ -933,7 +1020,9 @@ static void form_ablegen(unsigned char nr, const unsigned char *daten,
         }
 
         for (voff = 0; voff < 8; ++voff) {
-            block = form_block[nr] + ((unsigned)(p * 8 + voff) * gr);
+            if (lage != LAGE_ALLE && voff != lage) continue;
+            block = form_block[nr] + ((unsigned)(lage == LAGE_ALLE
+                                                 ? p * 8 + voff : p) * gr);
             for (i = 0; i < gr; ++i) block[i] = 0;
             for (r = 0; r < h; ++r) {
                 py = (unsigned char)(voff + r);
@@ -951,20 +1040,19 @@ static void form_ablegen(unsigned char nr, const unsigned char *daten,
 static void formen_grundstock(void)
 {
     blockende = 0;
-    form_ablegen(FORM_SCHIFF, SCHIFF, 1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_SCHUSS, SCHUSS, 1, 6, 0xFF, 0xFF);
-    form_ablegen(FORM_KNALL,     KNALL1, 1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_KNALL + 1, KNALL2, 1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_EI, EI, 1, 5, 0xFF, 0xFF);
-    form_ablegen(FORM_SCHILD,     SCHILD1, 1, 3, 0xFF, 0xFF);
-    form_ablegen(FORM_SCHILD + 1, SCHILD2, 1, 3, 0xFF, 0xFF);
+    form_ablegen(FORM_SCHIFF, SCHIFF, 1, 10, 0xFF, 0xFF, LAGE_SCHIFF);
+    form_ablegen(FORM_SCHUSS, SCHUSS, 1, 6, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_KNALL,     KNALL1, 1, 8, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_KNALL + 1, KNALL2, 1, 8, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_EI, EI, 1, 5, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_SCHILD, SCHILD, 2, 15, 0xFF, 0xFF, LAGE_SCHILD);
 }
 
 static void formen_klein(void)
 {
     formen_grundstock();
-    form_ablegen(FORM_VOGEL,     VOGEL_ENG,  1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_VOGEL + 1, VOGEL_WEIT, 1, 8, 0xFF, 0xFF);
+    form_ablegen(FORM_VOGEL,     VOGEL_ENG,  1, 8, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_VOGEL + 1, VOGEL_WEIT, 1, 8, 0xFF, 0xFF, LAGE_ALLE);
 }
 
 /*
@@ -979,13 +1067,13 @@ static void formen_klein(void)
 static void formen_gross(void)
 {
     formen_grundstock();
-    form_ablegen(FORM_GROSS,     GROSS_A, 2, 10, 0xFF, 0xFF);
-    form_ablegen(FORM_GROSS + 1, GROSS_C, 2, 10, 0xFF, 0xFF);
-    form_ablegen(FORM_GROSS_L, GROSS_B, 2, 10, 0xFF, (unsigned char)~FL_RECHTS);
-    form_ablegen(FORM_GROSS_R, GROSS_B, 2, 10, (unsigned char)~FL_LINKS, 0xFF);
+    form_ablegen(FORM_GROSS,     GROSS_A, 2, 10, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_GROSS + 1, GROSS_C, 2, 10, 0xFF, 0xFF, LAGE_ALLE);
+    form_ablegen(FORM_GROSS_L, GROSS_B, 2, 10, 0xFF, (unsigned char)~FL_RECHTS, LAGE_ALLE);
+    form_ablegen(FORM_GROSS_R, GROSS_B, 2, 10, (unsigned char)~FL_LINKS, 0xFF, LAGE_ALLE);
     form_ablegen(FORM_GROSS_0, GROSS_B, 2, 10, (unsigned char)~FL_LINKS,
-                 (unsigned char)~FL_RECHTS);
-    form_ablegen(FORM_GROSSEI, GROSSEI, 1, 8, 0xFF, 0xFF);
+                 (unsigned char)~FL_RECHTS, LAGE_ALLE);
+    form_ablegen(FORM_GROSSEI, GROSSEI, 1, 8, 0xFF, 0xFF, LAGE_ALLE);
 }
 
 /* ---- what a figure covers at the moment -------------------------------- */
@@ -1732,18 +1820,8 @@ static void takt_messen(void)
 
 #define SPIEL_OBEN    24     /* first pixel row below the score             */
 
-/*
- * The 2600 stands its ship right on the ground band. We cannot go quite
- * that far: a figure is blitted as a block three character rows tall, so
- * anything drawn below this line would cut a hole in the band and leave it
- * there. The ship sits as low as that allows, and everything that falls is
- * taken off the screen at the same line.
- */
-#define UNTERKANTE   167     /* nothing may be drawn below this             */
-#define SCHIFF_Y     UNTERKANTE
-#define SCHIFF_BREIT   8
-#define SCHIFF_LINKS   2
-#define SCHIFF_RECHTS 150
+/* Where the ship and its force field stand is set out with the shapes in
+   section 6 - the shape tables need those numbers before this point. */
 
 /*
  * The ship and its shot, measured off the original the same way as the
@@ -1762,7 +1840,6 @@ static void takt_messen(void)
 #define SLOT_SCHUSS   FIG_N
 #define SLOT_EI       (FIG_N + 1)
 #define EIER          4
-#define SLOT_SCHILD   (FIG_N + SCH_N - 1)
 
 static unsigned char spieler_x;
 static unsigned char rest_schiff, rest_schuss;
@@ -1783,7 +1860,7 @@ static void spieler_setzen(void)
     schuss_aktiv = 0;
     feuer_alt = 0;
     figur_loeschen(SLOT_SCHUSS);
-    figur_loeschen(SLOT_SCHILD);
+    figur_loeschen(SLOT_SCHIFF);
 }
 
 static void spieler_steuern(unsigned char s)
@@ -1800,7 +1877,8 @@ static void spieler_steuern(unsigned char s)
                                       schild_zeit - takte : 0);
         if (schild_zeit == 0) {
             schild_sperre = SCHILD_PAUSE;
-            figur_loeschen(SLOT_SCHILD);
+            /* the ship shrinks back to itself; the wider figure lets go of
+               the cells it no longer covers on its next pass */
         }
     } else {
         if ((s & ST_SCHILD) && !schild_sperre) {
@@ -1839,12 +1917,23 @@ static void schuss_bewegen(void)
 
 static void spieler_malen(void)
 {
-    figur_malen(SLOT_SCHIFF, FORM_SCHIFF, spieler_x, SCHIFF_Y, C_SCHIFF);
+    /*
+     * The field goes down before the ship. Both are only fifteen pixels
+     * tall between them, so they share the same two character rows, and a
+     * cell holds one colour: whoever draws first keeps it and the other one
+     * has its pixels put into that cell. Drawing the field first makes the
+     * arch white and the ship inside it white with it, which reads as a
+     * ship standing in a field. The other way round the arch takes the
+     * ship's orange, and its closed top sits on the ship like a lump.
+     */
+    if (schild_zeit)
+        figur_malen(SLOT_SCHIFF, FORM_SCHILD,
+                    (unsigned char)(spieler_x - SCHILD_LINKS),
+                    (unsigned char)SCHILD_Y, C_WEISS);
+    else
+        figur_malen(SLOT_SCHIFF, FORM_SCHIFF, spieler_x, SCHIFF_Y, C_SCHIFF);
     if (schuss_aktiv)
         figur_malen(SLOT_SCHUSS, FORM_SCHUSS, schuss_x, schuss_y, C_GELB);
-    if (schild_zeit)
-        figur_malen(SLOT_SCHILD, (unsigned char)(FORM_SCHILD + (schild_zeit & 1)),
-                    spieler_x, SCHIFF_Y - 4, C_TUERKIS);
 }
 
 /* ======================================================================
@@ -1987,6 +2076,29 @@ static unsigned char platz_jetzt_y(unsigned char p)
 }
 
 static void mutter_aufbauen(void);
+/*
+ * Two birds in one character cell blink at each other: whoever draws second
+ * puts its pixels into the first one's character, and when the first one
+ * then moves off that cell it hands the cell back to the background with
+ * both of them in it. The original never lets its pair cross - the two that
+ * swoop leave side by side and stay that way - so the faithful cure is also
+ * the simple one: a bird does not take a step that would put it on top of
+ * another. Only the sideways step is ever cancelled, so a swoop can always
+ * carry on downwards and nothing can wedge itself.
+ */
+static unsigned char frei_von_voegeln(unsigned char nr, int x, int y)
+{
+    unsigned char k;
+    for (k = 0; k < voegel_zahl; ++k) {
+        if (k == nr) continue;
+        if (v_zustand[k] == V_LEER || v_zustand[k] == V_TOT) continue;
+        if (x + v_breit <= (int)v_x[k] || (int)v_x[k] + v_breit <= x) continue;
+        if (y + v_hoch <= (int)v_y[k] || (int)v_y[k] + v_hoch <= y) continue;
+        return 0;
+    }
+    return 1;
+}
+
 static void pause_laden(void);
 
 static unsigned char satz_geladen;      /* which set of shapes is in memory */
@@ -2093,10 +2205,13 @@ static void welle_aufbauen(void)
         if (v_gross) {
             /* They arrive as eggs, drifting down from above in a zigzag.
                The second row follows the first, which is the "two banks of
-               eggs" the fourth wave is known for. */
+               eggs" the fourth wave is known for - and it waits half a place
+               to the side, so the two banks never sit on top of each other
+               while the second one is still waiting its turn. */
             v_zustand[i] = V_EI;
             v_y[i] = SPIEL_OBEN;
             v_zeit[i] = (unsigned char)(i * 8);
+            if (i >= 3) v_x[i] = (unsigned char)(v_x[i] + 22);
         } else {
             v_zustand[i] = V_FORM;
             v_y[i] = v_hy[i];
@@ -2297,7 +2412,6 @@ static void voegel_bewegen(void)
         y = (int)v_y[i];
 
         if (z == V_STURZ) {
-            ++v_zeit[i];
             x += (schwung_dx > 0 ? (int)seit : -(int)seit);
             y += ab;
             if (y >= STURZ_ENDE) {      /* it levels out well above the ship */
@@ -2312,22 +2426,43 @@ static void voegel_bewegen(void)
             } else {
                 v_boden[i] = 0;
                 v_zustand[i] = V_RUECK;
+                v_zeit[i] = 0;
             }
-        } else {                        /* climbing back to its place */
-            x += (schwung_dx > 0 ? (int)seit : -(int)seit);
-            if (y > zy + (int)ab) {
+        } else {
+            /*
+             * Coming home it works the sideways distance off while it is
+             * still climbing and takes the last step up only once it stands
+             * over its own place - so it never has to slide along the row
+             * the others are sitting in.
+             */
+            ++v_zeit[i];
+            if (y > zy + v_hoch) {
                 y -= ab;
-            } else {
-                /* home: it slides across into its place and falls in */
-                y = zy;
+                if (y < zy + v_hoch) y = zy + v_hoch;
                 if (x + (int)seit < zx) x += seit;
                 else if (x > zx + (int)seit) x -= seit;
-                else { x = zx; v_zustand[i] = V_FORM; }
+                else x = zx;
+            } else if (x != zx) {
+                if (x + (int)seit < zx) x += seit;
+                else if (x > zx + (int)seit) x -= seit;
+                else x = zx;
+            } else {
+                y -= ab;
+                if (y <= zy) { y = zy; v_zustand[i] = V_FORM; }
             }
+            /* and if something ever gets in the way for good, it gives up
+               and drops into its place */
+            if (v_zeit[i] > 120) { x = zx; y = zy; v_zustand[i] = V_FORM; }
         }
 
         if (x < 0) x = 0;
         if (x > 152) x = 152;
+        /* never step onto another bird - the sideways step gives way */
+        if (v_zustand[i] != V_FORM && !frei_von_voegeln(i, x, y)) {
+            if (frei_von_voegeln(i, (int)v_x[i], y)) x = (int)v_x[i];
+            else if (frei_von_voegeln(i, x, (int)v_y[i])) y = (int)v_y[i];
+            else { x = (int)v_x[i]; y = (int)v_y[i]; }
+        }
         v_x[i] = (unsigned char)x;
         v_y[i] = (unsigned char)y;
     }
@@ -2347,7 +2482,7 @@ static void eier_bewegen(void)
     for (i = 0; i < EIER; ++i) {
         if (!ei_aktiv[i]) continue;
         ei_y[i] = (unsigned char)(ei_y[i] + ab);
-        if (ei_y[i] > UNTERKANTE) {
+        if (ei_y[i] > EI_UNTEN) {
             ei_aktiv[i] = 0;
             figur_loeschen((unsigned char)(SLOT_EI + i));
         }
@@ -2785,15 +2920,18 @@ static unsigned char treffer_pruefen(void)
     if (schild_zeit) {
         for (i = 0; i < voegel_zahl; ++i) {
             if (!IM_FLUG(v_zustand[i])) continue;
-            if (v_y[i] + 7 < SCHIFF_Y - 6 || v_y[i] > SCHIFF_Y + 8) continue;
-            if (v_x[i] + 7 < (int)spieler_x - 2 ||
-                v_x[i] > (int)spieler_x + SCHIFF_BREIT + 1) continue;
+            if (v_y[i] + 7 < SCHILD_Y || v_y[i] > SCHILD_Y + SCHILD_HOCH - 1)
+                continue;
+            if (v_x[i] + 7 < (int)spieler_x - SCHILD_LINKS ||
+                v_x[i] > (int)spieler_x - SCHILD_LINKS + SCHILD_BREIT - 1)
+                continue;
             punkte_dazu(80);
             vogel_toeten(i);
         }
         for (i = 0; i < EIER; ++i) {
             if (!ei_aktiv[i]) continue;
-            if (ei_y[i] + 4 < SCHIFF_Y - 6 || ei_y[i] > SCHIFF_Y + 8) continue;
+            if (ei_y[i] + 4 < SCHILD_Y || ei_y[i] > SCHILD_Y + SCHILD_HOCH - 1)
+                continue;
             ei_aktiv[i] = 0;
             figur_loeschen((unsigned char)(SLOT_EI + i));
         }
@@ -2803,7 +2941,8 @@ static unsigned char treffer_pruefen(void)
     /* a bird flying into the ship */
     for (i = 0; i < voegel_zahl; ++i) {
         if (!IM_FLUG(v_zustand[i])) continue;
-        if (v_y[i] + 7 < SCHIFF_Y || v_y[i] > SCHIFF_Y + 7) continue;
+        if (v_y[i] + 7 < SCHIFF_Y || v_y[i] > SCHIFF_Y + SCHIFF_HOCH - 1)
+            continue;
         if (v_x[i] + 7 < (int)spieler_x ||
             v_x[i] > (int)spieler_x + SCHIFF_BREIT - 1) continue;
         return 1;
@@ -2812,7 +2951,8 @@ static unsigned char treffer_pruefen(void)
     /* an egg landing on it */
     for (i = 0; i < EIER; ++i) {
         if (!ei_aktiv[i]) continue;
-        if (ei_y[i] + 4 < SCHIFF_Y || ei_y[i] > SCHIFF_Y + 7) continue;
+        if (ei_y[i] + 4 < SCHIFF_Y || ei_y[i] > SCHIFF_Y + SCHIFF_HOCH - 1)
+            continue;
         sx = (int)ei_x[i] + 3;
         if (sx < (int)spieler_x || sx > (int)spieler_x + SCHIFF_BREIT - 1) continue;
         ei_aktiv[i] = 0;

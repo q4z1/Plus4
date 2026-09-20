@@ -167,6 +167,16 @@ price. The same test guards handing a cell back: a figure only restores the
 background where its own character is still standing, so it cannot wipe out
 somebody who moved in over it.
 
+That is good enough for something small and fast crossing something large -
+a shot over a bird - and not good enough for two large figures that sit on
+each other for a while. Whoever draws second borrows the first one's cell,
+and as soon as the first one moves off that cell it hands it back to the
+background with both of them in it, which blinks. So the two cases where it
+would have mattered are arranged not to arise: **birds do not step onto each
+other** - the sideways step gives way, which is what the original's pair does
+anyway - and **the ship and its force field are one shape**, not two drawn
+over each other.
+
 **The mothership is background, not a figure.** It is eighty 2600 pixels
 across and forty-one tall - twenty character cells by five and a bit - which
 is far too large to redraw, so its cells live in the shadow copy of the screen
@@ -215,6 +225,12 @@ the resulting bitmaps into the tables in [phoenix.c](phoenix.c). The comment
 beside each table is the shape it holds, so a wrong bit is visible in the
 source.
 
+The ship and its force field are read out of a running original the same
+way, frame by frame: the ship is seven 2600 pixels across and ten tall, and
+the field an arch sixteen across and fifteen tall that stands around it,
+open at the bottom. The ship drawn here before that was off a still picture
+and had its pods in the wrong place.
+
 Both kinds of shot are thin vertical stripes, one 2600 pixel wide - the
 ship's six scanlines tall, what the birds drop five. They were a round blob
 here for a while, which is both wrong and worse: a wide shape covers more
@@ -233,9 +249,10 @@ guessable.
   bottom fifth of the screen; here it is one character row. Our screen is two
   hundred lines to the PAL machine's two hundred and seventy-four, and the
   playfield was kept at its full height instead, so the band had to give.
-- **The ship stands eight pixels above the band**, where the original's
-  stands on it. A figure is blitted as a block three character rows tall, and
-  anything drawn lower would cut a hole in the band and leave it there.
+- **The ship glows white while its field is up.** On the 2600 the arch is
+  white and the ship inside it keeps its orange. The two are only fifteen
+  pixels tall together, so they share both of their character rows here, and
+  a cell holds one colour - they are drawn as one shape and it is white.
 - **Remaining ships sit beside the score**, not under it as on the 2600.
 - **One colour per character cell.** A 2600 bird is two-toned; here a bird is
   one colour, the dominant of the two. Wave one's three colours are picked
@@ -248,8 +265,11 @@ guessable.
   shape of an attack, but their own formations and the egg-hatching are still
   reconstructed rather than measured - only the first two waves have been
   read off the ROM frame by frame so far.
-- **The explosions, the force field and every sound** are still invented. A
-  sound cannot be read off a picture at all.
+- **The explosions and every sound** are still invented. A sound cannot be
+  read off a picture at all.
+- **The field stands still** where the console blinks it on every other
+  frame. At fifty frames a second that reads as a shimmer; at our twenty the
+  same trick would be a ten hertz blink.
 - **Some twenty steps a second** rather than fifty. Every speed is the
   original's to within a couple of per cent, but it is delivered in bigger
   steps: the machine cannot redraw a dozen figures built out of characters
