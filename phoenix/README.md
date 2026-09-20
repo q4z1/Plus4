@@ -5,6 +5,10 @@ original is Amstar/Centuri, 1980). All five waves, the force field, the
 mothership, two-voice sound with the arcade melodies, and a starfield that
 scrolls a pixel at a time.
 
+How the birds fly, how fast the ship moves and what the first wave looks like
+are **measured off the ROM itself**, frame by frame, rather than read about —
+[Measuring the original](#measuring-the-original) says how.
+
 ![Title screen](screenshots/title.png)
 
 **Controls**
@@ -19,13 +23,15 @@ scrolls a pixel at a time.
 
 | | | |
 | --- | --- | --- |
-| 1 | small birds, orange | a swaying formation; one drops out at a time, dives at the ship and drops an egg on the way |
+| 1 | small birds, violet | a drifting ring of eight; two drop out at a time and swoop past the ship, and the whole flock shoots |
 | 2 | small birds, green | the same, but the button auto-repeats while it is held — the only wave that does |
 | 3 | large birds, blue | they arrive as eggs floating down in a zigzag and hatch on the way; shooting a wing takes it off, only a hit in the middle kills, and the wings grow back |
-| 4 | large birds, red | the same, faster |
+| 4 | large birds, red | the same, with less quiet between attacks |
 | 5 | the mothership | it comes down the screen while the hull has to be chewed away from below |
 
-After the fifth wave the round starts again, a little quicker each time.
+After the fifth wave the round starts again. What gets harder from round to
+round is not how fast the birds fly — that never changes — but how soon the
+next pair leaves and how hard the flock shoots.
 
 ![Wave 1](screenshots/wave1.png)
 ![The eggs of wave 3](screenshots/eggs.png)
@@ -45,28 +51,63 @@ ship may still fire, and anything that touches the field dies.
 
 ## How the flock moves
 
-This is the part that took the longest to get anywhere near right, because
-it cannot be read off a screenshot. What the original does, as far as it is
-written down anywhere:
+Everything in this section is **measured off the original**, not read about.
+The ROM runs in Stella, the debugger stops it after every single frame and
+saves a picture, and the birds are read out of those pictures. See
+[Measuring the original](#measuring-the-original) for how that is done.
 
-- the birds sit in an **invader-like formation that weaves** from side to side;
-- **several of them at a time** drop out, in no particular order — "you will
-  usually be attacked by multiple fighters at any one time";
-- they **zig-zag** down towards the ship rather than flying at it, dropping an
-  egg on the way and trying to ram it;
-- at the bottom of the run they turn and **climb back to their place at a
-  diagonal**, rather than vanishing off an edge;
-- once the flock has been thinned out, what is left of it **reassembles and
-  creeps towards the bottom** of the screen, so sitting it out is not a way of
-  playing;
-- waves three and four **begin with eggs floating down in a zigzag** which
-  hatch into the large birds.
+The PAL machine draws fifty frames a second and its playfield is as tall as
+ours, so a scanline there is a pixel here and the numbers carry over as they
+are:
 
-The first attempt did none of that: one bird at a time, on a straight line,
-correcting its aim on every pass. It was a perfectly good dive-bombing enemy
-and it played nothing like Phoenix — it is very hard to step out of the way
-of something that re-aims twelve times a second, and a single attacker never
-feels like a flock.
+| | measured on the 2600 | in pixels a second |
+| --- | --- | --- |
+| flock drifting sideways | 1 pixel per 3 frames | 17 |
+| a bird swooping, down and up | 4 pixels per 3 frames | 67 |
+| what the birds drop | 8 pixels per 3 frames | 133 |
+| the ship | 1 pixel per frame | 50 |
+| the ship's shot | 8 pixels per frame | 400 |
+
+And the shape of an attack:
+
+- the flock sits in a **ring** — eight birds at four heights eighteen pixels
+  apart, two to a height, the outer pair fifty-one pixels apart and the inner
+  pairs twenty-four;
+- it **drifts sideways** and turns round when its outer birds reach the edge.
+  It **does not descend**. Sitting still is safe from the ring itself;
+- **exactly two birds** leave, off the bottom of the ring, and they leave
+  together;
+- the swoop is **dead steady** — four pixels every three frames, no gathering
+  speed — and it **does not aim**. The pair swings sideways on a slow rhythm
+  of its own whatever the ship does;
+- thirteen pixels above the ship they **level out**, run along the bottom for
+  about a second, then **climb back at the same rate** and take their places
+  again;
+- only a second after they are home do the **next two** leave. A whole attack
+  takes about four seconds, a second of which is quiet.
+
+That is a far quieter attack than it sounds like, and it is the point: in the
+first wave **the birds never come near the ship at all**. What kills you is
+what they drop, roughly one shot every quarter of a second from wherever a
+bird happens to be, falling twice as fast as a bird flies.
+
+Two earlier attempts got this wrong in the same direction. The first sent one
+bird at a time down a straight line that re-aimed twelve times a second. The
+second sent up to four at once on zig-zags that drifted towards the ship, over
+a flock that crept down the screen as it was thinned out — both of them
+relentless next to the console, and neither of them Phoenix. Anything that
+homes in on the player is wrong here.
+
+### Time is kept by the clock, not by the loop
+
+A pass through the game loop takes as long as the drawing takes, and the
+drawing gets cheaper as the flock is shot away — so a game counted in passes
+quietly speeds up towards the end of a wave. Everything above is therefore
+counted off the KERNAL's clock at `$A5`, which the machine ticks sixty times
+a second whatever we are drawing, and each speed is carried as thirty-seconds
+of a pixel per tick with the remainder kept between passes. The motion is
+coarser than the original's, because we redraw some twenty times a second and
+not fifty; it is not faster or slower.
 
 ## How it is built
 
@@ -155,11 +196,13 @@ than the effect.
 ## Where the shapes come from
 
 The ships, the birds, the mothership, the alien and the ground band are
-**traced off screenshots of the original, pixel by pixel**, not drawn by eye. The 2600 screenshots are four
-image pixels wide and two tall per 2600 pixel, so the sprites can be read out
-of them exactly; a small script turns the resulting bitmaps into the tables in
-[phoenix.c](phoenix.c). The comment beside each table is the shape it holds,
-so a wrong bit is visible in the source.
+**traced off pictures of the original, pixel by pixel**, not drawn by eye.
+The screenshots used for the shapes are four image pixels wide and two tall
+per 2600 pixel; the pictures Stella saves with `-ss1x 1` are two wide and one
+tall. Either way a sprite can be read out exactly, and a small script turns
+the resulting bitmaps into the tables in [phoenix.c](phoenix.c). The comment
+beside each table is the shape it holds, so a wrong bit is visible in the
+source.
 
 That was worth doing. The first set was drawn from the proportions in
 descriptions and looked like a different game - the small bird is six 2600
@@ -169,21 +212,31 @@ guessable.
 
 ## What is not 1:1
 
+- **The ground band is a stripe, not a field.** On the 2600 it takes up the
+  bottom fifth of the screen; here it is one character row. Our screen is two
+  hundred lines to the PAL machine's two hundred and seventy-four, and the
+  playfield was kept at its full height instead, so the band had to give.
+- **The ship stands eight pixels above the band**, where the original's
+  stands on it. A figure is blitted as a block three character rows tall, and
+  anything drawn lower would cut a hole in the band and leave it there.
+- **Remaining ships sit beside the score**, not under it as on the 2600.
 - **One colour per character cell.** A 2600 bird is two-toned; here a bird is
-  one colour. Everything else about the palette follows the manual — violet
-  and orange, violet and green, blue, red.
+  one colour, the dominant of the two. Wave one's three colours are picked
+  off a running original and matched against the Plus/4 palette; the later
+  waves' are still taken off still pictures, which is not the same thing,
+  because a 2600 cycles its colours while it sits in its demo.
 - **Eight small birds and six large ones** per wave, not the arcade's twenty.
   The 2600 shows far fewer than the arcade too, but not exactly these numbers.
-- **The explosions, the eggs, the force field and every sound** are still
-  invented. None of them appear in the screenshots that could be found, and a
+- **Waves three, four and five** have the measured speeds and the measured
+  shape of an attack, but their own formations and the egg-hatching are still
+  reconstructed rather than measured - only the first two waves have been
+  read off the ROM frame by frame so far.
+- **The explosions, the force field and every sound** are still invented. A
   sound cannot be read off a picture at all.
-- **One colour per figure.** The 2600 gives a sprite a different colour on
-  different scanlines — the small birds are violet with an orange or a green
-  band through them. A Plus/4 character cell holds one colour, so each figure
-  gets the dominant one.
-- **Nine to fifteen steps a second** rather than sixty. Speeds are scaled so
-  the ship crosses the screen and the birds dive at about the original pace;
-  the movement is coarser, not slower.
+- **Some twenty steps a second** rather than fifty. Every speed is the
+  original's to within a couple of per cent, but it is delivered in bigger
+  steps: the machine cannot redraw a dozen figures built out of characters
+  fifty times a second.
 
 ## Reading the keyboard
 
@@ -202,6 +255,64 @@ It has to be measured in the real program.
 The matrix itself was read out of the KERNAL's own table at `$E026` rather than
 taken from documentation; its scan routine sits at `$DB70` and is the best
 source for both.
+
+## Measuring the original
+
+The ROM itself is the reference for everything above. How to get numbers out
+of it, on a machine where the emulator must not take the screen or the
+keyboard away from whoever is using it:
+
+**Run Stella where it cannot be seen.** It has no headless mode and the SDL
+dummy drivers crash it, but a nested compositor works:
+
+```sh
+gamescope --backend headless -W 1920 -H 1200 -- \
+    stella -debug -ss1x 1 -sssingle 0 -snapsavedir <dir> "<rom>.a26"
+```
+
+No window appears, nothing takes focus. `-ss1x 1` makes every snapshot a raw
+TIA picture — 320x274 for PAL, two image pixels per 2600 pixel across and one
+scanline per row down — so positions can be read out of it exactly.
+
+**Drive it from a script.** Stella runs `~/.config/stella/autoexec.script`
+whenever the debugger is entered, and that script can do the whole job:
+
+```
+loadState 0
+frame 1
+saveSnap
+... 300 times ...
+quit
+```
+
+`frame` advances by exactly one frame, `saveSnap` writes a PNG, `dump` writes
+memory, the CPU and the input registers to a file. Three hundred frames take
+about five minutes, and out of them comes every number in the table above.
+
+**Getting a real game to start** is the awkward part. Fire does not do it —
+the Game Reset switch does, and `-holdreset` holds it down for ever, so the
+game freezes at its first frame. There is no debugger command for the
+console switches, and with no input device inside the compositor nothing ever
+releases them. The way through:
+
+1. run once with `-holdreset`, `frame 40`, `saveState 0`, `quit`;
+2. run again without it, `frame 40`, `saveState 1`, `quit`;
+3. the two state files differ in one byte that is `$3E` in the first and
+   `$3F` in the second — the last byte of the file, which is `SWCHB`. Bit 0
+   is the Reset switch, `0` meaning pressed;
+4. patch that byte to `$3F` and load the state. The game runs.
+
+The debugger's `joy0Right` and friends do **not** reach the game — `SWCHA`
+stays `$FF` — so the ship's own speed cannot be measured that way. It comes
+out of the demo the console plays to itself instead, which is the game
+playing with its own hands.
+
+**The same trick on our side.** The Plus/4 emulator runs headless in the same
+compositor with its binary monitor on a port of its own, and the game is
+built with `autopilot` and `unsterblich` set so it plays itself. Memory is
+read straight out of it — `cl65 -g` plus `ld65 --dbgfile` gives the address
+of every static — and the screen is fetched through the monitor's display
+command, so our birds can be measured exactly the way the original's were.
 
 ## Testing
 

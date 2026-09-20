@@ -70,15 +70,24 @@
 #define C_GRUEN    0x55
 #define C_BLAU     0x46
 #define C_HELLBLAU 0x6D
-/* Taken off screenshots of the original: the small birds are violet with an
-   orange or green second colour, the large ones blue then red, and the ship
-   a light red. A cell can only hold one colour, so each is the dominant one. */
-#define C_V_VIOLETT 0x5E
+/*
+ * The first wave's colours are picked off a running original: the ROM was
+ * stopped in Stella and the pixels read out, then matched against the
+ * Plus/4's own palette. The birds are a deep blue-violet, the ground band
+ * the same violet a shade lighter, and the ship a sandy orange. A cell can
+ * only hold one colour, so each of these is the dominant one of the two the
+ * 2600 puts in its sprite.
+ *
+ * The later waves' colours are still taken off still pictures, which is not
+ * the same thing - a 2600 cycles its colours while it sits in its demo, so
+ * a screenshot may not show what a game shows.
+ */
+#define C_V_VIOLETT 0x3E     /* measured (106,46,201)                       */
 #define C_V_GRUEN   0x6A
 #define C_V_BLAU    0x6D
 #define C_V_ROT     0x62
-#define C_SCHIFF    0x6B
-#define C_BALKEN1   0x68
+#define C_SCHIFF    0x58     /* measured (210,142,83)                       */
+#define C_BALKEN1   0x44     /* measured (167,76,204)                       */
 #define C_BALKEN2   0x5E
 #define C_VIOLETT  0x54
 #define C_TUERKIS  0x5D
@@ -1576,16 +1585,71 @@ static void klang_weiter(void)
  */
 #define TAKT          12     /* steps per second, near enough              */
 
-#define SPIEL_OBEN    24     /* first pixel row below the score             */
-#define SPIEL_UNTEN  176
+/*
+ * Counting in passes has one bad habit: a pass gets shorter as the flock is
+ * shot away, so the game quietly speeds up towards the end of a wave. The
+ * birds are therefore run off the KERNAL's clock instead, which the machine
+ * ticks sixty times a second no matter what we are drawing, and every speed
+ * taken off the original below is given in pixels per tick.
+ */
+#define UHR (*(volatile unsigned char *)0x00A5)
 
-#define SCHIFF_Y     164     /* top edge of the ship, just above the band   */
+static unsigned char uhr_alt;
+static unsigned char takte;          /* ticks since the pass before        */
+
+/*
+ * Adds up a speed given in 32nds of a pixel per tick and hands back the
+ * whole pixels that have come due, keeping the remainder for next time.
+ */
+static unsigned char schritt(unsigned char tempo, unsigned char *rest)
+{
+    unsigned wert = (unsigned)*rest + (unsigned)tempo * takte;
+    *rest = (unsigned char)(wert & 31);
+    return (unsigned char)(wert >> 5);
+}
+
+/*
+ * Reads how long the pass before took. A pass is five ticks or so; the cap
+ * is there for the pauses between waves, after which nothing should jump
+ * half a screen to catch up.
+ */
+static void takt_messen(void)
+{
+    unsigned char jetzt = UHR;
+    unsigned char d = (unsigned char)(jetzt - uhr_alt);
+    if (d == 0) d = 1;
+    if (d > 12) d = 12;
+    uhr_alt = jetzt;
+    takte = d;
+}
+
+#define SPIEL_OBEN    24     /* first pixel row below the score             */
+
+/*
+ * The 2600 stands its ship right on the ground band. We cannot go quite
+ * that far: a figure is blitted as a block three character rows tall, so
+ * anything drawn below this line would cut a hole in the band and leave it
+ * there. The ship sits as low as that allows, and everything that falls is
+ * taken off the screen at the same line.
+ */
+#define UNTERKANTE   167     /* nothing may be drawn below this             */
+#define SCHIFF_Y     UNTERKANTE
 #define SCHIFF_BREIT   8
 #define SCHIFF_LINKS   2
 #define SCHIFF_RECHTS 150
 
-#define SCHILD_DAUER  18     /* one and a half seconds                      */
-#define SCHILD_PAUSE  42     /* three and a half before it works again      */
+/*
+ * The ship and its shot, measured off the original the same way as the
+ * birds: the demo the console plays to itself moves its ship one pixel a
+ * frame, and a shot leaves it at eight. The ship is slower than it feels
+ * like it should be - three seconds from one side of the screen to the
+ * other - and that slowness is half of what makes Phoenix Phoenix.
+ */
+#define TEMPO_SCHIFF  27     /* 32nds/tick: 1 pixel per frame              */
+#define TEMPO_SCHUSS 213     /* 32nds/tick: 8 pixels per frame             */
+
+#define SCHILD_DAUER  90     /* ticks: one and a half seconds               */
+#define SCHILD_PAUSE 210     /* ticks: three and a half before it works again */
 
 #define SLOT_SCHIFF   0
 #define SLOT_SCHUSS   FIG_N
@@ -1594,6 +1658,7 @@ static void klang_weiter(void)
 #define SLOT_SCHILD   (FIG_N + SCH_N - 1)
 
 static unsigned char spieler_x;
+static unsigned char rest_schiff, rest_schuss;
 static unsigned char schild_zeit;
 static unsigned char schild_sperre;
 static unsigned char feuer_alt;
@@ -1617,11 +1682,15 @@ static void spieler_setzen(void)
 static void spieler_steuern(unsigned char s)
 {
     unsigned char feuer = (unsigned char)(s & ST_FEUER);
+    unsigned char weit = schritt(TEMPO_SCHIFF, &rest_schiff);
 
-    if (schild_sperre) --schild_sperre;
+    if (schild_sperre)
+        schild_sperre = (unsigned char)(schild_sperre > takte ?
+                                        schild_sperre - takte : 0);
 
     if (schild_zeit) {
-        --schild_zeit;
+        schild_zeit = (unsigned char)(schild_zeit > takte ?
+                                      schild_zeit - takte : 0);
         if (schild_zeit == 0) {
             schild_sperre = SCHILD_PAUSE;
             figur_loeschen(SLOT_SCHILD);
@@ -1631,12 +1700,12 @@ static void spieler_steuern(unsigned char s)
             schild_zeit = SCHILD_DAUER;
         } else {
             if (s & ST_LINKS) {
-                spieler_x = (unsigned char)(spieler_x - 5);
+                spieler_x = (unsigned char)(spieler_x - weit);
                 if (spieler_x < SCHIFF_LINKS || spieler_x > 200)
                     spieler_x = SCHIFF_LINKS;
             }
             if (s & ST_RECHTS) {
-                spieler_x = (unsigned char)(spieler_x + 5);
+                spieler_x = (unsigned char)(spieler_x + weit);
                 if (spieler_x > SCHIFF_RECHTS) spieler_x = SCHIFF_RECHTS;
             }
         }
@@ -1654,7 +1723,7 @@ static void spieler_steuern(unsigned char s)
 static void schuss_bewegen(void)
 {
     if (!schuss_aktiv) return;
-    schuss_y = (unsigned char)(schuss_y - 16);
+    schuss_y = (unsigned char)(schuss_y - schritt(TEMPO_SCHUSS, &rest_schuss));
     if (schuss_y < SPIEL_OBEN || schuss_y > 200) {
         schuss_aktiv = 0;
         figur_loeschen(SLOT_SCHUSS);
@@ -1684,24 +1753,63 @@ static void spieler_malen(void)
 #define V_LEER    0
 #define V_FORM    1
 #define V_STURZ   2
-#define V_RUECK   3
-#define V_TOT     4
-#define V_EI      5   /* still an egg, on its way down */
+#define V_BODEN   3   /* levelled out, running along the bottom of the swoop */
+#define V_RUECK   4
+#define V_TOT     5
+#define V_EI      6   /* still an egg, on its way down */
 
-#define ZACK_DAUER 5      /* passes before a zig-zag turns around */
-#define STURZ_ENDE (SCHIFF_Y - 6)
+/* anything that has left the formation and can be run into */
+#define IM_FLUG(z) ((z) >= V_STURZ && (z) <= V_RUECK)
+
+/*
+ * The numbers below were read off the original, frame by frame: the ROM was
+ * run in Stella, stopped after every single frame and photographed, and the
+ * birds measured out of those pictures. The PAL machine draws fifty frames a
+ * second and its playfield is as tall as ours, so a scanline there is a
+ * pixel here and the speeds carry over as they are.
+ *
+ *   flock          eight birds in a ring, four heights eighteen apart,
+ *                  never descends, drifts sideways one pixel every three
+ *                  frames and turns round at the edge of the screen
+ *   swoop          two birds at a time leave the bottom of the ring and go
+ *                  down four pixels every three frames - dead steady, no
+ *                  gathering speed and no aiming at the ship
+ *   bottom         they level out well above the ship and run along for
+ *                  about a second before climbing back at the same rate
+ *   pause          a second or so passes before the next two leave
+ *   shots          fall eight pixels every three frames, twice a swoop
+ *
+ * That is a far quieter attack than the one this was before, and it is what
+ * the console actually does: in the first wave the birds never reach the
+ * ship at all, and what kills you is what they drop.
+ */
+#define TEMPO_STURZ  36      /* 32nds/tick: 4 pixels per 3 frames          */
+#define TEMPO_FORM    9      /* 32nds/tick: 1 pixel per 3 frames           */
+#define TEMPO_SEIT   20      /* 32nds/tick: sideways swing during a swoop  */
+#define TEMPO_EI     71      /* 32nds/tick: 8 pixels per 3 frames          */
+
+#define EI_TAKT      15      /* ticks between two shots from the flock     */
+#define BODEN_DAUER  56      /* ticks along the bottom, 47 frames          */
+#define PAUSE_DAUER  65      /* ticks before the next pair leaves          */
+#define SCHWUNG_DAUER 34     /* ticks before the sideways swing turns      */
+
+/* A bird bottoms out with thirteen pixels of air left under it. */
+#define STURZ_ENDE (SCHIFF_Y - 13 - 8)
 
 #define VOEGEL       8
 #define V_SPALTEN    4
 #define V_ABSTAND   30       /* distance inside the formation, 2600 pixels */
-#define V_ZEILE     16
-#define V_OBEN      40       /* where the formation sits                   */
+#define V_ZEILE     18
+#define V_OBEN      33       /* where the formation sits                   */
+
+/* The ring the first two waves sit in, measured off the original. */
+static const unsigned char RING_X[VOEGEL] = { 13, 37,  0, 51,  0, 51, 13, 37 };
+static const unsigned char RING_Y[VOEGEL] = {  0,  0, 18, 18, 36, 36, 54, 54 };
+#define RING_BREIT  51       /* leftmost to rightmost place                */
 
 static unsigned char v_zustand[VOEGEL];
 static unsigned char v_x[VOEGEL];
 static unsigned char v_y[VOEGEL];
-static signed char v_dx[VOEGEL];
-static signed char v_dy[VOEGEL];
 static unsigned char v_platz[VOEGEL];     /* place in the formation        */
 static unsigned char v_flug[VOEGEL];      /* wing beat                     */
 static unsigned char v_zeit[VOEGEL];
@@ -1709,7 +1817,7 @@ static unsigned char v_hx[VOEGEL];        /* place in the formation, from    */
 static unsigned char v_hy[VOEGEL];        /* form_x and absolute             */
 static unsigned char v_fluegel[VOEGEL];   /* bit 0 left, bit 1 right        */
 static unsigned char v_regen[VOEGEL];     /* until the wings grow back      */
-static unsigned char v_zack[VOEGEL];      /* until the zig-zag turns around */
+static unsigned char v_boden[VOEGEL];     /* ticks left along the bottom    */
 static unsigned char voegel_uebrig;
 static unsigned char voegel_zahl;         /* how many this wave has         */
 static unsigned char v_gross;             /* large birds instead of small   */
@@ -1719,11 +1827,16 @@ static unsigned char v_hoch;              /* height in pixels               */
 static unsigned char v_tempo;             /* how fast a dive gets, per round */
 
 static unsigned char form_x;              /* left edge of the formation    */
+static unsigned char form_max;            /* how far right it may drift     */
 static signed char form_dx;
-static unsigned char form_y;              /* how far the flock has crept down */
-static unsigned char form_takt;           /* until it creeps one more       */
-static unsigned char sturz_zeit;          /* until the next one dives      */
+static unsigned char sturz_zeit;          /* ticks until the next pair goes */
+static unsigned char ei_zeit;             /* ticks until the flock shoots   */
 static unsigned char sturz_max;           /* how many may be out at once    */
+
+/* the remainders of the three speeds, so the averages come out right */
+static unsigned char rest_sturz, rest_seit, rest_form, rest_ei;
+static signed char schwung_dx;            /* which way a swoop is swinging  */
+static unsigned char schwung_zeit;        /* until the swing turns round    */
 static unsigned char welle;               /* 1..5, then round by round     */
 static unsigned char runde;
 static unsigned char vogelfarbe;
@@ -1733,37 +1846,41 @@ static unsigned char ei_aktiv[EIER];
 static unsigned char ei_x[EIER];
 static unsigned char ei_y[EIER];
 
-/* Where a bird belongs when it sits in the formation. */
 /*
- * Where a bird belongs while it sits in the formation. Small birds stand in
- * two rows of four, large ones in two rows of three with more room between
- * them.
+ * Where a bird belongs while it sits in the formation. The small birds of
+ * the first two waves stand in the ring the original draws them in; the
+ * large ones of waves three and four stand in two rows of three, which is
+ * what there is room for once a bird is sixteen pixels wide.
  */
 static unsigned char platz_x(unsigned char p)
 {
-    unsigned char reihe = (unsigned char)(v_gross ? 3 : V_SPALTEN);
-    unsigned char sp = (unsigned char)(p >= reihe ? p - reihe : p);
-    if (v_gross) return (unsigned char)(form_x + sp * 44);
-    return (unsigned char)(form_x + sp * V_ABSTAND);
+    unsigned char reihe;
+    if (!v_gross) return (unsigned char)(form_x + RING_X[p]);
+    reihe = 3;
+    return (unsigned char)(form_x +
+        (unsigned char)(p >= reihe ? p - reihe : p) * 44);
 }
 
 static unsigned char platz_y(unsigned char p)
 {
-    unsigned char reihe = (unsigned char)(v_gross ? 3 : V_SPALTEN);
     /* The large birds hatch out of eggs that float down from the top edge,
        so their flock sits a little lower - it gives the eggs a way to fall. */
-    if (v_gross) return (unsigned char)(V_OBEN + (p >= reihe ? 34 : 8));
-    if (p >= reihe) return (unsigned char)(V_OBEN + V_ZEILE);
-    return V_OBEN;
+    if (v_gross) return (unsigned char)(V_OBEN + (p >= 3 ? 34 : 8));
+    return (unsigned char)(V_OBEN + RING_Y[p]);
 }
 
-/* Where the bird's place is right now, flock creep included. */
+/*
+ * Where the bird's place is right now. The original's flock keeps its
+ * height for the whole wave - it never creeps down on you - so this is
+ * simply where the place was put.
+ */
 static unsigned char platz_jetzt_y(unsigned char p)
 {
-    return (unsigned char)(v_hy[p] + form_y);
+    return v_hy[p];
 }
 
 static void mutter_aufbauen(void);
+static void pause_laden(void);
 
 static unsigned char satz_geladen;      /* which set of shapes is in memory */
 
@@ -1816,6 +1933,7 @@ static void welle_aufbauen(void)
         v_breit = 16;
         v_hoch = 10;
         form_x = 12;
+        form_max = 48;
         vogelfarbe = (unsigned char)(welle == 4 ? C_V_ROT : C_V_BLAU);
     } else {
         if (satz != satz_geladen) { formen_klein(); satz_geladen = satz; }
@@ -1823,7 +1941,10 @@ static void welle_aufbauen(void)
         voegel_zahl = VOEGEL;
         v_breit = 8;
         v_hoch = 8;
-        form_x = 20;
+        /* the ring starts where the original's does, and may drift until
+           its outer birds touch either edge of the screen */
+        form_x = 53;
+        form_max = (unsigned char)(152 - RING_BREIT);
         vogelfarbe = (unsigned char)(welle == 2 ? C_V_GRUEN : C_V_VIOLETT);
     }
 
@@ -1832,23 +1953,23 @@ static void welle_aufbauen(void)
     sternenhimmel_aufbauen();
     if (mutterwelle) mutter_aufbauen();
 
-    form_dx = 1;
-    form_y = 0;
-    form_takt = 40;
-    sturz_zeit = 12;
+    form_dx = -1;
+    pause_laden();
+    ei_zeit = EI_TAKT;
+    rest_sturz = rest_seit = rest_form = rest_ei = 0;
+    schwung_dx = -1;
+    schwung_zeit = SCHWUNG_DAUER;
 
-    /* The original has several of them in the air at once - "you will
-       usually be attacked by multiple fighters at any one time". Two in the
-       first round, one more with every round after it. */
+    /* The original sends exactly two down at a time in the first round, and
+       waits until they are home before it sends the next two. Later rounds
+       get one more, which is as far as the console ever turns the screw. */
     sturz_max = (unsigned char)(1 + runde);
-    if (sturz_max > 4) sturz_max = 4;
+    if (sturz_max > 3) sturz_max = 3;
 
-    /* The first round is meant to be survivable: a dive builds up to four
-       pixels a pass, which is about three seconds from the formation to the
-       bottom. Every round after that adds one, up to eight. */
-    v_tempo = (unsigned char)(3 + runde);
-    if (v_gross) ++v_tempo;
-    if (v_tempo > 8) v_tempo = 8;
+    /* The swoop itself is the same speed in every round - measured off the
+       original at four pixels every three frames. What gets harder is how
+       soon the next pair leaves and how much the flock shoots. */
+    v_tempo = TEMPO_STURZ;
     voegel_uebrig = voegel_zahl;
 
     for (i = 0; i < voegel_zahl; ++i) {
@@ -1857,7 +1978,7 @@ static void welle_aufbauen(void)
         v_zeit[i] = 0;
         v_fluegel[i] = 3;
         v_regen[i] = 0;
-        v_zack[i] = ZACK_DAUER;
+        v_boden[i] = 0;
         v_hx[i] = (unsigned char)(platz_x(i) - form_x);
         v_hy[i] = platz_y(i);
         v_x[i] = (unsigned char)(form_x + v_hx[i]);
@@ -1869,7 +1990,6 @@ static void welle_aufbauen(void)
             v_zustand[i] = V_EI;
             v_y[i] = SPIEL_OBEN;
             v_zeit[i] = (unsigned char)(i * 8);
-            v_dx[i] = (signed char)((i & 1) ? 3 : -3);
         } else {
             v_zustand[i] = V_FORM;
             v_y[i] = v_hy[i];
@@ -1899,71 +2019,127 @@ static void ei_legen(unsigned char x, unsigned char y)
 }
 
 /*
- * How the flock moves, as close to the original as reading about it gets.
+ * How the flock moves - taken off the original frame by frame in Stella.
  *
- * The birds sit in an invader-like formation that weaves from side to side.
- * Several of them at a time drop out in no particular order and zig-zag down
- * towards the ship, dropping an egg on the way and trying to ram it; at the
- * bottom of the run they turn and climb back to their place at a diagonal
- * rather than disappearing off the edge. And as the flock is thinned out the
- * rest of it creeps down the screen, so waiting is not free.
+ * The flock sits in a ring at four fixed heights and drifts sideways a pixel
+ * every three frames, turning round when its outer birds reach the edge. It
+ * does not descend: sitting still is safe from the ring itself.
  *
- * What it is not: a single bird at a time on a straight line that corrects
- * its aim every pass. That was the first attempt and it plays nothing like
- * the machine.
+ * Two birds leave the bottom of the ring together and swoop. The swoop is
+ * dead steady - four pixels down every three frames, no gathering speed -
+ * and it does not aim: the pair swings sideways on a slow rhythm of its own
+ * whatever the ship does. Thirteen pixels above the ship they level out, run
+ * along the bottom for about a second, then climb back at the same rate and
+ * take their places again. Only a second after that do the next two leave.
+ *
+ * What it is not: several birds at once on zig-zag lines that drift towards
+ * the ship, over a flock that creeps down as it is thinned out. That was the
+ * earlier guess, and next to the console it is relentless - in the real
+ * first wave the birds never come near the ship, and what kills you is what
+ * they drop.
  */
+/*
+ * How long the flock waits before it sends the next pair. The original
+ * leaves a good second; later rounds shorten it, which is the only screw
+ * the console ever turns on the birds themselves.
+ */
+static void pause_laden(void)
+{
+    unsigned char weg;
+    sturz_zeit = PAUSE_DAUER;
+    if (runde < 2) return;
+    weg = (unsigned char)((runde - 1) * 8);
+    if (weg > 40) weg = 40;
+    sturz_zeit = (unsigned char)(sturz_zeit - weg);
+}
+
 static void voegel_bewegen(void)
 {
-    unsigned char i, z, offen;
+    unsigned char i, z, offen, geschickt;
+    unsigned char ab, seit, quer;
     int x, y, zx, zy;
 
     /* The mothership wave flies without a flock, and none of what follows
        means anything then. */
     if (voegel_zahl == 0) return;
 
-    /* the whole formation weaves */
-    form_x += form_dx;
-    if (form_x > 44) form_dx = -1;
-    if (form_x < 4)  form_dx = 1;
+    /* how far everything has come since the pass before */
+    ab = schritt(TEMPO_STURZ, &rest_sturz);
+    seit = schritt(TEMPO_SEIT, &rest_seit);
+    quer = schritt(TEMPO_FORM, &rest_form);
 
-    /* Once the flock is down to half, what is left of it reassembles and
-       creeps towards the bottom - the faster the fewer they are. Sitting it
-       out is therefore not a way of playing. */
-    if (voegel_uebrig + voegel_uebrig <= voegel_zahl && --form_takt == 0) {
-        form_takt = (unsigned char)(4 + voegel_uebrig * 6);
-        if (form_y < 56) ++form_y;
+    /* the whole ring drifts, and turns round at the edge of the screen */
+    if (form_dx < 0) {
+        form_x = (unsigned char)(form_x > quer ? form_x - quer : 0);
+        if (form_x == 0) form_dx = 1;
+    } else {
+        form_x = (unsigned char)(form_x + quer);
+        if (form_x >= form_max) { form_x = form_max; form_dx = -1; }
     }
 
-    /* how many are out already? */
-    offen = 0;
-    for (i = 0; i < voegel_zahl; ++i)
-        if (v_zustand[i] == V_STURZ) ++offen;
+    /* the sideways swing a swoop rides on, shared by both birds in it */
+    if (schwung_zeit > takte) {
+        schwung_zeit = (unsigned char)(schwung_zeit - takte);
+    } else {
+        schwung_zeit = SCHWUNG_DAUER;
+        schwung_dx = (signed char)-schwung_dx;
+    }
 
-    /* every so often another one drops out, in no particular order */
-    if (sturz_zeit) {
-        --sturz_zeit;
-    } else if (offen < sturz_max) {
-        unsigned char versuch = zufall();
-        while (versuch >= voegel_zahl) versuch = (unsigned char)(versuch - voegel_zahl);
+    /*
+     * The flock shoots, and in the first waves that - not the swoop - is
+     * what kills you: the original drops something about every quarter of a
+     * second, from wherever a bird happens to be, and it falls twice as fast
+     * as a bird flies. Later rounds drop them a little closer together.
+     */
+    if (ei_zeit > takte) {
+        ei_zeit = (unsigned char)(ei_zeit - takte);
+    } else {
+        unsigned char k = zufall();
+        while (k >= voegel_zahl) k = (unsigned char)(k - voegel_zahl);
         for (i = 0; i < voegel_zahl; ++i) {
-            unsigned char k = (unsigned char)(versuch + i);
-            if (k >= voegel_zahl) k = (unsigned char)(k - voegel_zahl);
-            if (v_zustand[k] == V_FORM) {
-                v_zustand[k] = V_STURZ;
-                v_dy[k] = 2;
-                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -4 : 4);
-                v_zack[k] = ZACK_DAUER;
-                v_zeit[k] = 0;
+            unsigned char j = (unsigned char)(k + i);
+            if (j >= voegel_zahl) j = (unsigned char)(j - voegel_zahl);
+            if (v_zustand[j] == V_FORM || IM_FLUG(v_zustand[j])) {
+                ei_legen(v_x[j], (unsigned char)(v_y[j] + v_hoch));
                 break;
             }
         }
-        /* the 2600 turns the screw only gently from round to round */
-        sturz_zeit = (unsigned char)(10 + (zufall() & 15));
+        ei_zeit = EI_TAKT;
         if (runde > 1) {
-            unsigned char ab = (unsigned char)(runde - 1);
-            if (ab > 6) ab = 6;
-            if (sturz_zeit > ab) sturz_zeit = (unsigned char)(sturz_zeit - ab);
+            unsigned char weg = (unsigned char)(runde - 1);
+            if (weg > 6) weg = 6;
+            ei_zeit = (unsigned char)(ei_zeit - weg);
         }
+    }
+
+    /* how many are away from the ring already? */
+    offen = 0;
+    for (i = 0; i < voegel_zahl; ++i)
+        if (IM_FLUG(v_zustand[i])) ++offen;
+
+    /* Nothing leaves while a pair is still out, and once they are home the
+       clock starts again - the original waits a good second before it sends
+       the next two. It always takes them off the bottom of the ring. */
+    if (offen != 0) {
+        pause_laden();
+    } else if (sturz_zeit > takte) {
+        sturz_zeit = (unsigned char)(sturz_zeit - takte);
+    } else {
+        geschickt = 0;
+        while (geschickt < sturz_max) {
+            unsigned char best = VOEGEL;
+            for (i = 0; i < voegel_zahl; ++i) {
+                if (v_zustand[i] != V_FORM) continue;
+                if (best == VOEGEL || v_hy[v_platz[i]] > v_hy[v_platz[best]])
+                    best = i;
+            }
+            if (best == VOEGEL) break;
+            v_zustand[best] = V_STURZ;
+            v_boden[best] = BODEN_DAUER;
+            v_zeit[best] = 0;
+            ++geschickt;
+        }
+        pause_laden();
     }
 
     for (i = 0; i < voegel_zahl; ++i) {
@@ -1989,14 +2165,10 @@ static void voegel_bewegen(void)
             /* the second bank waits its turn before it sets off */
             if (v_zeit[i]) { --v_zeit[i]; continue; }
 
-            if (--v_zack[i] == 0) {
-                v_zack[i] = ZACK_DAUER;
-                v_dx[i] = (signed char)-v_dx[i];
-            }
-            x = v_x[i] + v_dx[i];
+            x = (int)v_x[i] + (schwung_dx > 0 ? (int)seit : -(int)seit);
             if (x < 0) x = 0;
             if (x > 152) x = 152;
-            y = v_y[i] + 1;       /* they take their time coming down */
+            y = (int)v_y[i] + ab;
 
             if (y >= zy) {          /* it has arrived, and hatches */
                 v_zustand[i] = V_FORM;
@@ -2014,59 +2186,61 @@ static void voegel_bewegen(void)
             continue;
         }
 
+        x = (int)v_x[i];
+        y = (int)v_y[i];
+
         if (z == V_STURZ) {
             ++v_zeit[i];
-
-            /* the zig-zag: a good stride sideways, turning round every few
-               passes, with one pixel of drift towards the ship so the run
-               works its way over to it */
-            if (--v_zack[i] == 0) {
-                v_zack[i] = ZACK_DAUER;
-                v_dx[i] = (signed char)-v_dx[i];
+            x += (schwung_dx > 0 ? (int)seit : -(int)seit);
+            y += ab;
+            if (y >= STURZ_ENDE) {      /* it levels out well above the ship */
+                y = STURZ_ENDE;
+                v_zustand[i] = V_BODEN;
             }
-            x = v_x[i] + v_dx[i];
-            if (x > (int)spieler_x) --x; else ++x;
-
-            y = v_y[i] + v_dy[i];
-            if (v_dy[i] < v_tempo) ++v_dy[i];
-
-            if (x < 0) x = 0;
-            if (x > 152) x = 152;
-            v_x[i] = (unsigned char)x;
-            v_y[i] = (unsigned char)y;
-            if (v_zeit[i] == 5) ei_legen((unsigned char)x, (unsigned char)(y + 8));
-
-            /* at the bottom of the run it turns and goes home */
-            if (y >= STURZ_ENDE) {
+        } else if (z == V_BODEN) {
+            /* along the bottom it drifts at the same pace as the ring */
+            x += (form_dx > 0 ? (int)quer : -(int)quer);
+            if (v_boden[i] > takte) {
+                v_boden[i] = (unsigned char)(v_boden[i] - takte);
+            } else {
+                v_boden[i] = 0;
                 v_zustand[i] = V_RUECK;
-                v_dy[i] = 4;
             }
-            continue;
+        } else {                        /* climbing back to its place */
+            x += (schwung_dx > 0 ? (int)seit : -(int)seit);
+            if (y > zy + (int)ab) {
+                y -= ab;
+            } else {
+                /* home: it slides across into its place and falls in */
+                y = zy;
+                if (x + (int)seit < zx) x += seit;
+                else if (x > zx + (int)seit) x -= seit;
+                else { x = zx; v_zustand[i] = V_FORM; }
+            }
         }
 
-        /* climbing back to its place, diagonally */
-        x = v_x[i];
-        y = v_y[i];
-        if (x + 3 < zx) x += 4;
-        else if (x > zx + 3) x -= 4;
-        else x = zx;
-        if (y > zy + 3) y -= 4;
-        else y = zy;
         if (x < 0) x = 0;
         if (x > 152) x = 152;
         v_x[i] = (unsigned char)x;
         v_y[i] = (unsigned char)y;
-        if (x == zx && y == zy) v_zustand[i] = V_FORM;
     }
 }
 
+/*
+ * What the birds drop falls at eight pixels every three frames - twice the
+ * speed of the swoop itself, which is what makes it, and not the birds, the
+ * thing that kills you in the early waves.
+ */
 static void eier_bewegen(void)
 {
-    unsigned char i;
+    unsigned char i, ab;
+
+    ab = schritt(TEMPO_EI, &rest_ei);
+    if (ab == 0) return;
     for (i = 0; i < EIER; ++i) {
         if (!ei_aktiv[i]) continue;
-        ei_y[i] = (unsigned char)(ei_y[i] + 6);
-        if (ei_y[i] > SPIEL_UNTEN) {
+        ei_y[i] = (unsigned char)(ei_y[i] + ab);
+        if (ei_y[i] > UNTERKANTE) {
             ei_aktiv[i] = 0;
             figur_loeschen((unsigned char)(SLOT_EI + i));
         }
@@ -2503,7 +2677,7 @@ static unsigned char treffer_pruefen(void)
     /* The force field takes anything that comes close enough. */
     if (schild_zeit) {
         for (i = 0; i < voegel_zahl; ++i) {
-            if (v_zustand[i] != V_STURZ) continue;
+            if (!IM_FLUG(v_zustand[i])) continue;
             if (v_y[i] + 7 < SCHIFF_Y - 6 || v_y[i] > SCHIFF_Y + 8) continue;
             if (v_x[i] + 7 < (int)spieler_x - 2 ||
                 v_x[i] > (int)spieler_x + SCHIFF_BREIT + 1) continue;
@@ -2521,7 +2695,7 @@ static unsigned char treffer_pruefen(void)
 
     /* a bird flying into the ship */
     for (i = 0; i < voegel_zahl; ++i) {
-        if (v_zustand[i] != V_STURZ) continue;
+        if (!IM_FLUG(v_zustand[i])) continue;
         if (v_y[i] + 7 < SCHIFF_Y || v_y[i] > SCHIFF_Y + 7) continue;
         if (v_x[i] + 7 < (int)spieler_x ||
             v_x[i] > (int)spieler_x + SCHIFF_BREIT - 1) continue;
@@ -2819,7 +2993,10 @@ static unsigned char welle_spielen(void)
     welle_aufbauen();
     spieler_setzen();
 
+    uhr_alt = UHR;
+
     for (;;) {
+        takt_messen();
         s = autopilot ? autopilot_steuern() : steuerung();
         if (s & ST_ENDE) return 2;
 
