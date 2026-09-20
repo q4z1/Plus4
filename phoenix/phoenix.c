@@ -2210,7 +2210,9 @@ static void welle_aufbauen(void)
                while the second one is still waiting its turn. */
             v_zustand[i] = V_EI;
             v_y[i] = SPIEL_OBEN;
-            v_zeit[i] = (unsigned char)(i * 8);
+            /* a bank falls together and the second one follows a second
+               and a half later, half a place to the side */
+            v_zeit[i] = (unsigned char)(i >= 3 ? 30 : 0);
             if (i >= 3) v_x[i] = (unsigned char)(v_x[i] + 22);
         } else {
             v_zustand[i] = V_FORM;

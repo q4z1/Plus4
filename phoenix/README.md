@@ -5,8 +5,9 @@ original is Amstar/Centuri, 1980). All five waves, the force field, the
 mothership, two-voice sound with the arcade melodies, and a starfield that
 scrolls a pixel at a time.
 
-How the birds fly, how fast the ship moves and what the first wave looks like
-are **measured off the ROM itself**, frame by frame, rather than read about —
+How the birds fly, how fast the ship moves, what the ship and its force
+field look like and what the first wave is made of are **measured off the
+ROM itself**, frame by frame, rather than read about —
 [Measuring the original](#measuring-the-original) says how.
 
 ![Title screen](screenshots/title.png)
@@ -33,8 +34,9 @@ After the fifth wave the round starts again. What gets harder from round to
 round is not how fast the birds fly — that never changes — but how soon the
 next pair leaves and how hard the flock shoots.
 
-![Wave 1](screenshots/wave1.png)
-![The eggs of wave 3](screenshots/eggs.png)
+![Wave 1: the ring of eight, two of them away](screenshots/wave1.png)
+![The force field, with the ship standing inside it](screenshots/shield.png)
+![Wave 3 arrives as two banks of eggs](screenshots/eggs.png)
 ![Wave 3](screenshots/wave3.png)
 ![The mothership](screenshots/mothership.png)
 ![Game over](screenshots/gameover.png)
@@ -364,6 +366,12 @@ A real round never sets either. They are there because a game that dies
 immediately without input is very hard to measure: an early measurement of the
 frame rate was pure nonsense because the run had long since ended and the
 machine was sitting in BASIC.
+
+The pictures in this file come from the same setup. A script watches the
+game's own variables through the monitor and takes the shot when the state is
+the one it wants - all eight birds in the ring, three eggs still falling, the
+saucer far enough down - which is a good deal more reliable than pressing a
+key at the right moment.
 
 ## Building and running
 
