@@ -653,6 +653,7 @@ static unsigned char steuerung(void)
  */
 static unsigned char fig_basis[FIG_N + SCH_N];   /* first character code    */
 static unsigned char *fig_zeiger[FIG_N + SCH_N]; /* and where it lives      */
+static unsigned char fig_zahl[FIG_N + SCH_N];    /* how many characters      */
 static unsigned char fig_n;                      /* slots for birds         */
 
 static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
@@ -663,16 +664,19 @@ static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
     code = Z_VORRAT;
     fig_basis[0] = code;                 /* the ship is always small */
     fig_zeiger[0] = zeichensatz + ((unsigned)code << 3);
+    fig_zahl[0] = 8;
     code = (unsigned char)(code + 8);
 
     for (i = 1; i < FIG_N; ++i) {
         fig_basis[i] = code;
         fig_zeiger[i] = zeichensatz + ((unsigned)code << 3);
+        fig_zahl[i] = (unsigned char)(i <= voegel ? gross : 0);
         if (i <= voegel) code = (unsigned char)(code + gross);
     }
     for (i = 0; i < SCH_N; ++i) {
         fig_basis[FIG_N + i] = code;
         fig_zeiger[FIG_N + i] = zeichensatz + ((unsigned)code << 3);
+        fig_zahl[FIG_N + i] = 8;
         code = (unsigned char)(code + 8);
     }
 }
@@ -700,8 +704,15 @@ static const unsigned char SCHIFF[9] = {
     0x54    /*  # # #   */
 };
 
-static const unsigned char SCHUSS[4] = {
-    0x10, 0x10, 0x10, 0x10
+/*
+ * Both kinds of shot are thin vertical stripes on the original, one 2600
+ * pixel wide - the ship's six scanlines tall, what the birds drop five.
+ * They used to be a round blob here, which is both wrong and worse: a wide
+ * shape covers more character cells, and every cell it covers is one the
+ * bird underneath it has to share.
+ */
+static const unsigned char SCHUSS[6] = {
+    0x10, 0x10, 0x10, 0x10, 0x10, 0x10
 };
 
 /* The small bird of waves one and two, wings in and wings out. */
@@ -796,8 +807,8 @@ static const unsigned char GROSSEI[8] = {
 };
 
 /* What the birds drop. */
-static const unsigned char EI[3] = {
-    0x18, 0x3C, 0x18
+static const unsigned char EI[5] = {
+    0x10, 0x10, 0x10, 0x10, 0x10
 };
 
 /* The force field above the ship, shimmering in two frames. */
@@ -941,10 +952,10 @@ static void formen_grundstock(void)
 {
     blockende = 0;
     form_ablegen(FORM_SCHIFF, SCHIFF, 1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_SCHUSS, SCHUSS, 1, 4, 0xFF, 0xFF);
+    form_ablegen(FORM_SCHUSS, SCHUSS, 1, 6, 0xFF, 0xFF);
     form_ablegen(FORM_KNALL,     KNALL1, 1, 8, 0xFF, 0xFF);
     form_ablegen(FORM_KNALL + 1, KNALL2, 1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_EI, EI, 1, 3, 0xFF, 0xFF);
+    form_ablegen(FORM_EI, EI, 1, 5, 0xFF, 0xFF);
     form_ablegen(FORM_SCHILD,     SCHILD1, 1, 3, 0xFF, 0xFF);
     form_ablegen(FORM_SCHILD + 1, SCHILD2, 1, 3, 0xFF, 0xFF);
 }
@@ -995,6 +1006,74 @@ unsigned char *fz_block;
 unsigned char *fz_ziel;
 unsigned char *fz_bild;
 unsigned char fz_code, fz_farbe, fz_nsp, fz_nze, fz_laenge, fz_stufe;
+unsigned char fz_zahl;          /* how many characters this figure owns     */
+
+/*
+ * A cell shows one character, so where two figures meet, one of them used to
+ * lose a whole eight by eight block - very visible when a shot crosses a
+ * bird. Instead of taking the cell away, this ORs our pixels into the
+ * character that is already standing there. Nothing is lost, and nothing has
+ * to be undone either: every figure copies its block over its own characters
+ * again on the next pass, which wipes the borrowed pixels.
+ *
+ * The cell keeps the colour of whoever got there first. That is the price,
+ * and it is a far smaller one than a hole in a bird.
+ *
+ * Comes back with the carry set, so the caller can branch on it - cc65
+ * throws away any label that is only reached by an unconditional jump.
+ */
+static void figur_mischen(void)
+{
+    __asm__(
+    "stx tmp4\n"               /* the cell counter                         */
+    "lda (ptr3),y\n"           /* the character already in the cell        */
+    "sty ptr4\n"               /* and which cell we are on                 */
+
+    ";  ptr2 = character set + that character times eight\n"
+    "sta ptr2\n"
+    "lda #$00\n"
+    "sta ptr2+1\n"
+    "asl ptr2\n"  "rol ptr2+1\n"
+    "asl ptr2\n"  "rol ptr2+1\n"
+    "asl ptr2\n"  "rol ptr2+1\n"
+    "lda ptr2\n"
+    "clc\n"
+    "adc %v\n"
+    "sta ptr2\n"
+    "lda ptr2+1\n"
+    "adc %v+1\n"
+    "sta ptr2+1\n"
+
+    ";  ptr1 = character set + our own character times eight\n"
+    "lda tmp3\n"
+    "sta ptr1\n"
+    "lda #$00\n"
+    "sta ptr1+1\n"
+    "asl ptr1\n"  "rol ptr1+1\n"
+    "asl ptr1\n"  "rol ptr1+1\n"
+    "asl ptr1\n"  "rol ptr1+1\n"
+    "lda ptr1\n"
+    "clc\n"
+    "adc %v\n"
+    "sta ptr1\n"
+    "lda ptr1+1\n"
+    "adc %v+1\n"
+    "sta ptr1+1\n"
+
+    ";  eight rows, our pixels added to theirs\n"
+    "ldy #$07\n"
+    "fmior:\n"
+    "lda (ptr1),y\n"
+    "ora (ptr2),y\n"
+    "sta (ptr2),y\n"
+    "dey\n"
+    "bpl fmior\n"
+
+    "ldx tmp4\n"
+    "ldy ptr4\n"
+    "sec\n"
+    , zeichensatz, zeichensatz, zeichensatz, zeichensatz);
+}
 
 static void figur_bloecken(void)
 {
@@ -1017,34 +1096,41 @@ static void figur_bloecken(void)
     "lda %v\n"     "sta tmp1\n"
     "lda %v\n"     "sta tmp2\n"
 
-    "fzrow:\n"
-    "ldy #$00\n"
-    "ldx %v\n"
-    "lda tmp1\n"
-    "sta tmp3\n"
-    "fzcell:\n"
-    "lda tmp3\n"
-    "sta (ptr3),y\n"
-    "inc tmp3\n"
-    "iny\n"
-    "dex\n"
-    "bne fzcell\n"
-
     ";  the colour memory sits exactly $400 below the screen\n"
+    "fzrow:\n"
     "lda ptr3\n"
     "sta sreg\n"
     "lda ptr3+1\n"
     "sec\n"
     "sbc #$04\n"
     "sta sreg+1\n"
+
     "ldy #$00\n"
     "ldx %v\n"
+    "lda tmp1\n"
+    "sta tmp3\n"
+    "fzcell:\n"
+    ";  is somebody else already standing in this cell? Then we do not take\n"
+    ";  it away from them - our pixels go into their character instead.\n"
+    "lda (ptr3),y\n"
+    "cmp #%b\n"                /* Z_VORRAT: below that it is background    */
+    "bcc fznimm\n"
+    "sec\n"
+    "sbc %v\n"                 /* our own first character code             */
+    "cmp %v\n"                 /* how many characters we own               */
+    "bcc fznimm\n"
+    "jsr %v\n"                 /* figur_mischen, comes back with carry set */
+    "bcs fzweiter\n"
+    "fznimm:\n"
+    "lda tmp3\n"
+    "sta (ptr3),y\n"
     "lda %v\n"
-    "fzcol:\n"
     "sta (sreg),y\n"
+    "fzweiter:\n"
+    "inc tmp3\n"
     "iny\n"
     "dex\n"
-    "bne fzcol\n"
+    "bne fzcell\n"
 
     "lda tmp1\n"
     "clc\n"
@@ -1060,7 +1146,9 @@ static void figur_bloecken(void)
     "dec tmp2\n"
     "bne fzrow\n"
     , fz_block, fz_block, fz_ziel, fz_ziel, fz_laenge,
-      fz_bild, fz_bild, fz_code, fz_nze, fz_nsp, fz_nsp, fz_farbe, fz_stufe);
+      fz_bild, fz_bild, fz_code, fz_nze,
+      fz_nsp, (unsigned char)Z_VORRAT, fz_code, fz_zahl, figur_mischen, fz_farbe,
+      fz_stufe);
 }
 
 /*
@@ -1236,9 +1324,9 @@ static void figur_asm(void)
 
     "ldy #$00\n"
     "fmfs:\n"
+    "ldx %v\n"                 /* fm_nr, needed on both ways out           */
     "lda tmp4\n"
     "beq fmweg2\n"             /* row outside - always give it back        */
-    "ldx %v\n"
     "tya\n"
     "clc\n"
     "adc %v,x\n"               /* bel_sp + c                               */
@@ -1250,6 +1338,14 @@ static void figur_asm(void)
     ";  only reached by an unconditional jump.\n"
     "bcc fmnext\n"
     "fmweg2:\n"
+    ";  Only hand a cell back if it still holds one of our own characters.\n"
+    ";  Somebody else may have moved in over us since we took it, and the\n"
+    ";  background would wipe them out.\n"
+    "lda (ptr1),y\n"
+    "sec\n"
+    "sbc %v,x\n"               /* fig_basis,x                              */
+    "cmp %v,x\n"               /* fig_zahl,x                               */
+    "bcs fmnext\n"
     "lda (ptr2),y\n"
     "sta (ptr1),y\n"
     "lda (ptr3),y\n"
@@ -1314,6 +1410,8 @@ static void figur_asm(void)
     "ldx %v\n"                 /* fm_nr */
     "lda %v,x\n"               /* fig_basis */
     "sta %v\n"                 /* fz_code   */
+    "lda %v,x\n"               /* fig_zahl  */
+    "sta %v\n"                 /* fz_zahl   */
     "lda %v\n"  "sta %v\n"     /* fz_farbe  */
     "lda %v\n"  "sta %v\n"     /* fz_nsp    */
     "lda %v\n"  "sta %v\n"     /* fz_nze    */
@@ -1337,7 +1435,7 @@ static void figur_asm(void)
       zeile_hg, bel_sp, zeile_hg,
       zeile_hgf, bel_sp, zeile_hgf,
       zeile_farbe, bel_sp, zeile_farbe,
-      fm_nr, bel_sp, fm_sp, fm_spende,
+      fm_nr, bel_sp, fm_sp, fm_spende, fig_basis, fig_zahl,
       fm_nr, bel_nsp,
       fm_nr, bel_nze,
       fm_nr,
@@ -1345,7 +1443,7 @@ static void figur_asm(void)
       fm_form, form_sicht_von, form_sicht_von, fm_voff, fz_block, fz_block,
       fm_nr, fig_zeiger, fz_ziel, fig_zeiger, fz_ziel,
       fm_ze, zeile_bild, fm_sp, fz_bild, zeile_bild, fz_bild,
-      fm_nr, fig_basis, fz_code,
+      fm_nr, fig_basis, fz_code, fig_zahl, fz_zahl,
       fm_farbe, fz_farbe, fm_nsp, fz_nsp, fm_nze, fz_nze,
       fm_form, f_sp, fz_stufe, f_laenge, fz_laenge,
       figur_bloecken);
@@ -1363,17 +1461,26 @@ static void figur_malen(unsigned char nr, unsigned char form,
 }
 
 /* Takes a figure off the screen. */
+
+/*
+ * Takes a figure off the screen again. A cell only goes back to background
+ * if it still holds one of this figure's own characters: somebody else may
+ * have moved in over it since, and handing that cell back would wipe them.
+ */
 static void figur_loeschen(unsigned char nr)
 {
-    unsigned char r, c;
+    unsigned char r, c, code;
     unsigned p;
 
     if (!bel_nsp[nr]) return;
     for (r = 0; r < bel_nze[nr]; ++r) {
         p = zeilenanfang[bel_ze[nr] + r] + bel_sp[nr];
         for (c = 0; c < bel_nsp[nr]; ++c) {
-            BILD[p] = hg_zeichen[p];
-            FARBE[p] = hg_farbe[p];
+            code = (unsigned char)(BILD[p] - fig_basis[nr]);
+            if (code < fig_zahl[nr]) {
+                BILD[p] = hg_zeichen[p];
+                FARBE[p] = hg_farbe[p];
+            }
             ++p;
         }
     }
@@ -2686,7 +2793,7 @@ static unsigned char treffer_pruefen(void)
         }
         for (i = 0; i < EIER; ++i) {
             if (!ei_aktiv[i]) continue;
-            if (ei_y[i] + 2 < SCHIFF_Y - 6 || ei_y[i] > SCHIFF_Y + 8) continue;
+            if (ei_y[i] + 4 < SCHIFF_Y - 6 || ei_y[i] > SCHIFF_Y + 8) continue;
             ei_aktiv[i] = 0;
             figur_loeschen((unsigned char)(SLOT_EI + i));
         }
@@ -2705,7 +2812,7 @@ static unsigned char treffer_pruefen(void)
     /* an egg landing on it */
     for (i = 0; i < EIER; ++i) {
         if (!ei_aktiv[i]) continue;
-        if (ei_y[i] + 2 < SCHIFF_Y || ei_y[i] > SCHIFF_Y + 7) continue;
+        if (ei_y[i] + 4 < SCHIFF_Y || ei_y[i] > SCHIFF_Y + 7) continue;
         sx = (int)ei_x[i] + 3;
         if (sx < (int)spieler_x || sx > (int)spieler_x + SCHIFF_BREIT - 1) continue;
         ei_aktiv[i] = 0;

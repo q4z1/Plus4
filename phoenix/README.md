@@ -155,6 +155,18 @@ wave starts. Drawing is then a copy of 48 bytes into the character set plus a
 handful of screen codes. Computing the cells per frame instead cost about
 4000 cycles per figure, and a frame has 17784.
 
+**Two figures can share a cell.** A cell shows one character, so when a shot
+crossed a bird the shot's cell simply replaced the bird's and an eight by
+eight block of the bird went missing for as long as it took to fly past. A
+figure now looks at what is already standing in a cell before it takes it: if
+that is another figure's character, it ORs its own pixels into that character
+instead of claiming the cell. Nothing has to be undone afterwards, because
+every figure copies its block over its own characters again on the next pass.
+The cell keeps the colour of whoever got there first, which is the whole
+price. The same test guards handing a cell back: a figure only restores the
+background where its own character is still standing, so it cannot wipe out
+somebody who moved in over it.
+
 **The mothership is background, not a figure.** It is eighty 2600 pixels
 across and forty-one tall - twenty character cells by five and a bit - which
 is far too large to redraw, so its cells live in the shadow copy of the screen
@@ -165,10 +177,9 @@ it, a band across the full width, and a hull below that tapers away. A shot take
 piece of hull in its column; once a column is chewed through, the shot still
 has to pass the rim, which turns and closes the gap again.
 
-The result is about twelve passes a second with a full flock on screen, more
-as it empties. Every speed and every length of time in the game is counted in
-those passes rather than in frames, which is why [phoenix.c](phoenix.c) has a
-`TAKT` constant and no magic number for the shield's second and a half.
+The result is about twenty passes a second with a full flock on screen, and
+more as it empties - which is exactly why nothing is counted in passes any
+more. See [Time is kept by the clock](#time-is-kept-by-the-clock-not-by-the-loop).
 
 The score used to be a hitch of its own: pulling six digits out of a 32 bit
 number means six calls to cc65's long division, fifteen thousand cycles, most
@@ -203,6 +214,12 @@ tall. Either way a sprite can be read out exactly, and a small script turns
 the resulting bitmaps into the tables in [phoenix.c](phoenix.c). The comment
 beside each table is the shape it holds, so a wrong bit is visible in the
 source.
+
+Both kinds of shot are thin vertical stripes, one 2600 pixel wide - the
+ship's six scanlines tall, what the birds drop five. They were a round blob
+here for a while, which is both wrong and worse: a wide shape covers more
+character cells, and every cell it covers is one the bird underneath has to
+share.
 
 That was worth doing. The first set was drawn from the proportions in
 descriptions and looked like a different game - the small bird is six 2600
