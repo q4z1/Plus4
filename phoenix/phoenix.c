@@ -70,6 +70,16 @@
 #define C_GRUEN    0x55
 #define C_BLAU     0x46
 #define C_HELLBLAU 0x6D
+/* Taken off screenshots of the original: the small birds are violet with an
+   orange or green second colour, the large ones blue then red, and the ship
+   a light red. A cell can only hold one colour, so each is the dominant one. */
+#define C_V_VIOLETT 0x5E
+#define C_V_GRUEN   0x6A
+#define C_V_BLAU    0x6D
+#define C_V_ROT     0x62
+#define C_SCHIFF    0x6B
+#define C_BALKEN1   0x68
+#define C_BALKEN2   0x5E
 #define C_VIOLETT  0x54
 #define C_TUERKIS  0x5D
 
@@ -91,6 +101,7 @@ static void klang_weiter(void);
 
 #define Z_PUNKTE   0
 #define Z_STERN   40
+#define Z_BALKEN  20   /* the solid band across the bottom                 */
 #define Z_LEER    72
 #define Z_VORRAT  73
 
@@ -152,6 +163,9 @@ static void zeichensatz_einrichten(void)
 
     font_aus_rom();
     sternzeichen_bauen();
+
+    /* the band the original draws across the foot of the screen */
+    for (i = 0; i < 8; ++i) zeichensatz[Z_BALKEN * 8 + i] = 0xFF;
 
     /* Tell the TED where the character set is and that it sits in RAM. */
     TED_ZSATZ_A = (unsigned char)((((unsigned)zeichensatz) >> 8) & 0xFC)
@@ -244,6 +258,10 @@ static void stern_neu(unsigned char i, unsigned char ze)
     if (!stern_zu[i]) { BILD[p] = stern_z[i]; FARBE[p] = stern_f[i]; }
 }
 
+#define BALKEN_ZEILE 23
+
+static unsigned char balkenfarbe = C_BALKEN1;
+
 static void sternenhimmel_aufbauen(void)
 {
     unsigned char i;
@@ -257,9 +275,14 @@ static void sternenhimmel_aufbauen(void)
     }
 
     for (i = 0; i < STERNE; ++i) {
-        stern_neu(i, (unsigned char)(zufall() % ZEILEN));
+        stern_neu(i, (unsigned char)(zufall() % BALKEN_ZEILE));
         hintergrund_setzen(stern_sp[i], stern_ze[i], stern_z[i], stern_f[i]);
     }
+
+    /* the band along the bottom, which the original has and which the stars
+       therefore keep clear of */
+    for (i = 0; i < BREITE; ++i)
+        hintergrund_setzen(i, BALKEN_ZEILE, Z_BALKEN, balkenfarbe);
 
     /* The score went with the rest of the screen and has to be put back. */
     anz_gesetzt = 0;
@@ -298,7 +321,7 @@ static void scrollen(void)
             hg_farbe[p] = C_SCHWARZ;
             if (!stern_zu[i]) { BILD[p] = Z_LEER; FARBE[p] = C_SCHWARZ; }
 
-            if (ze >= ZEILEN) { stern_neu(i, 0); continue; }
+            if (ze >= BALKEN_ZEILE) { stern_neu(i, 0); continue; }
 
             stern_ze[i] = ze;
             p = zeilenanfang[ze] + stern_sp[i];
@@ -647,87 +670,95 @@ static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
 
 /* ---- the shapes, one bit per 2600 pixel -------------------------------- */
 
-static const unsigned char SCHIFF[8] = {
-    0x18,   /*    ##      */
-    0x18,   /*    ##      */
-    0x3C,   /*   ####     */
-    0x3C,   /*   ####     */
-    0x7E,   /*  ######    */
-    0xFF,   /* ########   */
-    0xDB,   /* ## ## ##   */
-    0x99    /* #  ##  #   */
+/*
+ * All of these are traced off screenshots of the original, pixel by pixel,
+ * rather than drawn by eye - which is what they were at first, and it showed.
+ * The 2600 gives each sprite a different colour on different scanlines; a
+ * Plus/4 character cell can only hold one, so the shapes are exact and the
+ * colours are the dominant one of each.
+ */
+
+/* The player's ship: five 2600 pixels across, nine tall. */
+static const unsigned char SCHIFF[9] = {
+    0x44,   /*  #   #   */
+    0x44,   /*  #   #   */
+    0x54,   /*  # # #   */
+    0x54,   /*  # # #   */
+    0x54,   /*  # # #   */
+    0x7C,   /*  #####   */
+    0x7C,   /*  #####   */
+    0x54,   /*  # # #   */
+    0x54    /*  # # #   */
 };
 
 static const unsigned char SCHUSS[4] = {
-    0x18, 0x18, 0x18, 0x18
+    0x10, 0x10, 0x10, 0x10
 };
 
-/* The small bird of waves one and two, wings up, out and down. */
-static const unsigned char VOGEL_HOCH[8] = {
-    0xC3,   /* ##    ##   */
-    0x66,   /*  ##  ##    */
-    0x3C,   /*   ####     */
-    0x3C,   /*   ####     */
-    0x18,   /*    ##      */
-    0x00,
-    0x00,
-    0x00
+/* The small bird of waves one and two, wings in and wings out. */
+static const unsigned char VOGEL_ENG[8] = {
+    0x5A,   /*  # ## #  */
+    0x42,   /*  #    #  */
+    0x66,   /*  ##  ##  */
+    0x7E,   /*  ######  */
+    0x7E,   /*  ######  */
+    0x5A,   /*  # ## #  */
+    0x5A,   /*  # ## #  */
+    0x24    /*   #  #   */
 };
 
-static const unsigned char VOGEL_FLACH[8] = {
-    0x00,
-    0x00,
-    0xFF,   /* ########   */
-    0x7E,   /*  ######    */
-    0x3C,   /*   ####     */
-    0x18,   /*    ##      */
-    0x00,
-    0x00
-};
-
-static const unsigned char VOGEL_TIEF[8] = {
-    0x00,
-    0x00,
-    0x18,   /*    ##      */
-    0x3C,   /*   ####     */
-    0x3C,   /*   ####     */
-    0x66,   /*  ##  ##    */
-    0xC3,   /* ##    ##   */
-    0x00
+static const unsigned char VOGEL_WEIT[8] = {
+    0x5A,   /*  # ## #  */
+    0xC3,   /* ##    ## */
+    0xE7,   /* ###  ### */
+    0xFF,   /* ######## */
+    0xBD,   /* # #### # */
+    0x99,   /* #  ##  # */
+    0x99,   /* #  ##  # */
+    0x24    /*   #  #   */
 };
 
 /*
- * The large bird of waves three and four, sixteen 2600 pixels across. The
- * outer five pixels on each side are its wings - that is what a shot takes
- * off, and only a hit in the middle six kills it.
+ * The large bird of waves three and four, sixteen 2600 pixels across and ten
+ * tall, in three wing positions. Its wings are the outer six pixels on each
+ * side and its body the middle four - that is where a shot has to go.
  */
-static const unsigned char GROSS_HOCH[24] = {
-    0xC0, 0x03,   /* ##                          ##   */
-    0xF0, 0x0F,   /* ####                      ####   */
-    0x78, 0x1E,   /*  ####                    ####    */
-    0x3C, 0x3C,   /*   ####                  ####     */
-    0x1F, 0xF8,   /*    #####              #####      */
-    0x0F, 0xF0,   /*     ########      ########       */
-    0x07, 0xE0,   /*      ######        ######        */
-    0x0F, 0xF0,   /*     ########      ########       */
-    0x1F, 0xF8,   /*    ##########    ##########      */
-    0x1B, 0xD8,   /*    ## ####        #### ##        */
-    0x11, 0x88,   /*    #   #            #   #        */
-    0x00, 0x00
+static const unsigned char GROSS_A[20] = {
+    0x01, 0x80,   /*        ##        */
+    0x03, 0xC0,   /*       ####       */
+    0x3F, 0xFC,   /*   ############   */
+    0x7D, 0xBE,   /*  ##### ## #####  */
+    0x7F, 0xFE,   /*  ##############  */
+    0xFB, 0xDF,   /* ##### #### ##### */
+    0xC2, 0x43,   /* ##    #  #    ## */
+    0x02, 0x40,   /*       #  #       */
+    0x02, 0x40,   /*       #  #       */
+    0x04, 0x20    /*      #    #      */
 };
 
-static const unsigned char GROSS_TIEF[24] = {
-    0x00, 0x00,
-    0x07, 0xE0,
-    0x0F, 0xF0,
-    0x1F, 0xF8,
-    0x3F, 0xFC,
-    0x7F, 0xFE,
-    0xFF, 0xFF,
-    0x7C, 0x3E,
-    0x38, 0x1C,
-    0x1B, 0xD8,
-    0x11, 0x88,
+static const unsigned char GROSS_B[20] = {
+    0x01, 0x80,   /*        ##        */
+    0x03, 0xC0,   /*       ####       */
+    0x0F, 0xF0,   /*     ########     */
+    0x1D, 0xB8,   /*    ### ## ###    */
+    0x3F, 0xFC,   /*   ############   */
+    0x7B, 0xDE,   /*  #### #### ####  */
+    0x62, 0x46,   /*  ##   #  #   ##  */
+    0xC2, 0x43,   /* ##    #  #    ## */
+    0x82, 0x41,   /* #     #  #     # */
+    0x04, 0x20    /*      #    #      */
+};
+
+static const unsigned char GROSS_C[20] = {
+    0x10, 0x08,   /*    #        #    */
+    0x39, 0x9C,   /*   ###  ##  ###   */
+    0x7F, 0xFE,   /*  ##############  */
+    0xFF, 0xFF,   /* ################ */
+    0xCD, 0xB3,   /* ##  ## ## ##  ## */
+    0x07, 0xE0,   /*      ######      */
+    0x03, 0xC0,   /*       ####       */
+    0x02, 0x40,   /*       #  #       */
+    0x04, 0x20,   /*      #    #      */
     0x00, 0x00
 };
 
@@ -790,7 +821,7 @@ static const unsigned char SCHILD2[3] = {
 #define FORM_KNALL   2    /* two frames                                   */
 #define FORM_EI      4
 #define FORM_SCHILD  5    /* two frames                                   */
-#define FORM_VOGEL   7    /* small bird, three flapping frames            */
+#define FORM_VOGEL   7    /* small bird, two flapping frames              */
 #define FORM_GROSS   7    /* large bird, two flapping frames              */
 #define FORM_GROSS_L 9    /* right wing shot off                          */
 #define FORM_GROSS_R 10   /* left wing shot off                           */
@@ -912,28 +943,27 @@ static void formen_grundstock(void)
 static void formen_klein(void)
 {
     formen_grundstock();
-    form_ablegen(FORM_VOGEL,     VOGEL_HOCH,  1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_VOGEL + 1, VOGEL_FLACH, 1, 8, 0xFF, 0xFF);
-    form_ablegen(FORM_VOGEL + 2, VOGEL_TIEF,  1, 8, 0xFF, 0xFF);
+    form_ablegen(FORM_VOGEL,     VOGEL_ENG,  1, 8, 0xFF, 0xFF);
+    form_ablegen(FORM_VOGEL + 1, VOGEL_WEIT, 1, 8, 0xFF, 0xFF);
 }
 
 /*
- * The large birds. Their wings are the outer five 2600 pixels on each side,
- * so the shot off states are the same picture with one side masked out - no
- * second drawing needed, and no second set of blocks either.
+ * The large birds. Their wings are the outer six 2600 pixels on each side and
+ * the body is the middle four, so the shot-off states are the same picture
+ * with one side masked away - no second drawing needed, and no second set of
+ * blocks either.
  */
-#define FL_LINKS  0xF8
-#define FL_RECHTS 0x1F
-#define FL_KEINE  0x07
+#define FL_LINKS  0xFC       /* the left wing in the first byte  */
+#define FL_RECHTS 0x3F       /* the right wing in the second     */
 
 static void formen_gross(void)
 {
     formen_grundstock();
-    form_ablegen(FORM_GROSS,     GROSS_HOCH, 2, 12, 0xFF, 0xFF);
-    form_ablegen(FORM_GROSS + 1, GROSS_TIEF, 2, 12, 0xFF, 0xFF);
-    form_ablegen(FORM_GROSS_L, GROSS_TIEF, 2, 12, 0xFF, (unsigned char)~FL_RECHTS);
-    form_ablegen(FORM_GROSS_R, GROSS_TIEF, 2, 12, (unsigned char)~FL_LINKS, 0xFF);
-    form_ablegen(FORM_GROSS_0, GROSS_TIEF, 2, 12, (unsigned char)~FL_LINKS,
+    form_ablegen(FORM_GROSS,     GROSS_A, 2, 10, 0xFF, 0xFF);
+    form_ablegen(FORM_GROSS + 1, GROSS_C, 2, 10, 0xFF, 0xFF);
+    form_ablegen(FORM_GROSS_L, GROSS_B, 2, 10, 0xFF, (unsigned char)~FL_RECHTS);
+    form_ablegen(FORM_GROSS_R, GROSS_B, 2, 10, (unsigned char)~FL_LINKS, 0xFF);
+    form_ablegen(FORM_GROSS_0, GROSS_B, 2, 10, (unsigned char)~FL_LINKS,
                  (unsigned char)~FL_RECHTS);
     form_ablegen(FORM_GROSSEI, GROSSEI, 1, 8, 0xFF, 0xFF);
 }
@@ -1547,9 +1577,9 @@ static void klang_weiter(void)
 #define TAKT          12     /* steps per second, near enough              */
 
 #define SPIEL_OBEN    24     /* first pixel row below the score             */
-#define SPIEL_UNTEN  192
+#define SPIEL_UNTEN  176
 
-#define SCHIFF_Y     176     /* top edge of the ship in screen pixels       */
+#define SCHIFF_Y     164     /* top edge of the ship, just above the band   */
 #define SCHIFF_BREIT   8
 #define SCHIFF_LINKS   2
 #define SCHIFF_RECHTS 150
@@ -1633,7 +1663,7 @@ static void schuss_bewegen(void)
 
 static void spieler_malen(void)
 {
-    figur_malen(SLOT_SCHIFF, FORM_SCHIFF, spieler_x, SCHIFF_Y, C_WEISS);
+    figur_malen(SLOT_SCHIFF, FORM_SCHIFF, spieler_x, SCHIFF_Y, C_SCHIFF);
     if (schuss_aktiv)
         figur_malen(SLOT_SCHUSS, FORM_SCHUSS, schuss_x, schuss_y, C_GELB);
     if (schild_zeit)
@@ -1784,9 +1814,9 @@ static void welle_aufbauen(void)
         vorrat_verteilen(16, 6);
         voegel_zahl = 6;
         v_breit = 16;
-        v_hoch = 12;
+        v_hoch = 10;
         form_x = 12;
-        vogelfarbe = (unsigned char)(welle == 4 ? C_ROT : C_HELLBLAU);
+        vogelfarbe = (unsigned char)(welle == 4 ? C_V_ROT : C_V_BLAU);
     } else {
         if (satz != satz_geladen) { formen_klein(); satz_geladen = satz; }
         vorrat_verteilen(8, VOEGEL);
@@ -1794,9 +1824,10 @@ static void welle_aufbauen(void)
         v_breit = 8;
         v_hoch = 8;
         form_x = 20;
-        vogelfarbe = (unsigned char)(welle == 2 ? C_GRUEN : C_ORANGE);
+        vogelfarbe = (unsigned char)(welle == 2 ? C_V_GRUEN : C_V_VIOLETT);
     }
 
+    balkenfarbe = (unsigned char)((welle & 1) ? C_BALKEN1 : C_BALKEN2);
     for (i = 0; i < FIG_N + SCH_N; ++i) bel_nsp[i] = 0;
     sternenhimmel_aufbauen();
     if (mutterwelle) mutter_aufbauen();
@@ -2044,7 +2075,7 @@ static void eier_bewegen(void)
 
 static void voegel_malen(void)
 {
-    static const unsigned char SCHLAG[4] = { 0, 1, 2, 1 };
+    static const unsigned char SCHLAG[4] = { 0, 1, 1, 0 };
     static const unsigned char OHNE[4] = {
         FORM_GROSS_0, FORM_GROSS_L, FORM_GROSS_R, 0
     };
@@ -2412,8 +2443,8 @@ static unsigned char treffer_schuss(unsigned char i)
     if (!v_gross || v_zustand[i] == V_EI) return T_KOERPER;
 
     ab = (unsigned char)(sx - v_x[i]);
-    if (ab < 5)  return (unsigned char)((v_fluegel[i] & 1) ? T_LINKS : T_DANEBEN);
-    if (ab >= 11) return (unsigned char)((v_fluegel[i] & 2) ? T_RECHTS : T_DANEBEN);
+    if (ab < 6)   return (unsigned char)((v_fluegel[i] & 1) ? T_LINKS : T_DANEBEN);
+    if (ab >= 10) return (unsigned char)((v_fluegel[i] & 2) ? T_RECHTS : T_DANEBEN);
     return T_KOERPER;
 }
 

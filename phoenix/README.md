@@ -149,6 +149,21 @@ took a run with the load held constant, because the autopilot otherwise
 wanders into different situations at different speeds and the noise is larger
 than the effect.
 
+## Where the shapes come from
+
+The ships, the birds and the ground band are **traced off screenshots of the
+original, pixel by pixel**, not drawn by eye. The 2600 screenshots are four
+image pixels wide and two tall per 2600 pixel, so the sprites can be read out
+of them exactly; a small script turns the resulting bitmaps into the tables in
+[phoenix.c](phoenix.c). The comment beside each table is the shape it holds,
+so a wrong bit is visible in the source.
+
+That was worth doing. The first set was drawn from the proportions in
+descriptions and looked like a different game - the small bird is six 2600
+pixels across with its wings in and eight with them out, the large one sixteen
+across and ten tall with the body in the middle four, and none of that is
+guessable.
+
 ## What is not 1:1
 
 - **One colour per character cell.** A 2600 bird is two-toned; here a bird is
@@ -156,8 +171,10 @@ than the effect.
   and orange, violet and green, blue, red.
 - **Eight small birds and six large ones** per wave, not the arcade's twenty.
   The 2600 shows far fewer than the arcade too, but not exactly these numbers.
-- **The artwork is drawn by hand** from the original's proportions, not
-  extracted from the 2600 ROM. The shapes read right; they are not identical.
+- **One colour per figure.** The 2600 gives a sprite a different colour on
+  different scanlines — the small birds are violet with an orange or a green
+  band through them. A Plus/4 character cell holds one colour, so each figure
+  gets the dominant one.
 - **Nine to fifteen steps a second** rather than sixty. Speeds are scaled so
   the ship crosses the screen and the birds dive at about the original pace;
   the movement is coarser, not slower.
