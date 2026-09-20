@@ -740,6 +740,21 @@ static const unsigned char KNALL2[8] = {
     0x81, 0x42, 0x00, 0x24, 0x24, 0x00, 0x42, 0x81
 };
 
+/*
+ * The egg a large bird arrives in. Waves three and four "begin with eggs
+ * floating down in a zigzag pattern, which then turn into Phoenixes".
+ */
+static const unsigned char GROSSEI[8] = {
+    0x00,
+    0x3C,   /*   ####   */
+    0x7E,   /*  ######  */
+    0xFF,   /* ######## */
+    0xFF,   /* ######## */
+    0x7E,   /*  ######  */
+    0x3C,   /*   ####   */
+    0x00
+};
+
 /* What the birds drop. */
 static const unsigned char EI[3] = {
     0x18, 0x3C, 0x18
@@ -780,14 +795,17 @@ static const unsigned char SCHILD2[3] = {
 #define FORM_GROSS_L 9    /* right wing shot off                          */
 #define FORM_GROSS_R 10   /* left wing shot off                           */
 #define FORM_GROSS_0 11   /* both wings gone                              */
-#define FORMEN_N    12
+#define FORM_GROSSEI 12   /* the egg it arrives in                        */
+#define FORMEN_N    13
 
 /*
- * Room for all views of all shapes of one wave. The largest set is waves
- * three and four: seven small shapes at 48 bytes a view plus five large ones
- * at 120, each in 32 views - 29952 bytes.
+ * Room for all views of all shapes of one wave, with a little to spare. The
+ * largest set is waves three and four: seven small shapes and the egg at 48
+ * bytes a view, five large birds at 120, each shape in 32 views - 31488
+ * bytes. Going over this would quietly write past the end of the array, so
+ * the number wants checking when a shape is added.
  */
-#define BLOCKRAUM 30208
+#define BLOCKRAUM 31744
 
 static unsigned char bloecke[BLOCKRAUM];
 static unsigned blockende;
@@ -917,6 +935,7 @@ static void formen_gross(void)
     form_ablegen(FORM_GROSS_R, GROSS_TIEF, 2, 12, (unsigned char)~FL_LINKS, 0xFF);
     form_ablegen(FORM_GROSS_0, GROSS_TIEF, 2, 12, (unsigned char)~FL_LINKS,
                  (unsigned char)~FL_RECHTS);
+    form_ablegen(FORM_GROSSEI, GROSSEI, 1, 8, 0xFF, 0xFF);
 }
 
 /* ---- what a figure covers at the moment -------------------------------- */
@@ -1637,6 +1656,10 @@ static void spieler_malen(void)
 #define V_STURZ   2
 #define V_RUECK   3
 #define V_TOT     4
+#define V_EI      5   /* still an egg, on its way down */
+
+#define ZACK_DAUER 5      /* passes before a zig-zag turns around */
+#define STURZ_ENDE (SCHIFF_Y - 6)
 
 #define VOEGEL       8
 #define V_SPALTEN    4
@@ -1656,6 +1679,7 @@ static unsigned char v_hx[VOEGEL];        /* place in the formation, from    */
 static unsigned char v_hy[VOEGEL];        /* form_x and absolute             */
 static unsigned char v_fluegel[VOEGEL];   /* bit 0 left, bit 1 right        */
 static unsigned char v_regen[VOEGEL];     /* until the wings grow back      */
+static unsigned char v_zack[VOEGEL];      /* until the zig-zag turns around */
 static unsigned char voegel_uebrig;
 static unsigned char voegel_zahl;         /* how many this wave has         */
 static unsigned char v_gross;             /* large birds instead of small   */
@@ -1666,7 +1690,10 @@ static unsigned char v_tempo;             /* how fast a dive gets, per round */
 
 static unsigned char form_x;              /* left edge of the formation    */
 static signed char form_dx;
+static unsigned char form_y;              /* how far the flock has crept down */
+static unsigned char form_takt;           /* until it creeps one more       */
 static unsigned char sturz_zeit;          /* until the next one dives      */
+static unsigned char sturz_max;           /* how many may be out at once    */
 static unsigned char welle;               /* 1..5, then round by round     */
 static unsigned char runde;
 static unsigned char vogelfarbe;
@@ -1693,8 +1720,17 @@ static unsigned char platz_x(unsigned char p)
 static unsigned char platz_y(unsigned char p)
 {
     unsigned char reihe = (unsigned char)(v_gross ? 3 : V_SPALTEN);
-    if (p >= reihe) return (unsigned char)(V_OBEN + (v_gross ? 26 : V_ZEILE));
+    /* The large birds hatch out of eggs that float down from the top edge,
+       so their flock sits a little lower - it gives the eggs a way to fall. */
+    if (v_gross) return (unsigned char)(V_OBEN + (p >= reihe ? 34 : 8));
+    if (p >= reihe) return (unsigned char)(V_OBEN + V_ZEILE);
     return V_OBEN;
+}
+
+/* Where the bird's place is right now, flock creep included. */
+static unsigned char platz_jetzt_y(unsigned char p)
+{
+    return (unsigned char)(v_hy[p] + form_y);
 }
 
 static void mutter_aufbauen(void);
@@ -1766,7 +1802,15 @@ static void welle_aufbauen(void)
     if (mutterwelle) mutter_aufbauen();
 
     form_dx = 1;
-    sturz_zeit = 20;
+    form_y = 0;
+    form_takt = 40;
+    sturz_zeit = 12;
+
+    /* The original has several of them in the air at once - "you will
+       usually be attacked by multiple fighters at any one time". Two in the
+       first round, one more with every round after it. */
+    sturz_max = (unsigned char)(1 + runde);
+    if (sturz_max > 4) sturz_max = 4;
 
     /* The first round is meant to be survivable: a dive builds up to four
        pixels a pass, which is about three seconds from the formation to the
@@ -1777,16 +1821,28 @@ static void welle_aufbauen(void)
     voegel_uebrig = voegel_zahl;
 
     for (i = 0; i < voegel_zahl; ++i) {
-        v_zustand[i] = V_FORM;
         v_platz[i] = i;
         v_flug[i] = (unsigned char)(i & 3);
         v_zeit[i] = 0;
         v_fluegel[i] = 3;
         v_regen[i] = 0;
+        v_zack[i] = ZACK_DAUER;
         v_hx[i] = (unsigned char)(platz_x(i) - form_x);
         v_hy[i] = platz_y(i);
         v_x[i] = (unsigned char)(form_x + v_hx[i]);
-        v_y[i] = v_hy[i];
+
+        if (v_gross) {
+            /* They arrive as eggs, drifting down from above in a zigzag.
+               The second row follows the first, which is the "two banks of
+               eggs" the fourth wave is known for. */
+            v_zustand[i] = V_EI;
+            v_y[i] = SPIEL_OBEN;
+            v_zeit[i] = (unsigned char)(i * 8);
+            v_dx[i] = (signed char)((i & 1) ? 3 : -3);
+        } else {
+            v_zustand[i] = V_FORM;
+            v_y[i] = v_hy[i];
+        }
     }
     for (i = voegel_zahl; i < VOEGEL; ++i) v_zustand[i] = V_LEER;
     for (i = 0; i < EIER; ++i) ei_aktiv[i] = 0;
@@ -1797,8 +1853,6 @@ static void welle_aufbauen(void)
     else if (v_gross) musik_starten(MUS_GROSS, 1);
     else musik_starten(MUS_FLUG, 1);
 }
-
-static const signed char WACKEL[8] = { 0, 1, 2, 1, 0, -1, -2, -1 };
 
 static void ei_legen(unsigned char x, unsigned char y)
 {
@@ -1813,27 +1867,51 @@ static void ei_legen(unsigned char x, unsigned char y)
     }
 }
 
+/*
+ * How the flock moves, as close to the original as reading about it gets.
+ *
+ * The birds sit in an invader-like formation that weaves from side to side.
+ * Several of them at a time drop out in no particular order and zig-zag down
+ * towards the ship, dropping an egg on the way and trying to ram it; at the
+ * bottom of the run they turn and climb back to their place at a diagonal
+ * rather than disappearing off the edge. And as the flock is thinned out the
+ * rest of it creeps down the screen, so waiting is not free.
+ *
+ * What it is not: a single bird at a time on a straight line that corrects
+ * its aim every pass. That was the first attempt and it plays nothing like
+ * the machine.
+ */
 static void voegel_bewegen(void)
 {
-    unsigned char i, z;
-    int x, y;
+    unsigned char i, z, offen;
+    int x, y, zx, zy;
 
     /* The mothership wave flies without a flock, and none of what follows
-       means anything then - the picker below would look for a bird among
-       none of them and never come back. */
+       means anything then. */
     if (voegel_zahl == 0) return;
 
-    /* the whole formation sways */
+    /* the whole formation weaves */
     form_x += form_dx;
     if (form_x > 44) form_dx = -1;
     if (form_x < 4)  form_dx = 1;
 
-    /* every so often one of them drops out */
+    /* Once the flock is down to half, what is left of it reassembles and
+       creeps towards the bottom - the faster the fewer they are. Sitting it
+       out is therefore not a way of playing. */
+    if (voegel_uebrig + voegel_uebrig <= voegel_zahl && --form_takt == 0) {
+        form_takt = (unsigned char)(4 + voegel_uebrig * 6);
+        if (form_y < 56) ++form_y;
+    }
+
+    /* how many are out already? */
+    offen = 0;
+    for (i = 0; i < voegel_zahl; ++i)
+        if (v_zustand[i] == V_STURZ) ++offen;
+
+    /* every so often another one drops out, in no particular order */
     if (sturz_zeit) {
         --sturz_zeit;
-    } else {
-        /* cc65 calls a division routine for every %, so the wrap is done
-           with a subtraction instead. */
+    } else if (offen < sturz_max) {
         unsigned char versuch = zufall();
         while (versuch >= voegel_zahl) versuch = (unsigned char)(versuch - voegel_zahl);
         for (i = 0; i < voegel_zahl; ++i) {
@@ -1842,16 +1920,17 @@ static void voegel_bewegen(void)
             if (v_zustand[k] == V_FORM) {
                 v_zustand[k] = V_STURZ;
                 v_dy[k] = 2;
-                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -2 : 2);
+                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -4 : 4);
+                v_zack[k] = ZACK_DAUER;
                 v_zeit[k] = 0;
                 break;
             }
         }
         /* the 2600 turns the screw only gently from round to round */
-        sturz_zeit = (unsigned char)(18 + (zufall() & 15));
+        sturz_zeit = (unsigned char)(10 + (zufall() & 15));
         if (runde > 1) {
             unsigned char ab = (unsigned char)(runde - 1);
-            if (ab > 4) ab = 4;
+            if (ab > 6) ab = 6;
             if (sturz_zeit > ab) sturz_zeit = (unsigned char)(sturz_zeit - ab);
         }
     }
@@ -1870,49 +1949,83 @@ static void voegel_bewegen(void)
         }
 
         v_flug[i] = (unsigned char)((v_flug[i] + 1) & 15);
-
         if (v_regen[i] && --v_regen[i] == 0) v_fluegel[i] = 3;
 
+        zx = (int)(unsigned char)(form_x + v_hx[v_platz[i]]);
+        zy = (int)platz_jetzt_y(v_platz[i]);
+
+        if (z == V_EI) {
+            /* the second bank waits its turn before it sets off */
+            if (v_zeit[i]) { --v_zeit[i]; continue; }
+
+            if (--v_zack[i] == 0) {
+                v_zack[i] = ZACK_DAUER;
+                v_dx[i] = (signed char)-v_dx[i];
+            }
+            x = v_x[i] + v_dx[i];
+            if (x < 0) x = 0;
+            if (x > 152) x = 152;
+            y = v_y[i] + 1;       /* they take their time coming down */
+
+            if (y >= zy) {          /* it has arrived, and hatches */
+                v_zustand[i] = V_FORM;
+                x = zx;
+                y = zy;
+            }
+            v_x[i] = (unsigned char)x;
+            v_y[i] = (unsigned char)y;
+            continue;
+        }
+
         if (z == V_FORM) {
-            v_x[i] = (unsigned char)(form_x + v_hx[v_platz[i]]);
-            v_y[i] = v_hy[v_platz[i]];
+            v_x[i] = (unsigned char)zx;
+            v_y[i] = (unsigned char)zy;
             continue;
         }
 
         if (z == V_STURZ) {
             ++v_zeit[i];
-            y = v_y[i] + v_dy[i];
-            x = v_x[i] + v_dx[i] + WACKEL[v_zeit[i] & 7];
-            if (v_dy[i] < v_tempo) ++v_dy[i];
-            /* steer towards the ship while there is still room */
-            /* It only looks where the ship is every so often. Correcting on
-               every pass would make a dive impossible to step out of. */
-            if ((v_zeit[i] & 7) == 0) {
-                if (x > (int)spieler_x + 4) v_dx[i] = -2;
-                else if (x + 4 < (int)spieler_x) v_dx[i] = 2;
+
+            /* the zig-zag: a good stride sideways, turning round every few
+               passes, with one pixel of drift towards the ship so the run
+               works its way over to it */
+            if (--v_zack[i] == 0) {
+                v_zack[i] = ZACK_DAUER;
+                v_dx[i] = (signed char)-v_dx[i];
             }
+            x = v_x[i] + v_dx[i];
+            if (x > (int)spieler_x) --x; else ++x;
+
+            y = v_y[i] + v_dy[i];
+            if (v_dy[i] < v_tempo) ++v_dy[i];
+
             if (x < 0) x = 0;
             if (x > 152) x = 152;
             v_x[i] = (unsigned char)x;
             v_y[i] = (unsigned char)y;
             if (v_zeit[i] == 5) ei_legen((unsigned char)x, (unsigned char)(y + 8));
-            if (y > SPIEL_UNTEN) {
+
+            /* at the bottom of the run it turns and goes home */
+            if (y >= STURZ_ENDE) {
                 v_zustand[i] = V_RUECK;
-                v_y[i] = SPIEL_OBEN - 8;
-                figur_loeschen((unsigned char)(i + 1));
+                v_dy[i] = 4;
             }
             continue;
         }
 
-        /* on the way back to its place in the formation */
-        x = (int)(unsigned char)(form_x + v_hx[v_platz[i]]);
-        y = (int)v_hy[v_platz[i]];
-        if (v_x[i] + 2 < x) v_x[i] = (unsigned char)(v_x[i] + 3);
-        else if (v_x[i] > x + 2) v_x[i] = (unsigned char)(v_x[i] - 3);
-        else v_x[i] = x;
-        if (v_y[i] < y) v_y[i] = (unsigned char)(v_y[i] + 4);
-        if (v_y[i] >= y && v_x[i] == x) v_zustand[i] = V_FORM;
-        if (v_y[i] > y) v_y[i] = y;
+        /* climbing back to its place, diagonally */
+        x = v_x[i];
+        y = v_y[i];
+        if (x + 3 < zx) x += 4;
+        else if (x > zx + 3) x -= 4;
+        else x = zx;
+        if (y > zy + 3) y -= 4;
+        else y = zy;
+        if (x < 0) x = 0;
+        if (x > 152) x = 152;
+        v_x[i] = (unsigned char)x;
+        v_y[i] = (unsigned char)y;
+        if (x == zx && y == zy) v_zustand[i] = V_FORM;
     }
 }
 
@@ -1945,6 +2058,11 @@ static void voegel_malen(void)
             figur_malen((unsigned char)(i + 1),
                         (unsigned char)(FORM_KNALL + (v_zeit[i] & 1)),
                         v_x[i], v_y[i], C_WEISS);
+            break;
+        case V_EI:
+            if (v_zeit[i]) break;        /* still waiting its turn */
+            figur_malen((unsigned char)(i + 1), FORM_GROSSEI,
+                        v_x[i], v_y[i], C_GELB);
             break;
         default:
             if (v_gross) {
@@ -2285,12 +2403,13 @@ static void vogel_toeten(unsigned char i)
 static unsigned char treffer_schuss(unsigned char i)
 {
     unsigned char sx = (unsigned char)(schuss_x + 3);
+    unsigned char br = (unsigned char)(v_zustand[i] == V_EI ? 8 : v_breit);
     unsigned char ab;
 
-    if (sx < v_x[i] || sx > (unsigned char)(v_x[i] + v_breit - 1)) return T_DANEBEN;
+    if (sx < v_x[i] || sx > (unsigned char)(v_x[i] + br - 1)) return T_DANEBEN;
     if (schuss_y > (unsigned char)(v_y[i] + v_hoch - 1)) return T_DANEBEN;
     if ((unsigned char)(schuss_y + 4) < v_y[i]) return T_DANEBEN;
-    if (!v_gross) return T_KOERPER;
+    if (!v_gross || v_zustand[i] == V_EI) return T_KOERPER;
 
     ab = (unsigned char)(sx - v_x[i]);
     if (ab < 5)  return (unsigned char)((v_fluegel[i] & 1) ? T_LINKS : T_DANEBEN);
@@ -2322,7 +2441,8 @@ static unsigned char treffer_pruefen(void)
             figur_loeschen(SLOT_SCHUSS);
 
             if (art == T_KOERPER) {
-                if (v_gross) punkte_dazu(grosswert(v_y[i]));
+                if (v_zustand[i] == V_EI) punkte_dazu(50);
+                else if (v_gross) punkte_dazu(grosswert(v_y[i]));
                 else punkte_dazu((unsigned)(v_zustand[i] == V_FORM ? 20 : 80));
                 vogel_toeten(i);
             } else {

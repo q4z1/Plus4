@@ -21,13 +21,14 @@ scrolls a pixel at a time.
 | --- | --- | --- |
 | 1 | small birds, orange | a swaying formation; one drops out at a time, dives at the ship and drops an egg on the way |
 | 2 | small birds, green | the same, but the button auto-repeats while it is held — the only wave that does |
-| 3 | large birds, blue | shooting a wing takes it off; only a hit in the middle kills. Wings grow back |
+| 3 | large birds, blue | they arrive as eggs floating down in a zigzag and hatch on the way; shooting a wing takes it off, only a hit in the middle kills, and the wings grow back |
 | 4 | large birds, red | the same, faster |
 | 5 | the mothership | it comes down the screen while the hull has to be chewed away from below |
 
 After the fifth wave the round starts again, a little quicker each time.
 
 ![Wave 1](screenshots/wave1.png)
+![The eggs of wave 3](screenshots/eggs.png)
 ![Wave 3](screenshots/wave3.png)
 ![The mothership](screenshots/mothership.png)
 ![Game over](screenshots/gameover.png)
@@ -41,6 +42,31 @@ you let it come, the more. Five ships, one extra at 5000 points.
 The force field burns for a second and a half, cannot be raised again for
 another three and a half, and roots the ship to the spot while it is up. The
 ship may still fire, and anything that touches the field dies.
+
+## How the flock moves
+
+This is the part that took the longest to get anywhere near right, because
+it cannot be read off a screenshot. What the original does, as far as it is
+written down anywhere:
+
+- the birds sit in an **invader-like formation that weaves** from side to side;
+- **several of them at a time** drop out, in no particular order — "you will
+  usually be attacked by multiple fighters at any one time";
+- they **zig-zag** down towards the ship rather than flying at it, dropping an
+  egg on the way and trying to ram it;
+- at the bottom of the run they turn and **climb back to their place at a
+  diagonal**, rather than vanishing off an edge;
+- once the flock has been thinned out, what is left of it **reassembles and
+  creeps towards the bottom** of the screen, so sitting it out is not a way of
+  playing;
+- waves three and four **begin with eggs floating down in a zigzag** which
+  hatch into the large birds.
+
+The first attempt did none of that: one bird at a time, on a straight line,
+correcting its aim on every pass. It was a perfectly good dive-bombing enemy
+and it played nothing like Phoenix — it is very hard to step out of the way
+of something that re-aims twelve times a second, and a single attacker never
+feels like a flock.
 
 ## How it is built
 
