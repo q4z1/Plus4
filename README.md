@@ -175,6 +175,20 @@ emulator.
   game. An early Phoenix measurement said 0.8 passes per second for exactly that
   reason; the truth was twenty times better.
 
+- **The joystick hangs on the keyboard's lines, and `$FF08` has to be read
+  twice.** The row goes to `$FD30`, and writing a value with bit 2 low to
+  `$FF08` puts joystick 1 on those lines instead. The write leaves its own
+  value on the data bus and the TED samples a cycle later, so a read in the
+  next instruction hands back what was just written — which looks exactly
+  like a closed contact. It costs an evening if the test program happens to
+  have a few instructions in between and therefore works. Both games read it
+  the same way; `phoenix/README.md` has the details.
+- **VICE looks for joysticks once, at startup, and only in
+  `/dev/input/by-id`.** A wireless pad that is asleep when VICE starts is not
+  picked up, and a Bluetooth pad has no `by-id` entry at all unless a udev
+  rule makes one — which is why a perfectly working gamepad can look like a
+  broken game.
+
 ### Testing without looking at the screen
 
 VICE can be driven remotely, which makes Plus/4 programs verifiable in an automated
@@ -202,5 +216,5 @@ Each program lists its own; see the README in its folder.
 
 | | |
 | --- | --- |
-| [Pac-Man](pacman/README.md) | `W` `A` `S` `D` or the cursor keys, `Q` quits, space starts |
+| [Pac-Man](pacman/README.md) | joystick in port 1, or `W` `A` `S` `D`, or the cursor keys; `Q` quits, fire or space starts |
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |

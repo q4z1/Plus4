@@ -7,7 +7,36 @@ their own ways of hunting, power pills, levels, lives and TED sound. About
 ![Pac-Man on the Plus/4](screenshots/pacman.png)
 ![Title screen](screenshots/title.png)
 
-**Controls:** `W A S D` or the cursor keys. `Q` ends the game.
+**Controls:** joystick in port 1, or `W A S D`, or the cursor keys — all
+three at the same time. Fire starts the game, `Q` ends it.
+
+## Reading the joystick
+
+Worth knowing before touching the input code, because it is easy to get
+almost right. The keyboard and both joysticks hang on the same eight lines,
+fed by two latches: `$FD30` (the 6529B) takes the keyboard row, `$FF08` is
+the TED's own. Writing a value with bit 2 low to `$FF08` puts joystick 1 on
+those lines instead of a keyboard row, and `$FF` in `$FD30` keeps every key
+out of the answer. A zero bit is a closed contact — 0 up, 1 down, 2 left,
+3 right, 6 fire.
+
+And `$FF08` has to be read **twice**. The write leaves its own value on the
+data bus and the TED samples the lines a cycle later, so a read in the very
+next instruction hands back what was just written, which looks exactly like
+the contact on that line being closed. The second read gets the real sample.
+A test program misses this easily: as soon as a couple of instructions
+happen to sit between the write and the read, the answer is right by
+accident.
+
+BASIC's own `JOY()` at `$BFC0` selects with `$FA` rather than `$FB`, and
+reads in a loop until two reads agree. Both selects work — only bit 2
+decides — and both were measured on the machine rather than read off a
+manual.
+
+One thing about the emulator rather than the machine: **VICE looks for
+joysticks only at startup** and only in `/dev/input/by-id`. A wireless pad
+that is asleep when VICE starts, or connects afterwards, is not picked up at
+all.
 
 ## How the figures are made
 

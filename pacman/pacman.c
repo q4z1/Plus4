@@ -29,7 +29,9 @@
  *   3. Maze              7. Movement, ghost AI
  *   4. Sound and input   8. Game flow
  *
- * Controls: W A S D or the cursor keys, Q quits the game.
+ * Controls: joystick in port 1, or W A S D or the cursor keys. Q quits.
+ * The joystick hangs on the same lines as the keyboard and has to be read
+ * twice - see joystick_lesen() for why.
  */
 
 #include <conio.h>
@@ -53,6 +55,8 @@
 #define TED_WAAGR    (*(volatile unsigned char *)0xFF07)  /* Bit 7: turn off inversion */
 #define ROM_EIN      (*(volatile unsigned char *)0xFF3E)
 #define RAM_EIN      (*(volatile unsigned char *)0xFF3F)
+#define TASTENREIHE  (*(volatile unsigned char *)0xFD30)  /* the 6529B latch */
+#define TASTENTOR    (*(volatile unsigned char *)0xFF08)  /* the TED's own   */
 
 /* Colors: brightness * 16 + hue. High brightness washes out to white on the
    Plus/4; the strong colors are at brightness 3 to 6. */
@@ -374,6 +378,48 @@ static unsigned char taste_holen(void)
     while (kbhit()) t = (unsigned char)cgetc();
     return t;
 }
+
+/*
+ * The joystick in port 1, alongside the keyboard.
+ *
+ * Keyboard and joysticks hang on the same eight lines. Two latches feed
+ * them: $FD30, the 6529B, takes the keyboard row, and $FF08 is the TED's
+ * own. Writing a value with bit 2 low to $FF08 switches joystick 1 onto
+ * those lines instead of a keyboard row, and with $FF in $FD30 no key can
+ * be mixed in. Reading gives a zero bit per closed contact: 0 up, 1 down,
+ * 2 left, 3 right, 6 fire.
+ *
+ * It has to be read *twice*. The write leaves its own value on the data bus
+ * and the TED samples the lines a cycle later, so a read in the instruction
+ * right after the write hands back what was just written - which looks
+ * exactly like the contact on that line being closed. The second read gets
+ * the TED's own sample. This is the part that is easy to miss: a test
+ * program usually has a few instructions between the write and the read by
+ * accident, and then the answer is right.
+ *
+ * BASIC's own JOY() function at $BFC0 selects with $FA rather than $FB. Both
+ * work - only bit 2 decides - and both were measured on the machine.
+ */
+static unsigned char joystick_lesen(void)
+{
+    unsigned char wert;
+
+    __asm__("sei");
+    TASTENREIHE = 0xFF;          /* no keyboard row, so no keys mixed in */
+    TASTENTOR = 0xFB;            /* bit 2 low selects joystick 1         */
+    wert = TASTENTOR;            /* the write's own value, still on the bus */
+    wert = TASTENTOR;            /* the sampled one                         */
+    TASTENTOR = 0xFF;
+    __asm__("cli");
+
+    return wert;
+}
+
+#define J_OBEN   0x01
+#define J_UNTEN  0x02
+#define J_LINKS  0x04
+#define J_RECHTS 0x08
+#define J_FEUER  0x40
 
 /* ======================================================================
  * 5. Figures
@@ -1414,7 +1460,7 @@ static void bereit_anzeigen(void)
 
 static unsigned char runde_spielen(void)
 {
-    unsigned char t, i, blinktakt = 0, pillen_an = 1;
+    unsigned char t, j, i, blinktakt = 0, pillen_an = 1;
 
     for (;;) {
         bild_warten();
@@ -1428,6 +1474,18 @@ static unsigned char runde_spielen(void)
         case 'q': case 'Q': return ABBRUCH;
         default: break;
         }
+
+        /* The stick is read every frame and, while it is held, keeps saying
+           where to go - the keyboard arrives as single presses out of the
+           KERNAL's buffer instead. Either may set the wish; whichever came
+           last wins, so the two can be used side by side. A diagonal is
+           taken as up or down, because that is what a corridor allows more
+           often than not. */
+        j = joystick_lesen();
+        if (!(j & J_OBEN))        PAC->wunsch = R_OBEN;
+        else if (!(j & J_UNTEN))  PAC->wunsch = R_UNTEN;
+        else if (!(j & J_LINKS))  PAC->wunsch = R_LINKS;
+        else if (!(j & J_RECHTS)) PAC->wunsch = R_RECHTS;
 
         if (++blinktakt >= 16) {
             blinktakt = 0;
@@ -1505,19 +1563,24 @@ static unsigned char titelbild(void)
     zeichen_setzen(27, 4, Z_T_GEIST, C_ROT);
 
     text_zeigen(8, 11, "CONTROLS", C_WEISS);
-    text_zeigen(8, 13, "W A S D   OR CURSOR KEYS", C_PUNKT);
-    text_zeigen(8, 15, "Q ENDS THE GAME", C_PUNKT);
+    text_zeigen(8, 13, "JOYSTICK IN PORT 1", C_PUNKT);
+    text_zeigen(8, 14, "OR W A S D OR CURSOR KEYS", C_PUNKT);
+    text_zeigen(8, 16, "Q ENDS THE GAME", C_PUNKT);
 
     text_zeigen(8, 18, "EAT THE DOTS, AVOID THE GHOSTS.", C_WEISS);
     text_zeigen(8, 19, "A POWER PILL TURNS THE TABLES.", C_WEISS);
 
-    text_zeigen(10, 22, "PRESS SPACE TO START", C_GELB);
+    text_zeigen(9, 22, "SPACE OR FIRE TO START", C_GELB);
 
+    /* Drain both, so a button still held from the round before does not
+       start the next one straight away. */
     while (taste_holen()) { }
+    while (!(joystick_lesen() & J_FEUER)) bild_warten();
     for (;;) {
         unsigned char t = taste_holen();
         if (t == ' ') return 0;
         if (t == 'q' || t == 'Q') return 1;
+        if (!(joystick_lesen() & J_FEUER)) return 0;
         bild_warten();
     }
 }
