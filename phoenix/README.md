@@ -100,6 +100,11 @@ as it empties. Every speed and every length of time in the game is counted in
 those passes rather than in frames, which is why [phoenix.c](phoenix.c) has a
 `TAKT` constant and no magic number for the shield's second and a half.
 
+The score used to be a hitch of its own: pulling six digits out of a 32 bit
+number means six calls to cc65's long division, fifteen thousand cycles, most
+of a frame - every time a bird died. The digits *are* the score now, added one
+at a time with a carry, and only the digit that changed is redrawn.
+
 Getting there took measuring rather than guessing. Of one pass, the figures
 cost about half, and of that the arithmetic around the drawing — working out
 which cells a figure lands on and handing back the ones it has left — cost
@@ -107,6 +112,16 @@ more than the drawing itself, so that part is assembly too. What C does here
 it does honestly but expensively: parameters live on a software stack and are
 read back through a zero page pointer on every use, and `sy + 8 - yfein` on
 three bytes is a call to a sixteen bit addition routine.
+
+Two results from that measuring were the opposite of what they should have
+been. Keeping the ten digits ready-doubled in a table is a third *slower* than
+doubling them again on every change — cc65 reaches an absolute array with one
+instruction, while the same byte through a pointer costs an index calculation.
+And eight rounds of two bytes beat sixteen rounds of one, because an iteration
+costs more than the work inside it. Neither is visible in the source; both
+took a run with the load held constant, because the autopilot otherwise
+wanders into different situations at different speeds and the noise is larger
+than the effect.
 
 ## What is not 1:1
 

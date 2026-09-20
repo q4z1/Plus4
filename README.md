@@ -164,7 +164,13 @@ emulator.
   pixels and crawl back one at a time. It cannot be synchronised; it has to be
   avoided. Moving a sparse background by hand is cheaper than compensating for
   a scroll anyway, because the compensation touches everything on screen.
-- **Measure with an autopilot and an immortality switch.** A game left alone dies in
+- **An absolute array is cheaper than a pointer, and a loop iteration is
+  expensive.** Keeping ready-made bytes in a table can be slower than
+  recomputing them, because cc65 reads `TAB[x]` in one instruction and `p[x]`
+  in several; and eight rounds of two bytes beat sixteen rounds of one. Both
+  were measured, both are the opposite of what the source suggests.
+- **Measure with an autopilot and an immortality switch, and hold the load
+  still.** A game left alone dies in
   seconds, and then the numbers describe BASIC sitting at its prompt rather than the
   game. An early Phoenix measurement said 0.8 passes per second for exactly that
   reason; the truth was twenty times better.

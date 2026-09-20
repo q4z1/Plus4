@@ -203,7 +203,9 @@ static unsigned char zufall(void)
     return (unsigned char)(zufallswert >> 7);
 }
 
-static unsigned char anz_zeile;        /* cell row the score sits on       */
+static unsigned char anz_zeile = 1;    /* cell row the score sits on       */
+static unsigned char anz_gesetzt;      /* are its cells on the screen?     */
+static unsigned char leben;            /* ships in hand                    */
 
 /*
  * Notes what belongs on a cell and shows it - unless the score is standing
@@ -258,6 +260,9 @@ static void sternenhimmel_aufbauen(void)
         stern_neu(i, (unsigned char)(zufall() % ZEILEN));
         hintergrund_setzen(stern_sp[i], stern_ze[i], stern_z[i], stern_f[i]);
     }
+
+    /* The score went with the rest of the screen and has to be put back. */
+    anz_gesetzt = 0;
 }
 
 /*
@@ -324,202 +329,138 @@ static void scrollen(void)
    with seven zero bytes above and below - then the shifted copy that has to
    go into the character set on every frame is simply sixteen bytes read out
    of the middle of it. */
-#define ANZ_H 22
-static unsigned char anz_bild[PUNKTE_SP][ANZ_H];
-static unsigned char anz_gesetzt;              /* has it been placed yet?  */
-static unsigned char anz_frisch;               /* strip needs copying again */
-static unsigned char anz_versatz = 0xFF;       /* the offset it was built for */
+/*
+ * The strip is twenty cells wide and eight pixels tall: six digits of two
+ * cells each, then the remaining ships. It sits on one row of characters and
+ * is written straight into the character set - there is no second copy of it
+ * in RAM and nothing is shifted.
+ *
+ * It used to be different. While the background was moved by the TED's fine
+ * scroll, the score had to be redrawn a pixel higher on every single pass to
+ * stay put, which meant keeping a pixel image of it and copying three hundred
+ * odd bytes per pass. The scroll stands still now (see scrollen()), so a
+ * digit is eight bytes into a character and nothing else. What used to cost
+ * a fifth of every pass now costs nothing until the score changes, and then
+ * about a twentieth of one.
+ */
+#define ANZ_ZEILE 1                    /* the cell row it stands on        */
 
-static unsigned long punkte;
-static unsigned char leben;
+static unsigned char punkte_z[6];        /* the six digits - this *is* the score */
+static unsigned char bonus_gegeben;      /* the extra ship at 5000          */
 
 /* The player's ship as it appears next to the score, one 2600 pixel per bit. */
 static const unsigned char SCHIFF_KLEIN[8] = {
     0x00, 0x10, 0x10, 0x38, 0x38, 0x7C, 0x6C, 0x00
 };
 
-/* Draws score and ships into the pixel strip. Only called when they change. */
-static void anzeige_bauen(void)
+/*
+ * Writes one shape, eight 2600 pixels wide, into the two characters of a
+ * column pair, doubling it on the way.
+ *
+ * Keeping the ten digits ready-doubled in a table was tried and is a third
+ * *slower*: cc65 reaches an absolute array like VERDOPPELT with one
+ * instruction, while reading the same byte through a pointer costs an index
+ * calculation every time. Eight rounds of two bytes also beat sixteen rounds
+ * of one - a loop iteration here costs more than the work inside it.
+ */
+static void anz_paar(unsigned char sp, const unsigned char *q)
 {
-    unsigned char sp, r, i, ziffer;
-    unsigned long rest;
-    unsigned char stellen[6];
-    const unsigned char *q;
+    unsigned char *z1 = zeichensatz + ((unsigned)(Z_PUNKTE + sp) << 3);
+    unsigned char *z2 = z1 + 8;
+    unsigned char r, b;
 
-    anz_frisch = 1;
-
-    for (sp = 0; sp < PUNKTE_SP; ++sp)
-        for (r = 0; r < ANZ_H; ++r)
-            anz_bild[sp][r] = 0;
-
-    /* Six digits, leading zeros kept - that is how the 2600 shows it. */
-    rest = punkte;
-    for (i = 6; i > 0; --i) {
-        stellen[i - 1] = (unsigned char)(rest % 10);
-        rest /= 10;
-    }
-
-    for (i = 0; i < 6; ++i) {
-        ziffer = stellen[i];
-        q = romfont + (48 + ziffer) * 8;       /* screen code of '0' is 48 */
-        for (r = 0; r < 8; ++r) {
-            anz_bild[i + i][7 + r]     = VERDOPPELT[q[r] >> 4];
-            anz_bild[i + i + 1][7 + r] = VERDOPPELT[q[r] & 15];
-        }
-    }
-
-    /* Remaining ships right of the score, two cells each like everything
-       else that is eight 2600 pixels wide. */
-    for (i = 0; i < 4; ++i) {
-        if (i + 1 >= leben) break;
-        for (r = 0; r < 8; ++r) {
-            anz_bild[12 + i + i][7 + r]     = VERDOPPELT[SCHIFF_KLEIN[r] >> 4];
-            anz_bild[12 + i + i + 1][7 + r] = VERDOPPELT[SCHIFF_KLEIN[r] & 15];
-        }
+    for (r = 0; r < 8; ++r) {
+        b = q[r];
+        z1[r] = VERDOPPELT[b >> 4];
+        z2[r] = VERDOPPELT[b & 15];
     }
 }
 
-static void punkte_dazu(unsigned wert)
+static void anz_paar_leer(unsigned char sp)
 {
-    unsigned long alt = punkte;
-    punkte += wert;
-    /* one extra ship at five thousand, as on the 2600 */
-    if (alt < 5000UL && punkte >= 5000UL && leben < 6) ++leben;
-    anzeige_bauen();
+    unsigned char *z = zeichensatz + ((unsigned)(Z_PUNKTE + sp) << 3);
+    unsigned char r;
+    for (r = 0; r < 16; ++r) z[r] = 0;
+}
+
+/* One digit of the score. */
+static void ziffer_bauen(unsigned char i)
+{
+    anz_paar((unsigned char)(i + i), romfont + (48 + punkte_z[i]) * 8);
+}
+
+/* The remaining ships, right of the score. */
+static void leben_bauen(void)
+{
+    unsigned char i;
+
+    for (i = 0; i < 4; ++i) {
+        if (i + 1 < leben) anz_paar((unsigned char)(12 + i + i), SCHIFF_KLEIN);
+        else               anz_paar_leer((unsigned char)(12 + i + i));
+    }
+}
+
+/* The whole strip - at the start of a game and after the screen is wiped. */
+static void anzeige_bauen(void)
+{
+    unsigned char i;
+
+    for (i = 0; i < 6; ++i) ziffer_bauen(i);
+    leben_bauen();
 }
 
 /*
- * Copies the strip into the character set, shifted down by as many pixels as
- * the fine scroll has moved, and puts the two rows of characters on screen.
- *
- * The shifting is the one thing here that happens on every single frame, so
- * it is written out in assembly - in C it cost eleven frames of the sixty
- * that a pass through the game took.
+ * Adds to the score, digit by digit and with a carry, so nothing has to be
+ * divided. Six digits out of a 32 bit number means six calls to cc65's long
+ * division - fifteen thousand cycles, most of a frame, and it showed as a
+ * hitch every time a bird died. The digits *are* the score now; there is no
+ * number behind them.
  */
-unsigned char *an_quelle;
-unsigned char *an_oben;
-unsigned char *an_unten;
-
-/* Copies all twenty columns of the strip into the character set at once.
-   Source, top row and bottom row all advance in step, so the whole thing is
-   one loop with no addressing arithmetic worth the name. */
-static void anzeige_streifen(void)
+static void punkte_dazu(unsigned wert)
 {
-    __asm__(
-    "lda _an_quelle\n"
-    "sta ptr1\n"
-    "lda _an_quelle+1\n"
-    "sta ptr1+1\n"
-    "lda _an_oben\n"
-    "sta ptr2\n"
-    "lda _an_oben+1\n"
-    "sta ptr2+1\n"
-    "lda _an_unten\n"
-    "sta ptr3\n"
-    "lda _an_unten+1\n"
-    "sta ptr3+1\n"
-    "lda #%b\n"
-    "sta tmp2\n"
-    ";  sreg is a second source pointer, eight bytes further down\n"
-    "lda ptr1\n"
-    "clc\n"
-    "adc #$08\n"
-    "sta sreg\n"
-    "lda ptr1+1\n"
-    "adc #$00\n"
-    "sta sreg+1\n"
+    unsigned char zif[6];
+    unsigned char i, summe, uebertrag;
 
-    "anzsp:\n"
-    "ldy #$07\n"
-    "anzby:\n"
-    "lda (ptr1),y\n"
-    "sta (ptr2),y\n"
-    "lda (sreg),y\n"
-    "sta (ptr3),y\n"
-    "dey\n"
-    "bpl anzby\n"
+    for (i = 0; i < 6; ++i) zif[i] = 0;
+    while (wert >= 1000) { wert -= 1000; ++zif[2]; }
+    while (wert >= 100)  { wert -= 100;  ++zif[3]; }
+    while (wert >= 10)   { wert -= 10;   ++zif[4]; }
+    zif[5] = (unsigned char)wert;
 
-    ";  next column: both sources on by 22, both targets by 8\n"
-    "lda ptr1\n"
-    "clc\n"
-    "adc #%b\n"
-    "sta ptr1\n"
-    "bcc anzn0\n"
-    "inc ptr1+1\n"
-    "anzn0:\n"
-    "lda sreg\n"
-    "clc\n"
-    "adc #%b\n"
-    "sta sreg\n"
-    "bcc anzn1\n"
-    "inc sreg+1\n"
-    "anzn1:\n"
-    "lda ptr2\n"
-    "clc\n"
-    "adc #$08\n"
-    "sta ptr2\n"
-    "bcc anzn2\n"
-    "inc ptr2+1\n"
-    "anzn2:\n"
-    "lda ptr3\n"
-    "clc\n"
-    "adc #$08\n"
-    "sta ptr3\n"
-    "bcc anzn3\n"
-    "inc ptr3+1\n"
-    "anzn3:\n"
-    "dec tmp2\n"
-    "bne anzsp\n"
-    , (unsigned char)PUNKTE_SP, (unsigned char)ANZ_H, (unsigned char)ANZ_H);
-}
-
-static void anzeige_zeichnen(void)
-{
-    unsigned char sp, versatz, ze, r;
-    unsigned p;
-
-    /* The strip is to stand at screen pixel row 0. This still goes through
-       the scroll offset, which is nowadays always zero - it costs one
-       subtraction and keeps the score in step should it ever move again. */
-    versatz = (unsigned char)(8 - yfein);      /* 1..8 */
-    ze = (unsigned char)(versatz >> 3);        /* 0 or 1 */
-    versatz = (unsigned char)(versatz & 7);
-
-    if (ze != anz_zeile || !anz_gesetzt) {
-        if (anz_gesetzt) {
-            /* Hand the rows we no longer stand on back to the background. */
-            for (r = 0; r < 2; ++r) {
-                p = zeilenanfang[anz_zeile + r];
-                for (sp = 0; sp < PUNKTE_SP; ++sp) {
-                    BILD[p + sp] = hg_zeichen[p + sp];
-                    FARBE[p + sp] = hg_farbe[p + sp];
-                }
-            }
-        }
-        anz_zeile = ze;
-        anz_gesetzt = 1;
-        anz_frisch = 1;
-        for (r = 0; r < 2; ++r) {
-            p = zeilenanfang[ze + r];
-            for (sp = 0; sp < PUNKTE_SP; ++sp) {
-                BILD[p + sp] = (unsigned char)(Z_PUNKTE + r * PUNKTE_SP + sp);
-                FARBE[p + sp] = C_WEISS;
-            }
-        }
+    uebertrag = 0;
+    i = 6;
+    while (i--) {
+        summe = (unsigned char)(punkte_z[i] + zif[i] + uebertrag);
+        if (summe >= 10) { summe = (unsigned char)(summe - 10); uebertrag = 1; }
+        else uebertrag = 0;
+        if (summe != punkte_z[i]) { punkte_z[i] = summe; ziffer_bauen(i); }
     }
 
-    /* The strip only has to go into the character set again when its content
-       or its vertical offset changed. With the fine scroll standing still
-       that is rare - it used to be every single pass, and it cost a fifth of
-       the time. */
-    if (versatz != anz_versatz) { anz_versatz = versatz; anz_frisch = 1; }
-    if (!anz_frisch) return;
-    anz_frisch = 0;
+    /* one extra ship at five thousand, as on the 2600 */
+    if (!bonus_gegeben && leben < 6 &&
+        (punkte_z[0] || punkte_z[1] || punkte_z[2] >= 5)) {
+        bonus_gegeben = 1;
+        ++leben;
+        leben_bauen();
+    }
+}
 
-    an_quelle = &anz_bild[0][7 - versatz];
-    an_oben  = zeichensatz + (Z_PUNKTE * 8);
-    an_unten = zeichensatz + ((Z_PUNKTE + PUNKTE_SP) * 8);
-    anzeige_streifen();
+/* Puts the strip's cells on the screen. They only go missing when something
+   wipes the whole screen, so this does nothing almost every time. */
+static void anzeige_zeichnen(void)
+{
+    unsigned char sp;
+    unsigned p;
+
+    if (anz_gesetzt) return;
+    anz_gesetzt = 1;
+    anz_zeile = ANZ_ZEILE;
+
+    p = zeilenanfang[ANZ_ZEILE];
+    for (sp = 0; sp < PUNKTE_SP; ++sp) {
+        BILD[p + sp] = (unsigned char)(Z_PUNKTE + sp);
+        FARBE[p + sp] = C_WEISS;
+    }
 }
 
 /* ======================================================================
@@ -1721,6 +1662,7 @@ static unsigned char v_gross;             /* large birds instead of small   */
 static unsigned char mutterwelle;         /* the saucer instead of a flock  */
 static unsigned char v_breit;             /* width in 2600 pixels           */
 static unsigned char v_hoch;              /* height in pixels               */
+static unsigned char v_tempo;             /* how fast a dive gets, per round */
 
 static unsigned char form_x;              /* left edge of the formation    */
 static signed char form_dx;
@@ -1825,6 +1767,13 @@ static void welle_aufbauen(void)
 
     form_dx = 1;
     sturz_zeit = 20;
+
+    /* The first round is meant to be survivable: a dive builds up to four
+       pixels a pass, which is about three seconds from the formation to the
+       bottom. Every round after that adds one, up to eight. */
+    v_tempo = (unsigned char)(3 + runde);
+    if (v_gross) ++v_tempo;
+    if (v_tempo > 8) v_tempo = 8;
     voegel_uebrig = voegel_zahl;
 
     for (i = 0; i < voegel_zahl; ++i) {
@@ -1899,7 +1848,7 @@ static void voegel_bewegen(void)
             }
         }
         /* the 2600 turns the screw only gently from round to round */
-        sturz_zeit = (unsigned char)(14 + (zufall() & 15));
+        sturz_zeit = (unsigned char)(18 + (zufall() & 15));
         if (runde > 1) {
             unsigned char ab = (unsigned char)(runde - 1);
             if (ab > 4) ab = 4;
@@ -1934,10 +1883,14 @@ static void voegel_bewegen(void)
             ++v_zeit[i];
             y = v_y[i] + v_dy[i];
             x = v_x[i] + v_dx[i] + WACKEL[v_zeit[i] & 7];
-            if (v_dy[i] < 6) ++v_dy[i];
+            if (v_dy[i] < v_tempo) ++v_dy[i];
             /* steer towards the ship while there is still room */
-            if (x > (int)spieler_x + 4) v_dx[i] = -2;
-            else if (x + 4 < (int)spieler_x) v_dx[i] = 2;
+            /* It only looks where the ship is every so often. Correcting on
+               every pass would make a dive impossible to step out of. */
+            if ((v_zeit[i] & 7) == 0) {
+                if (x > (int)spieler_x + 4) v_dx[i] = -2;
+                else if (x + 4 < (int)spieler_x) v_dx[i] = 2;
+            }
             if (x < 0) x = 0;
             if (x > 152) x = 152;
             v_x[i] = (unsigned char)x;
@@ -2613,7 +2566,6 @@ static void abspann(void)
 {
     char zeile[8];
     unsigned char i;
-    unsigned long rest;
 
     musik_aus();
     mutterwelle = 0;
@@ -2623,11 +2575,7 @@ static void abspann(void)
 
     text_breit(11, 10, "GAME OVER", C_ROT);
 
-    rest = punkte;
-    for (i = 6; i > 0; --i) {
-        zeile[i - 1] = (char)('0' + (unsigned char)(rest % 10));
-        rest /= 10;
-    }
+    for (i = 0; i < 6; ++i) zeile[i] = (char)('0' + punkte_z[i]);
     zeile[6] = 0;
     text_zeigen(14, 14, "SCORE", C_GRAU);
     text_zeigen(20, 14, zeile, C_WEISS);
@@ -2729,7 +2677,7 @@ static unsigned char welle_spielen(void)
                 if (unsterblich) { welle_aufbauen(); continue; }
                 sterben();
                 if (--leben == 0) return 1;
-                anzeige_bauen();
+                leben_bauen();
                 spieler_setzen();
                 welle_aufbauen();
                 continue;
@@ -2739,7 +2687,7 @@ static unsigned char welle_spielen(void)
         if (treffer_pruefen() && !unsterblich) {
             sterben();
             if (--leben == 0) return 1;
-            anzeige_bauen();
+            leben_bauen();
             spieler_setzen();
             warten(TAKT);
             continue;
@@ -2789,7 +2737,8 @@ int main(void)
     for (;;) {
         if (titelbild()) break;
 
-        punkte = 0;
+        for (i = 0; i < 6; ++i) punkte_z[i] = 0;
+        bonus_gegeben = 0;
         leben = 5;
         welle = 1;
         runde = 1;
