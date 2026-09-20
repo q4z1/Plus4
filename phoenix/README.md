@@ -74,10 +74,26 @@ over it put it back when they move on. A shot takes a bite out of the lowest
 piece of hull in its column; once a column is chewed through, the shot still
 has to pass the rim, which turns and closes the gap again.
 
-The result is nine to fifteen passes a second, depending on how much is
-flying. Every speed and every length of time in the game is counted in those
-passes rather than in frames, which is why [phoenix.c](phoenix.c) has a `TAKT`
-constant and no magic number for the shield's second and a half.
+**Everything that moves with the scroll moves in the retrace.** The fine
+scroll register and the cells that ride it have to change in the same gap
+between two frames. Stepping the stars on a row from inside the game loop
+instead put them in their new place while the register still held the old
+offset, and the whole background jumped eight pixels and back — once a second,
+which reads as the entire picture stuttering rather than as a background
+problem.
+
+The result is about ten passes a second with a full flock on screen, more as
+it empties. Every speed and every length of time in the game is counted in
+those passes rather than in frames, which is why [phoenix.c](phoenix.c) has a
+`TAKT` constant and no magic number for the shield's second and a half.
+
+Getting there took measuring rather than guessing. Of one pass, the figures
+cost about half, and of that the arithmetic around the drawing — working out
+which cells a figure lands on and handing back the ones it has left — cost
+more than the drawing itself, so that part is assembly too. What C does here
+it does honestly but expensively: parameters live on a software stack and are
+read back through a zero page pointer on every use, and `sy + 8 - yfein` on
+three bytes is a call to a sixteen bit addition routine.
 
 ## What is not 1:1
 

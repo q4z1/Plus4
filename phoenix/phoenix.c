@@ -246,16 +246,27 @@ static void sternenhimmel_aufbauen(void)
 
 /*
  * One pixel further down. Every eighth pixel the fine scroll has used up its
- * range: it starts over and the stars move on by one cell, which is the only
- * moment the screen memory is touched at all.
+ * range and the stars have to move on by one cell - but that must not happen
+ * here: at this point the old picture is still on the screen with the old
+ * fine scroll, and cells moved now would show up eight pixels too low until
+ * the register catches up. The whole starfield would jump once a second.
+ *
+ * So this only counts, and hintergrund_ruecken() further down does the moving,
+ * in the same retrace in which the register is written.
  */
+static unsigned char scroll_umbruch;
+
 static void scrollen(void)
 {
-    unsigned char i, ze;
-
     ++scrollpos;
     yfein = (unsigned char)(scrollpos & 7);
-    if (yfein != 0) return;
+    if (yfein == 0) scroll_umbruch = 1;
+}
+
+/* The stars one cell on. Called from the retrace, never from the game loop. */
+static void sterne_ruecken(void)
+{
+    unsigned char i, ze;
 
     for (i = 0; i < STERNE; ++i) {
         hintergrund_setzen(stern_sp[i], stern_ze[i], Z_LEER, C_SCHWARZ);
@@ -623,7 +634,7 @@ static unsigned char steuerung(void)
  * so the pool is handed out again whenever a wave starts.
  */
 static unsigned char fig_basis[FIG_N + SCH_N];   /* first character code    */
-static unsigned fig_zeichen[FIG_N + SCH_N];      /* and its byte offset     */
+static unsigned char *fig_zeiger[FIG_N + SCH_N]; /* and where it lives      */
 static unsigned char fig_n;                      /* slots for birds         */
 
 static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
@@ -633,17 +644,17 @@ static void vorrat_verteilen(unsigned char gross, unsigned char voegel)
     fig_n = voegel;
     code = Z_VORRAT;
     fig_basis[0] = code;                 /* the ship is always small */
-    fig_zeichen[0] = (unsigned)code << 3;
+    fig_zeiger[0] = zeichensatz + ((unsigned)code << 3);
     code = (unsigned char)(code + 8);
 
     for (i = 1; i < FIG_N; ++i) {
         fig_basis[i] = code;
-        fig_zeichen[i] = (unsigned)code << 3;
+        fig_zeiger[i] = zeichensatz + ((unsigned)code << 3);
         if (i <= voegel) code = (unsigned char)(code + gross);
     }
     for (i = 0; i < SCH_N; ++i) {
         fig_basis[FIG_N + i] = code;
-        fig_zeichen[FIG_N + i] = (unsigned)code << 3;
+        fig_zeiger[FIG_N + i] = zeichensatz + ((unsigned)code << 3);
         code = (unsigned char)(code + 8);
     }
 }
@@ -799,7 +810,16 @@ static unsigned char f_sp[FORMEN_N];         /* cells across               */
 static unsigned char f_ze[FORMEN_N];         /* cells down                 */
 static unsigned char f_n[FORMEN_N];          /* characters it uses         */
 static unsigned form_stufe[FORMEN_N];        /* bytes from one view to next */
+static unsigned char f_laenge[FORMEN_N];     /* bytes of one view, minus one */
+/* A ready made pointer to every one of the 32 views of every shape. Working
+   the address out instead would mean a 16 bit multiplication per figure and
+   per frame, which cc65 does with a subroutine call. */
+static unsigned char *form_sicht[FORMEN_N * 32];
+static unsigned char **form_sicht_von[FORMEN_N];
 static unsigned char *zeile_bild[ZEILEN];    /* screen address of each row  */
+static unsigned char *zeile_farbe[ZEILEN];   /* and its colour cells        */
+static unsigned char *zeile_hg[ZEILEN];      /* the shadow copy of both     */
+static unsigned char *zeile_hgf[ZEILEN];
 
 /*
  * Works out all 32 views of one shape. The shape is stored one bit per 2600
@@ -830,6 +850,11 @@ static void form_ablegen(unsigned char nr, const unsigned char *daten,
     form_stufe[nr] = gr;
     form_block[nr] = bloecke + blockende;
     blockende += gr * 32;
+
+    f_laenge[nr] = (unsigned char)(f_n[nr] * 8 - 1);
+    form_sicht_von[nr] = &form_sicht[nr * 32];
+    for (p = 0; p < 32; ++p)
+        form_sicht[nr * 32 + p] = form_block[nr] + (unsigned)p * gr;
 
     for (p = 0; p < 4; ++p) {
         s = (unsigned char)(p + p);
@@ -1002,70 +1027,295 @@ static void figur_bloecken(void)
  * x2      left edge in 2600 pixels
  * sy      top edge in screen pixels, 0 is the top of the playfield
  */
+unsigned char fm_nr, fm_form, fm_x2, fm_sy, fm_farbe;
+unsigned char fm_sp, fm_ze, fm_nsp, fm_nze, fm_voff, fm_zeende, fm_spende;
+
+/*
+ * Works out where a figure lands, hands back the cells it has left, and sets
+ * the drawing routine going. This used to be C and was the single most
+ * expensive thing in the program - a third of every pass - because cc65 keeps
+ * parameters on a software stack, reads each one back through a zero page
+ * pointer on every use, and widens byte arithmetic to sixteen bits at the
+ * slightest excuse.
+ *
+ * Zero page: ptr1 screen row, ptr2 shadow characters, ptr3 shadow colours,
+ *            ptr4 colour cells, tmp1..tmp4 counters.
+ */
+static void figur_asm(void)
+{
+    __asm__(
+    ";  ---- where does it stand ----------------------------------------\n"
+    "lda %v\n"                 /* fm_x2 */
+    "and #$03\n"
+    "asl a\n"
+    "asl a\n"
+    "asl a\n"
+    "sta tmp1\n"               /* horizontal position times eight        */
+    "lda %v\n"
+    "lsr a\n"
+    "lsr a\n"
+    "sta %v\n"                 /* fm_sp = x2 / 4                         */
+
+    "lda %v\n"                 /* fm_sy */
+    "clc\n"
+    "adc #$08\n"
+    "sec\n"
+    "sbc %v\n"                 /* minus the fine scroll                  */
+    "sta tmp2\n"
+    "and #$07\n"
+    "ora tmp1\n"
+    "sta %v\n"                 /* fm_voff: which of the 32 views          */
+    "lda tmp2\n"
+    "lsr a\n"
+    "lsr a\n"
+    "lsr a\n"
+    "sta %v\n"                 /* fm_ze                                   */
+
+    ";  ---- off the screen? -------------------------------------------\n"
+    "cmp #%b\n"
+    "bcs fmweg\n"
+    "lda %v\n"
+    "cmp #%b\n"
+    "bcc fmda\n"
+    "fmweg:\n"
+    "lda %v\n"
+    "jsr %v\n"                 /* figur_loeschen(nr)                      */
+    "rts\n"
+
+    ";  ---- how many cells, cut off at the edges ----------------------\n"
+    "fmda:\n"
+    "ldx %v\n"                 /* fm_form */
+    "lda %v,x\n"               /* f_sp    */
+    "sta %v\n"                 /* fm_nsp  */
+    "lda %v,x\n"               /* f_ze    */
+    "sta %v\n"                 /* fm_nze  */
+
+    "clc\n"
+    "adc %v\n"                 /* + fm_ze */
+    "cmp #%b\n"
+    "bcc fmzeok\n"
+    "beq fmzeok\n"
+    "lda #%b\n"
+    "sec\n"
+    "sbc %v\n"
+    "sta %v\n"                 /* fm_nze = ZEILEN - ze                    */
+    "lda #%b\n"
+    "fmzeok:\n"
+    "sta %v\n"                 /* fm_zeende                               */
+
+    "lda %v\n"                 /* fm_nsp */
+    "clc\n"
+    "adc %v\n"                 /* + fm_sp */
+    "cmp #%b\n"
+    "bcc fmspok\n"
+    "beq fmspok\n"
+    "lda #%b\n"
+    "sec\n"
+    "sbc %v\n"
+    "sta %v\n"                 /* fm_nsp = BREITE - sp                    */
+    "lda #%b\n"
+    "fmspok:\n"
+    "sta %v\n"                 /* fm_spende                               */
+
+    ";  ---- give back what it no longer covers -----------------------\n"
+    ";  nothing to do while it stays on the same cells, which is the\n"
+    ";  usual case - a figure crosses a cell border only now and then\n"
+    "ldx %v\n"                 /* fm_nr */
+    "lda %v,x\n"               /* bel_nsp */
+    "beq fmmerk\n"
+    "cmp %v\n"
+    "bne fmfrei\n"
+    "lda %v,x\n"               /* bel_nze */
+    "cmp %v\n"
+    "bne fmfrei\n"
+    "lda %v,x\n"               /* bel_sp */
+    "cmp %v\n"
+    "bne fmfrei\n"
+    "lda %v,x\n"               /* bel_ze */
+    "cmp %v\n"
+    "beq fmmerk\n"
+
+    "fmfrei:\n"
+    "lda #$00\n"
+    "sta tmp1\n"               /* r, the row of the old rectangle          */
+    "fmfz:\n"
+    "ldx %v\n"
+    "lda %v,x\n"               /* bel_ze */
+    "clc\n"
+    "adc tmp1\n"
+    "sta tmp2\n"               /* alt = old top row + r                    */
+
+    ";  is this row inside the new rectangle?\n"
+    "lda #$00\n"
+    "sta tmp4\n"
+    "lda tmp2\n"
+    "cmp %v\n"                 /* fm_ze */
+    "bcc fmzn\n"
+    "cmp %v\n"                 /* fm_zeende */
+    "bcs fmzn\n"
+    "inc tmp4\n"
+    "fmzn:\n"
+
+    ";  four row pointers, all indexed by the same cell number\n"
+    "lda tmp2\n"
+    "asl a\n"
+    "tay\n"
+    "ldx %v\n"
+    "lda %v,y\n"               /* zeile_bild lo */
+    "clc\n"
+    "adc %v,x\n"               /* + bel_sp      */
+    "sta ptr1\n"
+    "lda %v+1,y\n"
+    "adc #$00\n"
+    "sta ptr1+1\n"
+    "lda %v,y\n"               /* zeile_hg      */
+    "clc\n"
+    "adc %v,x\n"
+    "sta ptr2\n"
+    "lda %v+1,y\n"
+    "adc #$00\n"
+    "sta ptr2+1\n"
+    "lda %v,y\n"               /* zeile_hgf     */
+    "clc\n"
+    "adc %v,x\n"
+    "sta ptr3\n"
+    "lda %v+1,y\n"
+    "adc #$00\n"
+    "sta ptr3+1\n"
+    "lda %v,y\n"               /* zeile_farbe   */
+    "clc\n"
+    "adc %v,x\n"
+    "sta ptr4\n"
+    "lda %v+1,y\n"
+    "adc #$00\n"
+    "sta ptr4+1\n"
+
+    "ldy #$00\n"
+    "fmfs:\n"
+    "lda tmp4\n"
+    "beq fmweg2\n"             /* row outside - always give it back        */
+    "ldx %v\n"
+    "tya\n"
+    "clc\n"
+    "adc %v,x\n"               /* bel_sp + c                               */
+    "cmp %v\n"                 /* fm_sp                                    */
+    "bcc fmweg2\n"
+    "cmp %v\n"                 /* fm_spende                                */
+    ";  still covered by the new rectangle, so leave it alone. The branch\n"
+    ";  has to be the conditional one - cc65 throws away any label that is\n"
+    ";  only reached by an unconditional jump.\n"
+    "bcc fmnext\n"
+    "fmweg2:\n"
+    "lda (ptr2),y\n"
+    "sta (ptr1),y\n"
+    "lda (ptr3),y\n"
+    "sta (ptr4),y\n"
+    "fmnext:\n"
+    "iny\n"
+    "ldx %v\n"
+    "tya\n"
+    "cmp %v,x\n"               /* cpy has no indexed mode, so compare in A */
+    "bcc fmfs\n"
+
+    "inc tmp1\n"
+    "ldx %v\n"
+    "lda tmp1\n"
+    "cmp %v,x\n"               /* bel_nze                                  */
+    "bcc fmfz\n"
+
+    ";  ---- remember the new rectangle -------------------------------\n"
+    "fmmerk:\n"
+    "ldx %v\n"
+    "lda %v\n"  "sta %v,x\n"   /* bel_sp  = fm_sp  */
+    "lda %v\n"  "sta %v,x\n"   /* bel_ze  = fm_ze  */
+    "lda %v\n"  "sta %v,x\n"   /* bel_nsp = fm_nsp */
+    "lda %v\n"  "sta %v,x\n"   /* bel_nze = fm_nze */
+
+    ";  ---- hand the drawing routine its addresses -------------------\n"
+    "lda %v\n"                 /* fm_form */
+    "asl a\n"
+    "tay\n"
+    "lda %v,y\n"               /* form_sicht_von */
+    "sta ptr1\n"
+    "lda %v+1,y\n"
+    "sta ptr1+1\n"
+    "lda %v\n"                 /* fm_voff */
+    "asl a\n"
+    "tay\n"
+    "lda (ptr1),y\n"
+    "sta %v\n"                 /* fz_block */
+    "iny\n"
+    "lda (ptr1),y\n"
+    "sta %v+1\n"
+
+    "lda %v\n"                 /* fm_nr */
+    "asl a\n"
+    "tay\n"
+    "lda %v,y\n"               /* fig_zeiger */
+    "sta %v\n"                 /* fz_ziel    */
+    "lda %v+1,y\n"
+    "sta %v+1\n"
+
+    "lda %v\n"                 /* fm_ze */
+    "asl a\n"
+    "tay\n"
+    "lda %v,y\n"               /* zeile_bild */
+    "clc\n"
+    "adc %v\n"                 /* + fm_sp    */
+    "sta %v\n"                 /* fz_bild    */
+    "lda %v+1,y\n"
+    "adc #$00\n"
+    "sta %v+1\n"
+
+    "ldx %v\n"                 /* fm_nr */
+    "lda %v,x\n"               /* fig_basis */
+    "sta %v\n"                 /* fz_code   */
+    "lda %v\n"  "sta %v\n"     /* fz_farbe  */
+    "lda %v\n"  "sta %v\n"     /* fz_nsp    */
+    "lda %v\n"  "sta %v\n"     /* fz_nze    */
+    "ldx %v\n"                 /* fm_form   */
+    "lda %v,x\n" "sta %v\n"    /* fz_stufe  */
+    "lda %v,x\n" "sta %v\n"    /* fz_laenge */
+    "jsr %v\n"                 /* figur_bloecken */
+    , fm_x2, fm_x2, fm_sp,
+      fm_sy, yfein, fm_voff, fm_ze,
+      (unsigned char)ZEILEN, fm_sp, (unsigned char)BREITE,
+      fm_nr, figur_loeschen,
+      fm_form, f_sp, fm_nsp, f_ze, fm_nze,
+      fm_ze, (unsigned char)ZEILEN, (unsigned char)ZEILEN, fm_ze, fm_nze,
+      (unsigned char)ZEILEN, fm_zeende,
+      fm_nsp, fm_sp, (unsigned char)BREITE, (unsigned char)BREITE, fm_sp,
+      fm_nsp, (unsigned char)BREITE, fm_spende,
+      fm_nr, bel_nsp, fm_nsp, bel_nze, fm_nze, bel_sp, fm_sp, bel_ze, fm_ze,
+      fm_nr, bel_ze,
+      fm_ze, fm_zeende,
+      fm_nr, zeile_bild, bel_sp, zeile_bild,
+      zeile_hg, bel_sp, zeile_hg,
+      zeile_hgf, bel_sp, zeile_hgf,
+      zeile_farbe, bel_sp, zeile_farbe,
+      fm_nr, bel_sp, fm_sp, fm_spende,
+      fm_nr, bel_nsp,
+      fm_nr, bel_nze,
+      fm_nr,
+      fm_sp, bel_sp, fm_ze, bel_ze, fm_nsp, bel_nsp, fm_nze, bel_nze,
+      fm_form, form_sicht_von, form_sicht_von, fm_voff, fz_block, fz_block,
+      fm_nr, fig_zeiger, fz_ziel, fig_zeiger, fz_ziel,
+      fm_ze, zeile_bild, fm_sp, fz_bild, zeile_bild, fz_bild,
+      fm_nr, fig_basis, fz_code,
+      fm_farbe, fz_farbe, fm_nsp, fz_nsp, fm_nze, fz_nze,
+      fm_form, f_sp, fz_stufe, f_laenge, fz_laenge,
+      figur_bloecken);
+}
+
 static void figur_malen(unsigned char nr, unsigned char form,
                         unsigned char x2, unsigned char sy, unsigned char farbe)
 {
-    unsigned char sp, ze, nsp, nze, voff, c, r, alt, zeende, spende, s2;
-    unsigned p;
-
-    voff = (unsigned char)(x2 & 3);            /* horizontal position */
-    sp = (unsigned char)(x2 >> 2);
-    ze = (unsigned char)(sy + 8 - yfein);
-    voff = (unsigned char)((voff << 3) + (ze & 7));
-    ze = (unsigned char)(ze >> 3);
-
-    /* Every comparison here is between bytes on purpose: written against
-       plain constants cc65 widens them to sixteen bits and pushes both sides
-       through its software stack, which costs more than the drawing itself. */
-    if (ze > (unsigned char)(ZEILEN - 1) || sp > (unsigned char)(BREITE - 1)) {
-        figur_loeschen(nr);
-        return;
-    }
-
-    nsp = f_sp[form];
-    nze = f_ze[form];
-    if ((unsigned char)(ze + nze) > (unsigned char)ZEILEN)
-        nze = (unsigned char)(ZEILEN - ze);
-    if ((unsigned char)(sp + nsp) > (unsigned char)BREITE)
-        nsp = (unsigned char)(BREITE - sp);
-    zeende = (unsigned char)(ze + nze);
-    spende = (unsigned char)(sp + nsp);
-
-    /* Give back everything the figure used to cover and no longer does.
-       While it stays on the same cells there is nothing to give back, and
-       that is the usual case - a figure crosses a cell border only now and
-       then. */
-    if (bel_nsp[nr] && (bel_nsp[nr] != nsp || bel_nze[nr] != nze ||
-                        bel_sp[nr] != sp || bel_ze[nr] != ze)) {
-        for (r = 0; r < bel_nze[nr]; ++r) {
-            alt = (unsigned char)(bel_ze[nr] + r);
-            p = zeilenanfang[alt] + bel_sp[nr];
-            for (c = 0; c < bel_nsp[nr]; ++c) {
-                s2 = (unsigned char)(bel_sp[nr] + c);
-                if (alt >= ze && alt < zeende && s2 >= sp && s2 < spende) {
-                    ++p;
-                    continue;
-                }
-                BILD[p] = hg_zeichen[p];
-                FARBE[p] = hg_farbe[p];
-                ++p;
-            }
-        }
-    }
-
-    bel_sp[nr] = sp; bel_ze[nr] = ze;
-    bel_nsp[nr] = nsp; bel_nze[nr] = nze;
-
-    fz_block = form_block[form] + form_stufe[form] * voff;
-    fz_ziel = zeichensatz + fig_zeichen[nr];
-    fz_bild = zeile_bild[ze] + sp;
-    fz_code = fig_basis[nr];
-    fz_farbe = farbe;
-    fz_nsp = nsp;
-    fz_nze = nze;
-    fz_stufe = f_sp[form];
-    fz_laenge = (unsigned char)(f_n[form] * 8 - 1);
-    figur_bloecken();
+    fm_nr = nr;
+    fm_form = form;
+    fm_x2 = x2;
+    fm_sy = sy;
+    fm_farbe = farbe;
+    figur_asm();
 }
 
 /* Takes a figure off the screen. */
@@ -1416,6 +1666,8 @@ static signed char v_dy[VOEGEL];
 static unsigned char v_platz[VOEGEL];     /* place in the formation        */
 static unsigned char v_flug[VOEGEL];      /* wing beat                     */
 static unsigned char v_zeit[VOEGEL];
+static unsigned char v_hx[VOEGEL];        /* place in the formation, from    */
+static unsigned char v_hy[VOEGEL];        /* form_x and absolute             */
 static unsigned char v_fluegel[VOEGEL];   /* bit 0 left, bit 1 right        */
 static unsigned char v_regen[VOEGEL];     /* until the wings grow back      */
 static unsigned char voegel_uebrig;
@@ -1537,8 +1789,10 @@ static void welle_aufbauen(void)
         v_zeit[i] = 0;
         v_fluegel[i] = 3;
         v_regen[i] = 0;
-        v_x[i] = platz_x(i);
-        v_y[i] = platz_y(i);
+        v_hx[i] = (unsigned char)(platz_x(i) - form_x);
+        v_hy[i] = platz_y(i);
+        v_x[i] = (unsigned char)(form_x + v_hx[i]);
+        v_y[i] = v_hy[i];
     }
     for (i = voegel_zahl; i < VOEGEL; ++i) v_zustand[i] = V_LEER;
     for (i = 0; i < EIER; ++i) ei_aktiv[i] = 0;
@@ -1570,6 +1824,11 @@ static void voegel_bewegen(void)
     unsigned char i, z;
     int x, y;
 
+    /* The mothership wave flies without a flock, and none of what follows
+       means anything then - the picker below would look for a bird among
+       none of them and never come back. */
+    if (voegel_zahl == 0) return;
+
     /* the whole formation sways */
     form_x += form_dx;
     if (form_x > 44) form_dx = -1;
@@ -1579,13 +1838,17 @@ static void voegel_bewegen(void)
     if (sturz_zeit) {
         --sturz_zeit;
     } else {
-        unsigned char versuch = (unsigned char)(zufall() % voegel_zahl);
+        /* cc65 calls a division routine for every %, so the wrap is done
+           with a subtraction instead. */
+        unsigned char versuch = zufall();
+        while (versuch >= voegel_zahl) versuch = (unsigned char)(versuch - voegel_zahl);
         for (i = 0; i < voegel_zahl; ++i) {
-            unsigned char k = (unsigned char)((versuch + i) % voegel_zahl);
+            unsigned char k = (unsigned char)(versuch + i);
+            if (k >= voegel_zahl) k = (unsigned char)(k - voegel_zahl);
             if (v_zustand[k] == V_FORM) {
                 v_zustand[k] = V_STURZ;
                 v_dy[k] = 3;
-                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -1 : 1);
+                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -3 : 3);
                 v_zeit[k] = 0;
                 break;
             }
@@ -1617,19 +1880,19 @@ static void voegel_bewegen(void)
         if (v_regen[i] && --v_regen[i] == 0) v_fluegel[i] = 3;
 
         if (z == V_FORM) {
-            v_x[i] = platz_x(v_platz[i]);
-            v_y[i] = platz_y(v_platz[i]);
+            v_x[i] = (unsigned char)(form_x + v_hx[v_platz[i]]);
+            v_y[i] = v_hy[v_platz[i]];
             continue;
         }
 
         if (z == V_STURZ) {
             ++v_zeit[i];
             y = v_y[i] + v_dy[i];
-            x = v_x[i] + v_dx[i] * 3 + WACKEL[v_zeit[i] & 7];
+            x = v_x[i] + v_dx[i] + WACKEL[v_zeit[i] & 7];
             if (v_dy[i] < 9) v_dy[i] += 2;
             /* steer towards the ship while there is still room */
-            if (x > (int)spieler_x + 4) v_dx[i] = -1;
-            else if (x + 4 < (int)spieler_x) v_dx[i] = 1;
+            if (x > (int)spieler_x + 4) v_dx[i] = -3;
+            else if (x + 4 < (int)spieler_x) v_dx[i] = 3;
             if (x < 0) x = 0;
             if (x > 152) x = 152;
             v_x[i] = (unsigned char)x;
@@ -1644,8 +1907,8 @@ static void voegel_bewegen(void)
         }
 
         /* on the way back to its place in the formation */
-        x = platz_x(v_platz[i]);
-        y = platz_y(v_platz[i]);
+        x = (int)(unsigned char)(form_x + v_hx[v_platz[i]]);
+        y = (int)v_hy[v_platz[i]];
         if (v_x[i] + 3 < x) v_x[i] = (unsigned char)(v_x[i] + 4);
         else if (v_x[i] > x + 3) v_x[i] = (unsigned char)(v_x[i] - 4);
         else v_x[i] = x;
@@ -2307,7 +2570,18 @@ static void bild_warten(void)
     ++durchlaeufe;
     while (TED_RASTER >= 210) { eingang_abtasten(); }
     while (TED_RASTER <  210) { eingang_abtasten(); }
+
+    /* The beam has left the picture. The new fine scroll and everything that
+       moves with it belong together in this one gap - otherwise the screen
+       shows the cells in their new place while the register still holds the
+       old offset, and the whole background jumps eight pixels and back. */
     TED_SENKR = (unsigned char)(0x10 | yfein);   /* 24 rows, fine scroll */
+    if (scroll_umbruch) {
+        scroll_umbruch = 0;
+        sterne_ruecken();
+        if (mutterwelle && ms_lebt &&
+            (unsigned char)(ms_zeile + MS_HOCH) < 22) mutter_sinken();
+    }
 }
 
 static void bild_zeichnen(void)
@@ -2405,10 +2679,7 @@ static unsigned char welle_spielen(void)
 
         /* In the saucer wave the background is what carries the saucer down,
            and it takes its time about it. */
-        if (!mutterwelle || (durchlaeufe & 1) == 0) {
-            scrollen();
-            if (mutterwelle && yfein == 0 && ms_zeile + MS_HOCH < 22) mutter_sinken();
-        }
+        if (!mutterwelle || (durchlaeufe & 1) == 0) scrollen();
         klang_weiter();
         bild_zeichnen();
     }
@@ -2433,7 +2704,12 @@ int main(void)
     for (i = 0; i < FIG_N + SCH_N; ++i) bel_nsp[i] = 0;
 
     zeichensatz_einrichten();
-    for (i = 0; i < ZEILEN; ++i) zeile_bild[i] = BILD + zeilenanfang[i];
+    for (i = 0; i < ZEILEN; ++i) {
+        zeile_bild[i]  = BILD + zeilenanfang[i];
+        zeile_farbe[i] = FARBE + zeilenanfang[i];
+        zeile_hg[i]    = hg_zeichen + zeilenanfang[i];
+        zeile_hgf[i]   = hg_farbe + zeilenanfang[i];
+    }
 
     TED_HGRUND = C_SCHWARZ;
     TED_RAHMEN = C_SCHWARZ;

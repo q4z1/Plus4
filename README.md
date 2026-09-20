@@ -156,6 +156,11 @@ emulator.
   frame: cc65 otherwise keeps every local on its software stack, and each access is
   an indexed load through a zero-page pointer. There is no recursion in a game loop,
   so static locals cost nothing.
+- **Whatever rides the fine scroll has to move in the retrace.** Changing the
+  scroll register in the gap between two frames but stepping the cells that go
+  with it from inside the game loop puts them in their new place while the
+  register still holds the old offset. The background jumps a whole character
+  and back, once a second, and it reads as the entire picture stuttering.
 - **Measure with an autopilot and an immortality switch.** A game left alone dies in
   seconds, and then the numbers describe BASIC sitting at its prompt rather than the
   game. An early Phoenix measurement said 0.8 passes per second for exactly that
