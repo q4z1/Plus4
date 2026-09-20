@@ -30,6 +30,7 @@ After the fifth wave the round starts again, a little quicker each time.
 ![Wave 1](screenshots/wave1.png)
 ![Wave 3](screenshots/wave3.png)
 ![The mothership](screenshots/mothership.png)
+![Game over](screenshots/gameover.png)
 
 **Scoring**, as on the 2600: a small bird is worth 20 sitting in the formation
 and 80 in flight; a large one 100 to 500 depending on how far down it has come

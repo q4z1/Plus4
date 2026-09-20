@@ -1824,7 +1824,7 @@ static void welle_aufbauen(void)
     if (mutterwelle) mutter_aufbauen();
 
     form_dx = 1;
-    sturz_zeit = 16;
+    sturz_zeit = 20;
     voegel_uebrig = voegel_zahl;
 
     for (i = 0; i < voegel_zahl; ++i) {
@@ -1892,14 +1892,14 @@ static void voegel_bewegen(void)
             if (k >= voegel_zahl) k = (unsigned char)(k - voegel_zahl);
             if (v_zustand[k] == V_FORM) {
                 v_zustand[k] = V_STURZ;
-                v_dy[k] = 3;
-                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -3 : 3);
+                v_dy[k] = 2;
+                v_dx[k] = (signed char)(v_x[k] > spieler_x ? -2 : 2);
                 v_zeit[k] = 0;
                 break;
             }
         }
         /* the 2600 turns the screw only gently from round to round */
-        sturz_zeit = (unsigned char)(8 + (zufall() & 15));
+        sturz_zeit = (unsigned char)(14 + (zufall() & 15));
         if (runde > 1) {
             unsigned char ab = (unsigned char)(runde - 1);
             if (ab > 4) ab = 4;
@@ -1934,10 +1934,10 @@ static void voegel_bewegen(void)
             ++v_zeit[i];
             y = v_y[i] + v_dy[i];
             x = v_x[i] + v_dx[i] + WACKEL[v_zeit[i] & 7];
-            if (v_dy[i] < 9) v_dy[i] += 2;
+            if (v_dy[i] < 6) ++v_dy[i];
             /* steer towards the ship while there is still room */
-            if (x > (int)spieler_x + 4) v_dx[i] = -3;
-            else if (x + 4 < (int)spieler_x) v_dx[i] = 3;
+            if (x > (int)spieler_x + 4) v_dx[i] = -2;
+            else if (x + 4 < (int)spieler_x) v_dx[i] = 2;
             if (x < 0) x = 0;
             if (x > 152) x = 152;
             v_x[i] = (unsigned char)x;
@@ -1954,10 +1954,10 @@ static void voegel_bewegen(void)
         /* on the way back to its place in the formation */
         x = (int)(unsigned char)(form_x + v_hx[v_platz[i]]);
         y = (int)v_hy[v_platz[i]];
-        if (v_x[i] + 3 < x) v_x[i] = (unsigned char)(v_x[i] + 4);
-        else if (v_x[i] > x + 3) v_x[i] = (unsigned char)(v_x[i] - 4);
+        if (v_x[i] + 2 < x) v_x[i] = (unsigned char)(v_x[i] + 3);
+        else if (v_x[i] > x + 2) v_x[i] = (unsigned char)(v_x[i] - 3);
         else v_x[i] = x;
-        if (v_y[i] < y) v_y[i] = (unsigned char)(v_y[i] + 6);
+        if (v_y[i] < y) v_y[i] = (unsigned char)(v_y[i] + 4);
         if (v_y[i] >= y && v_x[i] == x) v_zustand[i] = V_FORM;
         if (v_y[i] > y) v_y[i] = y;
     }
@@ -1968,7 +1968,7 @@ static void eier_bewegen(void)
     unsigned char i;
     for (i = 0; i < EIER; ++i) {
         if (!ei_aktiv[i]) continue;
-        ei_y[i] = (unsigned char)(ei_y[i] + 8);
+        ei_y[i] = (unsigned char)(ei_y[i] + 6);
         if (ei_y[i] > SPIEL_UNTEN) {
             ei_aktiv[i] = 0;
             figur_loeschen((unsigned char)(SLOT_EI + i));
@@ -2473,6 +2473,7 @@ static unsigned char autopilot_steuern(void)
 #define Z_TEXT Z_VORRAT           /* 64 characters of ROM font */
 
 static void warten(unsigned char schritte);
+static void alles_loeschen(void);
 static unsigned char autopilot;
 
 static void textfont_laden(void)
@@ -2594,12 +2595,44 @@ static unsigned char titelbild(void)
     return auf_feuer_warten();
 }
 
+/*
+ * Waits without drawing anything. warten() further down redraws the figures
+ * on every pass, which on a text screen means they eat the letters: the ROM
+ * font is loaded into the same pool of characters the figures write
+ * themselves into.
+ */
+static void warten_still(unsigned char schritte)
+{
+    while (schritte--) {
+        klang_weiter();
+        bild_warten();
+    }
+}
+
 static void abspann(void)
 {
+    char zeile[8];
+    unsigned char i;
+    unsigned long rest;
+
     musik_aus();
+    mutterwelle = 0;
+    alles_loeschen();          /* figures off the screen before the font  */
+    bildschirm_leeren();       /* goes into the characters they were using */
     textfont_laden();
-    text_breit(11, 11, "GAME OVER", C_ROT);
-    warten(3 * TAKT);
+
+    text_breit(11, 10, "GAME OVER", C_ROT);
+
+    rest = punkte;
+    for (i = 6; i > 0; --i) {
+        zeile[i - 1] = (char)('0' + (unsigned char)(rest % 10));
+        rest /= 10;
+    }
+    zeile[6] = 0;
+    text_zeigen(14, 14, "SCORE", C_GRAU);
+    text_zeigen(20, 14, zeile, C_WEISS);
+
+    warten_still(3 * TAKT);
     auf_feuer_warten();
 }
 
