@@ -2130,61 +2130,69 @@ static void voegel_malen(void)
  * it reach the alien in the middle.
  * ==================================================================== */
 
-#define MS_BREIT 24
-#define MS_HOCH   8
-#define MS_LINKS  8          /* left cell column on screen */
+/*
+ * The saucer, traced off a screenshot of the original like everything else.
+ * It is eighty 2600 pixels across and forty-one tall - twenty character cells
+ * by five and a bit - and its shape is a stepped one: two banks of blocks
+ * climbing outwards from a notch at the top, a band across the full width,
+ * and a hull below that tapers away to nothing.
+ *
+ * The alien sits in the notch, above the band. That is why the way in is from
+ * below: chew a column out of the hull, wait for the turning band to open at
+ * that spot, and only then is there a line to the middle.
+ */
+#define MS_BREIT 20
+#define MS_HOCH   6
+#define MS_LINKS 10          /* left cell column, centred on the screen */
 
 #define MZ_LEER    0
-#define MZ_SPERRE  5         /* a piece of the turning rim */
-#define MZ_CHEF    6         /* the alien in the middle    */
+#define MZ_SPERRE  5         /* a piece of the turning band */
+#define MZ_CHEF    6         /* the alien in the middle     */
 
 #define Z_MUTTER 240         /* 240..248 belong to the saucer */
 
 /* Per row the first and last cell the saucer reaches into. */
-static const unsigned char MS_VON[MS_HOCH]  = {  8,  6,  2,  0,  0,  2,  6,  8 };
-static const unsigned char MS_BIS[MS_HOCH]  = { 15, 17, 21, 23, 23, 21, 17, 15 };
+static const unsigned char MS_VON[MS_HOCH] = {  7,  4,  0,  0,  2,  6 };
+static const unsigned char MS_BIS[MS_HOCH] = { 12, 15, 19, 19, 17, 13 };
+
+/* and its colour: the upper banks are yellow-green in the original, the band
+   blue and the hull a dark magenta */
 static const unsigned char MS_FARBE[MS_HOCH] = {
-    0x45, 0x47, 0x4B, 0x42, 0x42, 0x4B, 0x47, 0x45
+    0x6A, 0x6A, 0x56, 0x44, 0x44, 0x44
 };
 
-#define MS_SPERRZEILE 4      /* the row that turns */
-#define MS_CHEFZEILE  2
-#define MS_CHEFSP    11
+#define MS_SPERRZEILE 2      /* the row that turns   */
+#define MS_CHEFZEILE  0      /* the alien, two cells */
+#define MS_CHEFSP     9
 
 static unsigned char ms_feld[MS_HOCH][MS_BREIT];
 static unsigned char ms_zeile;       /* topmost cell row on screen */
-static unsigned char ms_dreh;        /* how far the rim has turned */
+static unsigned char ms_dreh;        /* how far the band has turned */
 static unsigned char ms_lebt;
 static unsigned char ms_bombe_zeit;
 static unsigned char ms_takt;       /* until it comes down one row */
 
-/* The saucer's own characters: solid hull eaten away from below, the rim,
-   and four cells that make up the alien. */
-static const unsigned char CHEF[16] = {
-    0x07, 0xE0,
-    0x1F, 0xF8,
-    0x3C, 0x3C,
-    0x7E, 0x7E,
-    0x7F, 0xFE,
-    0xFF, 0xFF,
-    0xEF, 0xF7,
-    0xC7, 0xE3
-};
-
-static const unsigned char CHEF2[16] = {
-    0xC7, 0xE3,
-    0xEF, 0xF7,
-    0x7F, 0xFE,
-    0x3F, 0xFC,
-    0x1B, 0xD8,
-    0x33, 0xCC,
-    0x66, 0x66,
-    0x44, 0x22
+/*
+ * The alien: eight 2600 pixels across and eleven tall, so two characters by
+ * two once it is doubled in width.
+ */
+static const unsigned char CHEF[11] = {
+    0x24,   /*   #  #   */
+    0x18,   /*    ##    */
+    0x7E,   /*  ######  */
+    0xE7,   /* ###  ### */
+    0x7E,   /*  ######  */
+    0x18,   /*    ##    */
+    0x18,   /*    ##    */
+    0x18,   /*    ##    */
+    0x18,   /*    ##    */
+    0x24,   /*   #  #   */
+    0x42    /*  #    #  */
 };
 
 static void mutterzeichen_bauen(void)
 {
-    unsigned char s, i;
+    unsigned char s, i, b;
     unsigned char *z;
 
     /* four states of hull, each bite two pixel rows deep */
@@ -2193,16 +2201,20 @@ static void mutterzeichen_bauen(void)
         for (i = 0; i < 8; ++i)
             z[i] = (unsigned char)(i < (unsigned char)(8 - s - s) ? 0xFF : 0x00);
     }
-    /* the rim */
+    /* the turning band */
     z = zeichensatz + (Z_MUTTER + 4) * 8;
     for (i = 0; i < 8; ++i) z[i] = (unsigned char)((i & 1) ? 0x66 : 0x99);
 
-    /* the alien, two cells by two */
-    for (i = 0; i < 8; ++i) {
-        zeichensatz[(Z_MUTTER + 5) * 8 + i] = CHEF[i + i];
-        zeichensatz[(Z_MUTTER + 6) * 8 + i] = CHEF[i + i + 1];
-        zeichensatz[(Z_MUTTER + 7) * 8 + i] = CHEF2[i + i];
-        zeichensatz[(Z_MUTTER + 8) * 8 + i] = CHEF2[i + i + 1];
+    /* the alien, doubled in width into two characters by two */
+    for (i = 0; i < 16; ++i) {
+        b = (unsigned char)(i < 11 ? CHEF[i] : 0);
+        if (i < 8) {
+            zeichensatz[(Z_MUTTER + 5) * 8 + i] = VERDOPPELT[b >> 4];
+            zeichensatz[(Z_MUTTER + 6) * 8 + i] = VERDOPPELT[b & 15];
+        } else {
+            zeichensatz[(Z_MUTTER + 7) * 8 + i - 8] = VERDOPPELT[b >> 4];
+            zeichensatz[(Z_MUTTER + 8) * 8 + i - 8] = VERDOPPELT[b & 15];
+        }
     }
 }
 
@@ -2226,7 +2238,7 @@ static void mutter_zelle(unsigned char r, unsigned char c)
         zeichen = (unsigned char)(Z_MUTTER + 5
                 + (r > MS_CHEFZEILE ? 2 : 0)
                 + (c > MS_CHEFSP ? 1 : 0));
-        farbe = C_VIOLETT;
+        farbe = C_V_VIOLETT;
     } else {
         zeichen = (unsigned char)(Z_MUTTER + 4 - w);
         farbe = MS_FARBE[r];
@@ -2261,7 +2273,7 @@ static void mutter_aufbauen(void)
     unsigned char r, c;
 
     mutterzeichen_bauen();
-    ms_zeile = 0;
+    ms_zeile = 3;              /* it comes in below the score */
     ms_dreh = 0;
     ms_lebt = 1;
     ms_bombe_zeit = 8;

@@ -114,10 +114,13 @@ wave starts. Drawing is then a copy of 48 bytes into the character set plus a
 handful of screen codes. Computing the cells per frame instead cost about
 4000 cycles per figure, and a frame has 17784.
 
-**The mothership is background, not a figure.** It is far too large to redraw,
-so its cells live in the shadow copy of the screen and it comes down a whole
-character row at a time, slowly. Figures flying over it put it back when they
-move on. A shot takes a bite out of the lowest
+**The mothership is background, not a figure.** It is eighty 2600 pixels
+across and forty-one tall - twenty character cells by five and a bit - which
+is far too large to redraw, so its cells live in the shadow copy of the screen
+and it comes down a whole character row at a time. Figures flying over it put
+it back when they move on. Its shape is traced off the original too: two banks
+of blocks climbing outwards from a notch at the top with the alien sitting in
+it, a band across the full width, and a hull below that tapers away. A shot takes a bite out of the lowest
 piece of hull in its column; once a column is chewed through, the shot still
 has to pass the rim, which turns and closes the gap again.
 
@@ -151,8 +154,8 @@ than the effect.
 
 ## Where the shapes come from
 
-The ships, the birds and the ground band are **traced off screenshots of the
-original, pixel by pixel**, not drawn by eye. The 2600 screenshots are four
+The ships, the birds, the mothership, the alien and the ground band are
+**traced off screenshots of the original, pixel by pixel**, not drawn by eye. The 2600 screenshots are four
 image pixels wide and two tall per 2600 pixel, so the sprites can be read out
 of them exactly; a small script turns the resulting bitmaps into the tables in
 [phoenix.c](phoenix.c). The comment beside each table is the shape it holds,
@@ -171,6 +174,9 @@ guessable.
   and orange, violet and green, blue, red.
 - **Eight small birds and six large ones** per wave, not the arcade's twenty.
   The 2600 shows far fewer than the arcade too, but not exactly these numbers.
+- **The explosions, the eggs, the force field and every sound** are still
+  invented. None of them appear in the screenshots that could be found, and a
+  sound cannot be read off a picture at all.
 - **One colour per figure.** The 2600 gives a sprite a different colour on
   different scanlines — the small birds are violet with an orange or a green
   band through them. A Plus/4 character cell holds one colour, so each figure
