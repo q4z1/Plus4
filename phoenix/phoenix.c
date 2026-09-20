@@ -19,14 +19,12 @@
  *   score, a set of star characters, and a pool that the moving figures write
  *   themselves into on every frame.
  *
- *   The starfield scrolls with the TED's own fine scroll ($FF06 bits 0..2),
- *   so a whole screen of stars moves one pixel per frame for free. Every
- *   eighth pixel the register wraps and the stars move on by one cell.
- *   Because the fine scroll moves *everything*, anything that is supposed to
- *   stand still on the screen - the score, the player's ship - is drawn one
- *   pixel higher for every pixel the scroll has moved. For the figures that
- *   costs nothing (they are drawn at a free vertical offset anyway), for the
- *   score it costs one pass over the score strip per frame.
+ *   The starfield is moved star by star, in software. The TED's own fine
+ *   scroll ($FF06 bits 0..2) would do it for a whole screen for nothing, and
+ *   that is how this started - but it moves *everything* in the instant the
+ *   register is written, while a figure only follows on its next redraw, and
+ *   a redraw takes longer than a frame. See scrollen() for what that looked
+ *   like. The register now stays put and the stars carry themselves.
  *
  * Layout of this file:
  *   1. Hardware          4. Score strip
@@ -177,16 +175,25 @@ static unsigned char hg_farbe[ZEILEN * BREITE];
 static unsigned zeilenanfang[ZEILEN];      /* row * 40, precomputed        */
 
 unsigned durchlaeufe;                      /* passes through the game loop  */
-static unsigned char scrollpos;            /* pixels scrolled, only 0..7 matter */
-static unsigned char yfein;                /* scrollpos & 7                */
+
+/*
+ * The TED's fine scroll is left at zero for good; this is kept because every
+ * figure position is worked out relative to it and zero is simply the case
+ * where it costs nothing.
+ */
+static unsigned char yfein;
 
 #define PUNKTE_SP 20                   /* width of the score strip in cells */
 
 #define STERNE 26
 static unsigned char stern_sp[STERNE];     /* cell column                  */
 static unsigned char stern_ze[STERNE];     /* cell row                     */
+static unsigned char stern_y[STERNE];      /* pixel row, 0..ZEILEN*8-1     */
+static unsigned char stern_x4[STERNE];     /* which quarter of the cell    */
 static unsigned char stern_z[STERNE];      /* character code               */
 static unsigned char stern_f[STERNE];      /* color                        */
+static unsigned stern_p[STERNE];           /* its cell, precomputed        */
+static unsigned char stern_zu[STERNE];     /* 1 = the score covers it      */
 
 static unsigned zufallswert = 0x2B7D;
 
@@ -219,11 +226,20 @@ static void hintergrund_setzen(unsigned char sp, unsigned char ze,
 static void stern_neu(unsigned char i, unsigned char ze)
 {
     static const unsigned char HELL[4] = { C_DUNKEL, C_GRAU, C_GRAU, C_WEISS };
+    unsigned p;
 
     stern_sp[i] = (unsigned char)(zufall() % BREITE);
+    stern_y[i] = (unsigned char)(ze << 3);
     stern_ze[i] = ze;
-    stern_z[i] = (unsigned char)(Z_STERN + (zufall() & 31));
+    stern_x4[i] = (unsigned char)(zufall() & 3);
+    stern_z[i] = (unsigned char)(Z_STERN + stern_x4[i]);
     stern_f[i] = HELL[zufall() & 3];
+    p = zeilenanfang[ze] + stern_sp[i];
+    stern_p[i] = p;
+    stern_zu[i] = (unsigned char)(stern_sp[i] < PUNKTE_SP && ze <= 2);
+    hg_farbe[p] = stern_f[i];
+    hg_zeichen[p] = stern_z[i];
+    if (!stern_zu[i]) { BILD[p] = stern_z[i]; FARBE[p] = stern_f[i]; }
 }
 
 static void sternenhimmel_aufbauen(void)
@@ -245,38 +261,53 @@ static void sternenhimmel_aufbauen(void)
 }
 
 /*
- * One pixel further down. Every eighth pixel the fine scroll has used up its
- * range and the stars have to move on by one cell - but that must not happen
- * here: at this point the old picture is still on the screen with the old
- * fine scroll, and cells moved now would show up eight pixels too low until
- * the register catches up. The whole starfield would jump once a second.
+ * One pixel further down - in software, star by star.
  *
- * So this only counts, and hintergrund_ruecken() further down does the moving,
- * in the same retrace in which the register is written.
+ * The TED's own fine scroll would do this for a whole screen for nothing, and
+ * that is how this started. But it moves *everything* at once, including the
+ * figures, and a figure only gets its compensating redraw on the next pass -
+ * which takes five frames. So every time the register stepped, the figures
+ * stood a pixel wrong until they were drawn again, and when it wrapped from
+ * seven back to zero they jumped seven pixels up and crawled back down one by
+ * one. Once a second, and very visible.
+ *
+ * There is no way to synchronise that while drawing takes longer than a
+ * frame, so the register now stays where it is and the stars carry themselves.
+ * They are sparse, so it costs almost nothing - and it hands back the pass
+ * over the score strip, which only had to be redrawn because the scroll moved
+ * underneath it.
  */
-static unsigned char scroll_umbruch;
-
 static void scrollen(void)
 {
-    ++scrollpos;
-    yfein = (unsigned char)(scrollpos & 7);
-    if (yfein == 0) scroll_umbruch = 1;
-}
-
-/* The stars one cell on. Called from the retrace, never from the game loop. */
-static void sterne_ruecken(void)
-{
-    unsigned char i, ze;
+    unsigned char i, y, ze, code;
+    unsigned p;
 
     for (i = 0; i < STERNE; ++i) {
-        hintergrund_setzen(stern_sp[i], stern_ze[i], Z_LEER, C_SCHWARZ);
-        ze = (unsigned char)(stern_ze[i] + 1);
-        if (ze >= ZEILEN) {
-            stern_neu(i, 0);
-        } else {
+        y = (unsigned char)(stern_y[i] + 1);
+        ze = (unsigned char)(y >> 3);
+        p = stern_p[i];
+
+        if (ze != stern_ze[i]) {
+            /* it has left its cell: wipe the old one first */
+            hg_zeichen[p] = Z_LEER;
+            hg_farbe[p] = C_SCHWARZ;
+            if (!stern_zu[i]) { BILD[p] = Z_LEER; FARBE[p] = C_SCHWARZ; }
+
+            if (ze >= ZEILEN) { stern_neu(i, 0); continue; }
+
             stern_ze[i] = ze;
+            p = zeilenanfang[ze] + stern_sp[i];
+            stern_p[i] = p;
+            stern_zu[i] = (unsigned char)(stern_sp[i] < PUNKTE_SP && ze <= 2);
+            hg_farbe[p] = stern_f[i];
+            if (!stern_zu[i]) FARBE[p] = stern_f[i];
         }
-        hintergrund_setzen(stern_sp[i], stern_ze[i], stern_z[i], stern_f[i]);
+
+        stern_y[i] = y;
+        code = (unsigned char)(Z_STERN + ((y & 7) << 2) + stern_x4[i]);
+        stern_z[i] = code;
+        hg_zeichen[p] = code;
+        if (!stern_zu[i]) BILD[p] = code;
     }
 }
 
@@ -296,6 +327,8 @@ static void sterne_ruecken(void)
 #define ANZ_H 22
 static unsigned char anz_bild[PUNKTE_SP][ANZ_H];
 static unsigned char anz_gesetzt;              /* has it been placed yet?  */
+static unsigned char anz_frisch;               /* strip needs copying again */
+static unsigned char anz_versatz = 0xFF;       /* the offset it was built for */
 
 static unsigned long punkte;
 static unsigned char leben;
@@ -312,6 +345,8 @@ static void anzeige_bauen(void)
     unsigned long rest;
     unsigned char stellen[6];
     const unsigned char *q;
+
+    anz_frisch = 1;
 
     for (sp = 0; sp < PUNKTE_SP; ++sp)
         for (r = 0; r < ANZ_H; ++r)
@@ -443,8 +478,9 @@ static void anzeige_zeichnen(void)
     unsigned char sp, versatz, ze, r;
     unsigned p;
 
-    /* The strip is to stand at screen pixel row 0. The fine scroll pushes
-       everything down by yfein, so the strip is drawn that much higher. */
+    /* The strip is to stand at screen pixel row 0. This still goes through
+       the scroll offset, which is nowadays always zero - it costs one
+       subtraction and keeps the score in step should it ever move again. */
     versatz = (unsigned char)(8 - yfein);      /* 1..8 */
     ze = (unsigned char)(versatz >> 3);        /* 0 or 1 */
     versatz = (unsigned char)(versatz & 7);
@@ -462,6 +498,7 @@ static void anzeige_zeichnen(void)
         }
         anz_zeile = ze;
         anz_gesetzt = 1;
+        anz_frisch = 1;
         for (r = 0; r < 2; ++r) {
             p = zeilenanfang[ze + r];
             for (sp = 0; sp < PUNKTE_SP; ++sp) {
@@ -470,6 +507,14 @@ static void anzeige_zeichnen(void)
             }
         }
     }
+
+    /* The strip only has to go into the character set again when its content
+       or its vertical offset changed. With the fine scroll standing still
+       that is rare - it used to be every single pass, and it cost a fifth of
+       the time. */
+    if (versatz != anz_versatz) { anz_versatz = versatz; anz_frisch = 1; }
+    if (!anz_frisch) return;
+    anz_frisch = 0;
 
     an_quelle = &anz_bild[0][7 - versatz];
     an_oben  = zeichensatz + (Z_PUNKTE * 8);
@@ -2009,6 +2054,7 @@ static unsigned char ms_zeile;       /* topmost cell row on screen */
 static unsigned char ms_dreh;        /* how far the rim has turned */
 static unsigned char ms_lebt;
 static unsigned char ms_bombe_zeit;
+static unsigned char ms_takt;       /* until it comes down one row */
 
 /* The saucer's own characters: solid hull eaten away from below, the rim,
    and four cells that make up the alien. */
@@ -2117,6 +2163,7 @@ static void mutter_aufbauen(void)
     ms_dreh = 0;
     ms_lebt = 1;
     ms_bombe_zeit = 8;
+    ms_takt = 16;
 
     for (r = 0; r < MS_HOCH; ++r) {
         for (c = 0; c < MS_BREIT; ++c) {
@@ -2520,7 +2567,6 @@ static unsigned char titelbild(void)
     unsigned char i;
 
     musik_aus();
-    scrollpos = 0;
     yfein = 0;
     bildschirm_leeren();
     textfont_laden();
@@ -2562,8 +2608,8 @@ static void abspann(void)
  * ==================================================================== */
 
 /*
- * Waits for the beam to leave the playfield and then hands the TED the new
- * fine scroll position, so the picture never changes while it is being drawn.
+ * Waits for the beam to leave the playfield, so drawing starts in the gap
+ * between two frames and runs down the screen roughly with it.
  */
 static void bild_warten(void)
 {
@@ -2571,16 +2617,10 @@ static void bild_warten(void)
     while (TED_RASTER >= 210) { eingang_abtasten(); }
     while (TED_RASTER <  210) { eingang_abtasten(); }
 
-    /* The beam has left the picture. The new fine scroll and everything that
-       moves with it belong together in this one gap - otherwise the screen
-       shows the cells in their new place while the register still holds the
-       old offset, and the whole background jumps eight pixels and back. */
-    TED_SENKR = (unsigned char)(0x10 | yfein);   /* 24 rows, fine scroll */
-    if (scroll_umbruch) {
-        scroll_umbruch = 0;
-        sterne_ruecken();
-        if (mutterwelle && ms_lebt &&
-            (unsigned char)(ms_zeile + MS_HOCH) < 22) mutter_sinken();
+    /* The scroll register is not touched here any more - see scrollen(). */
+    if (mutterwelle && ms_lebt && ms_takt && --ms_takt == 0) {
+        ms_takt = 16;
+        if ((unsigned char)(ms_zeile + MS_HOCH) < 22) mutter_sinken();
     }
 }
 
@@ -2677,9 +2717,7 @@ static unsigned char welle_spielen(void)
             return 0;
         }
 
-        /* In the saucer wave the background is what carries the saucer down,
-           and it takes its time about it. */
-        if (!mutterwelle || (durchlaeufe & 1) == 0) scrollen();
+        scrollen();
         klang_weiter();
         bild_zeichnen();
     }
@@ -2713,6 +2751,7 @@ int main(void)
 
     TED_HGRUND = C_SCHWARZ;
     TED_RAHMEN = C_SCHWARZ;
+    TED_SENKR = 0x10;              /* 24 rows, fine scroll at rest */
 
     for (;;) {
         if (titelbild()) break;

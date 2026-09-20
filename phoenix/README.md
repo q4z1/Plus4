@@ -51,13 +51,33 @@ like the original rather than like a Plus/4 game.
 
 Three things carry the whole thing:
 
-**The starfield scrolls in hardware.** `$FF06` bits 0–2 are the TED's fine
-scroll; a whole screen of stars moves one pixel per pass for free, and only
-every eighth pixel do the stars step on by one cell. Because the fine scroll
-moves *everything*, whatever has to stand still — the score, the ship, the
-birds — is drawn one pixel higher for every pixel the scroll has moved. For
-the figures that costs nothing, because they are drawn at a free vertical
-offset anyway; for the score it costs one pass over a 20-cell strip.
+**The starfield scrolls in software, and that is the interesting part.**
+It did not start that way. The TED has a fine scroll register (`$FF06` bits
+0–2) that moves the whole picture a pixel at a time for nothing, and a whole
+screen of stars came along for free. Everything that had to stand still — the
+score, the ship, the birds — was simply drawn a pixel higher for every pixel
+the scroll had moved, which for the figures costs nothing because they are
+placed at a free vertical offset anyway.
+
+It looked right in screenshots and wrong in motion. The register moves the
+entire screen in the instant it is written; a figure only follows on its next
+redraw, and a redraw takes a whole pass — four frames. So every step left the
+figures a pixel behind until they were drawn again, and when the register
+wrapped from seven back to zero, **everything on screen jumped seven pixels up
+and then crawled back down one figure at a time**. Once a second, across the
+whole picture.
+
+There is no way to synchronise that while drawing takes longer than a frame:
+either everything on screen is hardware-scrolled or nothing is. So the
+register now stays where it is and the stars carry themselves — they are
+sparse, one character each, and moving them costs a fraction of what the
+compensation cost. The scrolling looks exactly the same, a pixel per pass,
+because that is what it was doing before.
+
+It also handed back the score strip. That only had to be rewritten on every
+single pass because the scroll was moving underneath it; standing still, it is
+touched when the score changes and not otherwise. Between the two, the game
+went from seven frames per pass to four.
 
 **Figures are finished blocks of characters, not computed ones.** The Plus/4
 has no sprites, so a figure is characters that are rewritten as it moves. A
@@ -68,22 +88,14 @@ handful of screen codes. Computing the cells per frame instead cost about
 4000 cycles per figure, and a frame has 17784.
 
 **The mothership is background, not a figure.** It is far too large to redraw,
-so its cells live in the shadow copy of the screen and it rides the same fine
-scroll as the stars — its approach is smooth and costs nothing. Figures flying
-over it put it back when they move on. A shot takes a bite out of the lowest
+so its cells live in the shadow copy of the screen and it comes down a whole
+character row at a time, slowly. Figures flying over it put it back when they
+move on. A shot takes a bite out of the lowest
 piece of hull in its column; once a column is chewed through, the shot still
 has to pass the rim, which turns and closes the gap again.
 
-**Everything that moves with the scroll moves in the retrace.** The fine
-scroll register and the cells that ride it have to change in the same gap
-between two frames. Stepping the stars on a row from inside the game loop
-instead put them in their new place while the register still held the old
-offset, and the whole background jumped eight pixels and back — once a second,
-which reads as the entire picture stuttering rather than as a background
-problem.
-
-The result is about ten passes a second with a full flock on screen, more as
-it empties. Every speed and every length of time in the game is counted in
+The result is about twelve passes a second with a full flock on screen, more
+as it empties. Every speed and every length of time in the game is counted in
 those passes rather than in frames, which is why [phoenix.c](phoenix.c) has a
 `TAKT` constant and no magic number for the shield's second and a half.
 

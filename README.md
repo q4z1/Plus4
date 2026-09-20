@@ -22,7 +22,7 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 | | |
 | --- | --- |
 | [![Phoenix](phoenix/screenshots/wave3.png)](phoenix/README.md) | [![Pac-Man](pacman/screenshots/pacman.png)](pacman/README.md) |
-| **[Phoenix](phoenix/README.md)** — all five waves of the 2600 game, the force field, the mothership, a starfield scrolling a pixel at a time. One 2600 pixel is two Plus/4 pixels, so 160×192 lands exactly on 40×24 cells. | **[Pac-Man](pacman/README.md)** — the whole maze on one screen, four ghosts with their own ways of hunting, pixel-by-pixel movement. |
+| **[Phoenix](phoenix/README.md)** — all five waves of the 2600 game, the force field, the mothership, a starfield scrolling a pixel at a time. One 2600 pixel is two Plus/4 pixels, so 160×192 lands exactly on 40×24 cells. The hardware fine scroll was tried first and had to go; the README says why. | **[Pac-Man](pacman/README.md)** — the whole maze on one screen, four ghosts with their own ways of hunting, pixel-by-pixel movement. |
 
 The Plus/4 has no sprites at all, so both games build their figures out of
 characters that are rewritten as the figures move — and they do it in opposite
@@ -156,11 +156,14 @@ emulator.
   frame: cc65 otherwise keeps every local on its software stack, and each access is
   an indexed load through a zero-page pointer. There is no recursion in a game loop,
   so static locals cost nothing.
-- **Whatever rides the fine scroll has to move in the retrace.** Changing the
-  scroll register in the gap between two frames but stepping the cells that go
-  with it from inside the game loop puts them in their new place while the
-  register still holds the old offset. The background jumps a whole character
-  and back, once a second, and it reads as the entire picture stuttering.
+- **Either everything on screen is hardware-scrolled, or nothing is.** The
+  TED's fine scroll moves the whole picture in the instant the register is
+  written, but a figure built out of characters only follows on its next
+  redraw — and a redraw takes longer than a frame. Every step leaves the
+  figures a pixel behind, and when the register wraps they all jump seven
+  pixels and crawl back one at a time. It cannot be synchronised; it has to be
+  avoided. Moving a sparse background by hand is cheaper than compensating for
+  a scroll anyway, because the compensation touches everything on screen.
 - **Measure with an autopilot and an immortality switch.** A game left alone dies in
   seconds, and then the numbers describe BASIC sitting at its prompt rather than the
   game. An early Phoenix measurement said 0.8 passes per second for exactly that
