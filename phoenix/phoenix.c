@@ -3111,7 +3111,10 @@ static unsigned char titelbild(void)
     bildschirm_leeren();
     textfont_laden();
 
-    text_breit(13,  3, "PHOENIX", C_GELB);
+    /* The title screen carries the name the game is released under - this
+       is a rebuild, not the original, and it should say so. Thirteen wide
+       letters are twenty-six cells, so seven centres them. */
+    text_breit( 7,  3, "PHOENIX CLONE", C_GELB);
     text_zeigen( 8,  6, "AFTER THE ATARI 2600 GAME", C_GRAU);
 
     text_zeigen(10,  9, "JOYSTICK IN PORT 1", C_WEISS);
