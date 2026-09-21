@@ -1080,8 +1080,15 @@ static void pac_bewegen(void)
         kx = KX(f); ky = KY(f);
         if (MITTIG(f)) {
             if (f->wunsch != f->r && frei(kx, ky, f->wunsch, 0)) f->r = f->wunsch;
-            if (!frei(kx, ky, f->r, 0)) { f->form = FORM_ZU; return; }
+            /*
+             * Eat before testing the wall, not after. Two of the four power
+             * pills sit in an L-corner; arriving from the blocked side, the
+             * old order returned early and left the pill lying under
+             * Pac-Man until he turned. Players saw the pill "take effect
+             * one dot later".
+             */
             fressen(kx, ky);
+            if (!frei(kx, ky, f->r, 0)) { f->form = FORM_ZU; return; }
         }
         pixel_schritt(f);
         ++pac_anim;
@@ -1456,16 +1463,55 @@ static void bereit_anzeigen(void)
     text_zeigen(17, OFFY + AUSY, "READY!", C_GELB);
     bilder_warten(100);
     { unsigned char i; for (i = 15; i < 25; ++i) kachel_zeichnen(i, AUSY); }
+    /* Anything the stick dropped into the keyboard buffer on the title
+       screen would otherwise steer the first move of the round. */
+    while (kbhit()) cgetc();
 }
 
 static unsigned char runde_spielen(void)
 {
     unsigned char t, j, i, blinktakt = 0, pillen_an = 1;
+    static unsigned char joy_nachhall;   /* passes of grace after the stick */
 
     for (;;) {
         bild_warten();
 
-        t = taste_holen();
+        /*
+         * The stick is read before the keyboard, because it also talks to
+         * the keyboard.
+         *
+         * Joystick 1 hangs on the very lines of keyboard row $FB, and its
+         * contacts are indistinguishable from keys to the KERNAL's scan.
+         * Read out of the ROM table at $E026 that row is
+         *
+         *     bit 0 = 5   bit 1 = R   bit 2 = D   bit 3 = 6   bit 6 = T
+         *
+         * and the stick uses bit 0 up, 1 down, 2 left, 3 right, 6 fire.
+         * Pushing it left is therefore electrically the key D - which is
+         * this game's key for right. While the stick was held, the joystick
+         * was read last and won, but the Ds piled up in the KERNAL's
+         * buffer, and the moment the player let go, one of them turned
+         * Pac-Man round. That is the "goes right by itself" players
+         * reported, and it can only ever happen in that one direction.
+         *
+         * So while the stick is off centre, whatever lands in the buffer is
+         * the stick talking and gets thrown away. A few passes of grace
+         * after letting go catch the characters that arrive late.
+         */
+        j = joystick_lesen();
+        if ((j & (J_OBEN | J_UNTEN | J_LINKS | J_RECHTS | J_FEUER))
+                != (J_OBEN | J_UNTEN | J_LINKS | J_RECHTS | J_FEUER))
+            joy_nachhall = 4;
+        else if (joy_nachhall)
+            --joy_nachhall;
+
+        if (joy_nachhall) {
+            while (kbhit()) cgetc();      /* phantom keys from the stick */
+            t = 0;
+        } else {
+            t = taste_holen();
+        }
+
         switch (t) {
         case 'w': case 'W': case 145: PAC->wunsch = R_OBEN;   break;
         case 'a': case 'A': case 157: PAC->wunsch = R_LINKS;  break;
@@ -1475,13 +1521,8 @@ static unsigned char runde_spielen(void)
         default: break;
         }
 
-        /* The stick is read every frame and, while it is held, keeps saying
-           where to go - the keyboard arrives as single presses out of the
-           KERNAL's buffer instead. Either may set the wish; whichever came
-           last wins, so the two can be used side by side. A diagonal is
-           taken as up or down, because that is what a corridor allows more
-           often than not. */
-        j = joystick_lesen();
+        /* A diagonal counts as up or down - that is what a corridor allows
+           more often than not. */
         if (!(j & J_OBEN))        PAC->wunsch = R_OBEN;
         else if (!(j & J_UNTEN))  PAC->wunsch = R_UNTEN;
         else if (!(j & J_LINKS))  PAC->wunsch = R_LINKS;

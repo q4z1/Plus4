@@ -33,6 +33,22 @@ reads in a loop until two reads agree. Both selects work — only bit 2
 decides — and both were measured on the machine rather than read off a
 manual.
 
+The sharing cuts the other way too, and that one bit players. Joystick 1
+sits on the lines of keyboard row `$FB`, and to the KERNAL's own scan its
+contacts are simply keys. Read out of the ROM table at `$E026`, that row is
+
+| bit | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| key | 5 | R | **D** | 6 | C | F | T | X |
+
+so pushing the stick left *is* the key `D` — which is this game's key for
+right. While the stick was held the joystick read came last and won, but the
+`D`s piled up in the KERNAL's buffer, and the moment the player let go, one
+of them turned Pac-Man round. Only that one direction can do it: up, down,
+right and fire land on `5`, `R`, `6` and `T`, none of which the game uses.
+The game therefore throws the keyboard buffer away while the stick is off
+centre.
+
 One thing about the emulator rather than the machine: **VICE looks for
 joysticks only at startup** and only in `/dev/input/by-id`. A wireless pad
 that is asleep when VICE starts, or connects afterwards, is not picked up at
@@ -95,6 +111,11 @@ instead of going home.
 - **Casting the cell loop into assembly gained nothing.** The measurable wins
   came from removing `%` and 16-bit multiplications from the C loops, from
   precomputed row starts, and from skipping work that was not needed.
+- **Eat the tile before testing the wall.** Pac-Man ate what he stood on
+  only after checking that he could carry on, so a tile he stopped dead on
+  stayed uneaten until he turned. Two of the four power pills sit in an
+  L-corner, where that is exactly what happens — players saw the pill "take
+  effect one dot later".
 - **cc65 misreads deeply nested conditional expressions.** `a ? b : c ? d : e`
   three levels down gave three ghosts the same colour. Written as a branch
   with a table it is correct.
