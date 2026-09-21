@@ -2228,15 +2228,39 @@ static void textfont_laden(void);
 
 /* Puts the number of the coming wave on the screen while its shapes are
    being worked out. */
+static void bildschirm_leeren(void);
+static void alles_loeschen(void);
+
 static void welle_ansagen(void)
 {
     char zeile[8];
 
+    /* The screen is cleared first. Without that the announcement was laid
+       over whatever was still there - over the title screen at the start of
+       a game, over the last wave's leftovers between waves - and stayed that
+       way for the second or so the shapes take to work out. Figures go
+       before the screen does, because the font is about to be loaded into
+       the very characters they are drawn from. */
+    alles_loeschen();
+    bildschirm_leeren();
     textfont_laden();
+
     zeile[0] = 'W'; zeile[1] = 'A'; zeile[2] = 'V'; zeile[3] = 'E';
     zeile[4] = ' '; zeile[5] = (char)('0' + welle); zeile[6] = 0;
     text_zeigen(17, 11, zeile, C_WEISS);
     bild_warten();
+}
+
+/*
+ * The loop this wave hums. Wanted in two places: when the wave is built, and
+ * again after a death - dying silences the music, and without this it stayed
+ * silent for the rest of the wave. Which somebody noticed before I did.
+ */
+static void wellenmusik(void)
+{
+    if (mutterwelle) musik_starten(MUS_MUTTER, 1);
+    else if (v_gross) musik_starten(MUS_GROSS, 1);
+    else musik_starten(MUS_FLUG, 1);
 }
 
 static void welle_aufbauen(void)
@@ -2343,9 +2367,7 @@ static void welle_aufbauen(void)
 
     dauerfeuer = (unsigned char)(welle == 2);
 
-    if (mutterwelle) musik_starten(MUS_MUTTER, 1);
-    else if (v_gross) musik_starten(MUS_GROSS, 1);
-    else musik_starten(MUS_FLUG, 1);
+    wellenmusik();
 }
 
 static void ei_legen(unsigned char x, unsigned char y)
@@ -3393,6 +3415,7 @@ static unsigned char welle_spielen(void)
             if (--leben == 0) return 1;
             leben_bauen();
             spieler_setzen();
+            wellenmusik();          /* dying silenced it */
             warten(TAKT);
             continue;
         }
