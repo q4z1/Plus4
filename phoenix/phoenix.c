@@ -2263,9 +2263,11 @@ static void wellenmusik(void)
     else musik_starten(MUS_FLUG, 1);
 }
 
+#define ANSAGE_TICKS 90      /* a second and a half on the 60 Hz clock */
+
 static void welle_aufbauen(void)
 {
-    unsigned char i, satz;
+    unsigned char i, satz, ansage_ab;
 
     v_gross = (unsigned char)(welle == 3 || welle == 4);
     mutterwelle = (unsigned char)(welle == 5);
@@ -2275,9 +2277,17 @@ static void welle_aufbauen(void)
        - waves one and two share theirs, and so do three and four. */
     satz = (unsigned char)(v_gross ? 2 : 1);
 
-    /* Working the shapes out takes over a second, so say what is coming
-       rather than leave the screen dead. */
-    if (satz != satz_geladen) welle_ansagen();
+    /*
+     * Every wave is announced, and for the same length of time. It used to
+     * be announced only when the shapes had to be worked out, because that
+     * is what the screen was really for - which meant wave two was never
+     * announced at all, and neither was wave one after a restart, since the
+     * shapes were still the ones from the game before. The wait below hides
+     * the shape building when there is any and simply holds the text when
+     * there is not.
+     */
+    ansage_ab = UHR;
+    welle_ansagen();
 
     if (mutterwelle) {
         /* The 2600 sends the saucer down on its own - no escort birds, the
@@ -2312,6 +2322,10 @@ static void welle_aufbauen(void)
 
     balkenfarbe = (unsigned char)((welle & 1) ? C_BALKEN1 : C_BALKEN2);
     for (i = 0; i < FIG_N + SCH_N; ++i) bel_nsp[i] = 0;
+
+    /* hold the announcement until it has stood long enough to read */
+    while ((unsigned char)(UHR - ansage_ab) < ANSAGE_TICKS) bild_warten();
+
     sternenhimmel_aufbauen();
     if (mutterwelle) mutter_aufbauen();
 
