@@ -216,6 +216,45 @@ took a run with the load held constant, because the autopilot otherwise
 wanders into different situations at different speeds and the noise is larger
 than the effect.
 
+## The sound runs on an interrupt
+
+It did not, and that was wrong in a way you can hear. The music used to be
+advanced once per pass through the game loop, and a pass is however long the
+drawing takes — so the tempo rose and fell with the number of birds on the
+screen, and the victory tune came out at the frame rate rather than at a
+tempo. A melody needs a clock that does not care what is being drawn.
+
+Everything that makes a noise now hangs off a **TED raster interrupt**,
+fifty ticks a second, measured at 49.8 on the machine and unchanged whether
+eight birds are flying or two.
+
+How it hangs on: cc65 leaves the ROM banked out and puts its own interrupt
+handler in RAM, with the hardware vector at `$FFFE` pointing at it. The game
+saves that vector, puts its own handler there and chains back to it, so the
+KERNAL's clock and keyboard scan carry on untouched. `$FF0A` bit 1 lets the
+raster through, `$FF0B` is the line to fire on, and `$FF09` bit 1 says the
+raster was the cause — cleared by writing the bit back.
+
+The handler calls a C function, and that function uses the same handful of
+zero page bytes (`$02`–`$1B` on this target) the interrupted code may be in
+the middle of, so they are saved and put back around the call. Twenty-six
+bytes each way, fifty times a second, is under two per cent of the machine.
+
+### Lifting the music out
+
+The piece being played is always in `mus_puffer`, whatever is playing, as
+pairs of bytes — **note number, then length in fiftieths of a second** —
+ending with `255`. Note 0 is a rest, 1 is C of the third octave, then up in
+semitones; `TON_LO` and `TON_HI` hold the two bytes the TED wants for each.
+Voice 1 (`$FF0E` plus the low two bits of `$FF12`) carries the melody, voice
+2 (`$FF0F`/`$FF10`) the noises, and `$FF11` is the volume they share. The
+player is one routine, `klang_takt()`, called at a fixed rate and from
+nowhere else.
+
+Lengths are written out in the data rather than scaled at run time, so the
+tempo is visible: "Für Elise" goes at six ticks to the sixteenth, a crotchet
+of 480 ms.
+
 ## Where the shapes come from
 
 The ships, the birds, the mothership, the alien and the ground band are
@@ -267,8 +306,10 @@ guessable.
   shape of an attack, but their own formations and the egg-hatching are still
   reconstructed rather than measured - only the first two waves have been
   read off the ROM frame by frame so far.
-- **The explosions and every sound** are still invented. A sound cannot be
-  read off a picture at all.
+- **The explosions and every sound** are still invented — the two melodies
+  are the arcade machine's, written down from memory, not lifted from the
+  ROM. A sound cannot be read off a picture at all. What is right now is the
+  *timing*: see [The sound runs on an interrupt](#the-sound-runs-on-an-interrupt).
 - **The field stands still** where the console blinks it on every other
   frame. At fifty frames a second that reads as a shimmer; at our twenty the
   same trick would be a ten hertz blink.

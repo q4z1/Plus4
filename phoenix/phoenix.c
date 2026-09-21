@@ -94,7 +94,6 @@
 
 /* A few things are needed before they are written down. */
 static void bild_warten(void);
-static void klang_weiter(void);
 
 #define BREITE 40      /* cells across */
 #define ZEILEN 25      /* cells down - 24 are visible, one is the scroll edge */
@@ -1578,12 +1577,44 @@ static void figur_loeschen(unsigned char nr)
 /* ======================================================================
  * 7. Sound
  *
- * The TED has two voices and one volume for both. Voice 2 does the noises -
- * it can be switched to noise, which is what every explosion here is made
- * of - and voice 1 carries the music. A sound is a starting pitch, a step
- * added to it on every pass, and a length; that covers the falling whistle
- * of a shot as well as a bang.
+ * Everything that makes a noise hangs off a raster interrupt, fifty ticks a
+ * second, and not off the game loop.
+ *
+ * It used to hang off the loop, and that was wrong in a way you can hear: a
+ * pass through the loop is however long the drawing takes, so the tempo rose
+ * and fell with the number of birds on the screen, and "Fuer Elise" came out
+ * at the frame rate rather than at a tempo. A melody needs a clock that does
+ * not care what is being drawn.
+ *
+ * How it hangs on: cc65 leaves the ROM banked out and puts its own interrupt
+ * handler in RAM, with the hardware vector at $FFFE pointing at it. This
+ * saves that vector, puts irq_dienst() there instead and chains back to it,
+ * so the KERNAL's own clock and keyboard scan carry on untouched. The TED
+ * raster interrupt ($FF0A bit 1, compare line in $FF0B) is what fires it;
+ * $FF09 bit 1 says it was the raster and is cleared by writing the bit back.
+ *
+ * The interrupt calls a C function, and that function uses the same handful
+ * of zero page bytes ($02-$1B on this target) that the interrupted code may
+ * be in the middle of - so they are saved and put back around the call.
+ * Twenty-six bytes each way, fifty times a second, is under two per cent of
+ * the machine and buys a player that is simply a routine called at a fixed
+ * rate.
+ *
+ * For anyone wanting to lift the music out: the piece being played is always
+ * in mus_puffer, as pairs of bytes - note number, then length in fiftieths
+ * of a second - ending with 255. Note 0 is a rest, 1 is C of the third
+ * octave, then up in semitones; TON_LO and TON_HI hold what the TED wants
+ * for each. Voice 1 ($FF0E, plus the low two bits of $FF12) carries the
+ * melody, voice 2 ($FF0F/$FF10) the noises, and $FF11 is the volume both
+ * share.
  * ==================================================================== */
+
+#define TED_IRQ       (*(volatile unsigned char *)0xFF09)  /* what fired   */
+#define TED_IRQ_MASKE (*(volatile unsigned char *)0xFF0A)  /* what may fire */
+#define TED_IRQ_ZEILE (*(volatile unsigned char *)0xFF0B)  /* compare line */
+
+#define IRQ_ZEILE 250        /* below the picture, out of the way          */
+#define TAKTE_JE_S 50        /* what the raster gives us                   */
 
 #define K_STILLE  0
 #define K_SCHUSS  1
@@ -1591,66 +1622,18 @@ static void figur_loeschen(unsigned char nr)
 #define K_TOD     3
 #define K_TREFFER 4
 
-static unsigned char klang_art;
-static unsigned char klang_zeit;
-static unsigned klang_hoehe;
-static int klang_schritt;
-static unsigned char klang_bits;      /* what voice 2 contributes to $FF11 */
-static unsigned char musik_bits;      /* and voice 1                        */
-
-static void laut_setzen(void)
-{
-    if (!klang_bits && !musik_bits) { TED_LAUT = 0; return; }
-    TED_LAUT = (unsigned char)(0x08 | klang_bits | musik_bits);
-}
-
-/* Voice 1 keeps its two top bits of pitch in $FF12, next to the bit that
-   says the character set is in RAM - so that one has to survive. */
-static void stimme1(unsigned hoehe)
-{
-    TED_TON1_LO = (unsigned char)(hoehe & 0xFF);
-    TED_ZSATZ_M = (unsigned char)((TED_ZSATZ_M & 0xFC) | ((hoehe >> 8) & 3));
-}
-
-static void stimme2(unsigned hoehe)
-{
-    TED_TON2_LO = (unsigned char)(hoehe & 0xFF);
-    TED_TON_HI = (unsigned char)((TED_TON_HI & 0xFC) | ((hoehe >> 8) & 3));
-}
-
-static void klang_ausgeben(void)
-{
-    if (klang_art == K_STILLE) { klang_bits = 0; laut_setzen(); return; }
-    stimme2(klang_hoehe);
-    klang_bits = (unsigned char)(klang_art == K_SCHUSS ? 0x20 : 0x60);
-    laut_setzen();
-}
-
-static void klang_starten(unsigned char art)
-{
-    /* A sound only gives way to one that matters more. */
-    if (klang_art > art && klang_zeit) return;
-    klang_art = art;
-    switch (art) {
-    case K_SCHUSS:  klang_hoehe = 900; klang_schritt =  20; klang_zeit = 2; break;
-    case K_TREFFER: klang_hoehe = 820; klang_schritt =  30; klang_zeit = 3; break;
-    case K_KNALL:   klang_hoehe = 940; klang_schritt = -25; klang_zeit = 4; break;
-    default:        klang_hoehe = 760; klang_schritt = -20; klang_zeit = 12; break;
-    }
-    klang_ausgeben();
-}
-
-/* ---- music -------------------------------------------------------------
- *
- * Note 0 is a rest, 1 is C of the third octave and so on up in semitones.
- * The values are what the TED wants: 1024 - 111860.8 / frequency.
- * -------------------------------------------------------------------- */
-
-static const unsigned TONHOEHE[37] = {
-    0,
-    169, 217, 262, 305, 345, 383, 419, 453, 485, 516, 544, 571,
-    596, 620, 643, 664, 685, 704, 722, 739, 755, 770, 784, 798,
-    810, 822, 834, 844, 854, 864, 873, 881, 889, 897, 904, 911
+/* Note 0 is a rest, 1 is C of the third octave and so on up in semitones.
+   The values are what the TED wants: 1024 - 111860.8 / frequency, split
+   into the two bytes it takes them in. */
+static const unsigned char TON_LO[37] = {
+      0, 169, 217,   6,  49,  89, 127, 163, 197, 229,   4,  32,
+     59,  84, 108, 131, 152, 173, 192, 210, 227, 243,   2,  16,
+     30,  42,  54,  66,  76,  86,  96, 105, 113, 121, 129, 136,
+    143
+};
+static const unsigned char TON_HI[37] = {
+    0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
 };
 
 #define C4 13
@@ -1677,88 +1660,231 @@ static const unsigned TONHOEHE[37] = {
 /*
  * What the arcade machine played: "Romance de Amor" while the first flock
  * comes in, and "Fuer Elise" once the mothership is gone. Both are cut down
- * to the phrase everybody recognises - a pass through the game is an eighth
- * of a second, and that is all the resolution there is.
+ * to the phrase everybody recognises.
+ *
+ * Lengths are in fiftieths of a second, written out rather than scaled at
+ * run time, so the tempo is visible in the data. Fuer Elise goes at six to
+ * the sixteenth, which is a crotchet of 480ms - about the speed everybody
+ * plays it at, and a world away from the one note per frame it used to get.
  */
-static const unsigned char MUS_ROMANZE[] = {
-    B4,2, E5,6, E5,2, FIS5,2, G5,4, FIS5,2, E5,2, DIS5,4, E5,6,
-    B4,2, E5,4, G5,4, B5,6, A5,2, G5,2, FIS5,4, E5,8, PAUSE,4, 255,0
+static const unsigned char MUS_ELISE[] = {
+    E5,6, DIS5,6, E5,6, DIS5,6, E5,6, B4,6, D5,6, C5,6,
+    A4,18, PAUSE,6, C4,6, E4,6, A4,6, B4,18, PAUSE,6,
+    E4,6, GIS4,6, B4,6, C5,18, PAUSE,6, E4,6,
+    E5,6, DIS5,6, E5,6, DIS5,6, E5,6, B4,6, D5,6, C5,6,
+    A4,24, PAUSE,24, 255,0
 };
 
-static const unsigned char MUS_ELISE[] = {
-    E5,1, DIS5,1, E5,1, DIS5,1, E5,1, B4,1, D5,1, C5,1,
-    A4,3, PAUSE,1, C4,1, E4,1, A4,1, B4,3, PAUSE,1,
-    E4,1, GIS4,1, B4,1, C5,3, PAUSE,1, E4,1,
-    E5,1, DIS5,1, E5,1, DIS5,1, E5,1, B4,1, D5,1, C5,1, A4,4, PAUSE,4, 255,0
+/* Eight to the unit here: a slow three-four, the way the guitar piece goes. */
+static const unsigned char MUS_ROMANZE[] = {
+    B4,16, E5,48, E5,16, FIS5,16, G5,32, FIS5,16, E5,16, DIS5,32, E5,48,
+    B4,16, E5,32, G5,32, B5,48, A5,16, G5,16, FIS5,32, E5,64, PAUSE,32, 255,0
 };
 
 /* The three loops the 2600 hums while a wave is running. */
 static const unsigned char MUS_FLUG[] = {
-    C4,1, E4,1, G4,1, E4,1, 255,0
+    C4,8, E4,8, G4,8, E4,8, 255,0
 };
 
 static const unsigned char MUS_GROSS[] = {
-    B4,1, A4,1, G4,1, F4,1, E4,1, D4,1, 255,0
+    B4,8, A4,8, G4,8, F4,8, E4,8, D4,8, 255,0
 };
 
 static const unsigned char MUS_MUTTER[] = {
-    C4,2, PAUSE,1, C4,1, PAUSE,2, 255,0
+    C4,20, PAUSE,10, C4,10, PAUSE,20, 255,0
 };
 
-static const unsigned char *musik_stueck;
-static unsigned char musik_pos;
-static unsigned char musik_rest;
-static unsigned char musik_schleife;
+/*
+ * Everything the interrupt owns. Plain globals, so the handler reaches them
+ * absolutely - it must not go near the zero page while it is saved.
+ */
+unsigned char mus_puffer[80];    /* the piece playing right now            */
+unsigned char mus_pos;
+unsigned char mus_rest;          /* ticks left on this note                */
+unsigned char mus_schleife;
+unsigned char mus_laeuft;
+unsigned char mus_bits;          /* what voice 1 contributes to $FF11      */
+
+unsigned char kl_zeit;           /* ticks left on the noise                */
+unsigned char kl_art;
+unsigned      kl_hoehe;
+int           kl_schritt;        /* added to the pitch every tick          */
+unsigned char kl_bits;           /* what voice 2 contributes               */
+
+unsigned char zp_kopie[26];      /* cc65's zero page while the interrupt runs */
+unsigned char irq_alt[2];        /* the vector we chain back to            */
+unsigned char irq_ticks;         /* counts up; only the tests look at it   */
+
+/*
+ * One tick. Called from the interrupt and from nowhere else.
+ */
+void klang_takt(void)
+{
+    unsigned char note;
+
+    ++irq_ticks;
+
+    if (mus_laeuft) {
+        if (mus_rest) --mus_rest;
+        if (!mus_rest) {
+            note = mus_puffer[mus_pos];
+            if (note == 255) {
+                if (mus_schleife) { mus_pos = 0; note = mus_puffer[0]; }
+                else { mus_laeuft = 0; mus_bits = 0; }
+            }
+            if (mus_laeuft) {
+                mus_rest = mus_puffer[mus_pos + 1];
+                mus_pos = (unsigned char)(mus_pos + 2);
+                if (note == PAUSE) {
+                    mus_bits = 0;
+                } else {
+                    TED_TON1_LO = TON_LO[note];
+                    TED_ZSATZ_M = (unsigned char)((TED_ZSATZ_M & 0xFC)
+                                                  | TON_HI[note]);
+                    mus_bits = 0x10;
+                }
+            }
+        }
+    }
+
+    if (kl_zeit) {
+        --kl_zeit;
+        if (!kl_zeit) {
+            kl_art = K_STILLE;
+            kl_bits = 0;
+        } else {
+            kl_hoehe = (unsigned)((int)kl_hoehe + kl_schritt);
+            TED_TON2_LO = (unsigned char)(kl_hoehe & 0xFF);
+            TED_TON_HI = (unsigned char)((TED_TON_HI & 0xFC)
+                                         | ((kl_hoehe >> 8) & 3));
+        }
+    }
+
+    if (!mus_bits && !kl_bits) TED_LAUT = 0;
+    else TED_LAUT = (unsigned char)(0x08 | mus_bits | kl_bits);
+}
+
+/*
+ * The handler itself. Saves what the hardware does not, decides whether the
+ * raster was the cause, and hands on to whoever had the vector before.
+ */
+void irq_dienst(void)
+{
+    __asm__(
+    "pha\n"
+    "txa\n"
+    "pha\n"
+    "tya\n"
+    "pha\n"
+
+    "lda $FF09\n"
+    "and #$02\n"
+    "beq irqdurch\n"           /* not the raster - somebody else's         */
+    "lda #$02\n"
+    "sta $FF09\n"              /* writing the bit back clears it           */
+
+    ";  cc65's zero page out of the way\n"
+    "ldx #$19\n"
+    "irqsich:\n"
+    "lda $02,x\n"
+    "sta %v,x\n"
+    "dex\n"
+    "bpl irqsich\n"
+
+    "jsr %v\n"
+
+    "ldx #$19\n"
+    "irqhol:\n"
+    "lda %v,x\n"
+    "sta $02,x\n"
+    "dex\n"
+    "bpl irqhol\n"
+
+    "irqdurch:\n"
+    "pla\n"
+    "tay\n"
+    "pla\n"
+    "tax\n"
+    "pla\n"
+    "jmp (%v)\n"
+    , zp_kopie, klang_takt, zp_kopie, irq_alt);
+}
+
+static void sound_an(void)
+{
+    __asm__("sei");
+    irq_alt[0] = *(unsigned char *)0xFFFE;
+    irq_alt[1] = *(unsigned char *)0xFFFF;
+    *(unsigned char *)0xFFFE = (unsigned char)((unsigned)&irq_dienst & 0xFF);
+    *(unsigned char *)0xFFFF = (unsigned char)((unsigned)&irq_dienst >> 8);
+    TED_IRQ_ZEILE = IRQ_ZEILE;
+    /* bit 1 lets the raster through, bit 0 is its ninth bit and stays low;
+       everything else - the KERNAL's own timer - is left alone */
+    TED_IRQ_MASKE = (unsigned char)((TED_IRQ_MASKE & 0xFE) | 0x02);
+    TED_IRQ = 0x02;
+    __asm__("cli");
+}
+
+static void sound_aus(void)
+{
+    __asm__("sei");
+    TED_IRQ_MASKE = (unsigned char)(TED_IRQ_MASKE & ~0x02);
+    TED_LAUT = 0;
+    *(unsigned char *)0xFFFE = irq_alt[0];
+    *(unsigned char *)0xFFFF = irq_alt[1];
+    __asm__("cli");
+}
+
+/* ---- what the game says to the player ---------------------------------- */
 
 static void musik_starten(const unsigned char *stueck, unsigned char schleife)
 {
-    musik_stueck = stueck;
-    musik_pos = 0;
-    musik_rest = 0;
-    musik_schleife = schleife;
+    unsigned char i;
+
+    __asm__("sei");
+    mus_laeuft = 0;
+    for (i = 0; i < sizeof mus_puffer - 1; ++i) {
+        mus_puffer[i] = stueck[i];
+        if (stueck[i] == 255) { mus_puffer[i + 1] = 0; break; }
+    }
+    mus_pos = 0;
+    mus_rest = 0;
+    mus_schleife = schleife;
+    mus_laeuft = 1;
+    __asm__("cli");
 }
 
 static void musik_aus(void)
 {
-    musik_stueck = 0;
-    musik_bits = 0;
-    laut_setzen();
+    __asm__("sei");
+    mus_laeuft = 0;
+    mus_bits = 0;
+    __asm__("cli");
 }
 
-/* Returns 0 once a piece that does not loop has finished. */
-static unsigned char musik_weiter(void)
+static void klang_starten(unsigned char art)
 {
-    unsigned char note;
+    unsigned hoehe;
+    int schritt;
+    unsigned char zeit;
 
-    if (!musik_stueck) return 0;
-    if (musik_rest) { --musik_rest; return 1; }
+    /* A sound only gives way to one that matters more. */
+    if (kl_art > art && kl_zeit) return;
 
-    note = musik_stueck[musik_pos];
-    if (note == 255) {
-        if (!musik_schleife) { musik_aus(); return 0; }
-        musik_pos = 0;
-        note = musik_stueck[0];
+    switch (art) {
+    case K_SCHUSS:  hoehe = 900; schritt =   7; zeit =  6; break;
+    case K_TREFFER: hoehe = 820; schritt =  10; zeit =  9; break;
+    case K_KNALL:   hoehe = 940; schritt =  -8; zeit = 12; break;
+    default:        hoehe = 760; schritt =  -7; zeit = 36; break;
     }
-    musik_rest = musik_stueck[musik_pos + 1];
-    musik_pos = (unsigned char)(musik_pos + 2);
 
-    if (note == PAUSE) {
-        musik_bits = 0;
-    } else {
-        stimme1(TONHOEHE[note]);
-        musik_bits = 0x10;
-    }
-    laut_setzen();
-    return 1;
-}
-
-static void klang_weiter(void)
-{
-    musik_weiter();
-    if (klang_art == K_STILLE) return;
-    if (--klang_zeit == 0) { klang_art = K_STILLE; klang_ausgeben(); return; }
-    klang_hoehe = (unsigned)((int)klang_hoehe + klang_schritt);
-    klang_ausgeben();
+    __asm__("sei");
+    kl_art = art;
+    kl_hoehe = hoehe;
+    kl_schritt = schritt;
+    kl_zeit = zeit;
+    kl_bits = (unsigned char)(art == K_SCHUSS ? 0x20 : 0x60);
+    __asm__("cli");
 }
 
 /* ======================================================================
@@ -2801,7 +2927,6 @@ static void mutter_gesprengt(void)
                     ms_feld[r][c] = MZ_LEER;
                     mutter_zelle(r, c);
                 }
-        klang_weiter();
         bild_warten();
         anzeige_zeichnen();
         spieler_malen();
@@ -2814,7 +2939,7 @@ static void mutter_gesprengt(void)
 
     /* the arcade machine's reward for getting this far */
     musik_starten(MUS_ELISE, 0);
-    while (musik_weiter()) {
+    while (mus_laeuft) {
         bild_warten();
         anzeige_zeichnen();
         spieler_malen();
@@ -3090,14 +3215,12 @@ static unsigned char auf_feuer_warten(void)
         s = steuerung();
         if (s & ST_ENDE) return 1;
         if (!(s & ST_FEUER)) break;
-        klang_weiter();
         bild_warten();
     }
     for (;;) {
         s = steuerung();
         if (s & ST_ENDE) return 1;
         if (s & ST_FEUER) return 0;
-        klang_weiter();
         bild_warten();
     }
 }
@@ -3131,7 +3254,6 @@ static unsigned char titelbild(void)
 
     musik_starten(MUS_ROMANZE, 1);
     for (i = 0; i < 4; ++i) {
-        klang_weiter();
         bild_warten();
     }
     return auf_feuer_warten();
@@ -3146,7 +3268,6 @@ static unsigned char titelbild(void)
 static void warten_still(unsigned char schritte)
 {
     while (schritte--) {
-        klang_weiter();
         bild_warten();
     }
 }
@@ -3212,7 +3333,6 @@ static void warten(unsigned char bilder)
 {
     while (bilder--) {
         scrollen();
-        klang_weiter();
         bild_zeichnen();
     }
 }
@@ -3226,7 +3346,6 @@ static void sterben(void)
     klang_starten(K_TOD);
     for (i = 0; i < 12; ++i) {
         scrollen();
-        klang_weiter();
         bild_warten();
         anzeige_zeichnen();
         voegel_malen();
@@ -3291,7 +3410,6 @@ static unsigned char welle_spielen(void)
         }
 
         scrollen();
-        klang_weiter();
         bild_zeichnen();
     }
 }
@@ -3326,6 +3444,8 @@ int main(void)
     TED_RAHMEN = C_SCHWARZ;
     TED_SENKR = 0x10;              /* 24 rows, fine scroll at rest */
 
+    sound_an();                    /* from here the music keeps its own time */
+
     for (;;) {
         if (titelbild()) break;
 
@@ -3349,6 +3469,7 @@ int main(void)
     }
 
 ende:
+    sound_aus();                   /* hand the interrupt vector back */
     TED_LAUT = 0;
     TED_WAAGR   = waagr;
     TED_ZSATZ_M = zsatz;

@@ -175,6 +175,14 @@ emulator.
   game. An early Phoenix measurement said 0.8 passes per second for exactly that
   reason; the truth was twenty times better.
 
+- **Music must not hang off the game loop.** A pass is however long the
+  drawing takes, so a tune advanced once per pass changes tempo with the
+  number of objects on screen — obvious the moment somebody with an ear for
+  it listens. Sound belongs on a raster interrupt, which on this machine
+  means saving the vector at `$FFFE` (cc65 leaves the ROM banked out and has
+  its own handler there), chaining back to it, and saving cc65's zero page
+  around the call because the interrupted C code is in the middle of using
+  it. Under two per cent of the machine, and the tempo is then exact.
 - **The joystick hangs on the keyboard's lines, and `$FF08` has to be read
   twice.** The row goes to `$FD30`, and writing a value with bit 2 low to
   `$FF08` puts joystick 1 on those lines instead. The write leaves its own
