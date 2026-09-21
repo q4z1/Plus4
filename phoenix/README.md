@@ -224,26 +224,37 @@ drawing takes — so the tempo rose and fell with the number of birds on the
 screen, and the victory tune came out at the frame rate rather than at a
 tempo. A melody needs a clock that does not care what is being drawn.
 
-Everything that makes a noise now hangs off a **TED raster interrupt**,
-fifty ticks a second, measured at 49.8 on the machine and unchanged whether
-eight birds are flying or two.
+Everything that makes a noise now hangs off the **interrupt the machine
+already runs** — the one the KERNAL counts its clock with, sixty times a
+second, unchanged whether eight birds are flying or two.
 
 How it hangs on: cc65 leaves the ROM banked out and puts its own interrupt
 handler in RAM, with the hardware vector at `$FFFE` pointing at it. The game
-saves that vector, puts its own handler there and chains back to it, so the
-KERNAL's clock and keyboard scan carry on untouched. `$FF0A` bit 1 lets the
-raster through, `$FF0B` is the line to fire on, and `$FF09` bit 1 says the
-raster was the cause — cleared by writing the bit back.
+saves that vector, puts its own handler there and chains straight back.
+Nothing about the interrupt itself is touched: no enable bit, no raster
+line, and above all **no acknowledging**.
+
+That last one cost a day. Setting up a raster interrupt of one's own and
+clearing `$FF09` before handing on looks correct and is not: the KERNAL
+hangs off the very same interrupt, found the cause already cleared, decided
+there was nothing to do — and stopped counting its clock. Which is the clock
+the birds fly by, so the game ran at a third speed while the music was
+perfect. Hang on, do the work, hand on, touch nothing.
 
 The handler calls a C function, and that function uses the same handful of
 zero page bytes (`$02`–`$1B` on this target) the interrupted code may be in
-the middle of, so they are saved and put back around the call. Twenty-six
-bytes each way, fifty times a second, is under two per cent of the machine.
+the middle of, so they are saved and put back around the call. That measures
+at **five per cent of the drawing**: 16.2 passes a second with the player
+hooked in against 17.0 without, at the same load. The game is not slower for
+it — everything that moves is counted in clock ticks and not in passes — it
+redraws a little less often. An assembly player would take most of that back,
+since the zero page would not need saving; this is the price of one that
+stays readable.
 
 ### Lifting the music out
 
 The piece being played is always in `mus_puffer`, whatever is playing, as
-pairs of bytes — **note number, then length in fiftieths of a second** —
+pairs of bytes — **note number, then length in sixtieths of a second** —
 ending with `255`. Note 0 is a rest, 1 is C of the third octave, then up in
 semitones; `TON_LO` and `TON_HI` hold the two bytes the TED wants for each.
 Voice 1 (`$FF0E` plus the low two bits of `$FF12`) carries the melody, voice
@@ -252,8 +263,8 @@ player is one routine, `klang_takt()`, called at a fixed rate and from
 nowhere else.
 
 Lengths are written out in the data rather than scaled at run time, so the
-tempo is visible: "Für Elise" goes at six ticks to the sixteenth, a crotchet
-of 480 ms.
+tempo is visible: "Für Elise" goes at seven ticks to the sixteenth, a crotchet
+of 467 ms.
 
 ## Where the shapes come from
 

@@ -1586,35 +1586,41 @@ static void figur_loeschen(unsigned char nr)
  * at the frame rate rather than at a tempo. A melody needs a clock that does
  * not care what is being drawn.
  *
- * How it hangs on: cc65 leaves the ROM banked out and puts its own interrupt
- * handler in RAM, with the hardware vector at $FFFE pointing at it. This
- * saves that vector, puts irq_dienst() there instead and chains back to it,
- * so the KERNAL's own clock and keyboard scan carry on untouched. The TED
- * raster interrupt ($FF0A bit 1, compare line in $FF0B) is what fires it;
- * $FF09 bit 1 says it was the raster and is cleared by writing the bit back.
+ * How it hangs on: the machine already runs an interrupt sixty times a
+ * second - the one the KERNAL counts its clock with. cc65 leaves the ROM
+ * banked out and puts its own handler in RAM with the hardware vector at
+ * $FFFE pointing at it, so this saves that vector, puts irq_dienst() there
+ * instead and chains straight back. Nothing about the interrupt itself is
+ * touched: no enable bit, no raster line, and above all no acknowledging.
+ *
+ * That last one was a day's worth of bug. Setting up a raster interrupt of
+ * our own and clearing $FF09 before handing on looks correct and is not: the
+ * KERNAL hangs off the very same interrupt, found the cause already cleared,
+ * decided there was nothing to do - and stopped counting its clock. Which is
+ * the clock the birds fly by, so the game ran at a third speed while the
+ * music was perfect. Hang on, do the work, hand on, touch nothing.
  *
  * The interrupt calls a C function, and that function uses the same handful
  * of zero page bytes ($02-$1B on this target) that the interrupted code may
  * be in the middle of - so they are saved and put back around the call.
- * Twenty-six bytes each way, fifty times a second, is under two per cent of
- * the machine and buys a player that is simply a routine called at a fixed
- * rate.
+ * Twenty-six bytes each way, sixty times a second, measures at five per cent
+ * of the drawing: the loop does 16.2 passes a second with the player hooked
+ * in and 17.0 without, at the same load. The game itself is not slower for
+ * it - everything that moves is counted in clock ticks, not in passes - it
+ * just redraws a little less often. Writing the player in assembly instead
+ * would take most of that back, because the zero page would not need
+ * saving; it is the price of a player that stays readable.
  *
  * For anyone wanting to lift the music out: the piece being played is always
  * in mus_puffer, as pairs of bytes - note number, then length in fiftieths
  * of a second - ending with 255. Note 0 is a rest, 1 is C of the third
- * octave, then up in semitones; TON_LO and TON_HI hold what the TED wants
+ * octave, then up in semitones; lengths are in sixtieths of a second; TON_LO and TON_HI hold what the TED wants
  * for each. Voice 1 ($FF0E, plus the low two bits of $FF12) carries the
  * melody, voice 2 ($FF0F/$FF10) the noises, and $FF11 is the volume both
  * share.
  * ==================================================================== */
 
-#define TED_IRQ       (*(volatile unsigned char *)0xFF09)  /* what fired   */
-#define TED_IRQ_MASKE (*(volatile unsigned char *)0xFF0A)  /* what may fire */
-#define TED_IRQ_ZEILE (*(volatile unsigned char *)0xFF0B)  /* compare line */
-
-#define IRQ_ZEILE 250        /* below the picture, out of the way          */
-#define TAKTE_JE_S 50        /* what the raster gives us                   */
+#define TAKTE_JE_S 60        /* what the machine's own interrupt gives us  */
 
 #define K_STILLE  0
 #define K_SCHUSS  1
@@ -1662,36 +1668,36 @@ static const unsigned char TON_HI[37] = {
  * comes in, and "Fuer Elise" once the mothership is gone. Both are cut down
  * to the phrase everybody recognises.
  *
- * Lengths are in fiftieths of a second, written out rather than scaled at
- * run time, so the tempo is visible in the data. Fuer Elise goes at six to
- * the sixteenth, which is a crotchet of 480ms - about the speed everybody
+ * Lengths are in sixtieths of a second, written out rather than scaled at
+ * run time, so the tempo is visible in the data. Fuer Elise goes at seven to
+ * the sixteenth, which is a crotchet of 467ms - about the speed everybody
  * plays it at, and a world away from the one note per frame it used to get.
  */
 static const unsigned char MUS_ELISE[] = {
-    E5,6, DIS5,6, E5,6, DIS5,6, E5,6, B4,6, D5,6, C5,6,
-    A4,18, PAUSE,6, C4,6, E4,6, A4,6, B4,18, PAUSE,6,
-    E4,6, GIS4,6, B4,6, C5,18, PAUSE,6, E4,6,
-    E5,6, DIS5,6, E5,6, DIS5,6, E5,6, B4,6, D5,6, C5,6,
-    A4,24, PAUSE,24, 255,0
+    E5,7, DIS5,7, E5,7, DIS5,7, E5,7, B4,7, D5,7, C5,7,
+    A4,21, PAUSE,7, C4,7, E4,7, A4,7, B4,21, PAUSE,7,
+    E4,7, GIS4,7, B4,7, C5,21, PAUSE,7, E4,7,
+    E5,7, DIS5,7, E5,7, DIS5,7, E5,7, B4,7, D5,7, C5,7,
+    A4,28, PAUSE,28, 255,0
 };
 
-/* Eight to the unit here: a slow three-four, the way the guitar piece goes. */
+/* Ten to the unit here: a slow three-four, the way the guitar piece goes. */
 static const unsigned char MUS_ROMANZE[] = {
-    B4,16, E5,48, E5,16, FIS5,16, G5,32, FIS5,16, E5,16, DIS5,32, E5,48,
-    B4,16, E5,32, G5,32, B5,48, A5,16, G5,16, FIS5,32, E5,64, PAUSE,32, 255,0
+    B4,20, E5,60, E5,20, FIS5,20, G5,40, FIS5,20, E5,20, DIS5,40, E5,60,
+    B4,20, E5,40, G5,40, B5,60, A5,20, G5,20, FIS5,40, E5,80, PAUSE,40, 255,0
 };
 
 /* The three loops the 2600 hums while a wave is running. */
 static const unsigned char MUS_FLUG[] = {
-    C4,8, E4,8, G4,8, E4,8, 255,0
+    C4,10, E4,10, G4,10, E4,10, 255,0
 };
 
 static const unsigned char MUS_GROSS[] = {
-    B4,8, A4,8, G4,8, F4,8, E4,8, D4,8, 255,0
+    B4,10, A4,10, G4,10, F4,10, E4,10, D4,10, 255,0
 };
 
 static const unsigned char MUS_MUTTER[] = {
-    C4,20, PAUSE,10, C4,10, PAUSE,20, 255,0
+    C4,24, PAUSE,12, C4,12, PAUSE,24, 255,0
 };
 
 /*
@@ -1777,12 +1783,6 @@ void irq_dienst(void)
     "tya\n"
     "pha\n"
 
-    "lda $FF09\n"
-    "and #$02\n"
-    "beq irqdurch\n"           /* not the raster - somebody else's         */
-    "lda #$02\n"
-    "sta $FF09\n"              /* writing the bit back clears it           */
-
     ";  cc65's zero page out of the way\n"
     "ldx #$19\n"
     "irqsich:\n"
@@ -1800,7 +1800,6 @@ void irq_dienst(void)
     "dex\n"
     "bpl irqhol\n"
 
-    "irqdurch:\n"
     "pla\n"
     "tay\n"
     "pla\n"
@@ -1817,18 +1816,12 @@ static void sound_an(void)
     irq_alt[1] = *(unsigned char *)0xFFFF;
     *(unsigned char *)0xFFFE = (unsigned char)((unsigned)&irq_dienst & 0xFF);
     *(unsigned char *)0xFFFF = (unsigned char)((unsigned)&irq_dienst >> 8);
-    TED_IRQ_ZEILE = IRQ_ZEILE;
-    /* bit 1 lets the raster through, bit 0 is its ninth bit and stays low;
-       everything else - the KERNAL's own timer - is left alone */
-    TED_IRQ_MASKE = (unsigned char)((TED_IRQ_MASKE & 0xFE) | 0x02);
-    TED_IRQ = 0x02;
     __asm__("cli");
 }
 
 static void sound_aus(void)
 {
     __asm__("sei");
-    TED_IRQ_MASKE = (unsigned char)(TED_IRQ_MASKE & ~0x02);
     TED_LAUT = 0;
     *(unsigned char *)0xFFFE = irq_alt[0];
     *(unsigned char *)0xFFFF = irq_alt[1];
@@ -1872,10 +1865,10 @@ static void klang_starten(unsigned char art)
     if (kl_art > art && kl_zeit) return;
 
     switch (art) {
-    case K_SCHUSS:  hoehe = 900; schritt =   7; zeit =  6; break;
-    case K_TREFFER: hoehe = 820; schritt =  10; zeit =  9; break;
-    case K_KNALL:   hoehe = 940; schritt =  -8; zeit = 12; break;
-    default:        hoehe = 760; schritt =  -7; zeit = 36; break;
+    case K_SCHUSS:  hoehe = 900; schritt =   6; zeit =  7; break;
+    case K_TREFFER: hoehe = 820; schritt =   8; zeit = 11; break;
+    case K_KNALL:   hoehe = 940; schritt =  -7; zeit = 14; break;
+    default:        hoehe = 760; schritt =  -6; zeit = 43; break;
     }
 
     __asm__("sei");

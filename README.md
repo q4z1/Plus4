@@ -178,11 +178,18 @@ emulator.
 - **Music must not hang off the game loop.** A pass is however long the
   drawing takes, so a tune advanced once per pass changes tempo with the
   number of objects on screen — obvious the moment somebody with an ear for
-  it listens. Sound belongs on a raster interrupt, which on this machine
-  means saving the vector at `$FFFE` (cc65 leaves the ROM banked out and has
-  its own handler there), chaining back to it, and saving cc65's zero page
-  around the call because the interrupted C code is in the middle of using
-  it. Under two per cent of the machine, and the tempo is then exact.
+  it listens. Sound belongs on an interrupt: save the vector at `$FFFE` (cc65
+  leaves the ROM banked out and has its own handler there), chain back to it,
+  and save cc65's zero page around the call because the interrupted C code is
+  in the middle of using it. About five per cent of the drawing, and the
+  tempo is then exact.
+- **Hang on to the interrupt the machine already runs — do not acknowledge
+  it.** Setting up a raster interrupt of one's own and clearing `$FF09`
+  before handing on looks right and is not: the KERNAL hangs off the same
+  interrupt, finds the cause already cleared, decides there is nothing to do
+  and **stops counting its clock**. Everything timed off that clock then runs
+  at a fraction of its speed while the music sounds perfect — which is a
+  confusing thing to debug, because the symptom is nowhere near the cause.
 - **The joystick hangs on the keyboard's lines, and `$FF08` has to be read
   twice.** The row goes to `$FD30`, and writing a value with bit 2 low to
   `$FF08` puts joystick 1 on those lines instead. The write leaves its own
