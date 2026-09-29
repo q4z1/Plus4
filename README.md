@@ -16,6 +16,7 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 | [main/](main/README.md) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
 | [pacman/](pacman/README.md) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
 | [phoenix/](phoenix/README.md) | A rebuild of the Atari 2600 **Phoenix**: all five waves, the force field, the mothership, two-voice sound with the arcade melodies, and a starfield that scrolls pixel by pixel. |
+| [stardew/](stardew/README.md) | **Stardew Pond**, a small farming game modelled on **Stardew Valley** by ConcernedApe: a farm, a village with a store and a smith, three villagers, a mine with thirty floors. Runs from a `.d64` and loads its rooms and tile sets as it goes; figures walk see-through over any background; the game is saved to the disk. |
 | [pokerth/](pokerth/README.md) | Work in progress: a [PokerTH](https://github.com/pokerth/pokerth) client. TLS, protobuf and authentication are handled by a proxy on a PC, which hands the Plus/4 a protocol small enough to parse in 6502. Logging in and watching a lobby works; the Plus/4 end is next. |
 
 ### The games
@@ -24,8 +25,8 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 | --- | --- |
 | [![Phoenix](phoenix/screenshots/wave3.png)](phoenix/README.md) | [![Pac-Man](pacman/screenshots/pacman.png)](pacman/README.md) |
 | **[Phoenix](phoenix/README.md)** — all five waves of the 2600 game, the force field, the mothership, a starfield scrolling a pixel at a time. One 2600 pixel is two Plus/4 pixels, so 160×192 lands exactly on 40×24 cells. The hardware fine scroll was tried first and had to go; the README says why. | **[Pac-Man](pacman/README.md)** — the whole maze on one screen, four ghosts with their own ways of hunting, pixel-by-pixel movement. |
-| [![Demon Attack Clone](demonattack/screenshots/title.png)](demonattack/README.md) | |
-| **[Demon Attack Clone](demonattack/README.md)** — frame for frame the 2600 game, compared automatically with the original running in an emulator. What the Phoenix clone could leave out, this one cannot: a colour on every line, pixel-exact collisions, the original's exact timing. The README is about how. | |
+| [![Demon Attack Clone](demonattack/screenshots/title.png)](demonattack/README.md) | [![Stardew Pond](stardew/screenshots/farm.png)](stardew/README.md) |
+| **[Demon Attack Clone](demonattack/README.md)** — frame for frame the 2600 game, compared automatically with the original running in an emulator. What the Phoenix clone could leave out, this one cannot: a colour on every line, pixel-exact collisions, the original's exact timing. The README is about how. | **[Stardew Pond](stardew/README.md)** — after Stardew Valley by ConcernedApe: farming, a village and a mine, one screen per room, each room a file on the disk that is loaded when the farmer walks in. Figures with a mask over whatever is behind them, a toolbar with a character set of its own, and a save file. |
 
 The Plus/4 has no sprites at all, so all three games build their figures out
 of characters that are rewritten as the figures move — and each does it its
@@ -239,3 +240,4 @@ Each program lists its own; see the README in its folder.
 | --- | --- |
 | [Pac-Man](pacman/README.md) | joystick in port 1, or `W` `A` `S` `D`, or the cursor keys; `Q` quits, fire or space starts |
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
+| [Stardew Pond](stardew/README.md) | joystick in either port, or cursor keys; fire or space uses what is in your hand; `,` `.` pick an item; `I` the backpack |

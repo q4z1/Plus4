@@ -1,0 +1,37 @@
+; Music: two voices, the TED's two squares. The raster interrupt plays it,
+; so the tempo does not depend on how busy the game is.
+;
+;   song NAME          starts a song; songs are numbered from 1 in order
+;   v1 / v2 NOTES      notes of voice 1 (tune) and voice 2 (accompaniment),
+;                      appended line by line; the song loops
+;   NOTE[:LEN]         C3 .. B7 with # or b, r = rest; LEN in 50ths of a
+;                      second, the last one given if left out. | is a bar
+;                      line and means nothing.
+;
+; The TED cannot go lower than about A2 (110 Hz).
+
+; ---- the farm, the village, the houses ---------------------------------
+; Erik Satie, Gymnopedie No. 1 (1888), the opening: slow, "lent et
+; douloureux". The left hand's bass-and-chord is broken into three notes.
+
+song farm
+v1 r:120 | r | r | r
+v1 r:40 F#5 A5 | G5 F#5 C#5 | B4 C#5 D5 | A4:120 | F#4 | r | r | r
+v1 r:40 F#5 A5 | G5 F#5 C#5 | B4 C#5 D5 | A4:120 | C#5 | F#5 | E5 | r | r | r
+v2 G3:40 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4
+v2 G3 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4
+v2 G3 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4
+v2 G3 B3 D4 | D3 A3 C#4 | G3 B3 D4 | D3 A3 C#4
+
+; ---- the mine -----------------------------------------------------------
+; Written for this game: A minor, slow, dark.
+
+song mine
+v1 r:36 A4 C5 | B4:72 F4:36 | G4:72 E4:36 | E4:108
+v1 r:36 A4 C5 | D5 C5 A4 | B4 G#4 E4 | A4:108
+v1 r:36 E5 D5 | C5:72 A4:36 | B4:72 G4:36 | G#4:108
+v1 r:36 A4 B4 | C5 B4 A4 | G#4 B4 E4 | A4:108
+v2 A3:36 E4 A4 | F3 C4 F4 | G3 D4 G4 | E3 B3 E4
+v2 A3 E4 A4 | F3 C4 F4 | E3 B3 G#4 | A3 E4 A4
+v2 A3 E4 A4 | F3 C4 F4 | G3 D4 G4 | E3 B3 E4
+v2 A3 E4 A4 | F3 C4 F4 | E3 B3 G#4 | A3 E4 A4

@@ -1,0 +1,283 @@
+; Rooms: 20 x 11 tiles each, one screen. Every room is a file of its own on
+; the disk and is loaded when the farmer walks in.
+;
+;   room NAME            starts a room
+;   set outdoor|indoor|mine   its tile set
+;   pal BG DARK LIGHT BORDER  the colours shared by all cells
+;   exit N=ROOM ...      the room behind each edge
+;   door X Y ROOM X Y    walking onto tile X,Y goes to tile X,Y of ROOM
+;   flags farm season mine indoor
+;   map                  followed by 11 lines of 20 characters
+
+legend outdoor .=GRASS ,=GRASS2 *=FLOWERS ==PATH T=TREE b=BRANCH s=STONE w=WEEDS
+legend outdoor F=FENCE ~=WATER -=SHORE B=BIN H=BUSH O=WELL L=LAMP n=BENCH N=BOARD
+legend outdoor C=CLIFF c=CLIFF_TOP M=CAVE D=DOOR #=WINDOW [=WALL_L |=WALL_M ]=WALL_R
+legend outdoor $=SIGN_SHOP &=SIGN_SMITH
+legend outdoor /=ROOF_L ^=ROOF_M \=ROOF_R (=EAVE_L _=EAVE_M )=EAVE_R
+legend outdoor 1=ROOF_L_B 2=ROOF_M_B 3=ROOF_R_B 4=EAVE_L_B 5=EAVE_M_B 6=EAVE_R_B
+legend outdoor q=ROOF_L_G r=ROOF_M_G t=ROOF_R_G u=EAVE_L_G v=EAVE_M_G y=EAVE_R_G
+legend outdoor a=ROOF_L_P d=ROOF_M_P e=ROOF_R_P f=EAVE_L_P g=EAVE_M_P h=EAVE_R_P
+
+legend indoor .=FLOOR W=WALL V=VOID I=WINDOW B=BED_TOP b=BED_BOT T=TABLE R=RUG
+legend indoor F=FIRE X=COUNTER S=SHELF K=SACKS A=ANVIL U=FURNACE P=PLANT M=MAT C=CHEST
+
+legend mine .=FLOOR ,=FLOOR2 W=WALL E=WALL_EDGE R=ROCK r=ROCK2 K=CRATE L=LADDER
+legend mine X=EXIT U=LIFT ==TRACK m=SHROOM
+
+room FARM_W
+set outdoor
+pal green3 brown0 orange5 green1
+exit E=FARM_E
+flags farm season
+map
+TTTTTTTTTTTTTTTTTTTT
+T,.w...s...b....w..T
+T..s..w....,..s....T
+T.w..........w..b..T
+T....,.....s........
+T..b.......w........
+T..w..s.......s.w...
+T.......b.w........T
+T-----.....,..s..w.T
+T~~~~~..b.....w....T
+TTTTTTTTTTTTTTTTTTTT
+
+room FARM_E
+set outdoor
+pal green3 brown0 orange5 green1
+exit W=FARM_W E=TOWN
+door 7 3 HOUSE 9 7
+flags farm season
+map
+TTTTTTTTTTTTTTTTTTTT
+T..../^^^\....,....T
+T.,..(___)......T..T
+T....[#D#]B........T
+.......=............
+.......=============
+..*.................
+T.......,...T......T
+T...s..........*...T
+T.,.......b........T
+TTTTTTTTTTTTTTTTTTTT
+
+room HOUSE
+set indoor
+pal brown3 brown0 orange5 black0
+door 9 8 FARM_E 7 4
+flags indoor
+map
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVWWIWWWFWWIWWVVVV
+VVVVB.......P..CVVVV
+VVVVb...RR......VVVV
+VVVV....RR..T...VVVV
+VVVV............VVVV
+VVVV............VVVV
+VVVVVVVVVMVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+
+room TOWN
+set outdoor
+pal green3 brown0 orange5 green1
+exit W=FARM_E N=TOWN_N
+door 4 3 STORE 9 7
+door 15 3 SMITH 9 7
+flags season
+map
+HHHHHHHHH==HHHHHHHHH
+H.12223..==..qrrrt.H
+H.45556..==..uvvvy.H
+H.[$D#]..==..[&D#].H
+....=....==....=...H
+===================H
+.....L...==...L....H
+H..n..O..==.....n..H
+H.*..,...==...,..*.H
+H....*...,.........H
+HHHHHHHHHHHHHHHHHHHH
+
+room TOWN_N
+set outdoor
+pal green3 brown0 orange5 green1
+exit S=TOWN N=MOUNTAIN
+door 4 3 LENA_HOUSE 9 7
+door 15 3 MARA_HOUSE 9 7
+flags season
+map
+TTTTTTTTT==TTTTTTTTT
+T.addde..==../^^^\.T
+T.fgggh..==..(___).T
+T.[#D#]..==..[#D#].T
+T...=....==....=...T
+T...============...T
+T..N.....==.....,..T
+T.,..H...==...H..*.T
+T..*.....==.....,..T
+T.....,..==........T
+TTTTTTTTT==TTTTTTTTT
+
+room STORE
+set indoor
+pal brown3 brown0 orange5 black0
+door 9 8 TOWN 4 4
+flags indoor
+map
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVWSSWIWSSWWSSVVVV
+VVVVK.....K.....VVVV
+VVVVXXXXX.......VVVV
+VVVV...........KVVVV
+VVVVK...........VVVV
+VVVV......P.....VVVV
+VVVVVVVVVMVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+
+room SMITH
+set indoor
+pal brown3 brown0 orange5 black0
+door 9 8 TOWN 15 4
+flags indoor
+map
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVWWFWWIWWWFWWVVVV
+VVVVU.....A.....VVVV
+VVVVXXXXX.......VVVV
+VVVV............VVVV
+VVVVK...........VVVV
+VVVV..........K.VVVV
+VVVVVVVVVMVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+
+room MOUNTAIN
+set outdoor
+pal green3 brown0 orange5 green1
+exit S=TOWN_N
+door 9 1 MINE_TOP 9 8
+flags season
+map
+CCCCCCCCCCCCCCCCCCCC
+CCCCCCCCCMCCCCCCCCCC
+T........==........T
+T..T.....==...---..T
+T.....s..==...~~~..T
+T..,.....==...~~~..T
+T....T...==......T.T
+T.w......==..s.....T
+T....,...==.....,..T
+T..T.....==.....T..T
+TTTTTTTTT==TTTTTTTTT
+
+room MINE_TOP
+set mine
+pal brown1 black0 orange5 black0
+door 9 9 MOUNTAIN 9 2
+flags mine
+map
+WWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWW
+WWWWEEEEEUEEEEEEWWWW
+WWWE.....,.....,EWWW
+WWW.,...........WWWW
+WWW......m....L.EWWW
+WWWE..,.........WWWW
+WWWW...K......,.EWWW
+WWWWE.........EWWWWW
+WWWWWWWWWXWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWW
+
+room MINE_A
+set mine
+pal brown1 black0 orange5 black0
+flags mine
+map
+WWWWWWWWWWWWWWWWWWWW
+WEEEEEEWWWWEEEEEEEEW
+W......EEEE........W
+W..................W
+W........WW........W
+W.......WWWW.......W
+W........WW........W
+W..................W
+WW.......X........WW
+WWW..............WWW
+WWWWWWWWWWWWWWWWWWWW
+
+room MINE_B
+set mine
+pal brown1 black0 orange5 black0
+flags mine
+map
+WWWWWWWWWWWWWWWWWWWW
+WWWEEEEEEEEEEEEEEWWW
+WWE..............EWW
+WE....WW....WW....EW
+W.....WW....WW.....W
+W..................W
+W.....WW....WW.....W
+WW....WW....WW....WW
+WWW......X.......WWW
+WWWWW..........WWWWW
+WWWWWWWWWWWWWWWWWWWW
+
+room MINE_C
+set mine
+pal brown1 black0 orange5 black0
+flags mine
+map
+WWWWWWWWWWWWWWWWWWWW
+WEEEEEEEEWWWWWWWWWWW
+W........EEEEEEEEEEW
+W..................W
+W.....WWWW.........W
+W.....WWWW....WW...W
+W.............WW...W
+WWW................W
+WWWW.....X.........W
+WWWWWW...........WWW
+WWWWWWWWWWWWWWWWWWWW
+
+; The villagers' houses in the upper village, added at the end so the
+; mine floors keep their numbers.
+
+room LENA_HOUSE
+set indoor
+pal brown3 brown0 orange5 black0
+door 9 8 TOWN_N 4 4
+flags indoor
+map
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVWWIWWWFWWIWWVVVV
+VVVVP..........BVVVV
+VVVV...RR......bVVVV
+VVVV...RR..T....VVVV
+VVVVP...........VVVV
+VVVV......P.....VVVV
+VVVVVVVVVMVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+
+room MARA_HOUSE
+set indoor
+pal brown3 brown0 orange5 black0
+door 9 8 TOWN_N 15 4
+flags indoor
+map
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVWSSWIWWFWSSWVVVV
+VVVVB..K.....K.BVVVV
+VVVVb..........bVVVV
+VVVV....T.T.....VVVV
+VVVVK....RR.....VVVV
+VVVV.....RR.....VVVV
+VVVVVVVVVMVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
+VVVVVVVVVVVVVVVVVVVV
