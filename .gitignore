@@ -4,6 +4,7 @@ build/
 # Objekt- und Programmdateien, falls cl65 sie neben der Quelle ablegt
 *.o
 *.prg
+*.a26
 *.map
 *.lbl
 *.mp4
@@ -12,3 +13,4 @@ build/
 pokerth/proxy/.venv*/
 pokerth/proxy/gen/
 __pycache__/
+

@@ -1,0 +1,45 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            // Standard-Build (Strg+Shift+B), wird auch von F5 als preLaunchTask genutzt.
+            "type": "vs64",
+            "action": "build",
+            "problemMatcher": [],
+            "label": "VS64: Build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            // Rueckfallweg ohne VS64: direkt mit cl65 bauen und starten.
+            // Zwei Stufen, damit die Objektdatei in build/ landet - cl65 legt sie
+            // sonst immer neben der Quelldatei ab.
+            "label": "Plus/4: Build & Run (ohne Debugger)",
+            "type": "shell",
+            "command": "mkdir -p build && \"$CL65\" -t plus4 -O -g -c -o \"build/${workspaceFolderBasename}.o\" \"${workspaceFolderBasename}.c\" && \"$CL65\" -t plus4 -o \"build/${workspaceFolderBasename}.prg\" \"build/${workspaceFolderBasename}.o\" && \"$XPLUS4\" -autostartprgmode 1 \"build/${workspaceFolderBasename}.prg\"",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "CL65": "/home/min/.local/share/cc65-vs64/bin/cl65",
+                    "XPLUS4": "/home/min/.local/share/cc65-vs64/bin/xplus4"
+                }
+            },
+            "problemMatcher": {
+                "owner": "cc65",
+                "fileLocation": [
+                    "autoDetect",
+                    "${workspaceFolder}"
+                ],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s+(Error|Warning):\\s+(.*)$",
+                    "file": 1,
+                    "line": 2,
+                    "severity": 3,
+                    "message": 4
+                }
+            }
+        }
+    ]
+}

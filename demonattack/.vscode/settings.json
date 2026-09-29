@@ -1,0 +1,10 @@
+{
+    // VS Code laeuft hier als Flatpak. cc65 und VICE sind auf dem Host installiert
+    // und daher nur ueber die Shim-Skripte in ~/.local/share/cc65-vs64/bin erreichbar.
+    "vs64.cc65InstallDir": "/home/min/.local/share/cc65-vs64",
+    // Plus/4-Emulator statt des VS64-Standards x64sc.
+    "vs64.viceExecutable": "/home/min/.local/share/cc65-vs64/bin/xplus4",
+    "vs64.vicePort": "6502",
+    // Nach dem Speichern automatisch neu bauen.
+    "vs64.autoBuild": true
+}

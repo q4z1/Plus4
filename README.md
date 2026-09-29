@@ -12,27 +12,33 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 
 | Folder | What it is |
 | --- | --- |
+| [demonattack/](demonattack/README.md) | A clone of the Atari 2600 **Demon Attack** that behaves like the original frame for frame, checked automatically against it. A colour on every line through a raster interrupt, collisions worked out pixel by pixel as the 2600's video chip sees them, and a page at the end of each game for hall of fame screenshots. |
 | [main/](main/README.md) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
 | [pacman/](pacman/README.md) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
 | [phoenix/](phoenix/README.md) | A rebuild of the Atari 2600 **Phoenix**: all five waves, the force field, the mothership, two-voice sound with the arcade melodies, and a starfield that scrolls pixel by pixel. |
 | [pokerth/](pokerth/README.md) | Work in progress: a [PokerTH](https://github.com/pokerth/pokerth) client. TLS, protobuf and authentication are handled by a proxy on a PC, which hands the Plus/4 a protocol small enough to parse in 6502. Logging in and watching a lobby works; the Plus/4 end is next. |
 
-### The two games
+### The games
 
 | | |
 | --- | --- |
 | [![Phoenix](phoenix/screenshots/wave3.png)](phoenix/README.md) | [![Pac-Man](pacman/screenshots/pacman.png)](pacman/README.md) |
 | **[Phoenix](phoenix/README.md)** — all five waves of the 2600 game, the force field, the mothership, a starfield scrolling a pixel at a time. One 2600 pixel is two Plus/4 pixels, so 160×192 lands exactly on 40×24 cells. The hardware fine scroll was tried first and had to go; the README says why. | **[Pac-Man](pacman/README.md)** — the whole maze on one screen, four ghosts with their own ways of hunting, pixel-by-pixel movement. |
+| [![Demon Attack Clone](demonattack/screenshots/title.png)](demonattack/README.md) | |
+| **[Demon Attack Clone](demonattack/README.md)** — frame for frame the 2600 game, compared automatically with the original running in an emulator. What the Phoenix clone could leave out, this one cannot: a colour on every line, pixel-exact collisions, the original's exact timing. The README is about how. | |
 
-The Plus/4 has no sprites at all, so both games build their figures out of
-characters that are rewritten as the figures move — and they do it in opposite
-ways, which is the interesting part. Pac-Man works the cells out on every frame. Phoenix
+The Plus/4 has no sprites at all, so all three games build their figures out
+of characters that are rewritten as the figures move — and each does it its
+own way, which is the interesting part. Pac-Man works the cells out on every frame. Phoenix
 cannot afford that with a dozen figures on screen, so it works out all 32 ways
 a figure can sit inside its cells when a wave starts and then only copies
 finished blocks. That is the difference between 4000 cycles per figure and a
-few hundred; a frame has 17784.
+few hundred; a frame has 17784. Demon Attack keeps a pool of characters that
+are handed out afresh for every picture and taken back before the next, draws
+into a second, hidden screen, and changes two colour registers on every line
+while the picture is shown.
 
-Both folders have a README of their own with the details.
+Each folder has a README of its own with the details.
 
 ## Toolchain
 

@@ -47,12 +47,20 @@ if [ -f "$DIR/cflags" ]; then
     EXTRA=$(cat "$DIR/cflags")
 fi
 
-# Zwei Stufen, damit die Objektdatei in build/ landet - cl65 legt sie sonst
-# immer neben der Quelldatei ab.
-echo "Baue $NAME.c ..."
-# shellcheck disable=SC2086
-"$BIN_DIR/cl65" -t plus4 -O $EXTRA -g -c -o "$OUT/$NAME.o" "$SRC"
-"$BIN_DIR/cl65" -t plus4 -o "$OUT/$NAME.prg" "$OUT/$NAME.o"
+# A program made of several sources (C plus assembler, its own linker
+# configuration) brings its own build.sh, which must leave
+# build/<name>.prg behind. Everything else is one .c file, built here.
+if [ -f "$DIR/build.sh" ]; then
+    echo "Baue $NAME ueber $DIR/build.sh ..."
+    CC65_BIN="$BIN_DIR" sh "$DIR/build.sh"
+else
+    # Zwei Stufen, damit die Objektdatei in build/ landet - cl65 legt sie sonst
+    # immer neben der Quelldatei ab.
+    echo "Baue $NAME.c ..."
+    # shellcheck disable=SC2086
+    "$BIN_DIR/cl65" -t plus4 -O $EXTRA -g -c -o "$OUT/$NAME.o" "$SRC"
+    "$BIN_DIR/cl65" -t plus4 -o "$OUT/$NAME.prg" "$OUT/$NAME.o"
+fi
 echo "Fertig: $OUT/$NAME.prg"
 
 # A program may bring its own runner. The PokerTH client needs a proxy
