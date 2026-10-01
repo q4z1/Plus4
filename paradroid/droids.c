@@ -28,12 +28,31 @@ unsigned char transfer_mode;
 unsigned char touched;
 unsigned char player_dead;
 
-static unsigned char drain;             /* ticks until the host loses energy */
+/* The original's rules. Every droid has up to 64 energy and gets one
+ * back every four ticks (the command cyborg two). The player only at an
+ * energizer, and only up to a limit that sinks while he stays in a host:
+ * by one every 128, 64, 32 or 16 ticks, by the host's class. When it
+ * reaches nothing, so does he. */
+unsigned char burn;                     /* the player's energy limit */
+unsigned char alert_acc;                /* kills by type, slowly forgotten */
 
-/* how much energy a droid type has: by its class */
+static const unsigned char burn_mask[10] = { 127, 63, 63, 63, 63, 31, 31, 31, 31, 15 };
+static const unsigned char kill_pts[10] = { 0, 10, 20, 30, 40, 50, 60, 70, 80, 200 };
+static const unsigned char take_pts[10] = { 0, 25, 50, 75, 100, 125, 150, 175, 200, 250 };
+static const unsigned char alert_pts[4] = { 0, 5, 10, 25 };
+/* types the disruptor does not touch: 420, 711, 742, 821, 999 */
+static const unsigned char no_disrupt[5] = { 8, 17, 18, 20, 23 };
+
 unsigned char emax(unsigned char type)
 {
-    return 40 + dr_class[type] * 20;
+    (void)type;
+    return 64;
+}
+
+static void points(unsigned char n)
+{
+    score += n;
+    score_changed = 1;
 }
 
 /* the effects: frequency, change a picture, pictures, noise */
@@ -52,8 +71,9 @@ void sound(unsigned char n)
     eng_sfx();
 }
 
-/* damage of a shot, by weapon */
-static const unsigned char wdamage[4] = { 0, 10, 20, 30 };
+/* damage of a droid's shot, by weapon; the player's depends on the
+ * target as well (hit) */
+static const unsigned char wdamage[4] = { 0, 8, 16, 16 };
 
 /* ======================================================================
  * Droids on a deck
@@ -78,7 +98,7 @@ void spawn_droids(void)
         d_wait[nd] = 0;
         d_slot[nd] = k;
         d_boom[nd] = 0;
-        d_energy[nd] = emax(d_type[nd]);
+        d_energy[nd] = 64;
         d_cool[nd] = 16 + (rnd() & 31);
         ++nd;
     }
@@ -225,6 +245,42 @@ static void shoot(unsigned char i, signed char dx, signed char dy, unsigned char
     sound(i ? SND_ESHOT : SND_SHOT);
 }
 
+static void hit(unsigned char i, unsigned char dmg, unsigned char by_player);
+
+/* the disruptor: a flash that hurts every droid in sight but a few types;
+ * fired by a droid, the player too */
+unsigned char flash;                    /* ticks the deck stays lit */
+
+static unsigned char immune(unsigned char t)
+{
+    static unsigned char k;
+    for (k = 0; k < 5; ++k)
+        if (no_disrupt[k] == t)
+            return 1;
+    return 0;
+}
+
+static void disrupt(unsigned char from)
+{
+    static unsigned char i, t;
+    static signed char d;
+    flash = 3;
+    sound(SND_BOOM);
+    for (i = 1; i < nd; ++i) {
+        if (i == from || d_boom[i] || immune(d_type[i]))
+            continue;
+        if ((unsigned)(d_x[i] - PX + 160) > 320 || (unsigned)(d_y[i] - PY + 80) > 160)
+            continue;                   /* out of sight */
+        hit(i, (40 - d_type[i]) * 2, from == 0);
+    }
+    t = d_type[0];
+    if (from && !immune(t)) {
+        d = 32 + level - t;
+        if (d > 0)
+            hit(0, d, 0);
+    }
+}
+
 void player_fire(unsigned char k)
 {
     static unsigned char w;
@@ -236,10 +292,11 @@ void player_fire(unsigned char k)
     dx = (k & K_LEFT) ? -1 : (k & K_RIGHT) ? 1 : 0;
     dy = (k & K_UP) ? -1 : (k & K_DOWN) ? 1 : 0;
     w = dr_weapon[d_type[0]];
-    if (!w)
-        w = 1;                          /* the device's own lasers */
-    shoot(0, dx, dy, w);
-    d_cool[0] = 5;
+    if (w == 3)
+        disrupt(0);
+    else
+        shoot(0, dx, dy, w);
+    d_cool[0] = 32 - 2 * dr_class[d_type[0]];
 }
 
 unsigned char dbg_god;                  /* tests: the player takes no damage */
@@ -247,6 +304,8 @@ unsigned char dbg_god;                  /* tests: the player takes no damage */
 static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
 {
     if (i == 0 && dbg_god)
+        return;
+    if (!dmg)
         return;
     if (d_energy[i] > dmg) {
         d_energy[i] -= dmg;
@@ -264,10 +323,22 @@ static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
     d_boom[i] = 1;
     ship[deck][d_slot[i]] = 0;
     if (by_player) {
-        score += dr_class[d_type[i]] * 100 + dr_num[d_type[i]];
-        score_changed = 1;
+        points(kill_pts[dr_class[d_type[i]]]);
+        alert_acc = alert_acc + d_type[i] < alert_acc ? 255 : alert_acc + d_type[i];
     }
     sound(SND_BOOM);
+}
+
+/* what a shot of the player's does to droid j: 16 per class of his
+ * weapon and 80, less 4 per type of the droid - nothing below that */
+static unsigned char pdamage(unsigned char j)
+{
+    static int d;
+    d = 4 * dr_weapon[d_type[0]] + 16 - d_type[j];
+    if (d < 0)
+        return 0;
+    d = d * 4 + 16;
+    return d > 255 ? 255 : (unsigned char)d;
 }
 
 void move_shots(void)
@@ -296,7 +367,10 @@ void move_shots(void)
                     || (unsigned char)(d_by[j] - by + 1) > 2)
                     continue;
                 if ((unsigned)(x - d_x[j] + 12) < 24 && (unsigned)(y - d_y[j] + 8) < 16) {
-                    hit(j, s_dmg[k], s_own[k] == 0);
+                    if (s_own[k] == 0)
+                        hit(j, pdamage(j), 1);
+                    else
+                        hit(j, s_dmg[k], 0);
                     s_life[k] = 0;
                     break;
                 }
@@ -326,6 +400,13 @@ void droids_fire(void)
         dy = (int)PY - (int)d_y[i];
         if (dx < -150 || dx > 150 || dy < -90 || dy > 90)
             continue;
+        if ((rnd() & 31) >= level + 2)
+            continue;                   /* as the original: by the ship */
+        if (w == 3) {
+            disrupt(i);
+            d_cool[i] = 32 - 2 * dr_class[d_type[i]];
+            continue;
+        }
         adx = (unsigned char)(dx < 0 ? -dx : dx);
         ady = (unsigned char)(dy < 0 ? -dy : dy);
         if (adx < 10)
@@ -336,7 +417,7 @@ void droids_fire(void)
             shoot(i, dx < 0 ? -1 : 1, dy < 0 ? -1 : 1, w);
         else
             continue;
-        d_cool[i] = 26 - alert * 6 + (rnd() & 15);
+        d_cool[i] = 32 - 2 * dr_class[d_type[i]];
     }
 }
 
@@ -348,6 +429,7 @@ void collide(void)
 {
     static unsigned char i;
     static int dx, dy;
+    static signed char d;
     touched = 0;
     for (i = 1; i < nd; ++i) {
         if (d_boom[i])
@@ -360,9 +442,13 @@ void collide(void)
             touched = i;
             return;
         }
-        /* a bump: both lose a little, the player is pushed back */
-        hit(i, 2, 1);
-        hit(0, 2, 0);
+        /* a bump: as in the original, the stronger hurts the weaker, and
+         * the player is pushed back */
+        d = (signed char)d_type[0] + 2 - (signed char)d_type[i];
+        if (d >= 0)
+            hit(i, d * 2, 1);
+        else
+            hit(0, (unsigned char)(-d - 1) >> 1, 0);
         d_vx[0] = dx < 0 ? -3 : 3;
         d_vy[0] = dy < 0 ? -2 : 2;
     }
@@ -370,29 +456,62 @@ void collide(void)
 
 void energy_tick(void)
 {
-    static unsigned char m;
-    m = emax(d_type[0]);
-    if (blk_flag[blk_at(PX, PY)] & B_ENERGY) {
-        if (d_energy[0] < m) {
+    static unsigned char i;
+    /* the limit sinks while in a host - and in the device itself, slowly */
+    if (!(tick & burn_mask[dr_class[d_type[0]]]) && burn) {
+        --burn;
+        if (!burn && !dbg_god) {
+            d_energy[0] = 1;
+            hit(0, 1, 0);
+        }
+    }
+    if (d_energy[0] > burn && !dbg_god)
+        d_energy[0] = burn;
+    if (!(tick & 3)) {
+        /* an energizer: a point of energy for five of score */
+        if ((blk_flag[blk_at(PX, PY)] & B_ENERGY) && d_energy[0] < burn) {
             ++d_energy[0];
+            if (score >= 5)
+                score -= 5;
+            score_changed = 1;
             if (!(tick & 7))
                 sound(SND_ENERGY);
         }
-    } else if (d_type[0] && !--drain) {
-        /* a host burns out */
-        drain = 24;
-        hit(0, 1, 0);
+        for (i = 1; i < nd; ++i)
+            if (!d_boom[i] && d_energy[i] < 64) {
+                d_energy[i] += d_type[i] == 23 ? 2 : 1;
+                if (d_energy[i] > 64)
+                    d_energy[i] = 64;
+            }
     }
+    /* the alert: kills are forgotten, and while it is up it pays */
+    if (!(tick & 15)) {
+        if (alert_acc)
+            --alert_acc;
+        if (alert_pts[alert_acc >> 6])
+            points(alert_pts[alert_acc >> 6]);
+    }
+    if (flash)
+        --flash;
 }
 
 /* the player takes droid i over: it is his host now */
 void take_over(unsigned char i)
 {
     d_type[0] = d_type[i];
-    d_energy[0] = emax(d_type[0]);
-    drain = 24;
-    score += (dr_class[d_type[i]] * 100 + dr_num[d_type[i]]) * 2;
-    score_changed = 1;
+    d_energy[0] = d_energy[i];          /* it keeps what it had left */
+    burn = 64;
+    points(take_pts[dr_class[d_type[i]]]);
     remove_droid(i);
+    player_picture();
+}
+
+/* a lost transfer: the device on its own again, nearly drained */
+void transfer_lost(void)
+{
+    d_type[0] = 0;
+    d_energy[0] = 7;
+    if (burn < 7)
+        burn = 7;
     player_picture();
 }

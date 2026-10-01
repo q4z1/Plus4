@@ -142,8 +142,8 @@ static void droid_page(unsigned char t)
     text(3, 12, num(dr_drive[t]), 0x67);
     text(4, 4, "weapon", 0x71);
     text(4, 12, weapon_name[dr_weapon[t]], 0x67);
-    text(5, 4, "energy", 0x71);
-    text(5, 12, num(emax(t)), 0x67);
+    text(5, 4, "pulses", 0x71);
+    text(5, 12, num(3 + dr_class[t] / 3), 0x67);
 }
 
 /* the droid enquiry: left and right go through the types the player's

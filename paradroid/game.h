@@ -80,7 +80,8 @@ extern unsigned char wpmap[1024];       /* deck block -> waypoint + 1 */
 
 extern unsigned char deck;
 extern unsigned char ship[NDECKS][12];  /* droid type + 1 per slot, 0 none */
-extern unsigned char alert;             /* 0 green .. 3 red, by the score */
+extern unsigned char alert;             /* 0 green .. 3 red, by kills */
+extern unsigned char deck_bg;
 extern unsigned char level;             /* which ship of the fleet, from 1 */
 extern unsigned char ndoor;
 
@@ -135,6 +136,8 @@ void energy_tick(void);
 unsigned char emax(unsigned char type);
 void take_over(unsigned char i);
 void remove_droid(unsigned char i);
+void transfer_lost(void);
+extern unsigned char burn, alert_acc, flash;
 
 /* ======================================================================
  * Drawing (draw.c)

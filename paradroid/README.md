@@ -28,13 +28,28 @@ time-critical parts in assembly.
 
 You are the 001, an influence device beamed onto a freighter whose droids
 have run wild. You can shoot them, or take one over by winning the
-**transfer game** against it, which makes it your host. A host is stronger
-than the bare device, but it burns out in time, so you have to keep moving
-on to new ones. Energizers recharge you. Destroying droids raises the
-**alert**, which turns the ALERT consoles from green through yellow to red
-and makes the armed droids shoot more often. When a deck has no droids left,
-its lights go out. When the whole ship is dark, the next ship of the fleet
-follows, with droids a class higher.
+**transfer game** against it, which makes it your host. The rules are the
+original's, read from its code:
+
+- Every droid has up to 64 energy and slowly gets it back. A shot of yours
+  takes 16 per class of your host's weapon plus 80, less 4 per type of the
+  droid hit. So the bare 001 cannot hurt the 8xx and 999 at all, and you
+  need better hosts to get at them. A droid's laser takes 8 or 16.
+- The **disruptor** of the 711 and 742 is a flash that hurts every droid in
+  sight, and you as well, except a few types.
+- How much energy you may have **sinks** while you stay in a host: one
+  point every 128 ticks in the 001, every 16 in the 999. When it reaches
+  nothing, so do you. Moving on to a new host resets it. **Energizers**
+  refill you up to it, at 5 points of score per point of energy.
+- A lost transfer leaves you as the bare 001 with 7 energy.
+- Points: 10 to 200 for a kill, 25 to 250 for a transfer, by class; 250 for
+  a deck cleared, 2000 for a ship.
+- Each kill raises the **alert** by the droid's type, and it sinks again
+  slowly. While it is up it pays points, and the ALERT consoles turn from
+  green through yellow and orange to red.
+
+When a deck has no droids left, its lights go out. When the whole ship is
+dark, the next ship of the fleet follows, with droids a class higher.
 
 The game runs in ticks of three pictures, as the original does: 16.7 a
 second. The window scrolls a pixel at a time in any direction.
@@ -153,8 +168,9 @@ it is overwritten as soon as it has been copied.
 
 ## What is not 1:1
 
-- **Rules and numbers** for energy, damage, transfer pulses and points are
-  this version's own. The original's were not traced.
+- The **transfer game**'s rules (how many pulses, how long a pulse lasts,
+  how the other side plays) are this version's own; the original's were
+  not traced. All other rules and numbers are the original's.
 - The droids are **13 multicolour pixels wide** with their number in a dark
   band. The original's hires sprites are 24 pixels wide, and the Plus/4's
   characters have half the horizontal resolution.

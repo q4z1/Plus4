@@ -72,14 +72,9 @@ static void transfer(unsigned char i)
         sound(SND_TAKEN);
         take_over(i);
         panel_status("Captured");
-    } else if (d_type[0]) {
-        sound(SND_LOST);
-        d_type[0] = 0;                  /* thrown out of the host */
-        d_energy[0] = emax(0);
-        player_picture();
-        panel_status("Mobile");
     } else {
-        d_energy[0] = d_energy[0] > 20 ? d_energy[0] - 20 : 1;
+        sound(SND_LOST);
+        transfer_lost();
         panel_status("Mobile");
     }
     transfer_mode = 0;
@@ -100,7 +95,9 @@ static void new_game(void)
     player_dead = 0;
     new_ship();
     d_type[0] = 0;
-    d_energy[0] = emax(0);
+    d_energy[0] = 64;
+    burn = 64;
+    alert_acc = 0;
     /* the first lift of a deck between 4 and 7, as the original starts */
     k = 4 + (rnd() & 3);
     for (i = 0; i < NLIFTS; ++i)
@@ -198,18 +195,23 @@ static void play(void)
         energy_tick();
         if (score_changed) {
             panel_score();
-            k = score >= 30000 ? 3 : score >= 15000 ? 2 : score >= 5000 ? 1 : 0;
-            if (k != alert) {
-                alert = k;
-                deck_colours();
-            }
             if (!lights_out && deck_cleared(deck)) {
                 lights_out = 1;
+                score += 250;
                 deck_colours();
                 panel_status(ship_cleared() ? "Fleet" : "Cleared");
-                if (ship_cleared())
+                if (ship_cleared()) {
+                    score += 2000;
                     next_ship();
+                }
+                panel_score();
             }
+        }
+        col_deck = flash ? 0x71 : deck_bg;  /* the disruptor's flash */
+        k = alert_acc >> 6;
+        if (k != alert) {
+            alert = k;
+            deck_colours();
         }
         draw();
     }

@@ -10,6 +10,7 @@ unsigned char level;
 unsigned char ndoor;
 unsigned char alert;
 unsigned char wpmap[1024];
+unsigned char deck_bg;                  /* the deck's colour, without a flash */
 
 static unsigned rs = 0x1234;
 
@@ -76,11 +77,12 @@ void deck_colours(void)
 {
     if (deck_cleared(deck)) {
         pal = pal_dark;
-        col_deck = 0x21;
+        deck_bg = 0x21;
     } else {
         pal = pal_deck;
-        col_deck = 0x5D;
+        deck_bg = 0x5D;
     }
+    col_deck = deck_bg;
     colour_blocks();
     eng_dirty();
 }
