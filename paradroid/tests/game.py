@@ -1,0 +1,58 @@
+"""game.py - start Paradroid in a headless VICE and drive it (for tests)"""
+import os, sys, time
+sys.path.insert(0, os.path.dirname(__file__))
+from vice import Vice
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.join(HERE, '..')
+WORK = os.path.expanduser('~/.cache/paradroid/test')
+
+
+def labels():
+    lbl = {}
+    for l in open(os.path.join(ROOT, 'build', 'paradroid.lbl')):
+        p = l.split()
+        lbl[p[2].lstrip('.')] = int(p[1], 16)
+    return lbl
+
+
+class Game:
+    def __init__(self, god=True, warp=True):
+        os.makedirs(WORK, exist_ok=True)
+        prg = os.path.join(WORK, 'paradroid.prg')
+        open(prg, 'wb').write(open(os.path.join(ROOT, 'build', 'paradroid.prg'), 'rb').read())
+        self.lbl = labels()
+        self.v = Vice(prg, WORK, warp=True)
+        irq = self.lbl['irq']
+        # until the game's own interrupt runs and the first ticks are done
+        for i in range(200):
+            self.v.run_for(0.2)
+            vec = self.v.mem(0xFFFE, 2)
+            if vec[0] | vec[1] << 8 == irq and self.word('_ticks') > 2:
+                break
+        if god:
+            self.poke('_dbg_god', 1)
+        if not warp:
+            self.v.cmd('warp off')
+
+    def word(self, name):
+        m = self.v.mem(self.lbl[name], 2)
+        return m[0] | m[1] << 8
+
+    def byte(self, name, off=0):
+        return self.v.mem(self.lbl[name] + off, 1)[0]
+
+    def poke(self, name, *vals, off=0):
+        self.v.poke(self.lbl[name] + off, list(vals))
+
+    def keys(self, bits, secs):
+        self.poke('_dbg_keys', bits)
+        self.v.run_for(secs)
+
+    def shot(self, name):
+        path = os.path.join(WORK, name)
+        self.v.screenshot(path)
+        return path
+
+    def stop(self):
+        self.v.stop()

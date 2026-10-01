@@ -1,0 +1,194 @@
+# The 32 map blocks of the original, 4 x 4 character codes each, top row
+# first. "block N L" gives the number and the letter decks.txt uses.
+
+block 0 0
+00 00 00 00
+00 00 00 00
+00 00 00 00
+00 00 00 00
+
+block 1 1
+3a db ca 39
+20 de bc 20
+20 de bc 20
+37 dc cb 38
+
+block 2 2
+38 20 20 37
+c8 bb bb c9
+d9 dd dd da
+39 20 20 3a
+
+block 3 3
+27 58 58 28
+72 2b 2c 74
+73 2d 2e 75
+29 71 71 2a
+
+block 4 4
+30 30 30 30
+d8 d4 d5 d8
+d8 d6 d7 d8
+32 32 32 32
+
+block 5 5
+2f d8 d8 31
+2f d4 d5 31
+2f d6 d7 31
+2f d8 d8 31
+
+block 6 6
+30 30 30 38
+d8 d4 d5 50
+d8 d6 d7 31
+36 d8 d8 31
+
+block 7 7
+37 30 30 30
+2f d4 d5 d8
+2f d6 d7 d8
+2f d8 d8 35
+
+block 8 8
+2f d8 d8 34
+2f d4 d5 d8
+51 d6 d7 d8
+3a 32 32 32
+
+block 9 9
+33 d8 d8 31
+d8 d4 d5 31
+d8 d6 d7 31
+32 32 32 39
+
+block 10 a
+33 d8 d8 34
+d8 d4 d5 d8
+d8 d6 d7 d8
+32 32 32 32
+
+block 11 b
+33 d8 d8 31
+d8 d4 d5 31
+d8 d6 d7 31
+36 d8 d8 31
+
+block 12 c
+30 30 30 30
+d8 d4 d5 d8
+d8 d6 d7 d8
+36 d8 d8 35
+
+block 13 d
+2f d8 d8 34
+2f d4 d5 d8
+2f d6 d7 d8
+2f d8 d8 35
+
+block 14 e
+33 d8 d8 34
+d8 d4 d5 d8
+d8 d6 d7 d8
+36 d8 d8 35
+
+block 15 f
+37 30 30 38
+2f d4 d5 50
+51 d6 d7 31
+3a 32 32 39
+
+block 16 g
+a1 a2 a3 a4
+23 24 25 26
+47 42 42 3d
+41 3f 41 3f
+
+block 17 h
+47 3d 47 3d
+41 42 42 3f
+54 55 56 57
+bf c0 c1 c2
+
+block 18 i
+c3 5f 47 3d
+c4 60 42 3f
+c5 61 42 3d
+c6 62 41 3f
+
+block 19 j
+47 3d 43 aa
+41 42 44 ab
+47 42 45 ac
+41 3f 46 ad
+
+block 20 k
+00 4c 4d 00
+4f 14 14 4e
+4e 14 14 4f
+00 4d 4c 00
+
+block 21 l
+47 3d 47 3d
+41 00 00 3f
+47 00 00 3d
+41 3f 41 3f
+
+block 22 m
+63 64 65 66
+cc cd cd ce
+b0 16 16 cf
+c7 af af ae
+
+block 23 n
+b9 ba ba bd
+eb ec ec ed
+ee ef ef f0
+39 20 20 3a
+
+block 24 o
+47 3d 47 3d
+41 67 68 3f
+47 69 6a 3d
+41 3f 41 3f
+
+block 25 p
+47 3d 47 3d
+41 3f 41 3f
+47 3d 47 3d
+41 3f 41 3f
+
+block 26 q
+47 3d 47 b4
+41 00 b2 b3
+47 b2 b3 00
+7e b3 00 35
+
+block 27 r
+b5 3d 47 3d
+b8 b7 00 3f
+00 b8 b7 3d
+36 00 b8 7f
+
+block 28 s
+37 d2 d2 38
+8e d3 d3 9e
+8f e8 e8 9f
+3a e9 e9 39
+
+block 29 t
+37 d2 d2 38
+8e be be 9e
+8f ea ea 9f
+3a e9 e9 39
+
+block 30 u
+27 58 58 28
+72 76 77 74
+73 78 79 75
+29 71 71 2a
+
+block 31 v
+00 00 00 00
+00 00 00 00
+00 00 00 00
+00 00 00 00

@@ -1,0 +1,19 @@
+# Per deck: the lowest droid type of its first six droids (index into
+# droids.txt, before the ship level is added) and how many droids it has.
+
+0 10 2
+1 13 11
+2 0 2
+3 2 9
+4 3 8
+5 1 9
+6 5 8
+7 7 9
+8 17 6
+9 7 4
+10 17 19
+11 19 17
+12 15 15
+13 13 4
+14 7 7
+15 8 8
