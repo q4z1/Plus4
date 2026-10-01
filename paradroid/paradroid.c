@@ -281,7 +281,9 @@ unsigned load_file(const char *name, void *addr)
  * no use for them. So it is loaded for each title, and those pictures made
  * again for each game. */
 extern unsigned char _OVL_START__[];
-void title_run(void);
+void title_run(unsigned char over);
+
+static unsigned char over;              /* a game has been played */
 
 static void title(void)
 {
@@ -290,7 +292,8 @@ static void title(void)
     hide_player = 1;
     player_dead = 0;
     load_file("title", _OVL_START__);
-    title_run();
+    title_run(over);
+    over = 1;
     hide_player = 0;
     pictures_fixed();
 }

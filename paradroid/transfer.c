@@ -55,7 +55,6 @@ void x_step(unsigned char s);           /* lines drawn that changed */
 void x_flow(void);                      /* the live wires' dashes move */
 void x_layout(unsigned char s);         /* the parts laid out */
 extern unsigned char xmap[128];
-extern unsigned char x_row, x_col, x_attr, x_code;
 void x_letter(unsigned char c);         /* a letter of the panel's, two high */
 void x_picture(const unsigned char *lay);   /* a droid's, x_code rows */
 void x_droid(unsigned char slot);       /* a droid as on the deck, 4 x 2 */
@@ -296,8 +295,8 @@ static const char *const noun[4] = { " device", " robot", " droid", " cyborg" };
 extern const char *const class_name[10];   /* console.c, in small letters */
 static char word[12];
 
-/* text from x_row, x_col on */
-static void say(const char *s)
+/* text from x_row, x_col on, in the panel's letters (title.c too) */
+void say(const char *s)
 {
     static unsigned char c;
     while (*s) {
@@ -310,23 +309,31 @@ static void say(const char *s)
 
 /* droid type t's screen: its picture and what it is; the second line is
  * the player's or the other droid's */
-static void unit(unsigned char t, unsigned char a, const char *l1, const char *l2)
+/* droid type t's picture from the disk at row, col of a cleared window,
+ * picture 1's set shown for both pictures; letters can follow (title.c
+ * too) */
+void picture(unsigned char t, unsigned char row, unsigned char col)
 {
     static unsigned char *e;
     win_clear(0, 0x71);
     name[1] = '0' + t / 10;
     name[2] = '0' + t % 10;
     e = FONT1 + 8 - 4 + load_file(name, FONT1 + 8);
-    font_hi[0] = 0xD8;                  /* picture 1's set in both */
+    font_hi[0] = 0xD8;
     col_fig2 = pal_deck[e[3]];
     x_attr = pal_deck[e[2]];
-    x_row = 11;
-    x_col = 2;
+    x_row = row;
+    x_col = col;
     x_code = e[1];
     x_picture(e - e[1] * 6);
     memset(xmap, 0, sizeof xmap);
-    x_attr = a;
     x_code = 100;
+}
+
+static void unit(unsigned char t, unsigned char a, const char *l1, const char *l2)
+{
+    picture(t, 11, 2);
+    x_attr = a;
     x_row = 10;
     x_col = 3;
     say("Unit type ");

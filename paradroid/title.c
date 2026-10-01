@@ -120,6 +120,15 @@ static void page_show(unsigned y)
     r_done();
 }
 
+/* the panel's frame in the border's colour: cells of colour from to to */
+static void frame(unsigned char from, unsigned char to)
+{
+    static unsigned char i;
+    for (i = 0; i < 240; ++i)
+        if (((unsigned char *)0xC000)[i] == from)
+            ((unsigned char *)0xC000)[i] = ((unsigned char *)0xD000)[i] = to;
+}
+
 /* a page of the briefing, rolled up, in the original's colours: orange on
  * yellow, a red border; 1 if fire ended it */
 static unsigned char brief(void)
@@ -131,7 +140,8 @@ static unsigned char brief(void)
     eng_plain();
     window_font(0xD8, pal_deck[8]);
     col_deck = pal_deck[7];
-    col_border = pal_deck[2];
+    col_border = 0x42;                  /* the original's red, frame and all */
+    frame(cb, 0x42);
     panel_status("Briefing");
     if (!bpage)
         bpage = brief_pages;
@@ -150,8 +160,35 @@ static unsigned char brief(void)
     window_font(0xC8, 0x71);
     col_deck = cd;
     col_border = cb;
+    frame(0x42, cb);
     panel_status("Press fire");
     return keys_irq & K_FIRE;
+}
+
+/* after a game, as the original: a droid picked at random, between
+ * "Transmission" and "Terminated" */
+static void terminated(void)
+{
+    static unsigned char cd;
+    while (ready)
+        ;
+    eng_plain();
+    cd = col_deck;
+    col_deck = pal_deck[1];
+    picture(rnd() & 15, 11, 16);
+    x_attr = 0x63;                      /* the original's light cyan */
+    x_row = 10;
+    x_col = 13;
+    say("Transmission");
+    x_row = 22;
+    x_col = 14;
+    say("Terminated");
+    fire_in(200);
+    win_clear(0, 0x71);
+    memcpy(FONT1, FONT0, POOL * 8);
+    font_hi[0] = 0xC8;
+    col_fig2 = 0x71;
+    col_deck = cd;
 }
 
 /* the deck and its droids going about, for n ticks; 1 if fire ended it */
@@ -171,8 +208,10 @@ static unsigned char attract(unsigned char n)
 
 /* the title page, a page of the briefing and the deck with its droids, in
  * turns, until fire is pressed and let go */
-void title_run(void)
+void title_run(unsigned char over)
 {
+    if (over)
+        terminated();
     panel_status("Press fire");
     for (;;) {
         title_page();

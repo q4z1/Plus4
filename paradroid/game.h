@@ -171,6 +171,9 @@ void win_text(unsigned char line, unsigned char col, const char *s, unsigned cha
 const char *num_text(unsigned long v);   /* up to seven digits */
 unsigned char panel_code(char ch);       /* a letter's code in the panel's set */
 unsigned load_file(const char *name, void *addr);   /* paradroid.c: bytes loaded */
+void picture(unsigned char t, unsigned char row, unsigned char col);  /* transfer.c */
+void say(const char *s);                 /* transfer.c: at x_row, x_col */
+extern unsigned char x_row, x_col, x_attr, x_code;  /* xfer.s */
 extern unsigned char font_hi[2];          /* the window's character set */
 
 #endif
