@@ -1,0 +1,18 @@
+# The decks' names, as the original's console shows them (Deck : ...), deck 0 first.
+
+observation
+bridge
+airlock
+reactor
+research
+stores
+staterooms
+repairs
+quarters
+robo-stores
+upper cargo
+mid cargo
+vehicle hold
+shuttle bay
+engineering
+maintenance

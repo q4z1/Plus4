@@ -60,8 +60,9 @@ void enter(unsigned char d, unsigned char bx, unsigned char by)
 
 unsigned char transfer_game(unsigned char i);
 void ride_lift(unsigned char li);
-void deck_plan(void);
 unsigned char console_here(void);
+void console_run(void);
+static void console(void);
 
 static void transfer(unsigned char i)
 {
@@ -172,7 +173,7 @@ static void play(void)
                 continue;
             }
             if (held == 2 && console_here()) {
-                deck_plan();
+                console();
                 held = 0;
                 continue;
             }
@@ -282,6 +283,14 @@ unsigned load_file(const char *name, void *addr)
  * again for each game. */
 extern unsigned char _OVL_START__[];
 void title_run(unsigned char over);
+
+/* the ship's computer, an overlay too (console.c), in the same place */
+static void console(void)
+{
+    load_file("console", _OVL_START__);
+    console_run();
+    pictures_fixed();
+}
 
 static unsigned char over;              /* a game has been played */
 

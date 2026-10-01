@@ -292,8 +292,20 @@ static void wait3(void)
 static char name[4] = "p00";
 
 static const char *const noun[4] = { " device", " robot", " droid", " cyborg" };
-extern const char *const class_name[10];   /* console.c, in small letters */
-static char word[12];
+static const char *const class_name[10] = {
+    "influence", "disposal", "servant", "messenger", "maintenance",
+    "crew", "sentinel", "battle", "security", "command"
+};
+static char word[20];
+
+/* "Maintenance robot": the class, a capital first, and what it is */
+const char *unit_name(unsigned char t)
+{
+    strcpy(word, class_name[dr_class[t]]);
+    word[0] ^= 0x80;                    /* a capital (PETSCII) */
+    strcat(word, noun[(dr_class[t] + 3) / 4]);
+    return word;
+}
 
 /* text from x_row, x_col on, in the panel's letters (title.c too) */
 void say(const char *s)
@@ -310,15 +322,20 @@ void say(const char *s)
 /* droid type t's screen: its picture and what it is; the second line is
  * the player's or the other droid's */
 /* droid type t's picture from the disk at row, col of a cleared window,
- * picture 1's set shown for both pictures; letters can follow (title.c
- * too) */
+ * picture 1's set shown for both pictures; letters can follow (title.c,
+ * console.c too). The file (tools/mkdata.py) ends with where its header
+ * is; after the header come the console's pages about the droid. */
+const unsigned char *pic_pages;
+
 void picture(unsigned char t, unsigned char row, unsigned char col)
 {
     static unsigned char *e;
     win_clear(0, 0x71);
     name[1] = '0' + t / 10;
     name[2] = '0' + t % 10;
-    e = FONT1 + 8 - 4 + load_file(name, FONT1 + 8);
+    e = FONT1 + 8 + load_file(name, FONT1 + 8);
+    e = FONT1 + 8 + (e[-2] | e[-1] << 8);
+    pic_pages = e + 4;
     font_hi[0] = 0xD8;
     col_fig2 = pal_deck[e[3]];
     x_attr = pal_deck[e[2]];
@@ -327,7 +344,7 @@ void picture(unsigned char t, unsigned char row, unsigned char col)
     x_code = e[1];
     x_picture(e - e[1] * 6);
     memset(xmap, 0, sizeof xmap);
-    x_code = 100;
+    x_code = 140;
 }
 
 static void unit(unsigned char t, unsigned char a, const char *l1, const char *l2)
@@ -343,10 +360,7 @@ static void unit(unsigned char t, unsigned char a, const char *l1, const char *l
     say(name);
     name[0] = 'p';
     say(" - ");
-    strcpy(word, class_name[dr_class[t]]);
-    word[0] ^= 0x80;                    /* a capital (PETSCII) */
-    say(word);
-    say(noun[(dr_class[t] + 3) / 4]);
+    say(unit_name(t));
     x_row = 12;
     x_col = 10;
     say("This is the unit that you");

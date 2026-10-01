@@ -1,0 +1,518 @@
+# The console's pages about each droid type, as the original shows them
+# (tools/console.py): per type its pages, each line as screen row,
+# column and text. The first page has the picture and the unit line
+# only, which console.c writes itself.
+
+type 0
+page
+page
+12 10 Entry  : 01
+14 10 Class  : influence
+16 10 Height : 1.00 m
+18 10 Weight : 027 kg
+20 10 Drive  : none
+22 10 Brain  : none
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : -
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  robot activity
+14 12 influence device. This
+16 12 helmet is self-powered
+18 12 and will control any
+20 12 robot for a short time.
+22 12 Lasers are turret
+page
+12 12 mounted.
+
+type 1
+page
+page
+12 10 Entry  : 02
+14 10 Class  : disposal
+16 10 Height : 1.37 m
+18 10 Weight : 085 kg
+20 10 Drive  : tracks
+22 10 Brain  : none
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : infra-red
+18 20 3 : -
+page
+12 10 Notes :  simple rubbish
+14 12 disposal robot. Common
+16 12 device in most space
+18 12 craft to maintain a clean
+20 12 ship.
+
+type 2
+page
+page
+12 10 Entry  : 03
+14 10 Class  : disposal
+16 10 Height : 1.22 m
+18 10 Weight : 061 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : none
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  created by Dr.
+14 12 Masternak to clean up
+16 12 large heaps of rubbish.
+18 12 Its large scoop is used to
+20 12 collect rubbish. It is
+22 12 then crushed internally.
+
+type 3
+page
+page
+12 10 Entry  : 04
+14 10 Class  : servant
+16 10 Height : 1.56 m
+18 10 Weight : 078 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  light duty servant
+14 12 robot. One of the first
+16 12 to use the anti-grav
+18 12 system.
+
+type 4
+page
+page
+12 10 Entry  : 05
+14 10 Class  : servant
+16 10 Height : 1.63 m
+18 10 Weight : 083 kg
+20 10 Drive  : tripedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  cheaper version of
+14 12 the anti-grav servant
+16 12 robot.
+
+type 5
+page
+page
+12 10 Entry  : 06
+14 10 Class  : servant
+16 10 Height : 1.20 m
+18 10 Weight : 047 kg
+20 10 Drive  : tracks
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  this robot is used
+14 12 mainly for serving drinks.
+16 12 A tray is mounted on the
+18 12 head. Built by Orchard
+20 12 and Marsden Enterprises.
+
+type 6
+page
+page
+12 10 Entry  : 07
+14 10 Class  : messenger
+16 10 Height : 1.07 m
+18 10 Weight : 023 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : none
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  common device
+14 12 for moving small
+16 12 packages. Clamp is
+18 12 mounted on the lower
+20 12 body.
+
+type 7
+page
+page
+12 10 Entry  : 08
+14 10 Class  : messenger
+16 10 Height : 1.07 m
+18 10 Weight : 031 kg
+20 10 Drive  : wheels
+22 10 Brain  : none
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  early type
+14 12 messenger robot. Large
+16 12 wheels impede motion on
+18 12 small craft.
+
+type 8
+page
+page
+12 10 Entry  : 09
+14 10 Class  : maintenance
+16 10 Height : 1.41 m
+18 10 Weight : 057 kg
+20 10 Drive  : tracks
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  slow maintenance
+14 12 robot. Confined to drive
+16 12 maintenance during flight.
+
+type 9
+page
+page
+12 10 Entry  : 10
+14 10 Class  : maintenance
+16 10 Height : 1.32 m
+18 10 Weight : 042 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : neutronic
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : spectral
+16 20 2 : infra-red
+18 20 3 : -
+page
+12 10 Notes :  ship maintenance
+14 12 robot. Fitted with
+16 12 multiple arms to carry
+18 12 out repairs to the ship
+20 12 efficiently. All craft
+22 12 built after the Jupiter
+page
+12 12 Incident are supplied
+14 12 with a team of these.
+
+type 10
+page
+page
+12 10 Entry  : 11
+14 10 Class  : maintenance
+16 10 Height : 1.48 m
+18 10 Weight : 051 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  slave maintenance
+14 12 droid. Standard version
+16 12 will carry its own
+18 12 toolbox.
+
+type 11
+page
+page
+12 10 Entry  : 12
+14 10 Class  : crew
+16 10 Height : 1.57 m
+18 10 Weight : 074 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  early crew droid.
+14 12 Able to carry out simple
+16 12 flight checks only. No
+18 12 longer supplied.
+
+type 12
+page
+page
+12 10 Entry  : 13
+14 10 Class  : crew
+16 10 Height : 1.76 m
+18 10 Weight : 062 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  standard crew
+14 12 droid. Supplied with the
+16 12 ship.
+
+type 13
+page
+page
+12 10 Entry  : 14
+14 10 Class  : crew
+16 10 Height : 1.72 m
+18 10 Weight : 093 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : none
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  a highly
+14 12 sophisticated device.
+16 12 Able to control the
+18 12 Robo-Freighter on its
+20 12 own.
+
+type 14
+page
+page
+12 10 Entry  : 15
+14 10 Class  : sentinel
+16 10 Height : 1.93 m
+18 10 Weight : 121 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : laser rifle
+14 10 Sensors  1 : spectral
+16 20 2 : subsonic
+18 20 3 : -
+page
+12 10 Notes :  low security
+14 12 sentinel droid. Used to
+16 12 protect areas of the ship
+18 12 from intruders. A slow
+20 12 but sure device.
+
+type 15
+page
+page
+12 10 Entry  : 16
+14 10 Class  : sentinel
+16 10 Height : 1.20 m
+18 10 Weight : 029 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : neutronic
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : spectral
+16 20 2 : infra-red
+18 20 3 : -
+page
+12 10 Notes :  sophisticated
+14 12 sentinel droid. Only 2000
+16 12 built by the Nicholson
+18 12 Company. These are now
+20 12 very rare.
+
+type 16
+page
+page
+12 10 Entry  : 17
+14 10 Class  : sentinel
+16 10 Height : 1.09 m
+18 10 Weight : 059 kg
+20 10 Drive  : tracks
+22 10 Brain  : neutronic
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : spectral
+16 20 2 : subsonic
+18 20 3 : -
+page
+12 10 Notes :  slow sentinel
+14 12 droid. Lasers are built
+16 12 into the turret. These
+18 12 are mounted on a small
+20 12 tank body. May be fitted
+22 12 with an auto-cannon on
+page
+12 12 the Gillen version.
+
+type 17
+page
+page
+12 10 Entry  : 18
+14 10 Class  : battle
+16 10 Height : 1.93 m
+18 10 Weight : 102 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : disruptor
+14 10 Sensors  1 : ultra-sonic
+16 20 2 : radar
+18 20 3 : -
+page
+12 10 Notes :  heavy duty battle
+14 12 droid. Disruptor is built
+16 12 into the head. One of the
+18 12 first in service with the
+20 12 Military.
+
+type 18
+page
+page
+12 10 Entry  : 19
+14 10 Class  : battle
+16 10 Height : 1.87 m
+18 10 Weight : 140 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : disruptor
+14 10 Sensors  1 : spectral
+16 20 2 : radar
+18 20 3 : -
+page
+12 10 Notes :  this version is
+14 12 the one mainly used by
+16 12 the Military.
+
+type 19
+page
+page
+12 10 Entry  : 20
+14 10 Class  : battle
+16 10 Height : 1.93 m
+18 10 Weight : 227 kg
+20 10 Drive  : bipedal
+22 10 Brain  : neutronic
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : spectral
+16 20 2 : -
+18 20 3 : -
+page
+12 10 Notes :  very heavy duty
+14 12 battle droid. Only a few
+16 12 have so far entered
+18 12 service. These are the
+20 12 most powerful battle
+22 12 units ever built.
+
+type 20
+page
+page
+12 10 Entry  : 21
+14 10 Class  : security
+16 10 Height : 1.00 m
+18 10 Weight : 028 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : neutronic
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : spectral
+16 20 2 : radar
+18 20 3 : infra-red
+page
+12 10 Notes :  a very reliable
+14 12 anti-grav unit is fitted
+16 12 into this droid. It will
+18 12 patrol the ship and
+20 12 eliminate intruders as
+22 12 soon as detected by
+page
+12 12 powerful sensors.
+
+type 21
+page
+page
+12 10 Entry  : 22
+14 10 Class  : security
+16 10 Height : 1.10 m
+18 10 Weight : 034 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : neutronic
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : spectral
+16 20 2 : radar
+18 20 3 : -
+page
+12 10 Notes :  early type
+14 12 anti-grav security droid.
+16 12 Fitted with an
+18 12 over-driven anti-grav unit.
+20 12 This droid is very fast
+22 12 but is not reliable.
+
+type 22
+page
+page
+12 10 Entry  : 23
+14 10 Class  : security
+16 10 Height : 1.62 m
+18 10 Weight : 079 kg
+20 10 Drive  : wheels
+22 10 Brain  : neutronic
+page
+12 10 Armament : exterminator
+14 10 Sensors  1 : spectral
+16 20 2 : radar
+18 20 3 : -
+page
+12 10 Notes :  this droid was
+14 12 designed from archive
+16 12 data. For some unknown
+18 12 reason it instils great
+20 12 fear in Human
+22 12 adversaries.
+
+type 23
+page
+page
+12 10 Entry  : 24
+14 10 Class  : command
+16 10 Height : 1.87 m
+18 10 Weight : 162 kg
+20 10 Drive  : anti-grav
+22 10 Brain  : primode
+page
+12 10 Armament : lasers
+14 10 Sensors  1 : infra-red
+16 20 2 : radar
+18 20 3 : subsonic
+page
+12 10 Notes :  experimental
+14 12 command cyborg. Fitted
+16 12 with a new type of
+18 12 brain . Mounted on a
+20 12 security droid anti-grav
+22 12 unit for convenience.
+page
+12 12 warning: the influence
+14 12 device may not control a
+16 12 primode brain  for long.

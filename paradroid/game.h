@@ -173,6 +173,9 @@ unsigned char panel_code(char ch);       /* a letter's code in the panel's set *
 unsigned load_file(const char *name, void *addr);   /* paradroid.c: bytes loaded */
 void picture(unsigned char t, unsigned char row, unsigned char col);  /* transfer.c */
 void say(const char *s);                 /* transfer.c: at x_row, x_col */
+const char *unit_name(unsigned char t);  /* transfer.c: "Maintenance robot" */
+void side_view(void);                    /* lift.c */
+void side_light(unsigned char d);
 extern unsigned char x_row, x_col, x_attr, x_code;  /* xfer.s */
 extern unsigned char font_hi[2];          /* the window's character set */
 

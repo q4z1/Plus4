@@ -25,7 +25,7 @@ static unsigned char side_attr(unsigned char col)
     return col >= 8 ? (pal_deck[col & 7] | 8) : pal_deck[col];
 }
 
-static void side_view(void)
+void side_view(void)
 {
     static unsigned char c, n;
     static unsigned off;
@@ -60,7 +60,7 @@ static void shaft(unsigned char s, unsigned char on)
 
 /* deck d lit, or no longer: as the original, its box's codes $80.. turn
  * into $90.. and back, the ends of the deck's bars and the shafts kept */
-static void light(unsigned char d)
+void side_light(unsigned char d)
 {
     static unsigned char r, x, c, v, h, w, end;
     static unsigned off;
@@ -119,7 +119,7 @@ void ride_lift(unsigned char li)
         ;
     side_view();
     shaft(lift_shaft[li], 1);
-    light(lift_deck[li]);
+    side_light(lift_deck[li]);
     deck_name(li);
     prev = keys_irq;
     for (;;) {
@@ -136,9 +136,9 @@ void ride_lift(unsigned char li)
             n = li + 1;
         prev = k;
         if (n != li) {
-            light(lift_deck[li]);
+            side_light(lift_deck[li]);
             li = n;
-            light(lift_deck[li]);
+            side_light(lift_deck[li]);
             deck_name(li);
             sound(SND_LIFT);
         }

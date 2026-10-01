@@ -335,10 +335,53 @@ for n, pic in enumerate(pics):
             if g not in chars:
                 chars.append(g)
             layout.append((chars.index(g) + 1) | (0x80 if hires else 0))
-    data = sum(chars, []) + layout + [len(chars), nrow, pic['col'], pic['mc2']]
+    pic['data'] = sum(chars, []) + layout + [len(chars), nrow, pic['col'], pic['mc2']]
+    pic['head'] = len(pic['data']) - 4
     assert len(chars) < 90 and nrow <= 12, (n, len(chars), nrow)
-    pic_max = max(pic_max, len(data))
-    open(os.path.join(ROOT, 'build', 'pics', 'p%02d' % n), 'wb').write(bytes([0, 0] + data))
+
+# --- the deck plan (console.c, an overlay) ---------------------------------------
+# The original's plan characters: code = block number, $A0 the player, all
+# hires. Their C64 colours alongside.
+plan_font, plan_col = [], []
+for m in re.finditer(r'char ([0-9a-f]{2}) col=(\d+)\n((?:[.#]{8}\n){8})', read('plan.txt')):
+    plan_font += [int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(3).split()]
+    plan_col.append(int(m.group(2)))
+assert len(plan_col) == 33
+
+# --- the console's menu (console.c) ------------------------------------------------
+# Its four symbols, the original's hires sprites (icons.txt), as hires
+# characters: per symbol its column, row, width and height in cells, then
+# its cells (0 none, else the character's number from 1).
+# And the decks' names (decknames.txt), for the menu page.
+icon_font, icon_tab, icon_lay = [], [], []
+glist = []
+cur = None
+for l in read('icons.txt').split('\n'):
+    if l.startswith('icon'):
+        _, i, col, row = l.split()
+        cur = {'col': int(col), 'row': int(row), 'rows': []}
+        icon_tab.append(cur)
+    elif cur is not None and l and l[0] in '.h':
+        cur['rows'].append(l)
+for ic in icon_tab:
+    rows = ic['rows']
+    ic['w'], ic['h'] = len(rows[0]) // 8, len(rows) // 8
+    for cr in range(ic['h']):
+        for cx in range(ic['w']):
+            g = [int(rows[cr * 8 + y][cx * 8:cx * 8 + 8].replace('.', '0').replace('h', '1'), 2)
+                 for y in range(8)]
+            if not any(g):
+                icon_lay.append(0)
+                continue
+            if g not in glist:
+                glist.append(g)
+            icon_lay.append(glist.index(g) + 1)
+icon_font = sum(glist, [])
+ICON_N = len(glist)
+icon_tab = sum([[ic['col'], ic['row'], ic['w'], ic['h']] for ic in icon_tab], [])
+decknames = ['deck %d' % d for d in range(16)]
+if os.path.exists(os.path.join(DATA, 'decknames.txt')):
+    decknames = lines('decknames.txt')
 
 # --- briefing (a file on the disk) ----------------------------------------------
 # The original's pages in the panel's codes: per page its height in rows,
@@ -399,6 +442,31 @@ for page in brief:
 letters = sorted(letter_of, key=letter_of.get)
 NBRIEF = len(srcs)
 assert NBRIEF <= POOL, NBRIEF
+# the console's pages about each droid (console.txt) after its picture: per
+# page its lines as row, column, length and the panel's codes, then $FF; a
+# 0 after the last page; and at the very end, where the picture's header is
+cpages = {}
+cur = None
+for ln in lines('console.txt'):
+    if ln.startswith('type'):
+        cur = cpages.setdefault(int(ln.split()[1]), [])
+    elif ln == 'page':
+        cur.append([])
+    else:
+        row, col, txt = ln.split(' ', 2)
+        cur[-1].append((int(row), int(col), txt_codes(txt)))
+for n, pic in enumerate(pics):
+    data = list(pic['data'])
+    for page in cpages.get(n, []):
+        for row, col, t in page:
+            data += [row, col, len(t)] + t
+        data.append(0xFF)
+    data.append(0)
+    data += [pic['head'] & 255, pic['head'] >> 8]
+    assert len(data) <= 139 * 8 - 8, (n, len(data))   # below the letters (from 140)
+    pic_max = max(pic_max, len(data))
+    open(os.path.join(ROOT, 'build', 'pics', 'p%02d' % n), 'wb').write(bytes([0, 0] + data))
+
 pages_bin = []
 for page in brief:
     pages_bin.append(max(r for r, c, t in page) + 2)
@@ -554,6 +622,17 @@ s.insert(2, '\n'.join('        .export _%s' % e for e in exports) + '\n')
 open(os.path.join(GEN, 'data.s'), 'w').write('\n'.join(s))
 
 # into the title's overlay (title.c), which is a file on the disk
+c = ['; made by tools/mkdata.py - do not edit',
+     '        .segment "CONHDR"', '        .word 0         ; where a load address goes',
+     '        .segment "CONDATA"', '        .export _plan_font, _plan_col']
+c.append(asm_bytes('plan_font', plan_font))
+c.append(asm_bytes('plan_col', plan_col))
+c.append('        .export _icon_font, _icon_tab, _icon_lay')
+c.append(asm_bytes('icon_font', icon_font))
+c.append(asm_bytes('icon_tab', icon_tab))
+c.append(asm_bytes('icon_lay', icon_lay))
+open(os.path.join(GEN, 'console.s'), 'w').write('\n'.join(c) + '\n')
+
 b = ['; made by tools/mkdata.py - do not edit',
      '        .segment "OVLHDR"', '        .word 0         ; where a load address goes',
      '        .segment "OVLDATA"',
@@ -588,6 +667,9 @@ for e in exports:
         h.append('extern unsigned char pre[];')
     else:
         h.append('extern const unsigned char %s[];' % e)
+h.append('/* in the console\'s overlay (console.s) */')
+h += ['#define ICON_N %d' % ICON_N, '#define ICON_CODE 1',
+      '#define DECK_NAMES ' + ', '.join('"%s"' % n for n in decknames)]
 h.append('/* in the title\'s overlay (brief.s) */')
 h.append('extern const unsigned char brief_srcs[], brief_top[], brief_bot[], brief_pages[];')
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')

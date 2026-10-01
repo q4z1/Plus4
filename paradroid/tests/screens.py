@@ -62,11 +62,24 @@ try:
     x, y = [(x, y) for y in range(1, 15) for x in range(1, 63) if m[y][x] == 'l'
             and any(m[y + b][x + a] in 'ghijstu' for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)))][0]
     to(g, x, y); g.keys(0, 0.4)
-    g.keys(16, 1.2)
+    # the console, an overlay from the disk: its menu, then the deck plan
+    # (down twice, fire), the droid enquiry (up, fire) and a page of it
+    g.keys(16, 0.7); g.keys(0, 6.0)
+    save(g, 'console.png')
+    for k in (2, 2):
+        g.keys(k, 0.15); g.keys(0, 0.3)
+    g.keys(16, 0.15); g.keys(0, 1.0)
     save(g, 'plan.png')
-    g.poke('_d_type', 10)
-    g.keys(24, 0.2); g.keys(16, 0.3); g.keys(24, 0.2); g.keys(16, 0.6)
+    g.keys(16, 0.15); g.keys(0, 0.8)
+    g.keys(1, 0.15); g.keys(0, 0.3)
+    g.poke('_d_type', 9)
+    g.keys(16, 0.15); g.keys(0, 3.5)
     save(g, 'droids.png')
+    g.keys(8, 0.15); g.keys(0, 3.5)
+    save(g, 'droids_more.png')
+    g.keys(16, 0.15); g.keys(0, 0.8)
+    g.keys(1, 0.15); g.keys(0, 0.3)
+    g.keys(16, 0.15); g.keys(0, 1.0)
     g.poke('_d_type', 0)
     g.keys(0, 0.8)
     # a transfer: away from the console, a live droid brought to the player

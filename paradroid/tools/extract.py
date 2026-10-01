@@ -20,6 +20,7 @@ and writes what the Plus/4 version uses as text files into data/:
   sprites.txt    lasers and explosion, from its sprites
   briefing.txt   the text pages the original shows before a game
   transfer.txt   the characters of the transfer game
+  plan.txt       the characters of the deck plan at a console
 
 Where the things are in the original's memory was found by tracing it in
 VICE; the addresses are below. The tables are copied as they are, the
@@ -310,4 +311,20 @@ for c in list(range(0xF1, 0xFF)) + [0xD0, 0xD1]:
         t.append(''.join('.?12'[(v >> (6 - 2 * i)) & 3] for i in range(4)))
     t.append('')
 write('transfer.txt', '\n'.join(t))
+
+# --- deck plan ----------------------------------------------------------------------
+# A console's plan of the deck has a character per block: the block's number
+# is the character's code ($00-$1F of the deck's set, made for it), coloured
+# from the colour table; $29, nothing, is blank; the player is $A0. The
+# plan is in hires text mode, colours 8-15 are colours there.
+t = ['# The deck plan\'s characters (the code is the block\'s number; a0 the',
+     '# player) with their C64 colour, hires.', '']
+for c in list(range(0x20)) + [0xA0]:
+    col = ram[COLTAB + c] & 15
+    t.append('char %02x col=%d' % (c, col))
+    for y in range(8):
+        v = ram[FONT + c * 8 + y]
+        t.append(''.join('#' if v & (0x80 >> i) else '.' for i in range(8)))
+    t.append('')
+write('plan.txt', '\n'.join(t))
 

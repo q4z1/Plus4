@@ -17,11 +17,51 @@ and saving memory and the VIC's registers each time. This script makes
 data/pictures.txt from those 48 files:
 
     python3 tools/pictures.py <directory with g00.bin ... g23io.bin>
+
+The console's menu symbols are sprites too, four hires ones (two of them
+twice as wide) beside its first page. With the same two dumps taken there
+(c0.bin, c0io.bin), this makes data/icons.txt:
+
+    python3 tools/pictures.py --icons <directory with c0.bin, c0io.bin>
 """
 import os, sys
 
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+if sys.argv[1] == '--icons':
+    # each symbol on the character grid of the screen: its cells' column
+    # and row, then its pixels from there (h set), in whole cells
+    D = sys.argv[2]
+    ram = open(os.path.join(D, 'c0.bin'), 'rb').read()[2:]
+    io = open(os.path.join(D, 'c0io.bin'), 'rb').read()[2:]
+    t = ['# The console\'s menu symbols, the original\'s hires sprites (tools/',
+         '# pictures.py --icons): per symbol its first cell\'s column and row on',
+         '# the screen, then its pixels from there, whole cells (h set).', '']
+    row_end = 0
+    for i in range(1, 5):
+        x = (io[2 * i] | ((io[0x10] >> i) & 1) << 8) - 24
+        y = io[2 * i + 1] - 50
+        y = max(y, row_end)             # (the last two share a row: moved down)
+        wide = io[0x1D] >> i & 1
+        blk = ram[0x4000 + ram[0x20D + i] * 64:][:63]
+        col, row, dx, dy = x // 8, y // 8, x % 8, y % 8
+        w = ((dx + (48 if wide else 24)) + 7) // 8
+        h = (dy + 21 + 7) // 8
+        img = [['.'] * (w * 8) for _ in range(h * 8)]
+        for yy in range(21):
+            for b in range(24):
+                if blk[3 * yy + b // 8] >> (7 - b % 8) & 1:
+                    for k in range(2 if wide else 1):
+                        img[dy + yy][dx + (b * 2 + k if wide else b)] = 'h'
+        t.append('icon %d %d %d' % (i - 1, col, row))
+        t += [''.join(r) for r in img]
+        t.append('')
+        row_end = (row + h) * 8
+    open(os.path.join(DATA, 'icons.txt'), 'w').write('\n'.join(t))
+    print('data/icons.txt')
+    sys.exit()
+
 DIR = sys.argv[1]
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'pictures.txt')
+OUT = os.path.join(DATA, 'pictures.txt')
 VIC_BANK = 0x4000
 POINTERS = 0x020D       # the sprites' pointers, as the interrupt sets them
 

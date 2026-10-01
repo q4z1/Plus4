@@ -255,7 +255,15 @@ unsigned char panel_code(char ch)
         return 0x16;
     if (ch >= 'A' && ch <= 'Z')
         return ch - 'A' + 0x3A;
-    return ch == '?' ? 0x24 : ch == '-' ? 0x2E : ch == '.' ? 0x28 : 0x30;  /* or space */
+    switch (ch) {
+    case '?': return 0x24;
+    case '-': return 0x2E;
+    case '.': return 0x28;
+    case ',': return 0x29;
+    case ':': return 0x2A;
+    case '\'': return 0x2D;
+    }
+    return 0x30;                        /* space */
 }
 
 /* text in the panel's letters from column col; returns the column after */

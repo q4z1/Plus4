@@ -1,177 +1,263 @@
 /*
- * console.c - the ship's computer: a plan of the deck
+ * console.c - the ship's computer, as the original's
  *
- * Fire held at a console shows the deck from above, a character a block:
- * walls, doors, lifts, energizers, consoles, the droids, and where the
- * player is. Letting go of fire goes back.
+ * An overlay, like title.c: linked to run in the slots of the explosions'
+ * and lasers' pictures (paradroid.cfg) and a file of its own on the disk,
+ * "console", which paradroid.c loads when fire is held at a console.
+ *
+ * The original's console: a page with the host's unit and the ship, deck
+ * and alert, and a menu of four symbols beside it. Up and down choose,
+ * fire takes the symbol: the first leaves, the second is the droid
+ * enquiry, the third the plan of the deck, the fourth the ship from the
+ * side. Fire goes back to the menu from there.
+ *
+ * The enquiry shows a droid's picture and its pages, as the original
+ * words them; both come with the picture's file from the disk (transfer.c,
+ * picture()). Right and left turn the pages, up and down go through the
+ * droid types the host is cleared for: its own and those below.
+ *
+ * The plan is the original's: a character a block, the character's code
+ * being the block's number, in the original's characters and colours, and
+ * the deck's blocks 3 to 41 across, as the original cuts it.
  */
 #include <string.h>
 #include "game.h"
 
+#pragma code-name (push, "CONCODE")
+#pragma rodata-name (push, "CONDATA")
+
 void wait_tick(void);
+void x_letter(unsigned char c);
+extern unsigned char xmap[128];
+extern const unsigned char plan_font[], plan_col[];
+extern const unsigned char icon_font[], icon_tab[], icon_lay[];
+extern const unsigned char *pic_pages;  /* transfer.c: the picture's pages */
 
-#define MAP_ROW 9                       /* screen row of the plan's top */
+static unsigned char k, prev;
 
-static unsigned char x0;                /* deck block at plan column 0 */
-
-static void put(unsigned char row, unsigned char col, unsigned char code, unsigned char a)
+static void tick_keys(void)
 {
-    wp_row = row;
-    wp_col = col;
-    wp_code = code;
-    wp_attr = a;
-    win_put();
+    wait_tick();
+    prev = k;
+    k = keys_irq;
 }
 
-/* the console next to the player, if any */
-unsigned char console_here(void)
+static unsigned char pressed(unsigned char b)
 {
-    return (blk_flag[blk_at(PX - 20, PY)] | blk_flag[blk_at(PX + 20, PY)]
-            | blk_flag[blk_at(PX, PY - 18)] | blk_flag[blk_at(PX, PY + 18)])
-           & B_CONSOLE;
+    return (k & b) && !(prev & b);
 }
 
-static void cell(unsigned char bx, unsigned char by)
+/* picture 1's set for the window, cleared to colour a, on background bg */
+static void clear(unsigned char bg, unsigned char a)
 {
-    static unsigned char b, f, g, a;
-    b = DMAP[((unsigned)by << 6) | bx] >> 2;
-    f = blk_flag[b];
-    a = 0x36;
-    if (b == 0)
-        g = X_BLANK;
-    else if (f & B_LIFT) {
-        g = X_LIFT;
-        a = 0x67;
-    } else if (f & B_ENERGY) {
-        g = X_SOCKET;
-        a = 0x67;
-    } else if (f & B_CONSOLE) {
-        g = X_SOCKET;
-        a = 0x63;
-    } else if (f & B_DOOR) {
-        g = X_WIRE;
-        a = 0x71;
-    } else if (f & B_SOLID)
-        g = X_LIGHT;
-    else
-        g = X_BLANK;
-    put(MAP_ROW + by, bx - x0, POOL + g, a);
-}
-
-/* what the enquiry shows, in words */
-const char *const class_name[10] = {
-    "influence", "disposal", "servant", "messenger", "maintenance",
-    "crew", "sentinel", "battle", "security", "command"
-};
-static const char *const weapon_name[4] = { "none", "light laser", "laser", "disruptor" };
-
-static char buf[4];
-
-/* what the computer knows about droid type t */
-static void droid_page(unsigned char t)
-{
-    win_clear(0, 0x71);
-    win_text(0, 4, "unit", 0x71);
-    buf[0] = '0' + dr_class[t];
-    buf[1] = '0' + dr_num[t] / 10;
-    buf[2] = '0' + dr_num[t] % 10;
-    buf[3] = 0;
-    win_text(0, 9, buf, 0x67);
-    win_text(1, 4, "class", 0x71);
-    win_text(1, 12, class_name[dr_class[t]], 0x67);
-    win_text(3, 4, "speed", 0x71);
-    win_text(3, 12, num_text(dr_drive[t]), 0x67);
-    win_text(4, 4, "weapon", 0x71);
-    win_text(4, 12, weapon_name[dr_weapon[t]], 0x67);
-    win_text(5, 4, "pulses", 0x71);
-    win_text(5, 12, num_text(3 + dr_class[t] / 3), 0x67);
-}
-
-/* the droid enquiry: left and right go through the types the player's
- * host is cleared for - its own class and below */
-static void droids_info(void)
-{
-    static unsigned char t, k, prev, top;
-    win_letters();
-    top = dr_class[d_type[0]];
-    t = 0;
-    while (t + 1 < NDROIDS && dr_class[t + 1] <= top)
-        ++t;
-    droid_page(t);
-    panel_status("Droids");
-    prev = keys_irq;
-    while (keys_irq & K_FIRE) {
-        wait_tick();
-        k = keys_irq;
-        if ((k & K_RIGHT) && !(prev & K_RIGHT) && t + 1 < NDROIDS
-            && dr_class[t + 1] <= top)
-            droid_page(++t);
-        if ((k & K_LEFT) && !(prev & K_LEFT) && t > 0)
-            droid_page(--t);
-        prev = k;
-    }
-    panel_status("Mobile");
-}
-
-void deck_plan(void)
-{
-    static unsigned char bx, by, lo, hi, i, k, px, py;
     while (ready)
         ;
-    memcpy(FONT0 + POOL * 8, xfer_font, NXFER * 8);
-    memcpy(FONT1 + POOL * 8, xfer_font, NXFER * 8);
     eng_plain();
-    /* the deck's width, and where the plan starts so it fits */
-    lo = 63;
-    hi = 0;
-    for (by = 0; by < 16; ++by)
-        for (bx = 0; bx < 64; ++bx)
-            if (DMAP[((unsigned)by << 6) | bx]) {
-                if (bx < lo)
-                    lo = bx;
-                if (bx > hi)
-                    hi = bx;
-            }
-    px = PX >> 5;
-    py = PY >> 5;
-    if (hi - lo < 38)
-        x0 = lo - (38 - (hi - lo)) / 2;
-    else {
-        x0 = px > 19 ? px - 19 : 0;
-        if (x0 < lo)
-            x0 = lo;
-        if (x0 + 38 > hi)
-            x0 = hi - 38;
+    win_clear(0, a);
+    col_deck = bg;
+    font_hi[0] = 0xD8;
+    x_code = 140;
+    memset(xmap, 0, sizeof xmap);
+}
+
+/* text in the panel's letters at row, col */
+static void text(unsigned char row, unsigned char col, const char *s)
+{
+    x_row = row;
+    x_col = col;
+    say(s);
+}
+
+/* the unit line: "Unit type 476 - Maintenance robot" */
+static void unit_line(unsigned char t)
+{
+    static char num[4];
+    num[0] = '0' + dr_class[t];
+    num[1] = '0' + dr_num[t] / 10;
+    num[2] = '0' + dr_num[t] % 10;
+    num[3] = 0;
+    text(10, 3, "Unit type ");
+    say(num);
+    say(" - ");
+    say(unit_name(t));
+}
+
+/* ---- the menu page ---- */
+
+static const char *const deck_name[16] = {
+    DECK_NAMES
+};
+static const char *const alert_name[4] = { "green", "yellow", "amber", "red" };
+
+static unsigned char sel;
+
+/* the menu's symbols: the chosen one white, the others light grey */
+static void icons(void)
+{
+    static unsigned char i, r, c, v, w, h;
+    static const unsigned char *p, *t;
+    p = icon_lay;
+    t = icon_tab;
+    for (i = 0; i < 4; ++i, t += 4) {
+        w = t[2];
+        h = t[3];
+        for (r = 0; r < h; ++r)
+            for (c = 0; c < w; ++c)
+                if ((v = *p++) != 0) {
+                    wp_row = t[1] + r;
+                    wp_col = t[0] + c;
+                    wp_code = ICON_CODE + v - 1;
+                    wp_attr = i == sel ? pal_deck[1] : pal_deck[15];
+                    win_put();
+                }
     }
-    win_clear(POOL + X_BLANK, 0x71);
-    for (by = 0; by < 16; ++by)
-        for (bx = 1; bx < 39; ++bx)
-            if ((unsigned char)(x0 + bx) < 64 && DMAP[((unsigned)by << 6) | (x0 + bx)])
-                cell(x0 + bx, by);
-    /* the droids */
-    for (i = 1; i < nd; ++i)
-        if (!d_boom[i]) {
-            bx = (d_x[i] >> 5) - x0;
-            if (bx > 0 && bx < 39)
-                put(MAP_ROW + (d_y[i] >> 5), bx, POOL + X_LIGHT, 0x71);
+}
+
+static void menu_page(void)
+{
+    clear(0x48, 0x71);                  /* the original's orange */
+    memcpy(FONT1 + ICON_CODE * 8, icon_font, ICON_N * 8);
+    x_attr = pal_deck[7];
+    unit_line(d_type[0]);
+    text(12, 12, "Access granted.");
+    text(15, 12, "Ship  : Paradroid");
+    text(18, 12, "Deck  : ");
+    say(deck_name[deck]);
+    text(21, 12, "Alert : ");
+    say(alert_name[alert]);
+    icons();
+    panel_status("Console");
+}
+
+/* ---- the droid enquiry ---- */
+
+/* page n of type t's: lines of row, column, length and letters, then $FF;
+ * a 0 after the last page */
+static void enquiry_page(unsigned char t, unsigned char n)
+{
+    static const unsigned char *p;
+    static unsigned char i, len, first;
+    first = n == 0;
+    picture(t, 11, 2);
+    col_deck = pal_deck[1];
+    x_code = 140;
+    x_attr = 0x63;                      /* the original's light cyan */
+    unit_line(t);
+    x_attr = pal_deck[2];
+    p = pic_pages;
+    while (n--)
+        while (*p++ != 0xFF)
+            ;
+    while (*p != 0xFF) {
+        x_row = p[0];
+        x_col = p[1];
+        len = p[2];
+        p += 3;
+        for (i = 0; i < len; ++i)
+            x_letter(*p++);
+    }
+    panel_status(first ? "Console" : "More...");
+}
+
+static void enquiry(void)
+{
+    static unsigned char t, n, pages, top;
+    static const unsigned char *p;
+    top = d_type[0];
+    t = top;
+    n = 0;
+    for (;;) {
+        enquiry_page(t, n);
+        for (pages = 0, p = pic_pages; *p; ++pages)
+            while (*p++ != 0xFF)
+                ;
+        do
+            tick_keys();
+        while (!(pressed(K_FIRE) || pressed(K_LEFT) || pressed(K_RIGHT)
+                 || pressed(K_UP) || pressed(K_DOWN)));
+        if (pressed(K_FIRE))
+            return;
+        if (pressed(K_RIGHT))
+            n = n + 1 < pages ? n + 1 : 0;
+        else if (pressed(K_LEFT))
+            n = n ? n - 1 : pages - 1;
+        else {
+            t = pressed(K_UP) ? (t ? t - 1 : top) : (t < top ? t + 1 : 0);
+            n = 0;
+        }
+        sound(SND_LIFT);
+    }
+}
+
+/* ---- the deck plan ---- */
+
+static void plan(void)
+{
+    static unsigned char x, y, b;
+    static unsigned off;
+    clear(deck_bg, 0x71);
+    memcpy(FONT1, plan_font, 33 * 8);
+    for (y = 0; y < 16; ++y)
+        for (x = 3; x < 42; ++x) {
+            b = DMAP[((unsigned)y << 6) | x] >> 2;
+            if (b >= BLK_VOPEN)         /* a door half open: the door */
+                b = b < BLK_HOPEN ? BLK_VDOOR : BLK_HDOOR;
+            if (x == (PX >> 5) && y == (PY >> 5))
+                b = 32;                 /* the player */
+            off = (9 + y) * 40 + x - 3;
+            ((unsigned char *)0xC400)[off] = ((unsigned char *)0xD400)[off] = b;
+            ((unsigned char *)0xC000)[off] = ((unsigned char *)0xD000)[off] =
+                pal_deck[plan_col[b]];  /* hires, as the original's */
         }
     panel_status("Deck plan");
-    k = 0;
-    while (keys_irq & K_FIRE) {
-        wait_tick();
-        if (keys_irq & (K_LEFT | K_RIGHT)) {
-            droids_info();
-            return;
+}
+
+/* ---- the console ---- */
+
+void console_run(void)
+{
+    static unsigned char cd;
+    cd = col_deck;
+    sel = 0;
+    k = keys_irq;
+    menu_page();
+    for (;;) {
+        tick_keys();
+        if (pressed(K_UP) || pressed(K_DOWN)) {
+            sel = (sel + (pressed(K_UP) ? 3 : 1)) & 3;
+            icons();
+            sound(SND_LIFT);
         }
-        if ((++k & 3) == 0) {
-            bx = px - x0;
-            if (bx > 0 && bx < 39) {
-                if (k & 4)
-                    put(MAP_ROW + py, bx, POOL + X_LIGHT, 0x67);
-                else
-                    cell(px, py);
+        if (!pressed(K_FIRE))
+            continue;
+        if (sel == 0)
+            break;
+        if (sel == 1)
+            enquiry();
+        else {
+            if (sel == 2)
+                plan();
+            else {
+                font_hi[0] = 0xC8;
+                side_view();
+                side_light(deck);
+                panel_status("Ship");
             }
+            do
+                tick_keys();
+            while (!pressed(K_FIRE));
         }
+        font_hi[0] = 0xC8;
+        menu_page();
     }
+    while (ready)
+        ;
+    win_clear(0, 0x71);
+    memcpy(FONT1, FONT0, POOL * 8);
+    font_hi[0] = 0xC8;
+    col_fig2 = 0x71;
+    col_deck = cd;
+    while (keys_irq & K_FIRE)
+        wait_tick();
     panel_status("Mobile");
 }

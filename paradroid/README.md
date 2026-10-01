@@ -21,7 +21,7 @@ time-critical parts in assembly.
 | Fire (or `Space`) with a direction | lasers in that direction |
 | Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game |
 | Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there |
-| Fire held at a console | the deck plan; left or right switches to the droid enquiry |
+| Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
 | `Run/Stop` | pause |
 
 ## The game
@@ -62,8 +62,10 @@ second. The window scrolls a pixel at a time in any direction.
 | **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*), then have ten seconds (*Finish -52*). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
 | **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and are files on the disk. |
-| ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
-| **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
+| ![Console](screenshots/console.png) | ![Deck plan](screenshots/plan.png) |
+| **Console.** The original's first page and its four symbols: leave, droid enquiry, deck plan, ship. | **Deck plan.** As the original draws it: a character per block, the character's code being the block's number, in its characters and colours. |
+| ![Droid enquiry](screenshots/droids.png) | ![Its pages](screenshots/droids_more.png) |
+| **Droid enquiry.** For the types up to your host's, with the original's picture. | Its pages are the original's, read off its screens for every type (`tools/console.py`) and stored with each picture's file. |
 
 | | |
 | --- | --- |
@@ -168,6 +170,24 @@ characters turned by a pixel. Written in C, the game was 2 KB larger than
 memory allowed. Laying the board out and the course of the game stay in C
 ([transfer.c](transfer.c)), and its state lives in the low memory at
 `$0C68`, which only a disk load could disturb.
+
+### The console
+
+The ship's computer is the original's, read from it in VICE: its first
+page (unit, ship, deck, alert) beside four symbols, which are its hires
+sprites; the deck's names; and for each droid type its pages (entry,
+class, height, weight, drive, brain, armament, sensors, notes). The
+original builds those from a dictionary of words at `$C000`; they were
+read off its screens instead, by driving its joystick through every page
+of every type in the monitor and decoding the screen memory. The deck plan
+is drawn the way the original's code does it: each block's number is the
+character code, in the original's characters `$00`-`$1F` and colours,
+hires, with the deck's blocks 3 to 41 across.
+
+The console is a second overlay, `console`, in the same place as the
+title's. It is loaded when fire is held at a console, which takes about
+three seconds, and the explosions' and lasers' pictures are made again
+afterwards. The pages about a droid come with its picture's file.
 
 ### The droids' pictures
 
@@ -282,13 +302,14 @@ Each step draws the rows the window shows from the page's lines.
 | [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving; the introduction's letters and pictures |
 | [title.c](title.c) | the overlay: title page, briefing, attract mode |
 | [lift.c](lift.c) | the side view and riding a lift |
-| [console.c](console.c) | the deck plan and the droid enquiry |
+| [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
 | [game.h](game.h) | what the parts share |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
-| [tools/pictures.py](tools/pictures.py) | the droids' pictures out of the original's sprites |
+| [tools/pictures.py](tools/pictures.py) | the droids' pictures and the console's symbols out of the original's sprites |
+| [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
 | [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
 | [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |

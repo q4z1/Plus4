@@ -229,3 +229,11 @@ unsigned char lift_here(void)
             return i;
     return 255;
 }
+
+/* the console next to the player, if any */
+unsigned char console_here(void)
+{
+    return (blk_flag[blk_at(PX - 20, PY)] | blk_flag[blk_at(PX + 20, PY)]
+            | blk_flag[blk_at(PX, PY - 18)] | blk_flag[blk_at(PX, PY + 18)])
+           & B_CONSOLE;
+}
