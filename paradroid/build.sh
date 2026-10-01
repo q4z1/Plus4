@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build Paradroid: build/paradroid.prg and the disk it runs from,
 # build/paradroid.d64, with the title and briefing as a file of its own
-# (an overlay, build/title.bin).
+# (an overlay, build/title.bin), and the droids' pictures p00-p23.
 set -e
 cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
@@ -26,7 +26,11 @@ else
     C1541="flatpak-spawn --host c1541"
 fi
 rm -f build/paradroid.d64
-$C1541 -format "paradroid,pd" d64 build/paradroid.d64 \
-       -write build/paradroid.prg paradroid -write build/title.bin title >/dev/null
+set -- -format "paradroid,pd" d64 build/paradroid.d64 \
+       -write build/paradroid.prg paradroid -write build/title.bin title
+for f in build/pics/p*; do
+    set -- "$@" -write "$f" "$(basename "$f")"
+done
+$C1541 "$@" >/dev/null
 echo "build/paradroid.d64:"
 $C1541 -attach build/paradroid.d64 -list

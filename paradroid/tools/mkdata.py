@@ -288,6 +288,58 @@ def swap_mc(b):
     return ((b & 0x55) << 1) | ((b & 0xAA) >> 1)
 
 
+# --- the droids' pictures (files on the disk) ------------------------------------
+# A picture is six characters wide, from 6 lines into its first row (where
+# the original's sprites start). A cell with multicolour pixels is
+# multicolour: %01 black, %10 the second multicolour, %11 the picture's
+# colour (the C64 has %10 and %11 the other way); one with only the hires
+# sprites' pixels stays hires. A file: the characters, then rows x 6 cells
+# (0 none, else the character's number from 1, +$80 hires), then the number
+# of characters, rows, and the two C64 colours. It is loaded to character 1
+# of picture 1's set (transfer.c), its end found from its length.
+PIC_TOP = 6
+pics = []
+cur = None
+for l in read('pictures.txt').split('\n'):
+    if l.startswith('picture'):
+        f = dict(x.split('=') for x in l.split()[2:])
+        cur = {'col': int(f['colour']), 'mc2': int(f['mc2']), 'rows': []}
+        pics.append(cur)
+    elif cur is not None and l and l[0] in '.ksmh':
+        cur['rows'].append(l)
+os.makedirs(os.path.join(ROOT, 'build', 'pics'), exist_ok=True)
+pic_max = 0
+for n, pic in enumerate(pics):
+    rows = ['.' * 48] * PIC_TOP + pic['rows']
+    nrow = (len(rows) + 7) // 8
+    rows += ['.' * 48] * (nrow * 8 - len(rows))
+    chars, layout = [], []
+    for cr in range(nrow):
+        for cx in range(6):
+            cell = [rows[cr * 8 + y][cx * 8:cx * 8 + 8] for y in range(8)]
+            if all(ch == '.' for r in cell for ch in r):
+                layout.append(0)
+                continue
+            hires = all(ch in '.h' for r in cell for ch in r)
+            g = []
+            for r in cell:
+                v = 0
+                if hires:
+                    for ch in r:
+                        v = v << 1 | (ch == 'h')
+                else:
+                    for j in range(4):
+                        pair = r[2 * j:2 * j + 2].replace('.', '')
+                        v = v << 2 | {'k': 1, 'm': 2, 's': 3, 'h': 3, '': 0}[pair[:1]]
+                g.append(v)
+            if g not in chars:
+                chars.append(g)
+            layout.append((chars.index(g) + 1) | (0x80 if hires else 0))
+    data = sum(chars, []) + layout + [len(chars), nrow, pic['col'], pic['mc2']]
+    assert len(chars) < 90 and nrow <= 12, (n, len(chars), nrow)
+    pic_max = max(pic_max, len(data))
+    open(os.path.join(ROOT, 'build', 'pics', 'p%02d' % n), 'wb').write(bytes([0, 0] + data))
+
 # --- briefing (a file on the disk) ----------------------------------------------
 # The original's pages in the panel's codes: per page its height in rows,
 # then each line as row, column, length and codes, then $FF; a height of 0
@@ -541,4 +593,4 @@ h.append('/* in the title\'s overlay (brief.s) */')
 h.append('extern const unsigned char brief_srcs[], brief_top[], brief_bot[], brief_pages[];')
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
 open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\n' % POOL)
-print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE))
+print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes, pictures up to %d' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE, pic_max))

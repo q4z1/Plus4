@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""pictures.py - the droids' pictures out of the original, into data/
+
+The original draws a droid's picture (before a transfer, at a console)
+from parts, into eight sprites, two side by side in four rows; the routine
+is at $3629 and takes the droid type in $58. The pictures are not stored
+anywhere whole, so they were taken by running that routine in VICE's
+monitor for each type, with the game at the transfer's first screen:
+
+    > 0334 20 29 36 4c 37 03      (JSR $3629 : JMP $0337)
+    break 0337
+    > 0058 <type>    r pc=0334    x
+    bank ram   save "g<type>.bin" 0 0000 ffff
+    bank io    save "g<type>io.bin" 0 d000 d03f
+
+and saving memory and the VIC's registers each time. This script makes
+data/pictures.txt from those 48 files:
+
+    python3 tools/pictures.py <directory with g00.bin ... g23io.bin>
+"""
+import os, sys
+
+DIR = sys.argv[1]
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'pictures.txt')
+VIC_BANK = 0x4000
+POINTERS = 0x020D       # the sprites' pointers, as the interrupt sets them
+
+t = ['# The droids\' pictures, as the original draws them (tools/pictures.py):',
+     '# per type its C64 colours (the sprites\' own, multicolour 2; multicolour 1',
+     '# is black), then the picture, 48 pixels wide from the top left of its',
+     '# first sprite: . nothing, k black, s the sprites\' colour, m multicolour',
+     '# 2 (all in pixel pairs), h a hires pixel in the sprites\' colour.', '']
+for n in range(24):
+    ram = open(os.path.join(DIR, 'g%02d.bin' % n), 'rb').read()[2:]
+    io = open(os.path.join(DIR, 'g%02dio.bin' % n), 'rb').read()[2:]
+    ptr = ram[POINTERS:POINTERS + 8]
+    xs = [io[2 * i] | ((io[0x10] >> i) & 1) << 8 for i in range(8)]
+    ys = [io[2 * i + 1] for i in range(8)]
+    mc = io[0x1C]
+    cols = set(io[0x27 + i] & 15 for i in range(8))
+    assert len(cols) == 1, cols
+    x0, y0 = min(xs), min(ys)
+    img = [['.'] * 48 for _ in range(110)]
+    for i in range(8):
+        blk = ram[VIC_BANK + ptr[i] * 64:VIC_BANK + ptr[i] * 64 + 63]
+        for y in range(21):
+            for b in range(3):
+                v = blk[3 * y + b]
+                X = xs[i] - x0 + b * 8
+                Y = ys[i] - y0 + y
+                if mc >> i & 1:
+                    for k in range(4):
+                        p = (v >> (6 - 2 * k)) & 3
+                        if p:
+                            img[Y][X + 2 * k] = img[Y][X + 2 * k + 1] = '.ksm'[p]
+                else:
+                    for k in range(8):
+                        if v >> (7 - k) & 1:
+                            img[Y][X + k] = 'h'
+    while img and img[-1] == ['.'] * 48:
+        img.pop()
+    t.append('picture %d colour=%d mc2=%d top=%d' % (n, cols.pop(), io[0x26] & 15, y0))
+    t += [''.join(r) for r in img]
+    t.append('')
+open(OUT, 'w').write('\n'.join(t))
+print('data/pictures.txt')

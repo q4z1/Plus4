@@ -60,6 +60,8 @@ second. The window scrolls a pixel at a time in any direction.
 | --- | --- |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
 | **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*), then have ten seconds (*Finish -52*). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
+| ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
+| **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and are files on the disk. |
 | ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
 | **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
 
@@ -161,6 +163,27 @@ memory allowed. Laying the board out and the course of the game stay in C
 ([transfer.c](transfer.c)), and its state lives in the low memory at
 `$0C68`, which only a disk load could disturb.
 
+### The droids' pictures
+
+The original draws a droid's picture from parts into eight sprites, two
+side by side in four rows, with the right half often mirrored. The parts
+are not stored as pictures anywhere, so [tools/pictures.py](tools/pictures.py)
+works from what the original's own routine (`$3629`, type in `$58`) draws:
+run in VICE's monitor once per droid type, its sprites saved each time.
+The script turns them into [data/pictures.txt](data/pictures.txt), and
+`mkdata.py` turns each into multicolour characters, six wide and up to
+twelve high. Multicolour 1 is black, as on the C64; multicolour 2 and the
+sprites' colour are set per picture. Cells with only the hires sprites'
+pixels stay hires.
+
+That is 24 files of up to three blocks, `p00`-`p23`. One is loaded for each
+screen before a transfer, straight into picture 1's character set, which
+the window shows for both pictures meanwhile; the text goes there too, in
+the panel's letters. The words are the original's: its texts are made of
+words from a dictionary at `$C000`, and its unit lines read *Unit type 476
+- Maintenance robot*, *robot* for classes 1-4, *droid* for 5-8, *cyborg*
+for 9 and *device* for the 001.
+
 ### The data, from the original's memory
 
 The C64 game keeps everything in memory once it has loaded. A dump of its
@@ -232,8 +255,6 @@ Each step draws the rows the window shows from the page's lines.
   pulse lasts follow FreedroidClassic (see above), not the original's
   code. Its look, the pulse counts and how the other side plays are the
   original's.
-- Before a transfer the original shows both droids with their pictures
-  ("This is the unit that you wish to control"). That screen is missing.
 - The original's **deck window** is about two rows shorter: the gap under
   the panel is wider, and the window ends higher.
 - The droids are **13 multicolour pixels wide** with their number in a dark
@@ -254,7 +275,7 @@ Each step draws the rows the window shows from the page's lines.
 | [droids.c](droids.c) | the player, the droids, shots, energy, sound effects |
 | [draw.c](draw.c) | the window, figures, the status panel |
 | [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course |
-| [xfer.s](xfer.s) | the transfer board: pulses passed on, lines drawn, live wires moving |
+| [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving; the introduction's letters and pictures |
 | [title.c](title.c) | the overlay: title page, briefing, attract mode |
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the deck plan and the droid enquiry |
@@ -263,8 +284,9 @@ Each step draws the rows the window shows from the page's lines.
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
-| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data |
-| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, as text |
+| [tools/pictures.py](tools/pictures.py) | the droids' pictures out of the original's sprites |
+| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
+| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
 
 ## Building and running

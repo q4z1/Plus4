@@ -230,30 +230,33 @@ static void panel_char(unsigned char col, unsigned char c)
     panel_put();
 }
 
-/* text in the panel's two-line letters from column col; capitals and m
- * and w are two columns wide. Returns the column after it. */
+/* a character as the panel's letters have it: its top's code (the bottom
+ * is code + 128); from $3A on a letter is two wide, code and code + $20 */
+unsigned char panel_code(char ch)
+{
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    if (ch == 'm')
+        return 0x42;
+    if (ch == 'w')
+        return 0x54;
+    if (ch >= 'a' && ch <= 'z')
+        return ch - 'a' + 10;
+    if (ch == 'I')
+        return 0x16;
+    if (ch >= 'A' && ch <= 'Z')
+        return ch - 'A' + 0x3A;
+    return ch == '?' ? 0x24 : ch == '-' ? 0x2E : ch == '.' ? 0x28 : 0x30;  /* or space */
+}
+
+/* text in the panel's letters from column col; returns the column after */
 static unsigned char panel_text(unsigned char col, const char *s)
 {
-    static unsigned char ch, c, wide;
-    while ((ch = *s++) != 0) {
-        wide = 0;
-        if (ch >= '0' && ch <= '9')
-            c = ch - '0';
-        else if (ch == 'm') {
-            c = 0x42;
-            wide = 1;
-        } else if (ch == 'w') {
-            c = 0x54;
-            wide = 1;
-        } else if (ch >= 'a' && ch <= 'z')
-            c = ch - 'a' + 10;
-        else if (ch >= 'A' && ch <= 'Z') {
-            c = ch - 'A' + 0x3A;
-            wide = 1;
-        } else
-            c = ch == '?' ? 0x24 : ch == '-' ? 0x2E : 0x30;  /* or space */
+    static unsigned char c;
+    while (*s) {
+        c = panel_code(*s++);
         panel_char(col++, c);
-        if (wide)
+        if (c >= 0x3A)
             panel_char(col++, c + 0x20);
     }
     return col;

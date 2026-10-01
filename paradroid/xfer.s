@@ -8,9 +8,12 @@
 
         .include "build/gen/tiles.inc"
 
-        .export _part, _live, _life, _drawn
+        .export _part, _live, _life, _drawn, _xmap
         .export _xs, _xr, _tcol, _blk
-        .export _x_pass, _x_line, _x_step, _x_flow
+        .export _x_pass, _x_line, _x_step, _x_flow, _x_layout
+        .export _x_letter, _x_picture, _x_droid, _x_row, _x_col, _x_attr, _x_code
+        .import _pal_deck, _pre
+        .import _rnd
         .export _out_r
 
 NL      = 12
@@ -23,6 +26,7 @@ AMP     = 2
 SWAP    = 3
 BR_T    = 4
 BR_B    = 6
+GA_T    = 7
 GA_M    = 8
 NONE    = 10
 
@@ -50,14 +54,24 @@ xco:    .res 1                  ; the other side's
 xcol:   .res 1
 xn:     .res 1
 xp:     .res 1
+p_from: .res 2
+p_to:   .res 2
+p_to2:  .res 2
 
         .segment "LOWBSS"
+; before the board is laid out, transfer.c's introduction uses the same
+; bytes as a map of the panel's letters to characters (128 of them)
+_xmap:
 _part:  .res 2 * 4 * NL
 _live:  .res 2 * 4 * NL
 _life:  .res 2 * NL             ; ticks a pulse put in has left
 _drawn: .res 2 * NL             ; live bits as last drawn
 
         .bss
+_x_row: .res 1                  ; x_letter, x_droid: where, and in what colour
+_x_col: .res 1
+_x_attr:.res 1
+_x_code:.res 1                  ; x_letter: next free character, 2 a letter
 _xs:    .res 1                  ; the side and line x_line draws
 _xr:    .res 1
 _tcol:  .res 2                  ; the sides' colours
@@ -70,6 +84,9 @@ _out_r: .byte 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0
 in_l:   .byte 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0
 glyph:  .byte G_F1, G_F3, G_FD, POOL+3, POOL+4, POOL+5, POOL+6
         .byte POOL+4, POOL+5, POOL+6, 0
+; how often a part is laid when it is picked, of 101: wire, dead end,
+; amplifier, colour changer, branch, gate (FreedroidClassic's)
+prob:   .byte 100, 2, 5, 5, 5, 5
 base48: .byte 0, 4 * NL
 base12: .byte 0, NL
 rowlo:  .repeat NL, R
@@ -383,4 +400,381 @@ _x_flow:
         inx
         cpx #5
         bne @r
+        rts
+
+; ---------------------------------------------------------------------------
+; x_layout: side A's parts laid out, as FreedroidClassic's InventPlayground
+; does: every line wire to begin with, then in layers 1 and 2 each wire
+; becomes a part picked at random (and accepted as often as prob says).
+; Behind a part that passes nothing on there is nothing. A colour changer
+; only goes next to the column. A branch takes three lines, its middle fed
+; from the left, and cuts the lines before its ends; a gate takes three,
+; fed at its ends, and cuts the line before its middle.
+_x_layout:
+        tax
+        lda base48,x
+        sta xp
+        tax
+        ldy #4 * NL
+        lda #WIRE
+:       sta _part,x
+        inx
+        dey
+        bne :-
+        lda #1
+        sta xk                  ; the layer
+@layer: lda #0
+        sta xn                  ; the line
+@row:   jsr @idx
+        lda _part,x
+        beq :+               ; set already, by a branch or gate
+        jmp @next
+:
+@pick:  jsr _rnd
+        and #7
+        cmp #6
+        bcs @pick
+        sta xe
+@prob:  jsr _rnd
+        and #127
+        cmp #101
+        bcs @prob
+        ldy xe
+        cmp prob,y
+        beq :+
+        bcc :+                ; not this time: pick again
+        jmp @row
+:       jsr @idx
+        ldy _part - NL,x        ; what is before it
+        lda xe
+        cmp #4
+        bcs @three
+        cmp #SWAP
+        bne :+
+        ldy xk
+        cpy #2
+        beq :+                ; colour changers next to the column only
+        jmp @row
+:
+        ldy _part - NL,x
+        lda _out_r,y
+        bne :+
+        lda #NONE
+        sta _part,x
+        jmp @next
+:       lda xe
+        sta _part,x
+        jmp @next
+@three: lda xn
+        cmp #NL - 2
+        bcc :+                ; no room
+        jmp @row
+:
+        lda xe
+        cmp #4
+        bne @gate
+        ; a branch: fed in the middle; none next to another's end
+        ldy _part - NL + 1,x
+        lda _out_r,y
+        bne :+
+        jmp @row
+:
+        lda _part - NL,x
+        jsr @isend
+        bne :+
+        jmp @row
+:
+        lda _part - NL + 2,x
+        jsr @isend
+        bne :+
+        jmp @row
+:
+        ldy _part - NL,x
+        lda _out_r,y
+        beq :+
+        lda #DEAD
+        sta _part - NL,x
+:       ldy _part - NL + 2,x
+        lda _out_r,y
+        beq :+
+        lda #DEAD
+        sta _part - NL + 2,x
+:       lda #BR_T
+        bne @set
+@gate:  ldy _part - NL,x
+        lda _out_r,y
+        bne :+
+        jmp @row
+:
+        ldy _part - NL + 2,x
+        lda _out_r,y
+        bne :+
+        jmp @row
+:
+        ldy _part - NL + 1,x
+        lda _out_r,y
+        beq :+
+        lda #DEAD
+        sta _part - NL + 1,x
+:       lda #GA_T
+@set:   sta _part,x
+        clc
+        adc #1
+        sta _part + 1,x
+        adc #1
+        sta _part + 2,x
+        inc xn
+        inc xn
+@next:  inc xn
+        lda xn
+        cmp #NL
+        bcs :+
+        jmp @row
+:       inc xk
+        lda xk
+        cmp #3
+        bcs :+
+        jmp @layer
+:       rts
+
+; X := the cell of layer xk, line xn
+@idx:   lda xk
+        asl a
+        adc xk                  ; 3 * layer
+        asl a
+        asl a                   ; 12 * layer
+        adc xp
+        adc xn
+        tax
+        rts
+
+; Z set if A is a branch's end
+@isend: cmp #BR_T
+        beq :+
+        cmp #BR_B
+:       rts
+
+; ---------------------------------------------------------------------------
+; The introduction and the droids on the board (transfer.c): cells written
+; into both pictures, characters into picture 1's set or both.
+
+PANELF  = $E000
+
+; row x_row of both pictures into pa0/pc0, pa1/pc1
+rowptr: lda #0
+        sta pa0 + 1
+        lda _x_row
+        asl a
+        asl a
+        adc _x_row              ; 5 * row
+        asl a
+        rol pa0 + 1
+        asl a
+        rol pa0 + 1
+        asl a                   ; 40 * row
+        rol pa0 + 1
+        sta pa0
+        sta pc0
+        sta pa1
+        sta pc1
+        lda pa0 + 1
+        ora #$C0
+        sta pa0 + 1
+        ora #$04
+        sta pc0 + 1
+        eor #$C4 ^ $D4
+        sta pc1 + 1
+        and #$FB
+        sta pa1 + 1
+        rts
+
+; code A in column Y of the row, colour x_attr; A is kept
+put2:   sta (pc0),y
+        sta (pc1),y
+        pha
+        lda _x_attr
+        sta (pa0),y
+        sta (pa1),y
+        pla
+        rts
+
+; p_to := address of character A in the set whose high byte is in X
+charad: stx p_to + 1
+        ldx #0
+        stx xco
+        asl a
+        rol xco
+        asl a
+        rol xco
+        asl a
+        rol xco
+        sta p_to
+        lda xco
+        ora p_to + 1
+        sta p_to + 1
+        rts
+
+; x_letter: the panel's letter A (its top's code) at x_row, x_col, two rows
+; high, and x_col moved on. Its two characters are copied to x_code and
+; the one after it the first time; xmap remembers where.
+_x_letter:
+        sta xe
+        tay
+        lda _xmap,y
+        bne @have
+        lda _x_code
+        sta _xmap,y
+        inc _x_code
+        inc _x_code
+        lda xe                  ; the top
+        ldx _xmap,y
+        jsr @copy
+        lda xe                  ; the bottom, 128 characters on
+        ora #$80
+        ldx _xmap,y
+        inx
+        jsr @copy
+        lda _xmap,y
+@have:  sta xe
+        jsr rowptr
+        ldy _x_col
+        lda xe
+        jsr put2
+        inc _x_row
+        jsr rowptr
+        ldy _x_col
+        lda xe
+        clc
+        adc #1
+        jsr put2
+        dec _x_row
+        inc _x_col
+        rts
+
+; panel character A to character X of picture 1's set; Y is kept
+@copy:  sty xk
+        stx xp
+        ldx #>PANELF
+        jsr charad
+        lda p_to
+        sta p_from
+        lda p_to + 1
+        sta p_from + 1
+        lda xp
+        ldx #>FONT1
+        jsr charad
+        ldy #7
+:       lda (p_from),y
+        sta (p_to),y
+        dey
+        bpl :-
+        ldy xk
+        rts
+
+; x_picture(lay): a droid's picture, loaded at character 1 of picture 1's
+; set; its layout at lay, x_code rows of six cells (0 none, else the
+; character, +$80 hires), drawn from row x_row, column x_col, in colour
+; x_attr - multicolour unless the cell says hires.
+_x_picture:
+        sta p_from
+        stx p_from + 1
+        lda _x_attr
+        sta xcs
+        ldx #0
+        stx xp                  ; index into the layout
+@r:     jsr rowptr
+        ldy _x_col
+        lda #6
+        sta xk
+@c:     sty xcol
+        ldy xp
+        lda (p_from),y
+        inc xp
+        ldy xcol
+        tax
+        beq @n
+        lda xcs
+        cpx #$80
+        bcs :+
+        ora #8                  ; multicolour
+:       sta _x_attr
+        txa
+        and #$7F
+        jsr put2
+@n:     iny
+        dec xk
+        bne @c
+        inc _x_row
+        dec _x_code
+        bne @r
+        lda xcs
+        sta _x_attr
+        rts
+
+; x_droid(slot): a droid's picture from its pre-shifted slot (the first of
+; its four positions: columns at 8 + 24 * column) as eight characters
+; x_code to x_code + 7 of both sets, 4 wide and 2 high at x_row, x_col
+_x_droid:
+        asl a                   ; slot * 512, + 8: column 0, line 0
+        clc
+        adc #>(_pre + 8)
+        sta p_from + 1
+        lda #<(_pre + 8)
+        sta p_from
+        lda #0
+        sta xk                  ; the column, 0-3
+@col:   lda #0
+        sta xv                  ; top or bottom
+@half:  lda _x_code
+        ldx #>FONT0
+        jsr charad
+        lda p_to
+        sta p_to2
+        lda p_to + 1
+        eor #>FONT0 ^ >FONT1
+        sta p_to2 + 1
+        lda xk                  ; 24 * column + 8 * half
+        asl a
+        adc xk
+        asl a
+        asl a
+        asl a
+        ldx xv
+        beq :+
+        adc #8
+:       sta xw
+        ldx #0
+@b:     ldy xw
+        lda (p_from),y
+        inc xw
+        stx xcol
+        ldy xcol
+        sta (p_to),y
+        sta (p_to2),y
+        inx
+        cpx #8
+        bne @b
+        lda _x_row
+        pha
+        clc
+        adc xv
+        sta _x_row
+        jsr rowptr
+        pla
+        sta _x_row
+        lda _x_col
+        clc
+        adc xk
+        tay
+        lda _x_code
+        jsr put2
+        inc _x_code
+        inc xv
+        lda xv
+        cmp #2
+        bne @half
+        inc xk
+        lda xk
+        cmp #4
+        bne @col
         rts

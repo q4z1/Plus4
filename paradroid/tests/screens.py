@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """screens.py - the README's screenshots, made in a headless VICE:
 title, briefing, a deck with droids, the transfer game, a lift, the deck plan and
-the droid enquiry. Written to screenshots/."""
+the droid enquiry, the transfer's introduction. Written to screenshots/."""
 import os, sys, shutil
 sys.path.insert(0, os.path.dirname(__file__))
 from game import Game, ROOT
@@ -80,8 +80,17 @@ try:
     i = [i for i in range(1, g.byte('_nd')) if g.byte('_d_boom', i) == 0][0]
     g.poke('_d_x', px & 255, px >> 8, off=2 * i); g.poke('_d_y', py & 255, py >> 8, off=2 * i)
     g.keys(16, 0.5); g.keys(0, 0.1)
-    # the board is up when the sides' colours are set; fire takes yellow
+    # the introduction: both droids, from the disk, in picture 1's set
     for i in range(60):
+        if g.byte('_font_hi') == 0xD8:
+            break
+        g.v.run_for(0.2)
+    g.v.run_for(1.0)
+    save(g, 'intro_you.png')
+    g.v.run_for(5.0)
+    save(g, 'intro.png')
+    # the board is up when the sides' colours are set; fire takes yellow
+    for i in range(100):
         if g.byte('_tcol') != 0:
             break
         g.v.run_for(0.2)

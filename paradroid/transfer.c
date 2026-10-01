@@ -29,8 +29,6 @@
 #define G_D0    (POOL + 14)             /* $D0 and $D1 */
 #define G_D1    (POOL + 15)
 #define FIG     (POOL + NBOARD)         /* the two droids' characters */
-#define SCR0C_ROW(r) ((unsigned char *)0xC400 + (r) * 40)
-#define SCR1C_ROW(r) ((unsigned char *)0xD400 + (r) * 40)
 
 /* the parts */
 #define WIRE   0
@@ -45,8 +43,6 @@
 #define GA_B   9
 #define NONE   10
 
-/* how often a part is laid, of 100, when it is picked */
-static const unsigned char prob[6]   = { 100, 2, 5, 5, 5, 5 };
 
 /* the board (xfer.s): per side 4 layers of NL lines, a layer after the
  * other; whether each part carries a pulse; how long a pulse put in lasts */
@@ -57,6 +53,12 @@ void x_pass(unsigned char s);           /* pulses passed on */
 void x_line(void);                      /* line xr of side xs drawn */
 void x_step(unsigned char s);           /* lines drawn that changed */
 void x_flow(void);                      /* the live wires' dashes move */
+void x_layout(unsigned char s);         /* the parts laid out */
+extern unsigned char xmap[128];
+extern unsigned char x_row, x_col, x_attr, x_code;
+void x_letter(unsigned char c);         /* a letter of the panel's, two high */
+void x_picture(const unsigned char *lay);   /* a droid's, x_code rows */
+void x_droid(unsigned char slot);       /* a droid as on the deck, 4 x 2 */
 #define L1 NL
 #define L2 (2 * NL)
 #define L3 (3 * NL)
@@ -84,67 +86,6 @@ static void put(unsigned char row, unsigned char col, unsigned char g, unsigned 
     wp_row = row;
     ds = 0;
     cell(col, g, a);
-}
-
-/* ---- laying out the parts (FreedroidClassic's InventPlayground) ---- */
-
-static void lay_out(unsigned char s)
-{
-    static unsigned char *p, *q;
-    static unsigned char l, e, prev;
-    static signed char r;
-    p = part + s * 4 * NL;
-    memset(p, WIRE, 4 * NL);
-    for (l = 1; l < 3; ++l) {
-        q = p + l * NL;                 /* this layer; q[r - NL] the one before */
-        for (r = 0; r < NL; ++r) {
-            if (q[r] != WIRE)
-                continue;
-            e = rnd() % 6;
-            if (rnd() % 101 > prob[e]) {
-                --r;                    /* this line again */
-                continue;
-            }
-            prev = q[r - NL];
-            if (e < 4) {
-                if (e == SWAP && l != 2)
-                    --r;                /* colour changers next to the column */
-                else if (!out_r[prev])
-                    q[r] = NONE;
-                else
-                    q[r] = e;
-                continue;
-            }
-            if (r > NL - 3) {
-                --r;
-                continue;
-            }
-            if (e == 4) {               /* a branch: in the middle, out at both ends */
-                if (!out_r[q[r - NL + 1]] || prev == BR_T || prev == BR_B
-                    || q[r - NL + 2] == BR_T || q[r - NL + 2] == BR_B) {
-                    --r;
-                    continue;
-                }
-                if (out_r[prev])
-                    q[r - NL] = DEAD;
-                if (out_r[q[r - NL + 2]])
-                    q[r - NL + 2] = DEAD;
-                e = BR_T;
-            } else {                    /* a gate: in at both ends, out in the middle */
-                if (!out_r[prev] || !out_r[q[r - NL + 2]]) {
-                    --r;
-                    continue;
-                }
-                if (out_r[q[r - NL + 1]])
-                    q[r - NL + 1] = DEAD;
-                e = GA_T;
-            }
-            q[r] = e;
-            q[r + 1] = e + 1;
-            q[r + 2] = e + 2;
-            r += 2;
-        }
-    }
 }
 
 static void draw_line(unsigned char s, unsigned char r)
@@ -198,33 +139,21 @@ static void draw_leader(void)
     cell(20, GLYPH(0xFE), a);
 }
 
-/* a droid's picture, from its pre-shifted slot, at column c of rows 8-9 */
-static void draw_droid(unsigned char slot, unsigned char n, unsigned char c)
-{
-    static unsigned char k, g;
-    static const unsigned char *p;
-    p = pre + ((unsigned)slot << 9) + 8;
-    for (k = 0, g = FIG + n * 8; k < 8; ++k, ++g) {
-        memcpy(FONT0 + g * 8, p + 24 * (k >> 1) + ((k & 1) << 3), 8);
-        memcpy(FONT1 + g * 8, FONT0 + g * 8, 8);
-        put(8 + (k & 1), c + (k >> 1), g, pal_deck[1] | 8);
-    }
-}
-
 static unsigned char target_slot;
 
 static void draw_droids(void)
 {
     static unsigned char k;
-    for (k = 8; k < 10; ++k) {
-        memset(SCR0C_ROW(k) + 7, 0, 4);
-        memset(SCR0C_ROW(k) + 29, 0, 4);
-        memset(SCR1C_ROW(k) + 7, 0, 4);
-        memset(SCR1C_ROW(k) + 29, 0, 4);
-    }
-    draw_droid(SLOT_PLAYER, 0, me ? 29 : 7);
+    for (k = 0; k < 16; ++k)
+        put(8 + (k >> 3), (k & 4 ? 29 : 7) + (k & 3), 0, blk);
+    x_attr = pal_deck[1] | 8;
+    x_row = 8;
+    x_code = FIG;
+    x_col = me ? 29 : 7;
+    x_droid(SLOT_PLAYER);
+    x_col = me ? 7 : 29;
     if (target_slot != 255)
-        draw_droid(target_slot, 1, me ? 7 : 29);
+        x_droid(target_slot);
 }
 
 static void board(void)
@@ -346,6 +275,103 @@ static void enemy(unsigned char s)
     draw_cursor(s, 1);
 }
 
+static void wait3(void)
+{
+    static unsigned char f;
+    f = frames;
+    while ((unsigned char)(frames - f) < 3)
+        ;
+    ++tick;
+}
+
+/* ---- the introduction: both droids, as the original shows them ---- */
+
+/* The pictures are files on the disk, "p00" to "p23" (tools/mkdata.py),
+ * loaded to character 1 of picture 1's set, which the window shows for
+ * both pictures meanwhile. The text is in the panel's letters, their
+ * characters copied there too, from 100 on, the first time each is met. */
+static char name[4] = "p00";
+
+static const char *const noun[4] = { " device", " robot", " droid", " cyborg" };
+static const char *const kind[10] = {
+    "Influence", "Disposal", "Servant", "Messenger", "Maintenance",
+    "Crew", "Sentinel", "Battle", "Security", "Command"
+};
+
+/* text from x_row, x_col on */
+static void say(const char *s)
+{
+    static unsigned char c;
+    while (*s) {
+        c = panel_code(*s++);
+        x_letter(c);
+        if (c >= 0x3A)
+            x_letter(c + 0x20);
+    }
+}
+
+/* droid type t's screen: its picture and what it is; the second line is
+ * the player's or the other droid's */
+static void unit(unsigned char t, unsigned char a, const char *l1, const char *l2)
+{
+    static unsigned char *e;
+    win_clear(0, 0x71);
+    name[1] = '0' + t / 10;
+    name[2] = '0' + t % 10;
+    e = FONT1 + 8 - 4 + load_file(name, FONT1 + 8);
+    font_hi[0] = 0xD8;                  /* picture 1's set in both */
+    col_fig2 = pal_deck[e[3]];
+    x_attr = pal_deck[e[2]];
+    x_row = 10;
+    x_col = 2;
+    x_code = e[1];
+    x_picture(e - e[1] * 6);
+    memset(xmap, 0, sizeof xmap);
+    x_attr = a;
+    x_code = 100;
+    x_row = 9;
+    x_col = 3;
+    say("Unit type ");
+    name[0] = '0' + dr_class[t];        /* (the file's name done with) */
+    name[1] = '0' + dr_num[t] / 10;
+    name[2] = '0' + dr_num[t] % 10;
+    say(name);
+    name[0] = 'p';
+    say(" - ");
+    say(kind[dr_class[t]]);
+    say(noun[(dr_class[t] + 3) / 4]);
+    x_row = 11;
+    x_col = 10;
+    say("This is the unit that you");
+    x_row = 13;
+    x_col = 9;
+    say(l1);
+    x_row = 15;
+    x_col = 9;
+    say(l2);
+    for (t = 0; t < 50 && !(keys_irq & K_FIRE); ++t)
+        wait3();
+    while (keys_irq & K_FIRE)
+        wait3();
+}
+
+static void intro(unsigned char i)
+{
+    static unsigned char cd;
+    while (ready)
+        ;
+    eng_plain();
+    cd = col_deck;
+    col_deck = pal_deck[1];
+    unit(d_type[0], pal_deck[5], "currently control.", "");
+    unit(d_type[i], pal_deck[6], "wish to control. Prepare to", "transfer.");
+    win_clear(0, 0x71);
+    memcpy(FONT1, FONT0, POOL * 8);
+    font_hi[0] = 0xC8;
+    col_fig2 = 0x71;
+    col_deck = cd;
+}
+
 static char text[12];
 
 /* the panel: a word and a count, as the original's "Colour? 76" */
@@ -356,19 +382,12 @@ static void count(const char *w, unsigned char n)
     panel_status(text);
 }
 
-static void wait3(void)
-{
-    static unsigned char f;
-    f = frames;
-    while ((unsigned char)(frames - f) < 3)
-        ;
-    ++tick;
-}
 
 /* the game against droid i: 1 if the player wins */
 unsigned char transfer_game(unsigned char i)
 {
     static unsigned char t, k, prev, s, cd;
+    intro(i);
     memcpy(FONT0 + POOL * 8, board_font, NBOARD * 8);
     memcpy(FONT1 + POOL * 8, board_font, NBOARD * 8);
     eng_plain();
@@ -379,8 +398,8 @@ unsigned char transfer_game(unsigned char i)
     col_deck = pal_deck[2];
     target_slot = slot_of[d_type[i]];
     for (;;) {
-        lay_out(0);
-        lay_out(1);
+        x_layout(0);
+        x_layout(1);
         memset(live, 0, sizeof live);
         memset(life, 0, sizeof life);
         for (t = 0; t < NL; ++t)

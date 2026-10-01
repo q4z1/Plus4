@@ -257,17 +257,19 @@ static unsigned char kvars[16];
 /* a file from the disk to addr. The screen is off meanwhile, as the KERNAL
  * loads with its own interrupt handler; the deck's map is unpacked again
  * afterwards. With no disk the border goes red, and it tries again. */
-static void load_file(const char *name, void *addr)
+unsigned load_file(const char *name, void *addr)
 {
+    static unsigned n;
     eng_hide();
     *(volatile unsigned char *)0xFF11 = 0;  /* sound off */
     memcpy(KVARS, kvars, sizeof kvars);
-    while (!cbm_load(name, dev, addr))
+    while ((n = cbm_load(name, dev, addr)) == 0)
         *(volatile unsigned char *)0xFF19 = 0x32;
     memcpy(kvars, KVARS, sizeof kvars);
     load_deck(deck);
     mc_font();
     eng_show();
+    return n;
 }
 
 /* ======================================================================
