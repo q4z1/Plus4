@@ -42,7 +42,7 @@ try:
         for yy in range(h):
             shot.append([0 if pix[yy][x] == bg else 1 for x in range(32 + 16 + sx, 32 + 304 + sx)])
         res = []
-        for r in range(9, 23):
+        for r in range(9, 25):
             hits = []
             for y in range(8):
                 line = []
@@ -51,6 +51,8 @@ try:
                 if sum(line) == 0 or sum(line) == len(line):
                     continue
                 want = 96 + k + 8 * (r - 7) + y
+                if want > 239:
+                    continue            # under the picture's end
                 found = [yy for yy in range(want - 20, want + 21) if shot[yy] == line]
                 hits.append((y, [f - want for f in found]))
             res.append((r, hits))

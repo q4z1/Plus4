@@ -4,7 +4,7 @@
 ; What has to be fast or on time lives here:
 ;
 ;   1. The raster interrupt, three stops a picture:
-;        line 44   in the panel's last row: the deck's background colour
+;        line 44   in the panel's last row: the border's colour
 ;        line 55   the gap row under it: the deck's character set,
 ;                  multicolour, 38 columns, x fine scroll, and at its last
 ;                  line the y fine scroll (see below)
@@ -106,7 +106,7 @@ WCOLS       = 39
 
 LINE_GAP    = 44                ; interrupt lines, see the top
 LINE_RC     = 55
-LINE_BOTTOM = 199               ; less s, the line counter is behind then
+LINE_BOTTOM = 198               ; less s, the line counter is behind then
 
 ; ---- zero page ------------------------------------------------------------
 
@@ -472,7 +472,7 @@ irq_gap:
         lda #47
 :       cmp TED_LINE
         bcs :-
-        lda _col_deck
+        lda _col_border
         sta TED_BG
         lda #1
         sta phase
@@ -494,6 +494,19 @@ irq_rc:
         sta TED_COL1
         lda _col_fig2
         sta TED_COL2
+        ; the deck's colour from line 58: written between lines 57 and 58
+        ldx #57
+:       cpx TED_LINE
+        beq @l57
+        bcs :-
+        bcc @bg                 ; late: at once
+@l57:   lda TED_HPOS
+        cmp #124
+        bcs @bg
+        cpx TED_LINE
+        beq @l57
+@bg:    lda _col_deck
+        sta TED_BG
         lda #57
 :       cmp TED_LINE
         bcs :-
@@ -514,7 +527,7 @@ irq_rc:
         jmp irq_out
 
 ; Below the window: the line counter right again in line 203, so the
-; picture ends at line 204 as always.
+; picture ends at line 204 as always; and only then the panel's settings.
 irq_bottom:
         ldy front
         lda b_s,y
@@ -526,7 +539,10 @@ irq_bottom:
         bcs :-
         lda #203
         sta TED_LINE
-:       lda _ready
+:       lda #203
+:       cmp TED_LINE
+        bcs :-
+        lda _ready
         beq @same
         lda _back
         sta front
