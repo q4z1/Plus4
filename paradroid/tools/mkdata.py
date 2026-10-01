@@ -209,7 +209,7 @@ def pic_bytes(rows, swap=False):
             v = 0
             for i in range(4):
                 ch = r[b * 4 + i]
-                p = {'.': 0, 'x': 1, 'o': 2}[ch]
+                p = {'.': 0, 'x': 1, 'o': 2, 'c': 3}[ch]
                 if swap and p:
                     p ^= 3
                 v |= p << (6 - 2 * i)
@@ -483,8 +483,9 @@ for g in DIGITS:
     dg += [v & 255, v >> 8]
 emit('digit_bits', dg)
 # lasers and explosion from the original's sprites (24 x 21), as 12
-# multicolour pixels by 16 lines: hires pixel pairs become light pixels, the
-# explosion's colours light and dark
+# multicolour pixels by 16 lines: hires pixel pairs become light pixels. The
+# explosion's black stays black (%01), its yellow and orange are the cells'
+# own colour (%11), which draw.c sets: yellow, then orange as it dies down
 sprites = {}
 for m in re.finditer(r'sprite (\w+) (mc|hires)\n((?:[.#0-3]{12,24}\n){21})', read('sprites.txt')):
     sprites[m.group(1)] = (m.group(2), m.group(3).split())
@@ -497,7 +498,7 @@ def sprite_pic(name, top):
         if kind == 'hires':
             out.append(''.join('o' if '#' in r[2 * i:2 * i + 2] else '.' for i in range(12)))
         else:
-            out.append(''.join({'0': '.', '1': 'o', '2': 'x', '3': 'o'}[c] for c in r))
+            out.append(''.join({'0': '.', '1': 'x', '2': 'c', '3': 'c'}[c] for c in r))
     return out
 
 

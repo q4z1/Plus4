@@ -293,10 +293,8 @@ static void wait3(void)
 static char name[4] = "p00";
 
 static const char *const noun[4] = { " device", " robot", " droid", " cyborg" };
-static const char *const kind[10] = {
-    "Influence", "Disposal", "Servant", "Messenger", "Maintenance",
-    "Crew", "Sentinel", "Battle", "Security", "Command"
-};
+extern const char *const class_name[10];   /* console.c, in small letters */
+static char word[12];
 
 /* text from x_row, x_col on */
 static void say(const char *s)
@@ -338,7 +336,9 @@ static void unit(unsigned char t, unsigned char a, const char *l1, const char *l
     say(name);
     name[0] = 'p';
     say(" - ");
-    say(kind[dr_class[t]]);
+    strcpy(word, class_name[dr_class[t]]);
+    word[0] ^= 0x80;                    /* a capital (PETSCII) */
+    say(word);
     say(noun[(dr_class[t] + 3) / 4]);
     x_row = 12;
     x_col = 10;

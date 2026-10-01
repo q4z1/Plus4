@@ -59,7 +59,7 @@ static void cell(unsigned char bx, unsigned char by)
 }
 
 /* what the enquiry shows, in words */
-static const char *const class_name[10] = {
+const char *const class_name[10] = {
     "influence", "disposal", "servant", "messenger", "maintenance",
     "crew", "sentinel", "battle", "security", "command"
 };

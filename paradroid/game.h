@@ -23,6 +23,7 @@ extern unsigned char *p_pre;
 #pragma zpsym("f_pre")
 #pragma zpsym("p_pre")
 extern unsigned char col_deck, col_panel, col_fig1, col_fig2, col_border;
+extern unsigned char f_tint;               /* r_fig: the cells' colour, 0 the deck's */
 extern unsigned char bs_x, bs_y, bs_v;
 extern unsigned pp_off;
 extern unsigned char pp_code, pp_attr;

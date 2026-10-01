@@ -160,6 +160,11 @@ static void figure(void)
     r_fig();
 }
 
+/* an explosion's colour by its stage, multicolour: the original's yellow,
+ * then its orange as it dies down - a red of middle luminance, as cells in
+ * multicolour can only have the colours 0-7 */
+static const unsigned char explo_col[NEXPLO] = { 0x7F, 0x7F, 0x7F, 0x4A, 0x4A, 0x4A };
+
 /* shot pictures: where their top left corner is from their middle */
 static const signed char laser_ox[4] = { -12, -12, -12, -12 };
 static const signed char laser_oy[4] = { -8, -8, -8, -8 };
@@ -179,12 +184,14 @@ void draw(void)
         fig_y = d_y[i] - 8;
         if (b) {
             fig_n = SLOT_EXPLO + ((b - 1) >> 1);
+            f_tint = explo_col[(b - 1) >> 1];
         } else {
             fig_n = slot_of[d_type[i]];
             if (fig_n == 255)
                 continue;
         }
         figure();
+        f_tint = 0;
     }
     for (i = 0; i < MAXS; ++i)
         if (s_life[i]) {
@@ -200,7 +207,9 @@ void draw(void)
     if (b) {
         if (b < BOOM_GONE) {
             fig_n = SLOT_EXPLO + ((b - 1) >> 1);
+            f_tint = explo_col[(b - 1) >> 1];
             figure();
+            f_tint = 0;
         }
     } else if (hide_player) {
         ;

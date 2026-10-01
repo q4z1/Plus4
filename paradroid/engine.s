@@ -52,7 +52,7 @@
         .export _blk_set, _bs_x, _bs_y, _bs_v
         .export _panel_put, _pp_off, _pp_code, _pp_attr
         .export _keys_irq, _eng_keys, _dbg_keys
-        .export _pool_left, _eng_stack, _font_hi
+        .export _pool_left, _eng_stack, _font_hi, _f_tint
         .export _snd_time, _sfx_lo, _sfx_hi, _sfx_noise, _sfx_len, _sfx_d, _eng_sfx
         .importzp sp
 
@@ -156,6 +156,7 @@ z_pc:       .res 1
         .bss
 _frames:    .res 1              ; pictures shown, 50 a second
 _back:      .res 1              ; the picture being drawn: 0 or 1
+_f_tint:    .res 1              ; r_fig: the cells' colour, or 0 for the deck's
 _ready:     .res 1              ; set when it is complete; the IRQ shows it
 front:      .res 1
 phase:      .res 1
@@ -1481,9 +1482,11 @@ cell_get:
         beq @none
         sta (p_scr),y
         inc next_code
+        lda _f_tint             ; the figure's colour, multicolour,
+        bne :+
         lda (p_att),y
-        ora #$08                ; multicolour
-        sta (p_att),y
+        ora #$08                ; or the deck's, multicolour
+:       sta (p_att),y
         lda code_lo,x           ; behind it: the deck character in multicolour
         sta p_src
         lda code_hi,x
@@ -1501,7 +1504,10 @@ cell_get:
         clc
         rts
 @have:  tax
-        lda code_lo,x
+        lda _f_tint
+        beq :+
+        sta (p_att),y
+:       lda code_lo,x
         sta p_dst
         sta p_src
         lda code_hi,x
