@@ -106,7 +106,7 @@ WCOLS       = 39
 
 LINE_GAP    = 44                ; interrupt lines, see the top
 LINE_RC     = 55
-LINE_BOTTOM = 198               ; less s, the line counter is behind then
+LINE_BOTTOM = 201               ; less s, the line counter is behind then
 
 ; ---- zero page ------------------------------------------------------------
 
