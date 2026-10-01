@@ -10,7 +10,7 @@
 
 void wait_tick(void);
 
-#define MAP_ROW 8                       /* screen row of the plan's top */
+#define MAP_ROW 9                       /* screen row of the plan's top */
 
 static unsigned char x0;                /* deck block at plan column 0 */
 

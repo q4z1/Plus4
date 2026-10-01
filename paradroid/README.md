@@ -90,10 +90,10 @@ Writing only the row line counter looks like a shift if every row shows the
 same characters. In fact it only **rotates** the lines within each row. That
 took a test with a different character on every row to see. The two
 together do move everything below, with the rows intact. At the start of the
-last line of the gap row under the panel, the interrupt sets:
+last line of the gap under the panel, the interrupt sets:
 
 ```
-$FF1D := 58 - s        ; the line counter set back by s
+$FF1D := 74 - s        ; the line counter set back by s
 $FF1F := (6 - s) & 7   ; row line counter (bits 0-2) - one line later than
                        ; the obvious 7 - s, or each row's first line shows
                        ; the row above it
@@ -112,8 +112,14 @@ change of background colour exactly at that edge would have been simpler,
 but on the TED it cannot be timed reliably. In the visible part of a line
 the processor runs single-clocked, a timing loop overshoots the few usable
 `$FF1E` positions, and the TED stops the processor before a row's first
-line. So the gap under the panel has the deck's colour, and the window's
-edge comes from the cut characters alone.
+line. So the deck's colour starts with the gap's last line, a line or two
+above the window, and the window's edge comes from the cut characters.
+
+The gap is three rows (6 to 8) and the window 16 rows (9 to 24), as high as
+the original's and in the same place under the panel, to a pixel. The
+interrupt stops twice in the gap: at line 55 for the deck's character set
+and modes, and at line 71 for the scroll, so that it does not wait through
+the gap.
 
 ### Figures over a hires deck
 
@@ -255,13 +261,11 @@ Each step draws the rows the window shows from the page's lines.
   pulse lasts follow FreedroidClassic (see above), not the original's
   code. Its look, the pulse counts and how the other side plays are the
   original's.
-- The original's **deck window** is about two rows shorter: the gap under
-  the panel is wider, and the window ends higher.
 - The droids are **13 multicolour pixels wide** with their number in a dark
   band. The original's hires sprites are 24 pixels wide, and the Plus/4's
   characters have half the horizontal resolution.
-- The **gap under the panel** has the deck's colour, not the panel
-  surround's (see above).
+- The deck's colour starts a line above the window's top edge (see
+  above); in the original, the edge and the colour change are the same.
 - **Sound** is a handful of effects on one voice.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here.

@@ -24,7 +24,7 @@
 #include "game.h"
 
 #define NL      12                      /* lines a side */
-#define ROW0    11                      /* screen row of the first line */
+#define ROW0    12                      /* screen row of the first line */
 #define GLYPH(c) (POOL + (c) - 0xF1)    /* the original's $F1-$FE, */
 #define G_D0    (POOL + 14)             /* $D0 and $D1 */
 #define G_D1    (POOL + 15)
@@ -133,9 +133,9 @@ static void draw_leader(void)
 {
     static unsigned char a;
     a = leader < 2 ? tcol[leader] : blk;
-    put(9, 19, GLYPH(0xF8), a);
+    put(10, 19, GLYPH(0xF8), a);
     cell(20, GLYPH(0xF8), a);
-    put(10, 19, GLYPH(0xFE), a);
+    put(11, 19, GLYPH(0xFE), a);
     cell(20, GLYPH(0xFE), a);
 }
 
@@ -145,9 +145,9 @@ static void draw_droids(void)
 {
     static unsigned char k;
     for (k = 0; k < 16; ++k)
-        put(8 + (k >> 3), (k & 4 ? 29 : 7) + (k & 3), 0, blk);
+        put(9 + (k >> 3), (k & 4 ? 29 : 7) + (k & 3), 0, blk);
     x_attr = pal_deck[1] | 8;
-    x_row = 8;
+    x_row = 9;
     x_code = FIG;
     x_col = me ? 29 : 7;
     x_droid(SLOT_PLAYER);
@@ -176,7 +176,7 @@ static void board(void)
         draw_pulses(s);
         draw_cursor(s, 1);
     }
-    put(8, 19, GLYPH(0xFB), blk);
+    put(9, 19, GLYPH(0xFB), blk);
     cell(20, GLYPH(0xFB), blk);
     put(ROW0 + NL, 19, GLYPH(0xFC), blk);
     cell(20, GLYPH(0xFC), blk);
@@ -322,14 +322,14 @@ static void unit(unsigned char t, unsigned char a, const char *l1, const char *l
     font_hi[0] = 0xD8;                  /* picture 1's set in both */
     col_fig2 = pal_deck[e[3]];
     x_attr = pal_deck[e[2]];
-    x_row = 10;
+    x_row = 11;
     x_col = 2;
     x_code = e[1];
     x_picture(e - e[1] * 6);
     memset(xmap, 0, sizeof xmap);
     x_attr = a;
     x_code = 100;
-    x_row = 9;
+    x_row = 10;
     x_col = 3;
     say("Unit type ");
     name[0] = '0' + dr_class[t];        /* (the file's name done with) */
@@ -340,13 +340,13 @@ static void unit(unsigned char t, unsigned char a, const char *l1, const char *l
     say(" - ");
     say(kind[dr_class[t]]);
     say(noun[(dr_class[t] + 3) / 4]);
-    x_row = 11;
+    x_row = 12;
     x_col = 10;
     say("This is the unit that you");
-    x_row = 13;
+    x_row = 14;
     x_col = 9;
     say(l1);
-    x_row = 15;
+    x_row = 16;
     x_col = 9;
     say(l2);
     for (t = 0; t < 50 && !(keys_irq & K_FIRE); ++t)

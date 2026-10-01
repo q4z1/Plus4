@@ -521,11 +521,9 @@ for c in range(0x80, 0x80 + NSIDE):
 emit('side_font', sf)
 emit('side_col', scol)
 emit('side_rle', side_rle)
-# a row higher than the original's screen rows: the window's first row is
-# hidden while it is not scrolled, so it sits where the original's does
-emit('side_box', [v - (k == 0) for b in side_box for k, v in enumerate(b)])
+emit('side_box', [v for b in side_box for v in b])
 emit('shaft_col', [x[0] for x in shafts])
-emit('shaft_top', [x[1] - 1 for x in shafts])
+emit('shaft_top', [x[1] for x in shafts])
 emit('shaft_len', [x[2] for x in shafts])
 
 xf = []

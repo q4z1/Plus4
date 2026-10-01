@@ -124,7 +124,7 @@ static void window(void)
     static unsigned char k;
     static signed char r0;
     win_l = (int)PX - 152;
-    win_t = (int)PY - 68;
+    win_t = (int)PY - 56;
     e_sx = (unsigned char)(-win_l) & 7;
     e_m0 = (unsigned char)(((win_l + e_sx) >> 3) - 1);
     /* rows under the gap move down by k: window row 0 (screen row 7)
@@ -271,7 +271,7 @@ void panel_init(void)
         pp_attr = panel_cols[i] == 4 ? 0x34 : PANEL_TEXT;
         panel_put();
     }
-    for (i = 240; i < 280; ++i) {
+    for (i = 240; i < 360; ++i) {      /* the gap rows: blank */
         pp_off = i;
         pp_code = 0;
         pp_attr = col_deck;
@@ -324,13 +324,13 @@ void panel_score(void)
 #define SCR1A ((unsigned char *)0xD000)
 #define SCR1C ((unsigned char *)0xD400)
 
-/* the window rows (screen rows 7 to 24) of both pictures cleared */
+/* the window rows (screen rows 9 to 24) of both pictures cleared */
 void win_clear(unsigned char code, unsigned char attr)
 {
-    memset(SCR0C + 7 * 40, code, 18 * 40);
-    memset(SCR1C + 7 * 40, code, 18 * 40);
-    memset(SCR0A + 7 * 40, attr, 18 * 40);
-    memset(SCR1A + 7 * 40, attr, 18 * 40);
+    memset(SCR0C + 9 * 40, code, 16 * 40);
+    memset(SCR1C + 9 * 40, code, 16 * 40);
+    memset(SCR0A + 9 * 40, attr, 16 * 40);
+    memset(SCR1A + 9 * 40, attr, 16 * 40);
 }
 
 /* a cell of both pictures, from wp_row, wp_col, wp_code, wp_attr */

@@ -89,14 +89,14 @@ static void page_show(unsigned y)
     static unsigned char k, rr, r, n, h, w, i, c, code;
     k = (unsigned char)-(unsigned char)y & 7;
     rr = (y + k) >> 3;                  /* the page's row in window row 1 */
-    d = (unsigned char *)(back ? 0xD400 : 0xC400) + 7 * 40;
-    memset(d, 0, 18 * 40);
+    d = (unsigned char *)(back ? 0xD400 : 0xC400) + 9 * 40;
+    memset(d, 0, 16 * 40);
     code = back ? 198 : POOL;           /* each picture copies of its own */
     for (p = bpage + 1; (r = *p) != 0xFF; p += 3 + n) {
         n = p[2];
         for (h = 0; h < 2; ++h) {
             w = r + h + 1 - rr;         /* its window row */
-            if (w >= 18 || (!w && !k))
+            if (w >= 16 || (!w && !k))
                 continue;
             q = d + w * 40 + p[1];
             for (i = 0; i < n; ++i) {
@@ -136,7 +136,7 @@ static unsigned char brief(void)
     if (!bpage)
         bpage = brief_pages;
     b_h = *bpage;
-    end = b_h * 8 > 136 ? b_h * 8 - 136 : 0;
+    end = b_h * 8 > 120 ? b_h * 8 - 120 : 0;
     for (y = 0; ; ++y) {
         while (ready)
             ;

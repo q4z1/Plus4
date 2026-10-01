@@ -35,7 +35,7 @@ static void side_view(void)
     eng_plain();
     win_clear(0, 0x71);
     p = side_rle;
-    off = 9 * 40;                       /* the original's row 10 */
+    off = 10 * 40;                      /* as in the original, from row 10 */
     while ((n = p[1]) != 0) {
         c = p[0];
         p += 2;

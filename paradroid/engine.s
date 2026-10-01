@@ -3,16 +3,16 @@
 ;
 ; What has to be fast or on time lives here:
 ;
-;   1. The raster interrupt, three stops a picture:
+;   1. The raster interrupt, four stops a picture:
 ;        line 44   in the panel's last row: the border's colour
-;        line 55   the gap row under it: the deck's character set,
-;                  multicolour, 38 columns, x fine scroll, and at its last
-;                  line the y fine scroll (see below)
-;        line 199  below the window: a finished picture is swapped in, the
+;        line 55   the gap rows under it: the deck's character set,
+;                  multicolour, 38 columns, x fine scroll
+;        line 71   at the gap's last line the y fine scroll (see below)
+;        line 197  below the window: a finished picture is swapped in, the
 ;                  panel's settings for the top of the next one, the
 ;                  keyboard, the clock
 ;
-;   2. The deck window. 39 x 18 cells, built from the deck's block map
+;   2. The deck window. 39 x 16 cells, built from the deck's block map
 ;      (64 x 16 blocks of 4 x 4 characters) whenever the window has moved
 ;      by a whole character; otherwise only the cells figures used are put
 ;      back.
@@ -100,12 +100,14 @@ BLKA        = $EC00             ; [4][256]: their colours
 DMAP        = $0400             ; the deck: 64 x 16 blocks, each blk*4
 MCFONT      = $0800             ; the deck characters in multicolour
 
-WROW0       = 7                 ; first window row on screen
-WROWS       = 18
+WROW0       = 9                 ; first window row on screen (rows 6-8 the
+WROWS       = 16                ; gap under the panel, as high as the original's)
 WCOLS       = 39
 
 LINE_GAP    = 44                ; interrupt lines, see the top
 LINE_RC     = 55
+LINE_SCROLL = 71                ; two lines before the gap's last, 74
+GAP_LAST    = 74
 LINE_BOTTOM = 197               ; less s, the line counter is behind then
 
 ; ---- zero page ------------------------------------------------------------
@@ -465,8 +467,8 @@ irq:    pha
         lda @hi,x
         sta @j+2
 @j:     jmp $FFFF
-@lo:    .byte <irq_gap, <irq_rc, <irq_bottom
-@hi:    .byte >irq_gap, >irq_rc, >irq_bottom
+@lo:    .byte <irq_gap, <irq_rc, <irq_scroll, <irq_bottom
+@hi:    .byte >irq_gap, >irq_rc, >irq_scroll, >irq_bottom
 
 ; Under the panel: the deck's background. The panel's last row is all
 ; foreground, so it can change anywhere in it. The gap row under it is the
@@ -485,9 +487,8 @@ irq_gap:
         sta TED_RCMP
         jmp irq_out
 
-; The gap row: the deck's character set and modes (nothing shows in it),
-; then at the start of line 58, its last, line counter and row line counter
-; set back.
+; The gap rows: the deck's character set and modes (nothing shows in them,
+; their cells are blank in it); then irq_scroll.
 irq_rc:
         ldy front
         lda font_hi,y
@@ -499,8 +500,19 @@ irq_rc:
         sta TED_COL1
         lda _col_fig2
         sta TED_COL2
-        ; the deck's colour from line 58: written between lines 57 and 58
-        ldx #57
+        lda #2
+        sta phase
+        lda #LINE_SCROLL
+        sta TED_RCMP
+        jmp irq_out
+
+; At the start of line GAP_LAST, the gap's last: line counter and row line
+; counter set back, and the deck's colour from that line.
+irq_scroll:
+        ldy front
+        ; the deck's colour from the gap's last line: written between it
+        ; and the one before
+        ldx #GAP_LAST - 1
 :       cpx TED_LINE
         beq @l57
         bcs :-
@@ -514,10 +526,10 @@ irq_rc:
         beq @l57
 @bg:    lda _col_deck
         sta TED_BG
-        lda #57
+        lda #GAP_LAST - 1
 :       cmp TED_LINE
         bcs :-
-        lda #58
+        lda #GAP_LAST
         sec
         sbc b_s,y
         sta TED_LINE
@@ -525,7 +537,7 @@ irq_rc:
         and #$F8
         ora b_rcv,y
         sta TED_RC
-        lda #2
+        lda #3
         sta phase
         lda #LINE_BOTTOM
         sec

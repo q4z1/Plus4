@@ -17,7 +17,7 @@
         .export _out_r
 
 NL      = 12
-ROW0    = 11                    ; screen row of the first line
+ROW0    = 12                    ; screen row of the first line
 
 ; the parts, as in transfer.c
 WIRE    = 0

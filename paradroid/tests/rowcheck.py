@@ -35,8 +35,8 @@ try:
         scr = g.v.mem(base, 1000); att = g.v.mem(base - 0x400, 1000)
         font = g.v.mem(base + 0x400, 2048)
         bs = g.v.mem(g.lbl['b_s'], 2)[front]; sx = g.v.mem(g.lbl['b_sx'], 2)[front]
-        k = (-(py - 68)) & 7
-        bg = pix[96][200]               # the gap row: the deck colour
+        k = (-(py - 56)) & 7
+        bg = pix[112][200]              # the gap's last line: the deck colour
         # every screen line in the window, as bits over columns 2..37
         shot = []
         for yy in range(h):
