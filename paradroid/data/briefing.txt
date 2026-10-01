@@ -1,0 +1,112 @@
+# The original's briefing: per page, lines as "row col text" (rows in
+# the original's steps of two, columns of 40).
+
+page 0
+2 6 Hewson Consultants Ltd.
+4 16 presents
+7 15 Paradroid
+10 8 @ Graftgold Ltd. 1985.
+14 4 Plug your joystick into port 2
+18 10 Press fire to play
+22 3 Clear  the freighter  of robots by
+24 2 destroying them with twin  lasers
+26 2 or by transferring control to them.
+30 3 Control is  by  joystick  only, as
+32 2 follows:
+36 2 At all times joystick moves robot
+38 2 and holding fire down will  allow
+40 2 use of lifts and consoles.
+44 2 In addition, pressing fire with the
+46 2 joystick  centred will  prepare the
+48 2 current robot for transfer. Contact
+50 2 with another robot with the button
+52 2 down will initiate transfer.
+54 2 Press fire with the joystick in  a
+56 2 specific direction to fire lasers in
+58 2 that direction.
+
+page 1
+2 3 A fleet  of  Robo-Freighters  on
+4 2 its way to the Beta Ceti  system
+6 2 reported entering an uncharted field
+8 2 of  asteroids. Each  ship carries a
+10 2 cargo of battle droids to  reinforce
+12 2 the outworld defences.
+14 3 Two  distress beacons  have  been
+16 2 recovered. Similar messages were
+18 2 stored on each. The ships had  been
+20 2 bombarded by  a powerful  radionic
+22 2 beam from one of the asteroids.
+24 3 All  of the  robots on  the ships,
+26 2 including those in storage,  became
+28 2 hyper-active. The crews report  an
+30 2 attack by droids, isolating them on
+32 2 the bridge. They  cannot  reach the
+34 2 shuttle  and can hold out for only a
+36 2 couple more hours.
+38 3 Since these beacons were  located
+40 2 two days ago, we can only fear the
+42 2 worst.
+44 3 Some of the  fleet was last seen
+46 2 heading for enemy space.  In enemy
+48 2 hands the droids can be used against
+50 2 our forces.
+52 3 Docking would  be impossible but
+54 2 we  can beam  aboard  a  prototype
+56 2 Influence Device.
+
+page 2
+2 3 The 001 Influence Device consists
+4 2 of a  helmet, which, when  placed
+6 2 over a robot's control unit can halt
+8 2 the normal activities of that robot
+10 2 for a short time. The helmet  has
+12 2 its  own energy supply  and powers
+14 2 the  robot itself,  at  an  upgraded
+16 2 capability. The  helmet also  uses
+18 2 an energy  cloak for  protection  of
+20 2 the host.
+22 3 The helmet is  fitted with twin
+24 2 lasers mounted  in a turret. These
+26 2 can be focussed on any target inside
+28 2 a range of eight metres.
+30 3 Most of the device's resources are
+32 2 channelled towards holding  control
+34 2 of the host  robot, as it  attempts
+36 2 to resume 'normal' operation.
+38 3 It is therefore necessary to change
+40 2 the host robot often  to prevent the
+42 2 device  from burning out. Transfer
+44 2 to a new robot  requires the device
+46 2 to drain its host of energy in order
+48 2 to take it over. Failure to achieve
+50 2 transfer results in the device being
+52 2 a free agent once more.
+56 10 Press fire to play
+
+page 3
+2 3 An Influence Device can transmit
+4 2 only certain data, namely its  own
+6 2 location  and the  location of other
+8 2 robots in visual range.This data is
+10 2 merged with known ship layouts at
+12 2 your C64 remote terminal.
+14 3 Additional information  about the
+16 2 ship and robots may be obtained  by
+18 2 accessing the  ship's computer at a
+20 2 console. A small-scale plan of the
+22 2 whole deck  is available, as  well
+24 2 as a side elevation of the ship.
+26 3 Robots are  represented  on-screen
+28 2 as a symbol  showing a three-digit
+30 2 number. The first digit shown  is
+32 2 the important one, the class of the
+34 2 robot. It denotes the strength also.
+36 2 To find out more  about any  given
+38 2 robot, use the robot enquiry system
+40 2 at a console. Only data about units
+42 2 of a lower class  than your current
+44 2 host is available, since  it is  the
+46 2 host's security clearance  which is
+48 2 used to access the console.
+56 10 Press fire to play

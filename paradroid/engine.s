@@ -52,7 +52,7 @@
         .export _blk_set, _bs_x, _bs_y, _bs_v
         .export _panel_put, _pp_off, _pp_code, _pp_attr
         .export _keys_irq, _eng_keys, _dbg_keys
-        .export _pool_left, _eng_stack
+        .export _pool_left, _eng_stack, _font_hi
         .export _snd_time, _sfx_lo, _sfx_hi, _sfx_noise, _sfx_len, _sfx_d, _eng_sfx
         .importzp sp
 
@@ -246,6 +246,11 @@ code_lo:    .res 256            ; code * 8
 code_hi:    .res 256
 ident:      .res 256            ; the byte itself
 
+        .data
+; the window's character set per picture; the briefing puts the panel's there
+_font_hi:
+font_hi:    .byte >FONT0, >FONT1
+
         .rodata
 rowc_lo:    .repeat WROWS, R    ; window rows in the code matrix
             .byte <((WROW0+R)*40)
@@ -253,7 +258,6 @@ rowc_lo:    .repeat WROWS, R    ; window rows in the code matrix
 rowc_hi:    .repeat WROWS, R
             .byte >((WROW0+R)*40)
             .endrepeat
-font_hi:    .byte >FONT0, >FONT1
 scr_hi:     .byte >SCR0C, >SCR1C
 att_hi:     .byte >SCR0A, >SCR1A
 cl_lo_c:    .byte <cl_col0, <cl_col1
@@ -417,9 +421,8 @@ _eng_plain:
         sta b_cut,x
         sta b_valid,x
         sta cl_n,x
-        lda #1
         sta b_s,x
-        lda #6
+        lda #6                  ; 6 - s for s = 0
         sta b_rcv,x
         dex
         bpl :-

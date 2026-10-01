@@ -169,5 +169,8 @@ extern unsigned char wp_row, wp_col, wp_code, wp_attr;
 void win_put(void);
 void win_letters(void);
 void win_text(unsigned char line, unsigned char col, const char *s, unsigned char a);
+const char *num_text(unsigned long v);   /* up to seven digits */
+const unsigned char *win_brief(const unsigned char *p, unsigned char top);
+extern unsigned char font_hi[2];          /* the window's character set */
 
 #endif

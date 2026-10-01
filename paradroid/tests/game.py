@@ -19,10 +19,11 @@ def labels():
 class Game:
     def __init__(self, god=True, warp=True):
         os.makedirs(WORK, exist_ok=True)
-        prg = os.path.join(WORK, 'paradroid.prg')
-        open(prg, 'wb').write(open(os.path.join(ROOT, 'build', 'paradroid.prg'), 'rb').read())
+        # from the disk, which the briefing comes from
+        d64 = os.path.join(WORK, 'paradroid.d64')
+        open(d64, 'wb').write(open(os.path.join(ROOT, 'build', 'paradroid.d64'), 'rb').read())
         self.lbl = labels()
-        self.v = Vice(prg, WORK, warp=True)
+        self.v = Vice(d64, WORK, warp=True)
         irq = self.lbl['irq']
         # until the game's own interrupt runs and the first ticks are done
         for i in range(200):

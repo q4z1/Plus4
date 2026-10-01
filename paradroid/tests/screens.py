@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """screens.py - the README's screenshots, made in a headless VICE:
-title, a deck with droids, the transfer game, a lift, the deck plan and
+title, briefing, a deck with droids, the transfer game, a lift, the deck plan and
 the droid enquiry. Written to screenshots/."""
 import os, sys, shutil
 sys.path.insert(0, os.path.dirname(__file__))
@@ -36,6 +36,12 @@ try:
     g.v.cmd('del')
     g.v.run_for(1.0)
     save(g, 'title.png')
+    # a page of the briefing, a few lines rolled up
+    g.v.cmd('break %04x' % g.lbl['_brief'])
+    g.v.run_for(20)
+    g.v.cmd('del')
+    g.v.run_for(5.0)
+    save(g, 'briefing.png')
     g.keys(16, 0.1); g.keys(0, 1.0)
     save(g, 'lift_stop.png')
     # a stroll and a shot

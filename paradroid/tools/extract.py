@@ -18,6 +18,7 @@ and writes what the Plus/4 version uses as text files into data/:
   panel.txt      the status panel above the deck: codes, colours, font
   sideview.txt   the side view of the ship the lifts show
   sprites.txt    lasers and explosion, from its sprites
+  briefing.txt   the text pages the original shows before a game
 
 Where the things are in the original's memory was found by tracing it in
 VICE; the addresses are below. The tables are copied as they are, the
@@ -238,3 +239,48 @@ for name, blk, multi in SPRITES:
             t.append(''.join('#' if v & (0x80 >> k) else '.' for v in b for k in range(8)))
     t.append('')
 write('sprites.txt', '\n'.join(t))
+
+# --- briefing ---------------------------------------------------------------------
+# At $D000: pages of text, each line as row + $80, column, the characters
+# (the panel's font) and $FF. Codes from $3A on are wide letters, drawn as
+# the code and the code + $20 beside it: the capitals from $3A, and m and w
+# at $42 and $54. Their narrow places hold I ($16) and (c) ($20, '@' here). The rows grow down a page; a smaller one
+# starts the next. Pages 0-3 are the briefing; 4 (scores, keys) and 5
+# (credits) belong to the original's own title and are left out.
+TXT_MAP = {0x16: 'I', 0x20: '@', 0x42: 'm', 0x54: 'w', 0x28: '.', 0x29: ',', 0x2a: ':',
+           0x2d: "'", 0x2e: '-', 0x30: ' '}
+def txt_char(b):
+    if b in TXT_MAP:
+        return TXT_MAP[b]
+    if b < 10:
+        return str(b)
+    if b < 0x24:
+        return chr(97 + b - 10)
+    if 0x3a <= b <= 0x53:
+        return chr(65 + b - 0x3a)
+    return '?'
+
+p = 0xD000
+pages, cur, last = [], [], -1
+while ram[p] >= 0x80 and ram[p] != 0xFF:
+    row = ram[p] & 0x7F
+    col = ram[p + 1] % 40
+    p += 2
+    q = p
+    while ram[q] != 0xFF:
+        q += 1
+    if row < last:
+        pages.append(cur)
+        cur = []
+    last = row
+    cur.append((row, col, ''.join(txt_char(b) for b in ram[p:q])))
+    p = q + 1
+pages.append(cur)
+t = ['# The original\'s briefing: per page, lines as "row col text" (rows in',
+     '# the original\'s steps of two, columns of 40).', '']
+for k, pg in enumerate(pages[:4]):
+    t.append('page %d' % k)
+    for row, col, text in pg:
+        t.append('%d %d %s' % (row, col, text.rstrip()))
+    t.append('')
+write('briefing.txt', '\n'.join(t))

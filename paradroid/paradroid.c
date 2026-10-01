@@ -20,6 +20,7 @@
  *   engine.s     what has to be fast or on time
  */
 #include <string.h>
+#include <cbm.h>
 #include "game.h"
 
 unsigned ticks;                         /* for measuring: ticks done, */
@@ -221,13 +222,14 @@ static void play(void)
 }
 
 /* the deck characters in multicolour, for the cells figures are in: a
- * pixel pair with anything set is %11, the cell's own colour */
+ * pixel pair with anything set is %11, the cell's own colour. Made from
+ * picture 0's character set, as the start-up copy is gone after a while. */
 static void mc_font(void)
 {
     static unsigned i;
     static unsigned char b, o;
     for (i = 0; i < POOL * 8; ++i) {
-        b = tile_font[i];
+        b = FONT0[i];
         o = 0;
         if (b & 0xC0) o |= 0xC0;
         if (b & 0x30) o |= 0x30;
@@ -239,20 +241,6 @@ static void mc_font(void)
 
 /* the best score since the machine was switched on */
 static unsigned long best;
-
-static char numbuf[8];
-
-static const char *ulong_text(unsigned long v)
-{
-    static unsigned char n;
-    n = 7;
-    numbuf[7] = 0;
-    do {
-        numbuf[--n] = '0' + (unsigned char)(v % 10);
-        v /= 10;
-    } while (v && n);
-    return numbuf + n;
-}
 
 /* the title page: whose game this is, and the best score */
 static void title_page(void)
@@ -267,43 +255,150 @@ static void title_page(void)
     win_text(2, 7, "graftgold  hewson 1985", 0x71);
     win_text(4, 4, "plus4 version 2026 in c", 0x71);
     win_text(5, 10, "best", 0x71);
-    win_text(5, 16, ulong_text(best), 0x67);
+    win_text(5, 16, num_text(best), 0x67);
     win_text(7, 14, "press fire", 0x71);
 }
 
-/* waiting for a game: the title page and a deck with its droids going
- * about, in turns */
+/* ======================================================================
+ * The disk
+ * ==================================================================== */
+
+static unsigned char dev;               /* the drive the game came from */
+
+/* The KERNAL needs its variables at $07D8-$07E7 to load, and the deck's
+ * map is there (measured: the rest of $0400-$07FF may hold anything). They
+ * are kept from the start and put back for each load. */
+#define KVARS ((unsigned char *)0x07D8)
+static unsigned char kvars[16];
+
+/* a file from the disk to addr. The screen is off meanwhile, as the KERNAL
+ * loads with its own interrupt handler; the deck's map is unpacked again
+ * afterwards. With no disk the border goes red, and it tries again. */
+static void load_file(const char *name, void *addr)
+{
+    eng_hide();
+    *(volatile unsigned char *)0xFF11 = 0;  /* sound off */
+    memcpy(KVARS, kvars, sizeof kvars);
+    while (!cbm_load(name, dev, addr))
+        *(volatile unsigned char *)0xFF19 = 0x32;
+    memcpy(kvars, KVARS, sizeof kvars);
+    load_deck(deck);
+    mc_font();
+    eng_show();
+}
+
+/* ======================================================================
+ * Waiting for a game
+ * ==================================================================== */
+
+/* The original's briefing, four pages, comes from the disk into the slots
+ * of the explosions and lasers: the title has no use for them. So it is
+ * loaded again for each title, and the slots made again for each game. */
+#define BRIEF ((const unsigned char *)pre + SLOT_EXPLO * 512)
+static unsigned char brief_in;
+static const unsigned char *bpage;      /* the page to show next */
+
+/* n ticks; 1 as soon as fire is pressed */
+static unsigned char fire_in(unsigned char n)
+{
+    while (n--) {
+        wait_tick();
+        if (keys_irq & K_FIRE)
+            return 1;
+    }
+    return 0;
+}
+
+/* the window's character set, changed just after a picture has begun,
+ * with the window cleared - and the gap row above it, whose last line
+ * shows in the window's set */
+static void window_font(unsigned char hi, unsigned char code)
+{
+    static unsigned char f;
+    while (ready)
+        ;
+    f = frames;
+    while (frames == f)
+        ;
+    win_clear(code, 0x71);
+    memset((unsigned char *)0xC400 + 6 * 40, code, 40);
+    memset((unsigned char *)0xD400 + 6 * 40, code, 40);
+    font_hi[0] = font_hi[1] = hi;
+}
+
+/* a page of the briefing, rolled up a line at a time; 1 if fire ended it */
+static unsigned char brief(void)
+{
+    static unsigned char top, h, k;
+    static const unsigned char *next;
+    eng_plain();
+    window_font(0xE0, 0x30);            /* the panel's letters */
+    h = *bpage;
+    k = 0;
+    for (top = 0; ; top += 2) {
+        next = win_brief(bpage + 1, top);
+        ready = 1;
+        if (top + 18 >= h) {
+            k = fire_in(60);
+            break;
+        }
+        if ((k = fire_in(top ? 9 : 60)) != 0)
+            break;
+    }
+    bpage = *next ? next : BRIEF;
+    window_font(0xC8, 0);               /* FONT0 and FONT1 again */
+    font_hi[1] = 0xD8;
+    return k;
+}
+
+/* the deck and its droids going about, for n ticks; 1 if fire ended it */
+static unsigned char attract(unsigned char n)
+{
+    eng_dirty();
+    while (n--) {
+        wait_tick();
+        if (keys_irq & K_FIRE)
+            return 1;
+        move_droids();
+        doors();
+        draw();
+    }
+    return 0;
+}
+
+/* waiting for a game: the title page, a page of the briefing and the deck
+ * with its droids, in turns */
 static void title(void)
 {
-    static unsigned char t;
     if (score > best)
         best = score;
     hide_player = 1;
     player_dead = 0;
+    if (!brief_in) {
+        load_file("briefing", (void *)BRIEF);
+        brief_in = 1;
+        bpage = BRIEF;
+    }
     panel_status("Press fire");
-    title_page();
-    t = 0;
-    while (!(keys_irq & K_FIRE)) {
-        wait_tick();
-        if (++t == 100)
-            eng_dirty();                /* the deck again */
-        else if (t == 250) {
-            title_page();
-            t = 0;
-        }
-        if (t >= 100) {
-            move_droids();
-            doors();
-            draw();
-        }
+    for (;;) {
+        title_page();
+        if (fire_in(100) || brief() || attract(150))
+            break;
     }
     while (keys_irq & K_FIRE)
         wait_tick();
     hide_player = 0;
+    /* the explosions and lasers back where the briefing was */
+    brief_in = 0;
+    pictures_fixed();
 }
 
 void main(void)
 {
+    dev = *(unsigned char *)0xAE;      /* the KERNAL's last device */
+    memcpy(kvars, KVARS, sizeof kvars);
+    if (dev < 8)
+        dev = 8;
     eng_stack();
     eng_init();
 
@@ -313,7 +408,6 @@ void main(void)
     memcpy(PANELF, panel_font, 2048);
     memcpy(BLKC, blk_code, 1024);
     colour_blocks();
-    pictures_fixed();
 
     col_panel = 0x71;
     col_border = 0x34;

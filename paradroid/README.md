@@ -6,8 +6,8 @@ smoothly under a fixed status panel. The Plus/4 has neither of those, and
 this version is about how it manages anyway.
 
 The decks, their blocks and characters, the waypoints the droids walk, the
-lifts, the droid types, the status panel and the side view of the ship all
-come from the original. `tools/extract.py` took them out of the memory of
+lifts, the droid types, the status panel, the side view of the ship and the
+briefing all come from the original. `tools/extract.py` took them out of the memory of
 the C64 game running in VICE. The program around them is new, in C with the
 time-critical parts in assembly.
 
@@ -63,7 +63,10 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
 | **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
 
-![The title page, in turns with a deck and its droids](screenshots/title.png)
+| | |
+| --- | --- |
+| ![The title page](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
+| **Title.** Whose game it is and the best score since switching on. It takes turns with a page of the briefing and the last deck with its droids going about. | **Briefing.** The original's four pages, in the panel's letters, rolled up a line at a time. They come from the disk, see below. |
 
 ## What is new compared with the other games here
 
@@ -154,6 +157,7 @@ were found by tracing the game:
 | `$EA00` | droid types: number, drive, weapon |
 | `$F180` | the side view of the ship |
 | `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
+| `$D000` | the briefing: per line its row and column, then the panel's codes. Capitals, `m` and `w` are two characters wide |
 
 `tools/extract.py` writes all of it as text into [data/](data/): decks as
 letters, characters as pictures. [tools/mkdata.py](tools/mkdata.py) turns
@@ -162,11 +166,35 @@ cabin's row for each deck from the shafts.
 
 ### Memory
 
-The program, the tables and 21 slots of pre-shifted pictures fill the Plus/4
+The program, the tables and 23 slots of pre-shifted pictures fill the Plus/4
 up to `$C000`. Above that sit two pictures with their character sets, the
-panel's character set, and the block tables. The data that is only copied
+panel's character set, and the block tables. The data that is only used
 once at the start is linked into the very bytes where the slots begin, so
 it is overwritten as soon as it has been copied.
+
+### The disk
+
+The game runs from `build/paradroid.d64`. The briefing (3.6 KB, 15 blocks)
+did not fit into memory as well, so it is a file of its own. It is loaded
+for each title into the slots of the explosions and lasers, which the title
+does not need, and those slots are made again when a game starts. That
+costs about four seconds of black screen at the title. Loading anything
+more often, for a lift or a transfer, would cost the same, which is why the
+decks stay in memory.
+
+Loading with the KERNAL needs care in a program that uses all of memory:
+
+- The screen is off and there is no interrupt of the game's own, because
+  the KERNAL loads with the ROM switched in and its own interrupt handler.
+- The deck's map lies at `$0400`–`$07FF`, where the KERNAL keeps some of
+  its variables. A load test that filled ranges of that area with garbage
+  first showed which bytes it really needs: only `$07D8`–`$07E7`. The game
+  keeps them from the start and puts them back before each load. Then the
+  deck's map is unpacked again.
+
+The window shows the briefing in the panel's own character set: the
+interrupt takes the window's character set from a table, and for the
+briefing both pictures point to the panel's. So the letters need no copies.
 
 ## What is not 1:1
 
@@ -180,6 +208,8 @@ it is overwritten as soon as it has been copied.
 - The **gap under the panel** has the deck's colour, not the panel
   surround's (see above).
 - **Sound** is a handful of effects on one voice.
+- The **briefing** rolls up a line at a time, where the original scrolls
+  it smoothly. Its "C64 remote terminal" is a "Plus4 remote terminal" here.
 
 ## Files
 
@@ -195,21 +225,25 @@ it is overwritten as soon as it has been copied.
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
 | [game.h](game.h) | what the parts share |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
+| [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
-| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/` |
-| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, as text |
+| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, and the briefing into `build/disk/` |
+| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
 
 ## Building and running
 
 From the repository root, with any of the `.c` files active, `F5` builds and
-starts it: the root's run script hands the build to [build.sh](build.sh).
-Without an editor:
+starts it: the root's run script hands the build to [build.sh](build.sh)
+and the start to [run.sh](run.sh). Without an editor:
 
 ```sh
 sh paradroid/build.sh
-xplus4 paradroid/build/paradroid.prg
+xplus4 -autostart paradroid/build/paradroid.d64
 ```
+
+The disk is made with `c1541`, which comes with VICE. The `.prg` alone
+does not run: it needs the briefing from the disk.
 
 `tools/extract.py` is only needed to take the data out of the original
 again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in
@@ -229,3 +263,5 @@ monitor on a port of its own:
 | `rowcheck.py` | every line of the window on screen against memory, for all eight fine positions |
 | `edges.py` | the window's top edge for every fine position |
 | `screens.py` | the screenshots in this README |
+
+All of them start the game from the disk.

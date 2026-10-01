@@ -65,19 +65,7 @@ static const char *const class_name[10] = {
 };
 static const char *const weapon_name[4] = { "none", "light laser", "laser", "disruptor" };
 
-static char buf[8];
-
-static const char *num(unsigned char v)
-{
-    static unsigned char n;
-    n = 7;
-    buf[7] = 0;
-    do {
-        buf[--n] = '0' + v % 10;
-        v /= 10;
-    } while (v);
-    return buf + n;
-}
+static char buf[4];
 
 /* what the computer knows about droid type t */
 static void droid_page(unsigned char t)
@@ -92,11 +80,11 @@ static void droid_page(unsigned char t)
     win_text(1, 4, "class", 0x71);
     win_text(1, 12, class_name[dr_class[t]], 0x67);
     win_text(3, 4, "speed", 0x71);
-    win_text(3, 12, num(dr_drive[t]), 0x67);
+    win_text(3, 12, num_text(dr_drive[t]), 0x67);
     win_text(4, 4, "weapon", 0x71);
     win_text(4, 12, weapon_name[dr_weapon[t]], 0x67);
     win_text(5, 4, "pulses", 0x71);
-    win_text(5, 12, num(3 + dr_class[t] / 3), 0x67);
+    win_text(5, 12, num_text(3 + dr_class[t] / 3), 0x67);
 }
 
 /* the droid enquiry: left and right go through the types the player's

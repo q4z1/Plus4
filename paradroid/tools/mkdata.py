@@ -274,6 +274,58 @@ def swap_mc(b):
     return ((b & 0x55) << 1) | ((b & 0xAA) >> 1)
 
 
+# --- briefing (a file on the disk) ----------------------------------------------
+# The original's pages in the panel's codes: per page its height in rows,
+# then each line as row, column, length and codes, then $FF; a height of 0
+# ends the file. A letter is two rows, code c over c + $80; the wide ones
+# (from $3A) take the code and the code + $20 beside it.
+def txt_codes(text):
+    out = []
+    for ch in text:
+        if ch.isdigit():
+            c = ord(ch) - 48
+        elif ch == 'm':
+            c = 0x42
+        elif ch == 'w':
+            c = 0x54
+        elif ch.islower():
+            c = 0x0a + ord(ch) - 97
+        elif ch == 'I':
+            c = 0x16
+        elif ch.isupper():
+            c = 0x3a + ord(ch) - 65
+        else:
+            c = {'@': 0x20, '.': 0x28, ',': 0x29, ':': 0x2a, "'": 0x2d,
+                 '-': 0x2e, ' ': 0x30}[ch]
+        out += [c, c + 0x20] if c >= 0x3a else [c]
+    return out
+
+brief = []
+page = None
+for ln in lines('briefing.txt'):
+    if ln.startswith('page'):
+        if page:
+            brief.append(page)
+        page = []
+        continue
+    row, col, text = ln.split(' ', 2)
+    # the Plus/4 is the remote terminal here
+    page.append((int(row) - 2, int(col), txt_codes(text.replace('C64', 'Plus4'))))
+brief.append(page)
+brief_bin = []
+for page in brief:
+    brief_bin.append(max(r for r, c, t in page) + 2)
+    for r, c, t in page:
+        assert 1 <= c and c + len(t) <= 39, (r, c, len(t))
+        brief_bin += [r, c, len(t)] + t
+    brief_bin.append(0xFF)
+brief_bin.append(0)
+os.makedirs(os.path.join(ROOT, 'build', 'disk'), exist_ok=True)
+# two bytes in front, where a file's load address goes: the program loads
+# it to an address of its own
+open(os.path.join(ROOT, 'build', 'disk', 'briefing'), 'wb').write(bytes([0, 0] + brief_bin))
+BRIEF_SIZE = len(brief_bin)
+
 # --- write ---------------------------------------------------------------------
 def asm_bytes(name, data, per=16):
     out = ['_%s:' % name]
@@ -333,8 +385,6 @@ emit('dr_drive', [int(d[1]) for d in droids])
 emit('dr_weapon', [int(d[2]) for d in droids])
 emit('ship_base', [x[1] for x in ship])
 emit('ship_count', [x[2] for x in ship])
-emit('panel_codes', pcodes)
-emit('panel_cols', pcols)
 # figures
 # a droid's picture is made when needed: the template and its number
 emit('droid_tmpl', pic_bytes([r.replace('.', 'x') if 5 <= i <= 9 else r
@@ -397,15 +447,19 @@ for name in XFER_ORDER:
     xf += [int(r.replace('.', '0').replace('#', '1'), 2) for r in XFER[name]]
 emit('xfer_font', xf)
 
-# Copied once at the start, then overwritten: the pre-shifted pictures
-# (draw.c) start where these are. 21 slots of 512 bytes.
+# Used once at the start, then overwritten: the pre-shifted pictures
+# (draw.c) start where these are, 23 slots of 512 bytes. The start makes
+# the explosions' and lasers' slots (10 on) before it is done with these.
 PRE_SLOTS = 23
 s.append('        .segment "INITDATA"')
 s.append('_pre:')
-for name, data in (('tile_font', sum(glyphs, [])), ('blk_code', bc), ('panel_font', pfont)):
+init = (('tile_font', sum(glyphs, [])), ('blk_code', bc), ('panel_font', pfont),
+        ('panel_codes', pcodes), ('panel_cols', pcols))
+for name, data in init:
     exports.append(name)
     s.append(asm_bytes(name, data))
-init_size = len(sum(glyphs, [])) + len(bc) + len(pfont)
+init_size = sum(len(d) for n, d in init)
+assert init_size <= 10 * 512, init_size
 s.append('        .segment "PREBSS"')
 s.append('        .res %d' % (PRE_SLOTS * 512 - init_size))
 exports.append('pre')
@@ -425,7 +479,8 @@ h = ['/* made by tools/mkdata.py - do not edit */',
      '#define B_CONSOLE 8', '#define B_ENERGY 16',
      '#define BLK_VDOOR 1', '#define BLK_HDOOR 2',
      '#define BLK_VOPEN 32', '#define BLK_HOPEN 36',
-     '#define NXFER %d' % len(XFER_ORDER), '#define PRE_SLOTS 23'] + \
+     '#define NXFER %d' % len(XFER_ORDER), '#define PRE_SLOTS 23',
+     '#define BRIEF_SIZE %d' % BRIEF_SIZE] + \
     ['#define X_%s %d' % (n.upper(), i) for i, n in enumerate(XFER_ORDER)] + \
     ['#define NSIDE %d' % len(SIDE_ORDER), '#define SIDE_BASE %d' % SIDE_BASE,
      '#define SIDE_ROWS %d' % len(side_rows), '#define SIDE_SHAFT %d' % (SIDE_BASE + SIDE_ORDER.index(0xF9)), '']
@@ -438,4 +493,4 @@ for e in exports:
         h.append('extern const unsigned char %s[];' % e)
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
 open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\n' % POOL)
-print('tiles %d, pool %d chars, blocks %d, decks %d bytes' % (POOL - 2, 256 - POOL, NBLK, len(allrle)))
+print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE))

@@ -284,22 +284,31 @@ void panel_status(const char *s)
         panel_char(col++, 0x30);
 }
 
-void panel_score(void)
+/* a number as text, up to seven digits */
+static char num_buf[8];
+unsigned char num_len;
+
+const char *num_text(unsigned long v)
 {
-    static char buf[8];
-    static unsigned long v;
-    static unsigned char n, col;
-    v = score;
+    static unsigned char n;
     n = 7;
-    buf[7] = 0;
     do {
-        buf[--n] = '0' + (unsigned char)(v % 10);
+        num_buf[--n] = '0' + (unsigned char)(v % 10);
         v /= 10;
     } while (v && n);
-    col = 38 - (7 - n);
+    num_len = 7 - n;
+    return num_buf + n;
+}
+
+void panel_score(void)
+{
+    static const char *t;
+    static unsigned char col;
+    t = num_text(score);
+    col = 38 - num_len;
     while (col > 30)
         panel_char(--col, 0x30);
-    panel_text(38 - (7 - n), buf + n);
+    panel_text(38 - num_len, t);
     score_changed = 0;
 }
 
@@ -390,5 +399,29 @@ void win_text(unsigned char line, unsigned char col, const char *s, unsigned cha
         wput(10 + line * 2, col, TXT + 36 + c, a);
         ++col;
     }
+}
+
+/* rows top to top + 17 of a briefing page into the back picture. The page
+ * is the original's text as on the disk (tools/mkdata.py): lines of row,
+ * column, length and the panel's codes, then $FF. The window shows the
+ * panel's character set meanwhile, so a letter is its code over code + 128.
+ * Gives back where the page ends. */
+const unsigned char *win_brief(const unsigned char *p, unsigned char top)
+{
+    static unsigned char *sc, *d;
+    static unsigned char r, n, i, y;
+    sc = back ? SCR1C : SCR0C;
+    memset(sc + 7 * 40, 0x30, 18 * 40);
+    while ((r = *p) != 0xFF) {
+        n = p[2];
+        for (y = 0; y < 2; ++y, ++r)
+            if ((unsigned char)(r - top) < 18) {
+                d = sc + (7 + r - top) * 40 + p[1];
+                for (i = 0; i < n; ++i)
+                    d[i] = p[3 + i] | (y << 7);
+            }
+        p += 3 + n;
+    }
+    return p + 1;
 }
 
