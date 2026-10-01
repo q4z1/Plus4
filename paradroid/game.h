@@ -63,8 +63,6 @@ void eng_plain(void);
 #define PANELF  ((unsigned char *)0xE000)
 #define BLKC    ((unsigned char *)0xE800)
 #define BLKA    ((unsigned char *)0xEC00)
-extern unsigned char wpmap[1024];       /* deck block -> waypoint + 1 */
-#define WPMAP   wpmap
 
 #define K_UP    1
 #define K_DOWN  2
@@ -170,7 +168,6 @@ void win_put(void);
 void win_letters(void);
 void win_text(unsigned char line, unsigned char col, const char *s, unsigned char a);
 const char *num_text(unsigned long v);   /* up to seven digits */
-const unsigned char *win_brief(const unsigned char *p, unsigned char top);
 extern unsigned char font_hi[2];          /* the window's character set */
 
 #endif

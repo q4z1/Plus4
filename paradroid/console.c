@@ -40,7 +40,7 @@ static void cell(unsigned char bx, unsigned char by)
     if (b == 0)
         g = X_BLANK;
     else if (f & B_LIFT) {
-        g = SIDE_BASE + 2;              /* the original's lift sign */
+        g = X_LIFT;
         a = 0x67;
     } else if (f & B_ENERGY) {
         g = X_SOCKET;
@@ -120,8 +120,6 @@ void deck_plan(void)
         ;
     memcpy(FONT0 + POOL * 8, xfer_font, NXFER * 8);
     memcpy(FONT1 + POOL * 8, xfer_font, NXFER * 8);
-    memcpy(FONT0 + (POOL + SIDE_BASE) * 8, side_font, NSIDE * 8);
-    memcpy(FONT1 + (POOL + SIDE_BASE) * 8, side_font, NSIDE * 8);
     eng_plain();
     /* the deck's width, and where the plan starts so it fits */
     lo = 63;

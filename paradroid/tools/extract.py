@@ -59,7 +59,6 @@ SIDE_MAP  = 0xF180      # the side view: run-length coded, 64 a row
 SHAFT_COL = 0x6CB0      # lift shafts in it: column,
 SHAFT_TOP = 0x6CB8      #   first row (less 2),
 SHAFT_LEN = 0x6CC0      #   rows (low nibble)
-SHAFT_CHR = 0xF9        # the character it draws them with
 
 LETTERS = '0123456789abcdefghijklmnopqrstuv'
 
@@ -187,6 +186,13 @@ for c in sorted(pused):
 write('panel.txt', '\n'.join(t))
 
 # --- side view ------------------------------------------------------------------
+# The map at $F180 is drawn from screen row 9 down: a code c shows as c + $80,
+# a character of the upper half of the deck's set; $29 is outside the ship.
+# The deck the lift is at is lit by turning its codes $80.. into $90.. (and
+# back), in a box per deck: $F120 row (from screen row 10), $F130 column
+# (less 1), $F140 rows, $F150 columns. The lift's own shaft is coloured $F9
+# (white, multicolour).
+DECK_ROW0 = 0xF120
 p = SIDE_MAP
 codes = []
 while len(codes) < 64 * 17:
@@ -198,21 +204,24 @@ while len(codes) < 64 * 17:
         n = 1
         p += 1
     c = b & 0x7F
-    codes += [0 if c == 0x29 else c] * n
-rows = [codes[y * 64 + 3:y * 64 + 42] for y in range(13)]
-used = sorted(set(c for r in rows for c in r if c) | {SHAFT_CHR})
-t = ['# The side view of the ship the lifts show: 13 rows of 39 character',
-     '# codes (rows from screen row 8 down), then the shafts: column, first',
-     '# row, rows. Then the characters with their C64 colour; colour 8 or',
-     '# more means multicolour, as on the C64. The lift shafts are drawn with',
-     '# character %02x.' % SHAFT_CHR, '']
+    codes += [0 if c == 0x29 else c | 0x80] * n
+rows = [codes[y * 64 + 3:y * 64 + 43] for y in range(13)]
+t = ['# The side view of the ship the lifts show: 13 rows of 40 screen codes',
+     '# from screen row 9 down (00: outside the ship). Then for each deck its',
+     '# box: screen row, column, rows, columns; its codes are lit as the',
+     '# original does (lift.c). Then the shafts: column, first screen row,',
+     '# rows. Then the characters $80-$AF with their C64 colour; 8 or more',
+     '# means multicolour.', '']
 for r in rows:
     t.append('row ' + ' '.join('%02x' % c for c in r))
+for d in range(16):
+    t.append('deck %d %d %d %d %d' % (d, ram[DECK_ROW0 + d] + 10, ram[DECK_ROW0 + 16 + d] + 1,
+                                      ram[DECK_ROW0 + 32 + d], ram[DECK_ROW0 + 48 + d]))
 for k in range(8):
-    t.append('shaft %d %d %d' % (ram[SHAFT_COL + k] + 1, ram[SHAFT_TOP + k] + 2,
+    t.append('shaft %d %d %d' % (ram[SHAFT_COL + k] + 1, ram[SHAFT_TOP + k] + 10,
                                  ram[SHAFT_LEN + k] & 15))
 t.append('')
-for c in used:
+for c in range(0x80, 0xB0):
     t.append('char %02x col=%d' % (c, ram[COLTAB + c] & 15))
     for y in range(8):
         v = ram[FONT + c * 8 + y]

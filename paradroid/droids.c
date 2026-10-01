@@ -122,12 +122,18 @@ static const signed char wbit_dy[8] = { -1, -1, -1, 0, 1, 1, 1, 0 };
 /* a droid in the middle of a block on a waypoint picks where to go next */
 static void droid_choose(unsigned char i)
 {
-    static unsigned char w, dirs, k, n, pick, sp;
+    static unsigned char w, dirs, k, n, pick, sp, bx, by, last;
     static signed char cx[3], cy[3];
-    w = WPMAP[((d_y[i] >> 5) << 6) | (d_x[i] >> 5)];
-    if (!w)
+    /* the deck's waypoint in this block */
+    bx = d_x[i] >> 5;
+    by = d_y[i] >> 5;
+    last = wp_first[deck + 1];
+    for (w = wp_first[deck]; w < last; ++w)
+        if ((wp_x[w] >> 2) == bx && (wp_y[w] >> 2) == by)
+            break;
+    if (w == last)
         return;                         /* not a waypoint: keep going */
-    dirs = wp_dir[w - 1];
+    dirs = wp_dir[w];
     n = 0;
     for (k = 0; k < 8 && n < 3; ++k)
         if (dirs & (1 << k)) {

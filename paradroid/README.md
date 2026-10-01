@@ -59,14 +59,14 @@ second. The window scrolls a pixel at a time in any direction.
 | | |
 | --- | --- |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
-| **Transfer.** Twelve wires per side. Some are dead ends, and some fork and feed a neighbour's dead end. A pulse runs along its wire in three steps and, while it lights the end, claims the lights it reaches, unless the other side holds the same light at that moment. When the time runs out, the side with more lights wins. A draw is a deadlock and is played again. You pick your side first. As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4, and the other side picks wires at random. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship, with its own characters. The shaft is drawn in, and the cabin sits at the selected deck. |
+| **Transfer.** Twelve wires per side. Some are dead ends, and some fork and feed a neighbour's dead end. A pulse runs along its wire in three steps and, while it lights the end, claims the lights it reaches, unless the other side holds the same light at that moment. When the time runs out, the side with more lights wins. A draw is a deadlock and is played again. You pick your side first. As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4, and the other side picks wires at random. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
 | ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
 | **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
 
 | | |
 | --- | --- |
 | ![The title page](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
-| **Title.** Whose game it is and the best score since switching on. It takes turns with a page of the briefing and the last deck with its droids going about. | **Briefing.** The original's four pages, in the panel's letters, rolled up a line at a time. They come from the disk, see below. |
+| **Title.** Whose game it is and the best score since switching on. It takes turns with a page of the briefing and the last deck with its droids going about. | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time. They come from the disk, see below. |
 
 ## What is new compared with the other games here
 
@@ -155,7 +155,9 @@ were found by tracing the game:
 | `$C800` | waypoints per deck. The third byte has a bit for each of eight directions a droid may leave in |
 | `$6CC8` | lift stops: deck and shaft. The position stored is where the *window* is when the player stands on the lift, five blocks left of and two above the lift itself |
 | `$EA00` | droid types: number, drive, weapon |
-| `$F180` | the side view of the ship |
+| `$F180` | the side view of the ship, run-length coded. Code `c` shows as `c + $80`, from the upper half of the deck's character set |
+| `$F120`–`$F15F` | each deck's box in the side view: row, column, rows, columns. Lighting a deck turns codes `$80`.. into `$90`.. and back |
+| `$6CB0`–`$6CC7` | the lift shafts: column, top row, length. The shaft ridden gets colour `$F9`, white multicolour |
 | `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
 | `$D000` | the briefing: per line its row and column, then the panel's codes. Capitals, `m` and `w` are two characters wide |
 
@@ -192,9 +194,14 @@ Loading with the KERNAL needs care in a program that uses all of memory:
   keeps them from the start and puts them back before each load. Then the
   deck's map is unpacked again.
 
-The window shows the briefing in the panel's own character set: the
-interrupt takes the window's character set from a table, and for the
-briefing both pictures point to the panel's. So the letters need no copies.
+The briefing scrolls up a pixel every second picture, the same way as the
+deck: rows moved down by the two counters, and the window's top row made
+of copies of its characters with their top lines cleared. For that, the
+file brings a character set of its own: the 109 different characters of
+the panel's letters it uses, put into picture 1's character set, which
+both pictures show meanwhile. That leaves room for each picture's copies.
+The page is drawn whole behind the file once, and each step copies 17 of
+its rows into the window.
 
 ## What is not 1:1
 
@@ -208,8 +215,8 @@ briefing both pictures point to the panel's. So the letters need no copies.
 - The **gap under the panel** has the deck's colour, not the panel
   surround's (see above).
 - **Sound** is a handful of effects on one voice.
-- The **briefing** rolls up a line at a time, where the original scrolls
-  it smoothly. Its "C64 remote terminal" is a "Plus4 remote terminal" here.
+- The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
+  here.
 
 ## Files
 

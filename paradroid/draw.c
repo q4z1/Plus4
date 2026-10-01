@@ -400,28 +400,3 @@ void win_text(unsigned char line, unsigned char col, const char *s, unsigned cha
         ++col;
     }
 }
-
-/* rows top to top + 17 of a briefing page into the back picture. The page
- * is the original's text as on the disk (tools/mkdata.py): lines of row,
- * column, length and the panel's codes, then $FF. The window shows the
- * panel's character set meanwhile, so a letter is its code over code + 128.
- * Gives back where the page ends. */
-const unsigned char *win_brief(const unsigned char *p, unsigned char top)
-{
-    static unsigned char *sc, *d;
-    static unsigned char r, n, i, y;
-    sc = back ? SCR1C : SCR0C;
-    memset(sc + 7 * 40, 0x30, 18 * 40);
-    while ((r = *p) != 0xFF) {
-        n = p[2];
-        for (y = 0; y < 2; ++y, ++r)
-            if ((unsigned char)(r - top) < 18) {
-                d = sc + (7 + r - top) * 40 + p[1];
-                for (i = 0; i < n; ++i)
-                    d[i] = p[3 + i] | (y << 7);
-            }
-        p += 3 + n;
-    }
-    return p + 1;
-}
-

@@ -8,6 +8,7 @@ secs = float(sys.argv[1]) if len(sys.argv) > 1 else 30
 random.seed(int(sys.argv[2]) if len(sys.argv) > 2 else 1)
 g = Game()
 try:
+    g.start_play()
     t0 = g.word('_ticks')
     n = 0
     while n < secs:

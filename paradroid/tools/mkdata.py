@@ -245,28 +245,43 @@ XFER = {
     'pulse_l':['........', '##......', '####....', '######..', '######..', '####....', '##......', '........'],
     'pulse_r':['........', '......##', '....####', '..######', '..######', '....####', '......##', '........'],
     'bar':    ['........', '########', '########', '########', '########', '########', '########', '........'],
+    'lift':   ['..####..', '.#.##.#.', '#..##..#', '########', '########', '#..##..#', '.#.##.#.', '..####..'],
 }
 XFER_ORDER = ['blank', 'wire', 'socket', 'dead_l', 'dead_r', 'fork_d', 'fork_u', 'vert',
-              'bend_d', 'bend_u', 'bend_dr', 'bend_ur', 'light', 'pulse_l', 'pulse_r', 'bar']
+              'bend_d', 'bend_u', 'bend_dr', 'bend_ur', 'light', 'pulse_l', 'pulse_r', 'bar', 'lift']
 
 # --- side view of the ship ------------------------------------------------------
 stxt = read('sideview.txt')
 side_rows = []
 shafts = []
+side_box = []
 side_chars = {}
 for l in stxt.split('\n'):
     if l.startswith('row '):
         side_rows.append([int(x, 16) for x in l[4:].split()])
     elif l.startswith('shaft '):
         shafts.append(tuple(int(x) for x in l[6:].split()))
+    elif l.startswith('deck '):
+        side_box.append(tuple(int(x) for x in l[5:].split()[1:]))
 for m in re.finditer(r'char ([0-9a-f]{2}) col=(\d+)\n((?:[.#]{8}\n){8})', stxt):
     side_chars[int(m.group(1), 16)] = (int(m.group(2)),
         [int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(3).split()])
-SIDE_ORDER = sorted(side_chars)
 SIDE_BASE = len(XFER_ORDER)             # after the transfer game's, in the pool
-side_code = dict((c, SIDE_BASE + i) for i, c in enumerate(SIDE_ORDER))
-# where each deck is in the side view: the row of its stop on a shaft
-DECK_ROW = [2, 3, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 10, 11]
+NSIDE = 0x30                            # codes $80-$AF
+assert POOL + SIDE_BASE + NSIDE <= 256
+# the map from its second row (the first is empty), as runs: code, count
+assert not any(side_rows[0])
+side_rle = []
+flat = [c for r in side_rows[1:] for c in r]
+i = 0
+while i < len(flat):
+    n = 1
+    while i + n < len(flat) and flat[i + n] == flat[i] and n < 255:
+        n += 1
+    side_rle += [flat[i], n]
+    i += n
+side_rle.append(0)
+side_rle.append(0)
 
 
 def swap_mc(b):
@@ -312,14 +327,41 @@ for ln in lines('briefing.txt'):
     # the Plus/4 is the remote terminal here
     page.append((int(row) - 2, int(col), txt_codes(text.replace('C64', 'Plus4'))))
 brief.append(page)
-brief_bin = []
+# The briefing brings a character set of its own, for the window to scroll
+# it in: the panel's characters it needs, each picture once, the blank one
+# first. Its text is in letters: letter k is glyph top[k] over bot[k].
+glyph_of = {}
+srcs = []
+def bglyph(pc):
+    g = tuple(pfont[pc * 8:pc * 8 + 8])
+    if g not in glyph_of:
+        glyph_of[g] = len(srcs)
+        srcs.append(pc)
+    return glyph_of[g]
+assert not any(pfont[0x30 * 8:0x31 * 8]) and not any(pfont[0xB0 * 8:0xB1 * 8])
+bglyph(0x30)
+letter_of = {(0, 0): 0}
 for page in brief:
-    brief_bin.append(max(r for r, c, t in page) + 2)
+    for r, c, t in page:
+        for pc in t:
+            letter_of.setdefault((bglyph(pc), bglyph(pc | 0x80)), len(letter_of))
+letters = sorted(letter_of, key=letter_of.get)
+NBRIEF = len(srcs)
+assert NBRIEF <= POOL, NBRIEF
+brief_bin = ([NBRIEF] + srcs + [len(letters)] + [t for t, b in letters]
+             + [b for t, b in letters])
+brief_rows = 0
+for page in brief:
+    h = max(r for r, c, t in page) + 2
+    brief_rows = max(brief_rows, h)
+    brief_bin.append(h)
     for r, c, t in page:
         assert 1 <= c and c + len(t) <= 39, (r, c, len(t))
-        brief_bin += [r, c, len(t)] + t
+        brief_bin += [r, c, len(t)] + [letter_of[(bglyph(pc), bglyph(pc | 0x80))] for pc in t]
     brief_bin.append(0xFF)
 brief_bin.append(0)
+# the page drawn whole, behind the file, in the slots (10 to 22) it is in
+assert len(brief_bin) + brief_rows * 40 <= 13 * 512, (len(brief_bin), brief_rows)
 os.makedirs(os.path.join(ROOT, 'build', 'disk'), exist_ok=True)
 # two bytes in front, where a file's load address goes: the program loads
 # it to an address of its own
@@ -428,7 +470,7 @@ emit('laser_d2', pic_bytes(sprite_pic('laser_d2', 2)))
 
 sf = []
 scol = []
-for c in SIDE_ORDER:
+for c in range(0x80, 0x80 + NSIDE):
     col, g = side_chars[c]
     if col >= 8:
         g = [swap_mc(b) for b in g]
@@ -436,11 +478,13 @@ for c in SIDE_ORDER:
     scol.append(col)
 emit('side_font', sf)
 emit('side_col', scol)
-emit('side_map', [side_code[c] if c else 0xFF for r in side_rows for c in r])
+emit('side_rle', side_rle)
+# a row higher than the original's screen rows: the window's first row is
+# hidden while it is not scrolled, so it sits where the original's does
+emit('side_box', [v - (k == 0) for b in side_box for k, v in enumerate(b)])
 emit('shaft_col', [x[0] for x in shafts])
-emit('shaft_top', [x[1] for x in shafts])
+emit('shaft_top', [x[1] - 1 for x in shafts])
 emit('shaft_len', [x[2] for x in shafts])
-emit('deck_row', DECK_ROW)
 
 xf = []
 for name in XFER_ORDER:
@@ -480,10 +524,10 @@ h = ['/* made by tools/mkdata.py - do not edit */',
      '#define BLK_VDOOR 1', '#define BLK_HDOOR 2',
      '#define BLK_VOPEN 32', '#define BLK_HOPEN 36',
      '#define NXFER %d' % len(XFER_ORDER), '#define PRE_SLOTS 23',
-     '#define BRIEF_SIZE %d' % BRIEF_SIZE] + \
+     '#define BRIEF_SIZE %d' % BRIEF_SIZE, '#define NBRIEF %d' % NBRIEF] + \
     ['#define X_%s %d' % (n.upper(), i) for i, n in enumerate(XFER_ORDER)] + \
-    ['#define NSIDE %d' % len(SIDE_ORDER), '#define SIDE_BASE %d' % SIDE_BASE,
-     '#define SIDE_ROWS %d' % len(side_rows), '#define SIDE_SHAFT %d' % (SIDE_BASE + SIDE_ORDER.index(0xF9)), '']
+    ['#define NSIDE %d' % NSIDE, '#define SIDE_BASE %d' % SIDE_BASE,
+     '']
 for e in exports:
     if e == 'deck_off':
         h.append('extern const unsigned char *const deck_off[];')

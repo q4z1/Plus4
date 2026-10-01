@@ -9,7 +9,6 @@ unsigned char ship[NDECKS][12];
 unsigned char level;
 unsigned char ndoor;
 unsigned char alert;
-unsigned char wpmap[1024];
 unsigned char deck_bg;                  /* the deck's colour, without a flash */
 
 static unsigned rs = 0x1234;
@@ -154,10 +153,6 @@ void load_deck(unsigned char d)
             ++i;
         }
     }
-    /* the waypoints, by block */
-    memset(WPMAP, 0, 1024);
-    for (b = wp_first[d]; b < wp_first[d + 1]; ++b)
-        WPMAP[((wp_y[b] >> 2) << 6) | (wp_x[b] >> 2)] = b + 1;
     /* the doors */
     ndoor = 0;
     for (i = 0; i < 1024; ++i) {
