@@ -30,7 +30,11 @@ def to(g, x, y):
 
 g = Game(warp=False)
 try:
-    g.v.run_for(1.5)
+    # the title page: from when it is drawn
+    g.v.cmd('break %04x' % g.lbl['_title_page'])
+    g.v.run_for(20)
+    g.v.cmd('del')
+    g.v.run_for(1.0)
     save(g, 'title.png')
     g.keys(16, 0.1); g.keys(0, 1.0)
     save(g, 'lift_stop.png')

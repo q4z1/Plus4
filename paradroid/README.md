@@ -61,7 +61,7 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
 | **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
 
-![Waiting for a game](screenshots/title.png)
+![The title page, in turns with a deck and its droids](screenshots/title.png)
 
 ## What is new compared with the other games here
 

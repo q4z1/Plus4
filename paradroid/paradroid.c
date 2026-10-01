@@ -234,24 +234,65 @@ static void mc_font(void)
     }
 }
 
-/* waiting for a game: a deck with its droids going about, no player */
+/* the best score since the machine was switched on */
+static unsigned long best;
+
+static char numbuf[8];
+
+static const char *ulong_text(unsigned long v)
+{
+    static unsigned char n;
+    n = 7;
+    numbuf[7] = 0;
+    do {
+        numbuf[--n] = '0' + (unsigned char)(v % 10);
+        v /= 10;
+    } while (v && n);
+    return numbuf + n;
+}
+
+/* the title page: whose game this is, and the best score */
+static void title_page(void)
+{
+    while (ready)
+        ;
+    win_letters();
+    eng_plain();
+    win_clear(0, 0x71);
+    win_text(0, 14, "paradroid", 0x67);
+    win_text(1, 9, "by andrew braybrook", 0x71);
+    win_text(2, 7, "graftgold  hewson 1985", 0x71);
+    win_text(4, 4, "plus4 version 2026 in c", 0x71);
+    win_text(5, 10, "best", 0x71);
+    win_text(5, 16, ulong_text(best), 0x67);
+    win_text(7, 14, "press fire", 0x71);
+}
+
+/* waiting for a game: the title page and a deck with its droids going
+ * about, in turns */
 static void title(void)
 {
     static unsigned char t;
+    if (score > best)
+        best = score;
     hide_player = 1;
     player_dead = 0;
+    panel_status("Press fire");
+    title_page();
     t = 0;
     while (!(keys_irq & K_FIRE)) {
-        if (t == 0)
-            panel_status("Press fire");
-        else if (t == 100)
-            panel_status("Plus4 2026");
-        if (++t == 200)
-            t = 0;
         wait_tick();
-        move_droids();
-        doors();
-        draw();
+        if (++t == 100)
+            eng_dirty();                /* the deck again */
+        else if (t == 250) {
+            title_page();
+            t = 0;
+        }
+        if (t >= 100) {
+            move_droids();
+            doors();
+            draw();
+        }
     }
     while (keys_irq & K_FIRE)
         wait_tick();

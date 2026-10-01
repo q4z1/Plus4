@@ -10,7 +10,6 @@
 #include <string.h>
 #include "game.h"
 
-void eng_plain(void);
 void wait_tick(void);
 void enter(unsigned char d, unsigned char bx, unsigned char by);
 

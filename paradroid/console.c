@@ -8,11 +8,9 @@
 #include <string.h>
 #include "game.h"
 
-void eng_plain(void);
 void wait_tick(void);
 
 #define MAP_ROW 8                       /* screen row of the plan's top */
-#define TXT     (POOL + 32)             /* the panel's letters, both halves */
 
 static unsigned char x0;                /* deck block at plan column 0 */
 
@@ -60,52 +58,7 @@ static void cell(unsigned char bx, unsigned char by)
     put(MAP_ROW + by, bx - x0, POOL + g, a);
 }
 
-/* the panel's digits and small letters (codes 0..35 and their lower
- * halves, +128) copied to the pool: TXT + c on top, TXT + 36 + c below */
-static const unsigned char wide_src[8] = { 0x42, 0x62, 0x54, 0x74, 0xC2, 0xE2, 0xD4, 0xF4 };
-
-static void letters(void)
-{
-    static unsigned char i;
-    memcpy(FONT0 + TXT * 8, PANELF, 36 * 8);
-    memcpy(FONT1 + TXT * 8, PANELF, 36 * 8);
-    memcpy(FONT0 + (TXT + 36) * 8, PANELF + 128 * 8, 36 * 8);
-    memcpy(FONT1 + (TXT + 36) * 8, PANELF + 128 * 8, 36 * 8);
-    /* m and w are two columns wide */
-    for (i = 0; i < 8; ++i) {
-        memcpy(FONT0 + (TXT + 72 + i) * 8, PANELF + wide_src[i] * 8, 8);
-        memcpy(FONT1 + (TXT + 72 + i) * 8, PANELF + wide_src[i] * 8, 8);
-    }
-}
-
-/* text in two-line letters at a text line (0..7) and column */
-static void text(unsigned char line, unsigned char col, const char *s, unsigned char a)
-{
-    static unsigned char ch, c;
-    while ((ch = *s++) != 0) {
-        if (ch == 'm' || ch == 'w') {
-            c = ch == 'm' ? 72 : 74;
-            put(9 + line * 2, col, TXT + c, a);
-            put(9 + line * 2, col + 1, TXT + c + 1, a);
-            put(10 + line * 2, col, TXT + c + 4, a);
-            put(10 + line * 2, col + 1, TXT + c + 5, a);
-            col += 2;
-            continue;
-        }
-        if (ch >= '0' && ch <= '9')
-            c = ch - '0';
-        else if (ch >= 'a' && ch <= 'z')
-            c = ch - 'a' + 10;
-        else {
-            ++col;
-            continue;
-        }
-        put(9 + line * 2, col, TXT + c, a);
-        put(10 + line * 2, col, TXT + 36 + c, a);
-        ++col;
-    }
-}
-
+/* what the enquiry shows, in words */
 static const char *const class_name[10] = {
     "influence", "disposal", "servant", "messenger", "maintenance",
     "crew", "sentinel", "battle", "security", "command"
@@ -130,20 +83,20 @@ static const char *num(unsigned char v)
 static void droid_page(unsigned char t)
 {
     win_clear(0, 0x71);
-    text(0, 4, "unit", 0x71);
+    win_text(0, 4, "unit", 0x71);
     buf[0] = '0' + dr_class[t];
     buf[1] = '0' + dr_num[t] / 10;
     buf[2] = '0' + dr_num[t] % 10;
     buf[3] = 0;
-    text(0, 9, buf, 0x67);
-    text(1, 4, "class", 0x71);
-    text(1, 12, class_name[dr_class[t]], 0x67);
-    text(3, 4, "speed", 0x71);
-    text(3, 12, num(dr_drive[t]), 0x67);
-    text(4, 4, "weapon", 0x71);
-    text(4, 12, weapon_name[dr_weapon[t]], 0x67);
-    text(5, 4, "pulses", 0x71);
-    text(5, 12, num(3 + dr_class[t] / 3), 0x67);
+    win_text(0, 9, buf, 0x67);
+    win_text(1, 4, "class", 0x71);
+    win_text(1, 12, class_name[dr_class[t]], 0x67);
+    win_text(3, 4, "speed", 0x71);
+    win_text(3, 12, num(dr_drive[t]), 0x67);
+    win_text(4, 4, "weapon", 0x71);
+    win_text(4, 12, weapon_name[dr_weapon[t]], 0x67);
+    win_text(5, 4, "pulses", 0x71);
+    win_text(5, 12, num(3 + dr_class[t] / 3), 0x67);
 }
 
 /* the droid enquiry: left and right go through the types the player's
@@ -151,7 +104,7 @@ static void droid_page(unsigned char t)
 static void droids_info(void)
 {
     static unsigned char t, k, prev, top;
-    letters();
+    win_letters();
     top = dr_class[d_type[0]];
     t = 0;
     while (t + 1 < NDROIDS && dr_class[t + 1] <= top)

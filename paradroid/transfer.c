@@ -17,7 +17,6 @@
 #include <string.h>
 #include "game.h"
 
-void eng_plain(void);
 
 #define NROW   12
 #define ROW0   11                       /* screen row of the first wire */

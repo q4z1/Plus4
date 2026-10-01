@@ -54,6 +54,7 @@ void panel_put(void);
 unsigned char eng_keys(void);
 void eng_sfx(void);
 void eng_dirty(void);
+void eng_plain(void);
 
 #define DMAP    ((unsigned char *)0x0400)
 #define MCFONT  ((unsigned char *)0x0800)
@@ -165,5 +166,7 @@ void panel_score(void);
 void win_clear(unsigned char code, unsigned char attr);
 extern unsigned char wp_row, wp_col, wp_code, wp_attr;
 void win_put(void);
+void win_letters(void);
+void win_text(unsigned char line, unsigned char col, const char *s, unsigned char a);
 
 #endif
