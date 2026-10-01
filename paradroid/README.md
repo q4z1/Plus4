@@ -41,7 +41,9 @@ original's, read from its code:
   point every 128 ticks in the 001, every 16 in the 999. When it reaches
   nothing, so do you. Moving on to a new host resets it. **Energizers**
   refill you up to it, at 5 points of score per point of energy.
-- A lost transfer leaves you as the bare 001 with 7 energy.
+- A lost transfer throws you out of your host, back into the bare 001,
+  and takes that host's kill points off your score. Lost as the 001, it
+  is the end.
 - Points: 10 to 200 for a kill, 25 to 250 for a transfer, by class; 250 for
   a deck cleared, 2000 for a ship.
 - Each kill raises the **alert** by the droid's type, and it sinks again
@@ -57,7 +59,7 @@ second. The window scrolls a pixel at a time in any direction.
 | | |
 | --- | --- |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
-| **Transfer.** Twelve wires per side. Some are dead ends, and some fork and feed a neighbour's dead end. A pulse lights its wire for a while and claims the lights it reaches, unless the other side holds the same light at that moment. When the time runs out, the side with more lights wins. A draw is a deadlock and is played again. You pick your side first. Each side gets 3 pulses, plus one for every third class of its droid. | **Lift.** The original's side view of the ship, with its own characters. The shaft is drawn in, and the cabin sits at the selected deck. |
+| **Transfer.** Twelve wires per side. Some are dead ends, and some fork and feed a neighbour's dead end. A pulse runs along its wire in three steps and, while it lights the end, claims the lights it reaches, unless the other side holds the same light at that moment. When the time runs out, the side with more lights wins. A draw is a deadlock and is played again. You pick your side first. As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4, and the other side picks wires at random. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship, with its own characters. The shaft is drawn in, and the cabin sits at the selected deck. |
 | ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
 | **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
 
@@ -168,9 +170,10 @@ it is overwritten as soon as it has been copied.
 
 ## What is not 1:1
 
-- The **transfer game**'s rules (how many pulses, how long a pulse lasts,
-  how the other side plays) are this version's own; the original's were
-  not traced. All other rules and numbers are the original's.
+- In the **transfer game**, the circuit elements are fewer than the
+  original's (no repeaters or colour changers), and how long a pulse
+  stays lit is this version's own. The pulse counts and how the other
+  side plays are the original's, as are all the other rules and numbers.
 - The droids are **13 multicolour pixels wide** with their number in a dark
   band. The original's hires sprites are 24 pixels wide, and the Plus/4's
   characters have half the horizontal resolution.

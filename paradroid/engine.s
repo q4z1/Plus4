@@ -224,11 +224,13 @@ snd_f:      .res 2
 next_code:  .res 1
 cl_n:       .res 2
 POOL_N      = 256 - POOL
+        .segment "LOWBSS"
 CL_N = POOL_N + WCOLS           ; the cut row notes a cell per copy use
 cl_col0:    .res CL_N           ; cells handed a character, picture 0
 cl_row0:    .res CL_N
 cl_col1:    .res CL_N
 cl_row1:    .res CL_N
+        .bss
 
 
 ; the cut row: which codes have a cut copy in this picture

@@ -138,6 +138,7 @@ unsigned char emax(unsigned char type);
 void take_over(unsigned char i);
 void remove_droid(unsigned char i);
 void transfer_lost(void);
+void burnt_out(void);
 extern unsigned char burn, alert_acc, flash;
 
 /* ======================================================================

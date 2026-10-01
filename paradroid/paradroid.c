@@ -71,11 +71,14 @@ static void transfer(unsigned char i)
     if (won) {
         sound(SND_TAKEN);
         take_over(i);
-        panel_status("Captured");
-    } else {
+        panel_status("Complete");
+    } else if (d_type[0]) {
         sound(SND_LOST);
         transfer_lost();
-        panel_status("Mobile");
+        panel_status("Rejected");
+    } else {
+        panel_status("Burnt Out");
+        burnt_out();
     }
     transfer_mode = 0;
     while (keys_irq & K_FIRE)

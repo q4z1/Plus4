@@ -506,12 +506,26 @@ void take_over(unsigned char i)
     player_picture();
 }
 
-/* a lost transfer: the device on its own again, nearly drained */
+/* a transfer lost from a host: the device on its own again, the host's
+ * kill points off the score (as the original) */
 void transfer_lost(void)
 {
+    static unsigned char p;
+    p = kill_pts[dr_class[d_type[0]]];
+    score = score > p ? score - p : 0;
+    score_changed = 1;
     d_type[0] = 0;
-    d_energy[0] = 7;
-    if (burn < 7)
-        burn = 7;
+    burn = 64;
     player_picture();
+}
+
+/* a transfer lost by the bare device: it burns out */
+void burnt_out(void)
+{
+    if (dbg_god)
+        return;
+    d_energy[0] = 0;
+    player_dead = 1;
+    d_boom[0] = 1;
+    sound(SND_BOOM);
 }

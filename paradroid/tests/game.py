@@ -35,6 +35,16 @@ class Game:
         if not warp:
             self.v.cmd('warp off')
 
+    def start_play(self):
+        """from the title into a game, standing still"""
+        self.keys(16, 0.15)
+        self.keys(0, 0.3)
+        for i in range(50):
+            if self.byte('_hide_player') == 0:
+                break
+            self.v.run_for(0.1)
+        self.v.run_for(2.0)         # entering the deck takes a moment
+
     def word(self, name):
         m = self.v.mem(self.lbl[name], 2)
         return m[0] | m[1] << 8

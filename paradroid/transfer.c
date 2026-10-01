@@ -3,12 +3,14 @@
  *
  * As in the original, two sides face each other across a column of 12
  * lights. Each side has 12 wires leading to the lights; some end before
- * they get there, some fork and feed a neighbour's dead end as well. A
- * side has a few pulses, by the class of its droid. A pulse sent into a
- * wire lights it for a while and turns the lights it reaches to the
- * side's colour - unless the other side holds the same light at the same
- * time. When the time is up, the side with more lights has won; a draw is
- * a deadlock and is played again.
+ * they get there, some fork and feed a neighbour's dead end as well. The
+ * player has as many pulses as his droid's class and 3, the other side its
+ * class and 4 (the original's numbers). A pulse runs along its wire in
+ * three steps and, while it lights the wire's end, turns the lights it
+ * reaches to the side's colour - unless the other side holds the same
+ * light at the same time. The other side plays as the original's does: it
+ * picks a wire at random, goes there and fires. When the time is up, the
+ * side with more lights has won; a draw is a deadlock and is played again.
  *
  * The board is drawn into the window of both pictures with characters of
  * its own, put where the figures' characters usually are. Nothing is
@@ -35,6 +37,21 @@
 
 static unsigned char kind[2][NROW];
 static unsigned char glow[2][NROW];     /* ticks a pulse still lights it */
+#define GLOW   24                       /* a pulse's ticks */
+#define STEP   3                        /* ticks it takes for a third of a wire */
+
+/* the last column a pulse has reached, by how long it has been running */
+static unsigned char reached(unsigned char g)
+{
+    if (!g)
+        return 0;
+    if (g > GLOW - STEP)
+        return COL_E - 1;
+    if (g > GLOW - 2 * STEP)
+        return COL_F;
+    return COL_LE;
+}
+
 static unsigned char pulses[2];
 static unsigned char owner[NROW];       /* 0 or 1: whose light */
 static unsigned char cursor[2];
@@ -85,15 +102,17 @@ static void lay_out(unsigned char s)
     }
 }
 
-/* one wire, drawn dim or lit */
+/* one wire, lit as far as its pulse has got */
 static void draw_wire(unsigned char s, unsigned char r)
 {
-    static unsigned char row, k, a, x, g;
+    static unsigned char row, k, a, x, g, lit;
     row = ROW0 + r;
     k = kind[s][r];
-    a = wire_col[s][glow[s][r] != 0];
+    lit = reached(glow[s][r]);
+    a = wire_col[s][lit != 0];
     put(row, mc(s, COL_L - 1), X_SOCKET, a);
     for (x = COL_L; x <= COL_LE; ++x) {
+        a = wire_col[s][x <= lit];
         g = X_WIRE;
         if (k == W_DEAD || k == W_FED) {
             if (x == COL_E)
@@ -110,6 +129,7 @@ static void draw_wire(unsigned char s, unsigned char r)
     }
     /* a fork goes on into its neighbour's dead end, in the fork's colour */
     if (k == W_FORKD || k == W_FORKU) {
+        a = wire_col[s][lit >= COL_F];
         row = k == W_FORKD ? row + 1 : row - 1;
         put(row, mc(s, COL_F), k == W_FORKD ? (s ? X_BEND_DR : X_BEND_D)
                                             : (s ? X_BEND_UR : X_BEND_U), a);
@@ -134,8 +154,8 @@ static void draw_cursor(unsigned char s, unsigned char on)
 static void draw_pulses(unsigned char s)
 {
     static unsigned char i;
-    for (i = 0; i < 8; ++i)
-        put(ROW0 + NROW + 1, mc(s, COL_L + i * 2),
+    for (i = 0; i < 13; ++i)
+        put(ROW0 + NROW + 1, mc(s, COL_L + i),
             i < pulses[s] ? X_BAR : X_BLANK, wire_col[s][1]);
 }
 
@@ -177,7 +197,7 @@ static void fire(unsigned char s, unsigned char r)
     if (!pulses[s] || glow[s][r])
         return;
     --pulses[s];
-    glow[s][r] = 24;
+    glow[s][r] = GLOW;
     k = kind[s][r];
     draw_wire(s, r);
     draw_pulses(s);
@@ -191,7 +211,7 @@ static unsigned held_by(unsigned char s)
     static unsigned m;
     m = 0;
     for (r = 0; r < NROW; ++r)
-        if (glow[s][r]) {
+        if (glow[s][r] && glow[s][r] <= GLOW - 2 * STEP) {
             reach(s, r, &a, &b);
             if (a != 255)
                 m |= 1u << a;
@@ -219,22 +239,24 @@ static void lights(void)
     }
 }
 
-/* the other side: fires now and then into a wire that wins a light */
-static void enemy(unsigned char s, unsigned char skill)
+/* the other side, as the original plays it: a wire picked at random, the
+ * cursor moved there a wire every other tick, and fired */
+static unsigned char target;
+
+static void enemy(unsigned char s)
 {
-    static unsigned char r, a, b, try;
-    if (!pulses[s] || (rnd() & 63) > skill)
+    if (!pulses[s])
         return;
-    for (try = 0; try < 4; ++try) {
-        r = rnd() % NROW;
-        if (glow[s][r])
-            continue;
-        reach(s, r, &a, &b);
-        if ((a != 255 && owner[a] != s) || (b != 255 && owner[b] != s)) {
-            fire(s, r);
-            return;
-        }
+    if (cursor[s] == target) {
+        fire(s, target);
+        target = rnd() % NROW;
+        return;
     }
+    if (tick & 1)
+        return;
+    draw_cursor(s, 0);
+    cursor[s] += cursor[s] < target ? 1 : -1;
+    draw_cursor(s, 1);
 }
 
 static void wait3(void)
@@ -266,9 +288,13 @@ unsigned char transfer_game(unsigned char i)
         panel_status("Colour");
         me = 0;
         draw_cursor(0, 1);
+        while (keys_irq & K_FIRE)
+            wait3();
         for (t = 0; t < 50; ++t) {
             wait3();
             k = keys_irq;
+            if (k & K_FIRE)
+                break;
             s = (k & K_RIGHT) ? 1 : (k & K_LEFT) ? 0 : me;
             if (s != me) {
                 draw_cursor(me, 0);
@@ -278,8 +304,9 @@ unsigned char transfer_game(unsigned char i)
             draw_time(16 - t / 3);
         }
         draw_cursor(me ^ 1, 1);
-        pulses[me] = 3 + dr_class[d_type[0]] / 3;
-        pulses[me ^ 1] = 3 + dr_class[d_type[i]] / 3;
+        pulses[me] = dr_class[d_type[0]] + 3;
+        pulses[me ^ 1] = dr_class[d_type[i]] + 4;
+        target = rnd() % NROW;
         draw_pulses(0);
         draw_pulses(1);
 
@@ -302,11 +329,17 @@ unsigned char transfer_game(unsigned char i)
             if ((k & K_FIRE) && !(prev & K_FIRE))
                 fire(me, cursor[me]);
             prev = k;
-            enemy(me ^ 1, 6 + dr_class[d_type[i]] * 2);
+            ++tick;
+            enemy(me ^ 1);
             for (s = 0; s < 2; ++s)
                 for (r = 0; r < NROW; ++r)
-                    if (glow[s][r] && !--glow[s][r])
-                        draw_wire(s, r);
+                    if (glow[s][r]) {
+                        --glow[s][r];
+                        /* redrawn when it gets on, and when it is over */
+                        if (glow[s][r] == 0 || glow[s][r] == GLOW - STEP
+                            || glow[s][r] == GLOW - 2 * STEP)
+                            draw_wire(s, r);
+                    }
             lights();
             tt = 16 - t / 11;
             if ((t % 11) == 0)
