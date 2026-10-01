@@ -109,11 +109,11 @@ extern unsigned char d_type[MAXD];
 extern unsigned d_x[MAXD], d_y[MAXD];   /* world pixels, the middle */
 extern signed char d_vx[MAXD], d_vy[MAXD];
 extern unsigned char d_energy[MAXD];
-extern unsigned char d_boom[MAXD];      /* 0 alive, 1..8 exploding, 9 gone */
+extern unsigned char d_boom[MAXD];      /* 0 alive, 1..12 exploding, 13 gone */
 extern unsigned char d_bx[MAXD], d_by[MAXD];
 #define PX d_x[0]
 #define PY d_y[0]
-#define BOOM_GONE 9
+#define BOOM_GONE 13
 
 extern unsigned s_x[MAXS], s_y[MAXS];
 extern unsigned char s_life[MAXS], s_img[MAXS];
@@ -143,10 +143,10 @@ void remove_droid(unsigned char i);
 #define SLOT_PLAYER 0
 #define SLOT_DROID  1                   /* .. 9: droid types on the deck */
 #define NSLOT_DROID 9
-#define SLOT_EXPLO  10                  /* .. 13 */
-#define SLOT_LASER  14                  /* .. 17: | / - \ */
-#define SLOT_PANIM  18                  /* .. 20: the player's turning dome */
-#define NSLOT       21
+#define SLOT_EXPLO  10                  /* .. 15 */
+#define SLOT_LASER  16                  /* .. 19: | / - \ */
+#define SLOT_PANIM  20                  /* .. 22: the player's turning dome */
+#define NSLOT       23
 
 extern unsigned char slot_of[NDROIDS];
 extern unsigned char tick;

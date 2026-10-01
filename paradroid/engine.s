@@ -1493,7 +1493,7 @@ _droids_step:
         sta _d_choose,x
         lda _d_boom,x
         beq @alive
-        cmp #9
+        cmp #13                 ; BOOM_GONE in game.h
         bcs @next
         inc _d_boom,x
         bne @next

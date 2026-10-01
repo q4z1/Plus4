@@ -32,12 +32,12 @@ static void shift_into(unsigned char n, const unsigned char *img, unsigned char 
 void pictures_fixed(void)
 {
     static unsigned char i;
-    for (i = 0; i < 4; ++i)
+    for (i = 0; i < NEXPLO; ++i)
         shift_into(SLOT_EXPLO + i, explo_img + i * (EXPLO_H * 4), EXPLO_H);
-    shift_into(SLOT_LASER + 0, laser_v, 8);
-    shift_into(SLOT_LASER + 1, laser_d1, 8);
-    shift_into(SLOT_LASER + 2, laser_h, 2);
-    shift_into(SLOT_LASER + 3, laser_d2, 8);
+    shift_into(SLOT_LASER + 0, laser_v, 16);
+    shift_into(SLOT_LASER + 1, laser_d1, 16);
+    shift_into(SLOT_LASER + 2, laser_h, 16);
+    shift_into(SLOT_LASER + 3, laser_d2, 16);
 }
 
 /* a droid's picture into pimg: the template with its number in the band,
@@ -161,8 +161,8 @@ static void figure(void)
 }
 
 /* shot pictures: where their top left corner is from their middle */
-static const signed char laser_ox[4] = { -1, -4, -4, -4 };
-static const signed char laser_oy[4] = { -4, -4, -1, -4 };
+static const signed char laser_ox[4] = { -12, -12, -12, -12 };
+static const signed char laser_oy[4] = { -8, -8, -8, -8 };
 
 void draw(void)
 {

@@ -17,6 +17,7 @@ and writes what the Plus/4 version uses as text files into data/:
   ship.txt       how many droids of what class each deck gets
   panel.txt      the status panel above the deck: codes, colours, font
   sideview.txt   the side view of the ship the lifts show
+  sprites.txt    lasers and explosion, from its sprites
 
 Where the things are in the original's memory was found by tracing it in
 VICE; the addresses are below. The tables are copied as they are, the
@@ -217,3 +218,23 @@ for c in used:
         t.append(''.join('#' if v & (0x80 >> i) else '.' for i in range(8)))
     t.append('')
 write('sideview.txt', '\n'.join(t))
+
+# --- sprites --------------------------------------------------------------------
+# Sprites in the VIC's bank at $4000. The lasers are hires, two bolts side
+# by side; the explosion is multicolour, from a spark to the last embers.
+SPRITES = [('laser_h', 0x91, 0), ('laser_d2', 0x93, 0), ('laser_v', 0x95, 0),
+           ('laser_d1', 0x97, 0)] + \
+          [('explo%d' % i, b, 1) for i, b in enumerate((0x39, 0x3B, 0x3C, 0x3E, 0x40, 0x42))]
+t = ['# Sprites of the original: name, then 21 rows. Hires ones in # and .,',
+     '# multicolour ones in 0-3 (two pixels each).', '']
+for name, blk, multi in SPRITES:
+    a = 0x4000 + blk * 64
+    t.append('sprite %s %s' % (name, 'mc' if multi else 'hires'))
+    for y in range(21):
+        b = ram[a + y * 3:a + y * 3 + 3]
+        if multi:
+            t.append(''.join('0123'[(v >> (6 - 2 * k)) & 3] for v in b for k in range(4)))
+        else:
+            t.append(''.join('#' if v & (0x80 >> k) else '.' for v in b for k in range(8)))
+    t.append('')
+write('sprites.txt', '\n'.join(t))

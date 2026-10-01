@@ -206,8 +206,8 @@ static void shoot(unsigned char i, signed char dx, signed char dy, unsigned char
             break;
     if (k == MAXS)
         return;
-    s_x[k] = d_x[i] + dx * 12;
-    s_y[k] = d_y[i] + dy * 9;
+    s_x[k] = d_x[i] + dx * 20;
+    s_y[k] = d_y[i] + dy * 14;
     s_vx[k] = dx * 4;
     s_vy[k] = dy * 4;
     s_life[k] = 14;

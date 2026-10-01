@@ -227,28 +227,6 @@ def droid_rows(num):
     return [''.join(r) for r in pic]
 
 
-# explosion: four pictures, bursting and fading
-EXPLO = [
-    ['....o...o....', '..o..ooo..o..', '.o.ooxxxoo.o.', '..ooxxxxxoo..', 'o.oxxoooxxo.o',
-     '.ooxoo.ooxoo.', '.oxxo...oxxo.', 'ooxo..o..oxoo', '.oxxo...oxxo.', '.ooxoo.ooxoo.',
-     'o.oxxoooxxo.o', '..ooxxxxxoo..', '.o.ooxxxoo.o.', '..o..ooo..o..', '....o...o....', '.............'],
-    ['..o...o...o..', '.............', 'o..o.ooo.o..o', '...ooxxxoo...', '..ooxx.xxoo..',
-     '.oox.....xoo.', '..ox.....xo..', 'o.x...o...x.o', '..ox.....xo..', '.oox.....xoo.',
-     '..ooxx.xxoo..', '...ooxxxoo...', 'o..o.ooo.o..o', '.............', '..o...o...o..', '.............'],
-    ['o.....o.....o', '.............', '...o.....o...', '.....o.o.....', '..o..x.x..o..',
-     '....x...x....', '.o.........o.', 'o.x.......x.o', '.o.........o.', '....x...x....',
-     '..o..x.x..o..', '.....o.o.....', '...o.....o...', '.............', 'o.....o.....o', '.............'],
-    ['.............', '......o......', '.............', '..o.......o..', '.............',
-     '.............', '.............', 'o...........o', '.............', '.............',
-     '.............', '..o.......o..', '.............', '......o......', '.............', '.............'],
-]
-
-# lasers, by direction 0..7 = up, up-right, right, down-right, down, ...
-LASER_V = ['o', 'o', 'o', 'o', 'o', 'o', 'o', 'o']
-LASER_H = ['oooo', 'oooo']
-LASER_D1 = ['...o', '...o', '..o.', '..o.', '.o..', '.o..', 'o...', 'o...']   # /
-LASER_D2 = ['o...', 'o...', '.o..', '.o..', '..o.', '..o.', '...o', '...o']   # \
-
 # the transfer game's characters, hires, '#' set
 XFER = {
     'blank':  ['........'] * 8,
@@ -370,14 +348,33 @@ for g in DIGITS:
                 v |= 1 << (y * 3 + x)
     dg += [v & 255, v >> 8]
 emit('digit_bits', dg)
+# lasers and explosion from the original's sprites (24 x 21), as 12
+# multicolour pixels by 16 lines: hires pixel pairs become light pixels, the
+# explosion's colours light and dark
+sprites = {}
+for m in re.finditer(r'sprite (\w+) (mc|hires)\n((?:[.#0-3]{12,24}\n){21})', read('sprites.txt')):
+    sprites[m.group(1)] = (m.group(2), m.group(3).split())
+
+
+def sprite_pic(name, top):
+    kind, rows = sprites[name]
+    out = []
+    for r in rows[top:top + 16]:
+        if kind == 'hires':
+            out.append(''.join('o' if '#' in r[2 * i:2 * i + 2] else '.' for i in range(12)))
+        else:
+            out.append(''.join({'0': '.', '1': 'o', '2': 'x', '3': 'o'}[c] for c in r))
+    return out
+
+
 eimg = []
-for e in EXPLO:
-    eimg += pic_bytes(e)
+for i in range(6):
+    eimg += pic_bytes(sprite_pic('explo%d' % i, 2))
 emit('explo_img', eimg)
-emit('laser_v', pic_bytes(LASER_V))
-emit('laser_h', pic_bytes(LASER_H))
-emit('laser_d1', pic_bytes(LASER_D1))
-emit('laser_d2', pic_bytes(LASER_D2))
+emit('laser_v', pic_bytes(sprite_pic('laser_v', 2)))
+emit('laser_h', pic_bytes(sprite_pic('laser_h', 3)))
+emit('laser_d1', pic_bytes(sprite_pic('laser_d1', 2)))
+emit('laser_d2', pic_bytes(sprite_pic('laser_d2', 2)))
 
 sf = []
 scol = []
@@ -402,7 +399,7 @@ emit('xfer_font', xf)
 
 # Copied once at the start, then overwritten: the pre-shifted pictures
 # (draw.c) start where these are. 21 slots of 512 bytes.
-PRE_SLOTS = 21
+PRE_SLOTS = 23
 s.append('        .segment "INITDATA"')
 s.append('_pre:')
 for name, data in (('tile_font', sum(glyphs, [])), ('blk_code', bc), ('panel_font', pfont)):
@@ -423,12 +420,12 @@ h = ['/* made by tools/mkdata.py - do not edit */',
      '#define NLIFTS %d' % len(lifts),
      '#define NDROIDS %d' % len(droids),
      '#define DROID_H %d' % len(DROID),
-     '#define EXPLO_H 16',
+     '#define EXPLO_H 16', '#define NEXPLO 6',
      '#define B_SOLID 1', '#define B_DOOR 2', '#define B_LIFT 4',
      '#define B_CONSOLE 8', '#define B_ENERGY 16',
      '#define BLK_VDOOR 1', '#define BLK_HDOOR 2',
      '#define BLK_VOPEN 32', '#define BLK_HOPEN 36',
-     '#define NXFER %d' % len(XFER_ORDER), '#define PRE_SLOTS 21'] + \
+     '#define NXFER %d' % len(XFER_ORDER), '#define PRE_SLOTS 23'] + \
     ['#define X_%s %d' % (n.upper(), i) for i, n in enumerate(XFER_ORDER)] + \
     ['#define NSIDE %d' % len(SIDE_ORDER), '#define SIDE_BASE %d' % SIDE_BASE,
      '#define SIDE_ROWS %d' % len(side_rows), '#define SIDE_SHAFT %d' % (SIDE_BASE + SIDE_ORDER.index(0xF9)), '']
