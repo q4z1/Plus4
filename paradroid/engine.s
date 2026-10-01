@@ -106,7 +106,7 @@ WCOLS       = 39
 
 LINE_GAP    = 44                ; interrupt lines, see the top
 LINE_RC     = 55
-LINE_BOTTOM = 201               ; less s, the line counter is behind then
+LINE_BOTTOM = 197               ; less s, the line counter is behind then
 
 ; ---- zero page ------------------------------------------------------------
 
@@ -502,8 +502,10 @@ irq_rc:
         bcc @bg                 ; late: at once
 @l57:   lda TED_HPOS
         cmp #124
-        bcs @bg
-        cpx TED_LINE
+        bcc :+
+        cmp #196
+        bcc @bg
+:       cpx TED_LINE
         beq @l57
 @bg:    lda _col_deck
         sta TED_BG
@@ -526,12 +528,15 @@ irq_rc:
         sta TED_RCMP
         jmp irq_out
 
-; Below the window: the line counter right again in line 203, so the
-; picture ends at line 204 as always; and only then the panel's settings.
+; Below the window: the line counter put right again, so the picture ends
+; at line 204 as always; and only then the panel's settings.
 irq_bottom:
         ldy front
         lda b_s,y
-        beq :++
+        beq @end
+        ; right after the counter has stepped to line 203 (203 - s in
+        ; counter terms) it is set to 203. Writing it earlier or later in
+        ; the line upsets the TED's row fetching for the next picture.
         lda #202
         sec
         sbc b_s,y
@@ -539,7 +544,7 @@ irq_bottom:
         bcs :-
         lda #203
         sta TED_LINE
-:       lda #203
+@end:   lda #203                ; the picture's end, then the panel
 :       cmp TED_LINE
         bcs :-
         lda _ready
