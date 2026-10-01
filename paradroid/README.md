@@ -136,7 +136,7 @@ were found by tracing the game:
 | `$6CC8` | lift stops: deck and shaft. The position stored is where the *window* is when the player stands on the lift, five blocks left of and two above the lift itself |
 | `$EA00` | droid types: number, drive, weapon |
 | `$F180` | the side view of the ship |
-| `$4E40`, `$5440`… | sprites: the twin lasers (`$91`–`$97`) and the explosion (`$39`–`$43`), turned into multicolour figures |
+| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
 
 `tools/extract.py` writes all of it as text into [data/](data/): decks as
 letters, characters as pictures. [tools/mkdata.py](tools/mkdata.py) turns
