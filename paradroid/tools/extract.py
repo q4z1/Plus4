@@ -19,6 +19,7 @@ and writes what the Plus/4 version uses as text files into data/:
   sideview.txt   the side view of the ship the lifts show
   sprites.txt    lasers and explosion, from its sprites
   briefing.txt   the text pages the original shows before a game
+  transfer.txt   the characters of the transfer game
 
 Where the things are in the original's memory was found by tracing it in
 VICE; the addresses are below. The tables are copied as they are, the
@@ -293,3 +294,20 @@ for k, pg in enumerate(pages[:4]):
         t.append('%d %d %s' % (row, col, text.rstrip()))
     t.append('')
 write('briefing.txt', '\n'.join(t))
+
+# --- transfer game ----------------------------------------------------------------
+# Its board is characters of the deck's set too, multicolour (%10 black,
+# %11 the cell's colour): wires $F1 (left) and $F2 (right), arrows $F3
+# (pointing left) and $FD (right), the colour changer $F4, a box over three
+# rows $F5-$F7 (also the rails), a light $F8 with its points $F9/$FA, the
+# column's caps $FB/$FC, $FE and $D0/$D1 the leader's light above it.
+t = ['# The transfer game\'s characters, multicolour: 1 black, 2 the cell\'s',
+     '# colour (on the C64 %10 and %11).', '']
+for c in list(range(0xF1, 0xFF)) + [0xD0, 0xD1]:
+    t.append('char %02x' % c)
+    for y in range(8):
+        v = ram[FONT + c * 8 + y]
+        t.append(''.join('.?12'[(v >> (6 - 2 * i)) & 3] for i in range(4)))
+    t.append('')
+write('transfer.txt', '\n'.join(t))
+

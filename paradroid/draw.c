@@ -251,7 +251,7 @@ static unsigned char panel_text(unsigned char col, const char *s)
             c = ch - 'A' + 0x3A;
             wide = 1;
         } else
-            c = 0x30;                   /* space */
+            c = ch == '?' ? 0x24 : ch == '-' ? 0x2E : 0x30;  /* or space */
         panel_char(col++, c);
         if (wide)
             panel_char(col++, c + 0x20);

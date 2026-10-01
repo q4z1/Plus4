@@ -239,25 +239,8 @@ static void mc_font(void)
     }
 }
 
-/* the best score since the machine was switched on */
-static unsigned long best;
-
-/* the title page: whose game this is, and the best score */
-static void title_page(void)
-{
-    while (ready)
-        ;
-    win_letters();
-    eng_plain();
-    win_clear(0, 0x71);
-    win_text(0, 14, "paradroid", 0x67);
-    win_text(1, 9, "by andrew braybrook", 0x71);
-    win_text(2, 7, "graftgold  hewson 1985", 0x71);
-    win_text(4, 4, "plus4 version 2026 in c", 0x71);
-    win_text(5, 10, "best", 0x71);
-    win_text(5, 16, num_text(best), 0x67);
-    win_text(7, 14, "press fire", 0x71);
-}
+/* the best score since the machine was switched on (title.c shows it) */
+unsigned long best;
 
 /* ======================================================================
  * The disk
@@ -291,175 +274,22 @@ static void load_file(const char *name, void *addr)
  * Waiting for a game
  * ==================================================================== */
 
-/* The original's briefing, four pages, comes from the disk into the slots
- * of the explosions and lasers: the title has no use for them. So it is
- * loaded again for each title, and the slots made again for each game.
- * The file (tools/mkdata.py) starts with the characters it needs, as codes
- * of the panel's set, and its letters: letter k is character top[k] over
- * bot[k]. Then the pages. A page is drawn whole behind the file and rolled
- * up through the window a line of pixels at a time, the way the deck
- * scrolls: picture 1's character set holds the briefing's then, and both
- * pictures show it. */
-#define BRIEF ((const unsigned char *)pre + SLOT_EXPLO * 512)
-#define VS ((unsigned char *)pre + SLOT_EXPLO * 512 + BRIEF_SIZE)
-static unsigned char brief_in;
-static const unsigned char *b_top, *b_bot;  /* the letters */
-static const unsigned char *b_first;        /* the first page */
-static const unsigned char *bpage;          /* the page to show next */
-static unsigned char b_h;                   /* its rows */
+/* The title and the briefing are an overlay (title.c), a file on the disk
+ * that goes where the explosions' and lasers' pictures are: the title has
+ * no use for them. So it is loaded for each title, and those pictures made
+ * again for each game. */
+extern unsigned char _OVL_START__[];
+void title_run(void);
 
-/* n pictures; 1 as soon as fire is pressed */
-static unsigned char fire_in(unsigned n)
-{
-    static unsigned char f;
-    while (n--) {
-        f = frames;
-        while (frames == f)
-            ;
-        if (keys_irq & K_FIRE)
-            return 1;
-    }
-    return 0;
-}
-
-/* picture 0's character set for the window, or (0xD8) the briefing's in
- * picture 1's for both; changed just after a picture has begun, with the
- * window cleared */
-static void window_font(unsigned char hi)
-{
-    static unsigned char k, n;
-    static unsigned char f;
-    while (ready)
-        ;
-    f = frames;
-    while (frames == f)
-        ;
-    win_clear(0, 0x71);
-    if (hi == 0xD8) {
-        n = BRIEF[0];
-        for (k = 0; k < n; ++k)
-            memcpy(FONT1 + k * 8, PANELF + BRIEF[1 + k] * 8, 8);
-    } else
-        memcpy(FONT1, FONT0, POOL * 8);
-    font_hi[0] = hi;
-}
-
-/* the page at bpage drawn whole into VS, 40 codes a row */
-static void page_draw(void)
-{
-    static const unsigned char *p;
-    static unsigned char *d;
-    static unsigned char r, n, i, k;
-    b_h = *bpage;
-    p = bpage + 1;
-    memset(VS, 0, b_h * 40);
-    while ((r = *p) != 0xFF) {
-        n = p[2];
-        d = VS + r * 40 + p[1];
-        for (i = 0; i < n; ++i) {
-            k = p[3 + i];
-            d[i] = b_top[k];
-            d[i + 40] = b_bot[k];
-        }
-        p += 3 + n;
-    }
-    bpage = p[1] ? p + 1 : b_first;
-}
-
-/* the page rolled up by y pixels, into the back picture: as for the deck,
- * the rows move down by k lines and window row 0 shows its last k lines,
- * from copies of its characters with the rest cleared */
-static void page_show(unsigned y)
-{
-    static unsigned char *d, *g, *o;
-    static const unsigned char *src;
-    static unsigned char k, w, rr, i, c, code;
-    k = (unsigned char)-(unsigned char)y & 7;
-    rr = (y + k) >> 3;                  /* the row in window row 1 */
-    d = (unsigned char *)(back ? 0xD400 : 0xC400) + 7 * 40;
-    memset(d, 0, 18 * 40);
-    src = VS + (rr - 1) * 40;           /* window row 0's */
-    if (k && rr)
-        for (w = 0, code = back ? 198 : POOL; w < 40; ++w)
-            if ((c = src[w]) != 0) {
-                g = FONT1 + c * 8;
-                o = FONT1 + code * 8;
-                for (i = 0; i < 8; ++i)
-                    o[i] = i < 8 - k ? 0 : g[i];
-                d[w] = code++;
-            }
-    for (w = 1; w < 18 && rr < b_h; ++w, ++rr)
-        memcpy(d += 40, src += 40, 40);
-    e_sx = 0;
-    e_cutrow = 0;
-    e_s = k;
-    r_done();
-}
-
-/* a page of the briefing, rolled up; 1 if fire ended it */
-static unsigned char brief(void)
-{
-    static unsigned y, end;
-    eng_plain();
-    window_font(0xD8);
-    page_draw();
-    end = b_h * 8 > 136 ? b_h * 8 - 136 : 0;
-    for (y = 0; ; ++y) {
-        while (ready)
-            ;
-        page_show(y);
-        if (fire_in(y == 0 || y == end ? 120 : 2))
-            break;
-        if (y == end)
-            break;
-    }
-    while (ready)
-        ;
-    window_font(0xC8);
-    return keys_irq & K_FIRE;
-}
-
-/* the deck and its droids going about, for n ticks; 1 if fire ended it */
-static unsigned char attract(unsigned char n)
-{
-    eng_dirty();
-    while (n--) {
-        wait_tick();
-        if (keys_irq & K_FIRE)
-            return 1;
-        move_droids();
-        doors();
-        draw();
-    }
-    return 0;
-}
-
-/* waiting for a game: the title page, a page of the briefing and the deck
- * with its droids, in turns */
 static void title(void)
 {
     if (score > best)
         best = score;
     hide_player = 1;
     player_dead = 0;
-    if (!brief_in) {
-        load_file("briefing", (void *)BRIEF);
-        brief_in = 1;
-        b_top = BRIEF + 2 + BRIEF[0];
-        b_bot = b_top + b_top[-1];
-        b_first = bpage = b_bot + b_top[-1];
-    }
-    panel_status("Press fire");
-    for (;;) {
-        title_page();
-        if (fire_in(300) || brief() || attract(150))
-            break;
-    }
-    while (keys_irq & K_FIRE)
-        wait_tick();
+    load_file("title", _OVL_START__);
+    title_run();
     hide_player = 0;
-    /* the explosions and lasers back where the briefing was */
-    brief_in = 0;
     pictures_fixed();
 }
 

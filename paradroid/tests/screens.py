@@ -31,14 +31,15 @@ def to(g, x, y):
 g = Game(warp=False)
 try:
     # the title page: from when it is drawn
+    # (the title is an overlay: its next title page may be a round away)
     g.v.cmd('break %04x' % g.lbl['_title_page'])
-    g.v.run_for(20)
+    g.v.run_for(45)
     g.v.cmd('del')
     g.v.run_for(1.0)
     save(g, 'title.png')
     # a page of the briefing, a few lines rolled up
     g.v.cmd('break %04x' % g.lbl['_brief'])
-    g.v.run_for(20)
+    g.v.run_for(45)
     g.v.cmd('del')
     g.v.run_for(5.0)
     save(g, 'briefing.png')
@@ -79,19 +80,21 @@ try:
     i = [i for i in range(1, g.byte('_nd')) if g.byte('_d_boom', i) == 0][0]
     g.poke('_d_x', px & 255, px >> 8, off=2 * i); g.poke('_d_y', py & 255, py >> 8, off=2 * i)
     g.keys(16, 0.5); g.keys(0, 0.1)
+    # the board is up when the sides' colours are set; fire takes yellow
     for i in range(60):
-        if g.v.mem(g.lbl['_pulses'], 2) != [0, 0]:
+        if g.byte('_tcol') != 0:
             break
         g.v.run_for(0.2)
-    kind = g.v.mem(g.lbl['_kind'], 12)
-    cur = 6
-    for target in [r for r in range(12) if kind[r] in (0, 2, 3)][:2]:
-        while cur < target:
-            g.keys(2, 0.12); g.keys(0, 0.12); cur += 1
-        while cur > target:
-            g.keys(1, 0.12); g.keys(0, 0.12); cur -= 1
-        g.keys(16, 0.15); g.keys(0, 0.2)
-    g.v.run_for(0.6)
+    g.v.run_for(1.0)
+    g.keys(16, 0.15); g.keys(0, 0.3)
+    # pulses into three lines without a dead end: the cursor starts above
+    # the lines each time
+    part = g.v.mem(g.lbl['_part'], 12)
+    for target in [r for r in range(12) if part[r] != 1][2:5]:
+        for k in range(target + 1):
+            g.keys(2, 0.1); g.keys(0, 0.1)
+        g.keys(16, 0.12); g.keys(0, 0.2)
+    g.v.run_for(1.0)
     save(g, 'transfer.png')
 finally:
     g.stop()

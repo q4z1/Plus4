@@ -59,7 +59,7 @@ second. The window scrolls a pixel at a time in any direction.
 | | |
 | --- | --- |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
-| **Transfer.** Twelve wires per side. Some are dead ends, and some fork and feed a neighbour's dead end. A pulse runs along its wire in three steps and, while it lights the end, claims the lights it reaches, unless the other side holds the same light at that moment. When the time runs out, the side with more lights wins. A draw is a deadlock and is played again. You pick your side first. As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4, and the other side picks wires at random. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
+| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*), then have ten seconds (*Finish -52*). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
 | ![Deck plan](screenshots/plan.png) | ![Droid enquiry](screenshots/droids.png) |
 | **Deck plan.** One character per block: walls, doors, lifts, energizers, consoles, the droids, and the player blinking. | **Droid enquiry.** As in the original, only for droid types up to the class of your host. Written in the panel's own two-line letters. |
 
@@ -141,6 +141,26 @@ something in them.
 The 001 has the original's turning dome, a slanted gap running round it, as
 four extra slots.
 
+### The transfer game, from the original and FreedroidClassic
+
+The board is the original's, character for character: its screen and
+characters (`$F1`–`$FE`, `$D0`, `$D1` of the deck's set, multicolour) were
+read in VICE while the original's transfer game ran. How the parts are
+laid out and how a pulse passes them follows
+[FreedroidClassic](https://github.com/ReinhardPrix/FreedroidClassic)
+(`src/takeover.c`), whose authors rebuilt Paradroid. It has the same parts
+as the original's screen and the same panel texts (*Colour? 76*,
+*Finish -52*). A side has four layers of twelve lines: where pulses go in,
+two layers of parts, the connection to the column.
+
+The work done for every line in every tick is in assembly
+([xfer.s](xfer.s)): passing the pulses on, drawing a line again when it
+changed, and the dashes moving along live wires, which are the two wire
+characters turned by a pixel. Written in C, the game was 2 KB larger than
+memory allowed. Laying the board out and the course of the game stay in C
+([transfer.c](transfer.c)), and its state lives in the low memory at
+`$0C68`, which only a disk load could disturb.
+
 ### The data, from the original's memory
 
 The C64 game keeps everything in memory once it has loaded. A dump of its
@@ -159,6 +179,7 @@ were found by tracing the game:
 | `$F120`–`$F15F` | each deck's box in the side view: row, column, rows, columns. Lighting a deck turns codes `$80`.. into `$90`.. and back |
 | `$6CB0`–`$6CC7` | the lift shafts: column, top row, length. The shaft ridden gets colour `$F9`, white multicolour |
 | `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
+| `$7F88`–`$7FF7` | the transfer game's characters `$F1`–`$FE` (and `$D0`, `$D1`): wires, arrows, the colour changer, boxes, the lights |
 | `$D000` | the briefing: per line its row and column, then the panel's codes. Capitals, `m` and `w` are two characters wide |
 
 `tools/extract.py` writes all of it as text into [data/](data/): decks as
@@ -176,13 +197,16 @@ it is overwritten as soon as it has been copied.
 
 ### The disk
 
-The game runs from `build/paradroid.d64`. The briefing (3.6 KB, 15 blocks)
-did not fit into memory as well, so it is a file of its own. It is loaded
-for each title into the slots of the explosions and lasers, which the title
-does not need, and those slots are made again when a game starts. That
-costs about four seconds of black screen at the title. Loading anything
-more often, for a lift or a transfer, would cost the same, which is why the
-decks stay in memory.
+The game runs from `build/paradroid.d64`. The title page, the briefing and
+the attract mode are an **overlay**: [title.c](title.c) and the briefing's
+text (5.3 KB, 22 blocks) are linked to run in the slots of the explosions'
+and lasers' pictures, which the title does not need, and written to a file
+of their own, `title`. [paradroid.cfg](paradroid.cfg) puts the overlay
+`$1400` bytes behind the start of the slots, and ld65 writes it to
+`build/title.bin`. It is loaded for each title, and the pictures are made
+again when a game starts. That costs about five seconds of black screen at
+the title. Loading something more often, for a lift or a transfer, would
+cost about the same, which is why the decks stay in memory.
 
 Loading with the KERNAL needs care in a program that uses all of memory:
 
@@ -200,15 +224,18 @@ of copies of its characters with their top lines cleared. For that, the
 file brings a character set of its own: the 109 different characters of
 the panel's letters it uses, put into picture 1's character set, which
 both pictures show meanwhile. That leaves room for each picture's copies.
-The page is drawn whole behind the file once, and each step copies 17 of
-its rows into the window.
+Each step draws the rows the window shows from the page's lines.
 
 ## What is not 1:1
 
-- In the **transfer game**, the circuit elements are fewer than the
-  original's (no repeaters or colour changers), and how long a pulse
-  stays lit is this version's own. The pulse counts and how the other
-  side plays are the original's, as are all the other rules and numbers.
+- In the **transfer game**, how the parts are laid out and how long a
+  pulse lasts follow FreedroidClassic (see above), not the original's
+  code. Its look, the pulse counts and how the other side plays are the
+  original's.
+- Before a transfer the original shows both droids with their pictures
+  ("This is the unit that you wish to control"). That screen is missing.
+- The original's **deck window** is about two rows shorter: the gap under
+  the panel is wider, and the window ends higher.
 - The droids are **13 multicolour pixels wide** with their number in a dark
   band. The original's hires sprites are 24 pixels wide, and the Plus/4's
   characters have half the horizontal resolution.
@@ -226,7 +253,9 @@ its rows into the window.
 | [deck.c](deck.c) | the ship, loading a deck, doors, colours, alert |
 | [droids.c](droids.c) | the player, the droids, shots, energy, sound effects |
 | [draw.c](draw.c) | the window, figures, the status panel |
-| [transfer.c](transfer.c) | the transfer game |
+| [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course |
+| [xfer.s](xfer.s) | the transfer board: pulses passed on, lines drawn, live wires moving |
+| [title.c](title.c) | the overlay: title page, briefing, attract mode |
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the deck plan and the droid enquiry |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
@@ -234,8 +263,8 @@ its rows into the window.
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
-| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, and the briefing into `build/disk/` |
-| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, as text |
+| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data |
+| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
 
 ## Building and running

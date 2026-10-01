@@ -227,28 +227,27 @@ def droid_rows(num):
     return [''.join(r) for r in pic]
 
 
-# the transfer game's characters, hires, '#' set
+# the deck plan's characters (console.c), hires, '#' set
 XFER = {
     'blank':  ['........'] * 8,
     'wire':   ['........', '........', '........', '########', '########', '........', '........', '........'],
     'socket': ['........', '..####..', '.#....#.', '.#.####.', '.#.####.', '.#....#.', '..####..', '........'],
-    'dead_l': ['........', '.....##.', '.....##.', '#######.', '#######.', '.....##.', '.....##.', '........'],
-    'dead_r': ['........', '.##.....', '.##.....', '.#######', '.#######', '.##.....', '.##.....', '........'],
-    'fork_d': ['........', '........', '........', '########', '########', '...##...', '...##...', '...##...'],
-    'fork_u': ['...##...', '...##...', '...##...', '########', '########', '........', '........', '........'],
-    'vert':   ['...##...'] * 8,
-    'bend_d': ['...##...', '...##...', '...##...', '...#####', '...#####', '........', '........', '........'],
-    'bend_u': ['........', '........', '........', '...#####', '...#####', '...##...', '...##...', '...##...'],
-    'bend_dr':['...##...', '...##...', '...##...', '#####...', '#####...', '........', '........', '........'],
-    'bend_ur':['........', '........', '........', '#####...', '#####...', '...##...', '...##...', '...##...'],
     'light':  ['.######.', '########', '########', '########', '########', '########', '########', '.######.'],
-    'pulse_l':['........', '##......', '####....', '######..', '######..', '####....', '##......', '........'],
-    'pulse_r':['........', '......##', '....####', '..######', '..######', '....####', '......##', '........'],
-    'bar':    ['........', '########', '########', '########', '########', '########', '########', '........'],
     'lift':   ['..####..', '.#.##.#.', '#..##..#', '########', '########', '#..##..#', '.#.##.#.', '..####..'],
 }
-XFER_ORDER = ['blank', 'wire', 'socket', 'dead_l', 'dead_r', 'fork_d', 'fork_u', 'vert',
-              'bend_d', 'bend_u', 'bend_dr', 'bend_ur', 'light', 'pulse_l', 'pulse_r', 'bar', 'lift']
+XFER_ORDER = ['blank', 'wire', 'socket', 'light', 'lift']
+
+# the transfer game's, the original's: $F1-$FE, $D0, $D1 (transfer.txt);
+# black is %01 on the Plus/4, where the C64 has it at %10
+board = []
+for m in re.finditer(r'char ([0-9a-f]{2})\n((?:[.12]{4}\n){8})', read('transfer.txt')):
+    for r in m.group(2).split():
+        v = 0
+        for ch in r:
+            v = v << 2 | {'.': 0, '1': 1, '2': 3}[ch]
+        board.append(v)
+NBOARD = len(board) // 8
+assert NBOARD == 16
 
 # --- side view of the ship ------------------------------------------------------
 stxt = read('sideview.txt')
@@ -348,25 +347,16 @@ for page in brief:
 letters = sorted(letter_of, key=letter_of.get)
 NBRIEF = len(srcs)
 assert NBRIEF <= POOL, NBRIEF
-brief_bin = ([NBRIEF] + srcs + [len(letters)] + [t for t, b in letters]
-             + [b for t, b in letters])
-brief_rows = 0
+pages_bin = []
 for page in brief:
-    h = max(r for r, c, t in page) + 2
-    brief_rows = max(brief_rows, h)
-    brief_bin.append(h)
+    pages_bin.append(max(r for r, c, t in page) + 2)
     for r, c, t in page:
         assert 1 <= c and c + len(t) <= 39, (r, c, len(t))
-        brief_bin += [r, c, len(t)] + [letter_of[(bglyph(pc), bglyph(pc | 0x80))] for pc in t]
-    brief_bin.append(0xFF)
-brief_bin.append(0)
-# the page drawn whole, behind the file, in the slots (10 to 22) it is in
-assert len(brief_bin) + brief_rows * 40 <= 13 * 512, (len(brief_bin), brief_rows)
-os.makedirs(os.path.join(ROOT, 'build', 'disk'), exist_ok=True)
-# two bytes in front, where a file's load address goes: the program loads
-# it to an address of its own
-open(os.path.join(ROOT, 'build', 'disk', 'briefing'), 'wb').write(bytes([0, 0] + brief_bin))
-BRIEF_SIZE = len(brief_bin)
+        pages_bin += [r, c, len(t)] + [letter_of[(bglyph(pc), bglyph(pc | 0x80))] for pc in t]
+    pages_bin.append(0xFF)
+pages_bin.append(0)
+BRIEF_SIZE = len(srcs) + 2 * len(letters) + len(pages_bin)
+
 
 # --- write ---------------------------------------------------------------------
 def asm_bytes(name, data, per=16):
@@ -490,6 +480,7 @@ xf = []
 for name in XFER_ORDER:
     xf += [int(r.replace('.', '0').replace('#', '1'), 2) for r in XFER[name]]
 emit('xfer_font', xf)
+emit('board_font', board)
 
 # Used once at the start, then overwritten: the pre-shifted pictures
 # (draw.c) start where these are, 23 slots of 512 bytes. The start makes
@@ -511,6 +502,17 @@ exports.append('pre')
 s.insert(2, '\n'.join('        .export _%s' % e for e in exports) + '\n')
 open(os.path.join(GEN, 'data.s'), 'w').write('\n'.join(s))
 
+# into the title's overlay (title.c), which is a file on the disk
+b = ['; made by tools/mkdata.py - do not edit',
+     '        .segment "OVLHDR"', '        .word 0         ; where a load address goes',
+     '        .segment "OVLDATA"',
+     '        .export _brief_srcs, _brief_top, _brief_bot, _brief_pages']
+for name, data in (('brief_srcs', srcs), ('brief_top', [t for t, u in letters]),
+                   ('brief_bot', [u for t, u in letters]), ('brief_pages', pages_bin)):
+    b.append(asm_bytes(name, data))
+open(os.path.join(GEN, 'brief.s'), 'w').write('\n'.join(b) + '\n')
+
+
 h = ['/* made by tools/mkdata.py - do not edit */',
      '#define POOL %d' % POOL,
      '#define NBLK %d' % NBLK,
@@ -523,7 +525,7 @@ h = ['/* made by tools/mkdata.py - do not edit */',
      '#define B_CONSOLE 8', '#define B_ENERGY 16',
      '#define BLK_VDOOR 1', '#define BLK_HDOOR 2',
      '#define BLK_VOPEN 32', '#define BLK_HOPEN 36',
-     '#define NXFER %d' % len(XFER_ORDER), '#define PRE_SLOTS 23',
+     '#define NXFER %d' % len(XFER_ORDER), '#define NBOARD %d' % NBOARD, '#define PRE_SLOTS 23',
      '#define BRIEF_SIZE %d' % BRIEF_SIZE, '#define NBRIEF %d' % NBRIEF] + \
     ['#define X_%s %d' % (n.upper(), i) for i, n in enumerate(XFER_ORDER)] + \
     ['#define NSIDE %d' % NSIDE, '#define SIDE_BASE %d' % SIDE_BASE,
@@ -535,6 +537,8 @@ for e in exports:
         h.append('extern unsigned char pre[];')
     else:
         h.append('extern const unsigned char %s[];' % e)
+h.append('/* in the title\'s overlay (brief.s) */')
+h.append('extern const unsigned char brief_srcs[], brief_top[], brief_bot[], brief_pages[];')
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
 open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\n' % POOL)
 print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE))

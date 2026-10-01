@@ -25,12 +25,14 @@ class Game:
         self.lbl = labels()
         self.v = Vice(d64, WORK, warp=True)
         irq = self.lbl['irq']
-        # until the game's own interrupt runs and the title is up, the
-        # briefing loaded (the title counts pictures, not ticks)
+        # until the game's own interrupt runs and the title is up, loaded
+        # from the disk: the picture on again (the title counts pictures,
+        # not ticks)
         for i in range(200):
             self.v.run_for(0.2)
             vec = self.v.mem(0xFFFE, 2)
-            if vec[0] | vec[1] << 8 == irq and self.byte('_brief_in'):
+            if (vec[0] | vec[1] << 8 == irq and self.byte('_hide_player')
+                    and self.v.mem(0xFF06, 1)[0] & 0x10):
                 break
         if god:
             self.poke('_dbg_god', 1)
