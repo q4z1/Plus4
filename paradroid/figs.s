@@ -30,7 +30,7 @@ ry:     .res 1
 fh:     .res 1
 fi:     .res 1
 
-        .code
+        .segment "HICODE"       ; (run at $F400 on, paradroid.cfg)
 
 ; an explosion's colour by its stage, multicolour: the original's yellow,
 ; then its orange as it dies down - a red of middle luminance, as cells in

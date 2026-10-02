@@ -161,8 +161,8 @@ static void play(void)
             continue;
         }
         /* near a console: the drive's motor started already, so that the
-         * console loads without waiting the two seconds for it; and kept
-         * going while the player stays near */
+         * pictures of the console's droid enquiry load without waiting the
+         * two seconds for it; and kept going while the player stays near */
         if (fl_kind && !(++t4 & 3)) {
             if (!console_near())
                 by = 0;
@@ -320,14 +320,10 @@ unsigned load_file(const char *name, void *addr)
 extern unsigned char _OVL_START__[];
 void title_run(void);
 
-/* the ship's computer, an overlay too (console.c), in the same place */
-extern unsigned char _CON_START__[];
-
+/* the ship's computer (console.c): always there */
 static void console(void)
 {
-    load_file("console", _CON_START__);
     console_run();
-    pictures_fixed();
 }
 
 static unsigned char over;              /* a game has been played */

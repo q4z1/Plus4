@@ -1,8 +1,7 @@
 #!/bin/sh
 # Build Paradroid: build/paradroid.prg and the disk it runs from,
 # build/paradroid.d64, with the title and briefing as a file of its own
-# (an overlay, build/title.bin), the console (another, build/console.bin)
-# and the droids' pictures p00-p23.
+# (an overlay, build/title.bin) and the droids' pictures p00-p23.
 set -e
 cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
@@ -24,7 +23,17 @@ done
 n=$($B/od65 -S build/sfx.o | awk '/SFXCODE:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
-for f in paradroid deck droids draw transfer lift console title; do
+# (and the console's and the figures' code, copied to $F400 at the start:
+# its size is known once they are compiled, which needs mkdata's data.h -
+# so mkdata again, with that)
+$B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/console.o console.c
+$B/cl65 -t plus4 -g -c -o build/figs.o figs.s
+for o in build/console.o build/figs.o; do
+    n=$($B/od65 -S $o | awk '/HICODE:/{print $2}')
+    INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
+done
+INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
+for f in paradroid deck droids draw transfer lift title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
 done
 $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
@@ -32,7 +41,6 @@ $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
 $B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/music.o music.s
 $B/cl65 -t plus4 -g -c -o build/move.o move.s
-$B/cl65 -t plus4 -g -c -o build/figs.o figs.s
 $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/sfxcall.o sfxcall.s
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
@@ -44,14 +52,13 @@ $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl
     build/sfx.o
 
 # The disk (tools/d64.py): the files the fast loader loads nearest the
-# directory, their sectors IL apart: the console first, then the title,
-# then the droids' pictures (three blocks each, a track further matters
+# directory, their sectors IL apart: the title first, then the droids'
+# pictures (three blocks each, a track further matters
 # little to them); the program, which the KERNAL loads, after them, 10
 # apart as the DOS would put them, and first in the directory, so that
 # LOAD"*" finds it.
 IL=${IL:-8}
-set -- build/paradroid.d64 "paradroid,pd" build/console.bin:console:$IL \
-       build/title.bin:title:$IL
+set -- build/paradroid.d64 "paradroid,pd" build/title.bin:title:$IL
 for f in build/pics/p*; do
     set -- "$@" "$f:$(basename "$f"):$IL"
 done

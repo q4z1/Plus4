@@ -123,7 +123,7 @@ c_cy:       .res 3
 _f_src:     .res 2              ; pre_shift: 4 bytes per line, top line first
 _f_pre:     .res 2              ; r_fig: the pre-shifted copy
 _p_pre:     .res 2              ; pre_shift: where to
-p_shr:      .res 2
+p_shr:      .res 2              ; pre_shift: the bits to shift, the spill
 p_shl:      .res 2
 p_d:        .res 2              ; column data, biased to the cell
 p_n:        .res 2              ; column mask, biased likewise
@@ -242,8 +242,6 @@ cut_code:   .res 256
 
         .segment "TABLES"
         .align 256
-shr_tab:    .res 4*256          ; [sub][b]: b shifted right by sub pixels
-shl_tab:    .res 4*256          ; [sub][b]: what falls into the next byte
 nmaskof:    .res 256            ; %11 for every pixel that is %00, else %00
 code_lo:    .res 256            ; code * 8
 code_hi:    .res 256
@@ -292,41 +290,9 @@ _eng_stack:
 _eng_init:
         sei
         sta $FF3F               ; RAM everywhere
-        ; --- shift tables: sub 0..3 multicolour pixels = 0, 2, 4, 6 bits ---
         ldx #0
-@sh:    txa
-        sta shr_tab,x
-        lsr a
-        lsr a
-        sta shr_tab+256,x
-        lsr a
-        lsr a
-        sta shr_tab+512,x
-        lsr a
-        lsr a
-        sta shr_tab+768,x
-        lda #0
-        sta shl_tab,x
-        txa
-        asl a
-        asl a
-        asl a
-        asl a
-        asl a
-        asl a
-        sta shl_tab+256,x
-        txa
-        asl a
-        asl a
-        asl a
-        asl a
-        sta shl_tab+512,x
-        txa
-        asl a
-        asl a
-        sta shl_tab+768,x
         ; the mask: %11 for each pixel pair that is %00
-        stx z_t
+@sh:    stx z_t
         lda #0
         sta z_t2
         ldy #4
@@ -359,9 +325,7 @@ _eng_init:
         lsr a
         sta code_hi,x
         inx
-        beq :+
-        jmp @sh
-:
+        bne @sh
         lda #0
         sta _ready
         sta front
@@ -1279,17 +1243,10 @@ _pre_shift:
 :       sta (_p_pre),y
         dey
         bpl :-
-        lda z_sub
-        clc
-        adc #>shr_tab
-        sta p_shr+1
-        lda z_sub
-        clc
-        adc #>shl_tab
-        sta p_shl+1
-        lda #0
+        lda z_sub               ; the shift: 2 bits a pixel
+        asl a
         sta p_shr
-        sta p_shl
+        lda #0
         sta z_si                ; source index
         sta z_i                 ; line
 @line:  ldy z_si
@@ -1305,12 +1262,19 @@ _pre_shift:
         lda #0
         sta z_t                 ; spill
         sta z_k                 ; column
-@col:   ldx z_k
-        ldy z_acc,x
-        lda (p_shr),y
-        ora z_t
+@col:   ldx z_k                 ; (shifted here, not by tables: this is
+        lda z_acc,x             ; done once for a picture, and 2K is the
+        ldx #0                  ; console's)
+        stx p_shl
+        ldx p_shr
+        beq @shd
+:       lsr a
+        ror p_shl
+        dex
+        bne :-
+@shd:   ora z_t
         sta z_c
-        lda (p_shl),y
+        lda p_shl
         sta z_t
         ; at 8 + 24 * column + line
         lda z_k

@@ -709,8 +709,7 @@ open(os.path.join(GEN, 'sfx.inc'), 'w').write(
 
 # into the title's overlay (title.c), which is a file on the disk
 c = ['; made by tools/mkdata.py - do not edit',
-     '        .segment "CONHDR"', '        .word 0         ; where a load address goes',
-     '        .segment "CONDATA"', '        .export _plan_font, _plan_col']
+     '        .rodata', '        .export _plan_font, _plan_col']
 c.append(asm_bytes('plan_font', plan_font))
 c.append(asm_bytes('plan_col', plan_col))
 c.append('        .export _icon_font, _icon_tab, _icon_lay')

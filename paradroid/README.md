@@ -236,9 +236,9 @@ is drawn the way the original's code does it: each block's number is the
 character code, in the original's characters `$00`-`$1F` and colours,
 hires, with the deck's blocks 3 to 41 across.
 
-The console is a second overlay, `console`, in the same place as the
-title's. It is loaded when fire is held at a console, and the explosions'
-and lasers' pictures are made again afterwards. The pages about a droid come with its picture's file.
+The console is always in memory, so it opens at once: its code (1.7 KB)
+at `$F400`, copied there at the start, its data in the program. The pages
+about a droid come with its picture's file.
 
 ### The droids' pictures
 
@@ -291,9 +291,18 @@ cabin's row for each deck from the shafts.
 
 The program, the tables and 23 slots of pre-shifted pictures fill the Plus/4
 up to `$C000`. Above that sit two pictures with their character sets, the
-panel's character set, and the block tables. The data that is only used
-once at the start is linked into the very bytes where the slots begin, so
-it is overwritten as soon as it has been copied.
+panel's character set, the block tables, and at `$F000` the engine's
+tables and the code of the console and the figures. The data that is only
+used once at the start is linked into the very bytes where the slots
+begin, so it is overwritten as soon as it has been copied; the code
+copied above `$F000` comes from there too.
+
+The console needed 2.9 KB. The assembly of the figures, droids, doors and
+bumps made 805 bytes of the program's memory free; 2 KB more came from
+two tables at `$F000`, each byte shifted right by 0 to 3 multicolour
+pixels and what falls out. Only the pictures shifted in advance used
+them, when a deck is entered or the host changes; shifting there instead
+costs a fraction of a picture's time, and gives the same bytes.
 
 ### The sound effects, the original's
 
@@ -378,24 +387,21 @@ timing: not on interrupts, not on the TED taking cycles, not on how an
 emulator times the drive. If the drive code does not answer, the KERNAL
 loads from then on.
 
-The console is not in memory: there is no room for its 2.9 KB. What made
-it slow to load was the drive's motor, which the DOS stops when the drive
-is idle and then waits two seconds for, every time: 3.3 seconds for the
-console's twelve blocks. So whenever the player comes within five blocks
-across and three up or down of a console, the game asks the drive for no
-file at all, and the drive code only gives the DOS a read of the
-directory to do, with nobody waiting for it: the motor starts, and keeps
-going while the player stays near. The directory stays in the drive's
-buffer, and is not read again for the load. Walking up to a console and
-pressing fire at once, it loads in about 1.3 seconds; after two seconds
-or more by it, in one.
+The droid enquiry at a console loads the droids' pictures. What makes a
+load slow is the drive's motor, which the DOS stops when the drive is
+idle and then waits two seconds for, every time. So whenever the player
+comes within five blocks across and three up or down of a console, the
+game asks the drive for no file at all, and the drive code only gives the
+DOS a read of the directory to do, with nobody waiting for it: the motor
+starts, and keeps going while the player stays near. The directory stays
+in the drive's buffer, and is not read again for the load.
 
 The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
 for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
 right for the KERNAL; the fast loader is ready for the next one sooner,
 and with 8 apart the title loads a second faster. The fast loader's files
-lie nearest the directory, the console on the very next track, then the
-title, then the pictures; the program, which the KERNAL loads, comes after
+lie nearest the directory, the title on the very next track, then the
+pictures; the program, which the KERNAL loads, comes after
 them, 10 apart, and first in the directory.
 
 Any other drive, a **1541** too, loads with the KERNAL. A fast loader for
@@ -456,11 +462,11 @@ Each step draws the rows the window shows from the page's lines.
 | [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving; the introduction's letters and pictures |
 | [title.c](title.c) | the overlay: the title's round of briefing, scores and logo |
 | [lift.c](lift.c) | the side view and riding a lift |
-| [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
+| [console.c](console.c) | the ship's computer, run at `$F400`: menu, droid enquiry, deck plan, ship |
 | [music.s](music.s) | the title's sound, in its overlay |
 | [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them |
 | [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead, the doors, droids touching the player |
-| [figs.s](figs.s) | the droids, their explosions and the shots into the window |
+| [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard |
 | [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
 | [game.h](game.h) | what the parts share |
