@@ -18,7 +18,7 @@
 
         .export sfx_frame, _snd_len, _snd_time
         .exportzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h
-        .exportzp q0, q1, q2, r0, r1, tr0, tr1
+        .exportzp q0, q1, r0, r1, tr0, tr1
         .import ted                     ; (sfxcall.s: the program has room)
 
 TED_V1LO    = $FF0E
@@ -43,7 +43,6 @@ s_0l:   .res 2                  ; the start frequency, for reset
 s_0h:   .res 2
 q0:     .res 1                  ; the division
 q1:     .res 1
-q2:     .res 1
 r0:     .res 1
 r1:     .res 1
 tr0:    .res 1                  ; the TED's register

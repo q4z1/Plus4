@@ -17,10 +17,18 @@
 ; The walls of each block are four bits per character row, in the free end
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
-        .export _move_player, _solid_at, droid_look
+        .export _move_player, _solid_at, droid_look, d_lk, _console_near
+        .export _doors, _blk_at, _bump_next, _bump_i, _bump_r, _bump_d
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
+        .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
+        .import _ndoor, _door_x, _door_y, _door_v, _door_s
+        .import _blk_set, _bs_x, _bs_y, _bs_v
 
 DMAP    = $0400
+BLK_VDOOR = 1                   ; data.h: a door shut, up and down / across
+BLK_HDOOR = 2
+BLK_VOPEN = 32                  ; .. its four stages of opening
+BLK_HOPEN = 36
 BLKS    = $E800 + 192           ; [4][256] at block: its row's wall bits
 
 K_UP    = 1
@@ -44,6 +52,18 @@ vh:     .res 2                  ; their whole pixels (d_vx[0], d_vy[0])
 pl:     .res 2                  ; the position, low and high bytes
 ph:     .res 2
 ax:     .res 1
+di:     .res 1
+nn:     .res 1
+
+        .bss
+_bump_i: .res 1                 ; bump_next(): the droid last found
+_bump_r: .res 1                 ; the player right of it (or level), below
+_bump_d: .res 1
+nbx:    .res 13                 ; doors(): the droids by the screen
+nby:    .res 13
+d_lk:   .res 13                 ; looked ahead, free: no look till the droid
+                                ; turns (choose) or enters a new character
+                                ; (dmove, both engine.s)
 
         .code
 
@@ -286,15 +306,66 @@ _move_player:
         rts
 
 ; droid_look: droid X looks ahead before it moves, as the original's does
-; ($1D30 there): its character and the next two the way it goes. A wall
-; there - a door not open yet - and it waits two ticks. Carry set if so.
+; ($1D30 there): its character and the next two the way it goes - here
+; the farthest only, which it meets first. A wall there - a door not open
+; yet - and it waits two ticks. Carry set if so.
 ; Only near the player, where the doors open and close (elsewhere they
 ; stay shut, and the droids go on through them, as before). Keeps X.
+; Once free, the droid does not look again in the same character the same
+; way (d_lk): the door ahead is near it then, and stays open.
 droid_look:
-        txa
+        lda d_lk,x
+        beq :+
+        clc
+        rts
+:       txa
         asl a
         tay
-        lda _d_x+1,y
+        lda cx                  ; only on the screen or about to be, where
+        lsr a                   ; the doors open (deck.c, doors()): its
+        lsr a                   ; block against the player's (cx, cy, as
+        sta n3                  ; move_player left them) - looked at first,
+        lda _d_x+1,y            ; as most droids are farther
+        asl a
+        asl a
+        asl a
+        sta tx
+        lda _d_x,y
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora tx
+        sec
+        sbc n3
+        clc
+        adc #7
+        cmp #15
+        bcs @free
+        lda cy
+        lsr a
+        lsr a
+        sta n3
+        lda _d_y+1,y
+        asl a
+        asl a
+        asl a
+        sta ty
+        lda _d_y,y
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora ty
+        sec
+        sbc n3
+        clc
+        adc #4
+        cmp #9
+        bcs @free
+        lda _d_x+1,y            ; near: its character
         sta tx
         lda _d_x,y
         lsr tx
@@ -314,57 +385,104 @@ droid_look:
         lsr ty
         ror a
         sta ty
-        lda tx                  ; only on the screen or about to be, where
-        lsr a                   ; the doors open (deck.c, doors()): its
-        lsr a                   ; block against the player's (cx, cy, as
-        sta n3                  ; move_player left them)
-        lda cx
-        lsr a
-        lsr a
-        eor #$FF
-        sec
-        adc n3
-        clc
-        adc #7
-        cmp #15
-        bcs @free
-        lda ty
-        lsr a
-        lsr a
-        sta n3
-        lda cy
-        lsr a
-        lsr a
-        eor #$FF
-        sec
-        adc n3
-        clc
-        adc #4
-        cmp #9
-        bcs @free
-        lda #3
-        sta n3
-@cell:  jsr csolid
-        bne @wall
-        lda _d_vx,x             ; a character on, the way it goes
-        beq :++
-        bmi :+
+        lda _d_vx,x             ; two characters on, the way it goes (the
+        beq @y                  ; nearer ones it has passed already, and
+        bmi :+                  ; a door near a droid does not close)
         inc tx
-        bne :++
+        inc tx
+        bne @y
 :       dec tx
-:       lda _d_vy,x
-        beq :++
+        dec tx
+@y:     lda _d_vy,x
+        beq @look
         bmi :+
         inc ty
-        bne :++
+        inc ty
+        bne @look
 :       dec ty
-:       dec n3
-        bne @cell
+        dec ty
+@look:  jsr csolid
+        bne @wall
+        lda #1
+        sta d_lk,x
 @free:  clc
         rts
 @wall:  lda #2
         sta _d_wait,x
         sec
+        rts
+
+; console_near(): a console within five blocks across and three up or down
+; of the player: one may be used soon (paradroid.c starts the drive's motor
+; for it, which takes two seconds; the player walks three blocks a second)
+_console_near:
+        lda _d_x+1              ; the player's block, less 5 and 3
+        asl a
+        asl a
+        asl a
+        sta tx
+        lda _d_x
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora tx
+        sec
+        sbc #5
+        sta tx
+        lda _d_y+1
+        asl a
+        asl a
+        asl a
+        sta ty
+        lda _d_y
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora ty
+        sec
+        sbc #3
+        sta ty
+        lda #7
+        sta n3
+@row:   lda #0                  ; the row in DMAP
+        sta c_p
+        lda ty
+        and #15
+        lsr a
+        ror c_p
+        lsr a
+        ror c_p
+        clc
+        adc #>DMAP
+        sta c_p+1
+        lda tx
+        sta c_q
+        ldx #11
+@col:   lda c_q
+        and #63
+        tay
+        lda (c_p),y
+        lsr a
+        lsr a
+        tay
+        lda _blk_flag,y
+        and #8                  ; B_CONSOLE
+        bne @yes
+        inc c_q
+        dex
+        bne @col
+        inc ty
+        dec n3
+        bne @row
+        lda #0
+        tax
+        rts
+@yes:   lda #1
+        ldx #0
         rts
 
 ; solid_at(x, y): a wall at world pixel (x, y)
@@ -387,5 +505,263 @@ _solid_at:
         lsr a
         ror tx
         jsr csolid
+        ldx #0
+        rts
+
+; doors(): each droid's block (d_bx, d_by, for move_shots() too); then the
+; doors on the screen or about to be: one opens a stage a tick while a
+; droid (not exploding) is in its block or one beside it, else it closes a
+; stage. Elsewhere they stay as they are. Only the droids that can be by
+; such a door are looked at: those noted in nbx/nby (nn of them).
+_doors: ldx #0
+        stx nn
+        jsr dblk                ; the player's first
+@all:   lda _d_boom,x           ; droid X by the screen?
+        bne @nx
+        lda _d_bx,x
+        sec
+        sbc _d_bx
+        clc
+        adc #8
+        cmp #17
+        bcs @nx
+        lda _d_by,x
+        sec
+        sbc _d_by
+        clc
+        adc #5
+        cmp #11
+        bcs @nx
+        ldy nn                  ; note it
+        lda _d_bx,x
+        sta nbx,y
+        lda _d_by,x
+        sta nby,y
+        inc nn
+@nx:    inx
+        cpx _nd
+        bcs @doors
+        jsr dblk
+        jmp @all
+@doors: ldx #0
+@door:  cpx _ndoor
+        bcs @done
+        stx di
+        jsr door1
+        ldx di
+        inx
+        bne @door
+@done:  rts
+
+; droid X's block into d_bx, d_by; keeps X
+dblk:   txa
+        asl a
+        tay
+        lda _d_x+1,y
+        asl a
+        asl a
+        asl a
+        sta tx
+        lda _d_x,y
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora tx
+        sta _d_bx,x
+        lda _d_y+1,y
+        asl a
+        asl a
+        asl a
+        sta ty
+        lda _d_y,y
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora ty
+        sta _d_by,x
+        rts
+
+; door X, if near the player
+door1:  lda _door_x,x           ; near the player?
+        sec
+        sbc _d_bx
+        clc
+        adc #7
+        cmp #15
+        bcs @next
+        lda _door_y,x
+        sec
+        sbc _d_by
+        clc
+        adc #4
+        cmp #9
+        bcs @next
+        ldy _door_x,x           ; a droid by it: its block, less one, up to
+        dey                     ; two blocks less than the droid's
+        sty tx
+        ldy _door_y,x
+        dey
+        sty ty
+        ldy nn
+@j:     dey
+        bmi @shut
+        lda nbx,y
+        sec
+        sbc tx
+        cmp #3
+        bcs @j
+        lda nby,y
+        sec
+        sbc ty
+        cmp #3
+        bcs @j
+        lda _door_s,x           ; open a stage
+        cmp #4
+        bcs @next
+        inc _door_s,x
+        bne @set
+@shut:  lda _door_s,x
+        beq @next
+        dec _door_s,x
+@set:   lda _door_x,x
+        sta _bs_x
+        lda _door_y,x
+        sta _bs_y
+        ldy _door_v,x
+        lda _door_s,x
+        bne @stage
+        lda #BLK_HDOOR << 2
+        cpy #0
+        beq @put
+        lda #BLK_VDOOR << 2
+        bne @put
+@stage: cpy #0                  ; (the stages from 1)
+        clc
+        beq :+
+        adc #BLK_VOPEN - 1
+        bne @sh
+:       adc #BLK_HOPEN - 1
+@sh:    asl a
+        asl a
+@put:   sta _bs_v
+        jmp _blk_set
+@next:  rts
+
+; bump_next(): from droid bump_i + 1 on, the next one (not exploding) that
+; touches the player: less than 24 across and 16 up or down between their
+; middles. Its number, 0 if none; bump_r and bump_d the player's side.
+_bump_next:
+        ldx _bump_i
+@n:     inx
+        cpx _nd
+        bcs @none
+        lda _d_boom,x
+        bne @n
+        txa
+        asl a
+        tay
+        sec                     ; across: -23 .. 23, plus 23
+        lda _d_x
+        sbc _d_x,y
+        sta tx
+        lda _d_x+1
+        sbc _d_x+1,y
+        sta ty
+        lda tx
+        clc
+        adc #23
+        sta tx
+        lda ty
+        adc #0
+        bne @n
+        lda tx
+        cmp #47
+        bcs @n
+        sec                     ; up and down: -15 .. 15, plus 15
+        lda _d_y
+        sbc _d_y,y
+        sta c_q
+        lda _d_y+1
+        sbc _d_y+1,y
+        sta c_q+1
+        lda c_q
+        clc
+        adc #15
+        sta c_q
+        lda c_q+1
+        adc #0
+        bne @n
+        lda c_q
+        cmp #31
+        bcs @n
+        stx _bump_i
+        lda tx
+        cmp #23
+        lda #0
+        rol a
+        sta _bump_r
+        lda c_q
+        cmp #15
+        lda #0
+        rol a
+        sta _bump_d
+        txa
+        ldx #0
+        rts
+@none:  stx _bump_i
+        lda #0
+        tax
+        rts
+
+; blk_at(x, y): the block under world pixel (x, y), as an index
+_blk_at:
+        sta c_p                 ; the row: y / 32
+        txa
+        asl a
+        asl a
+        asl a
+        sta tx
+        lda c_p
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora tx
+        sta ty
+        lsr a                   ; its place in DMAP, 64 to a row
+        lsr a
+        clc
+        adc #>DMAP
+        sta c_p+1
+        lda ty
+        and #3
+        lsr a
+        ror a
+        ror a
+        sta c_p
+        jsr popax               ; the column: x / 32
+        sta tx
+        txa
+        asl a
+        asl a
+        asl a
+        sta ty
+        lda tx
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora ty
+        and #63
+        tay
+        lda (c_p),y
+        lsr a
+        lsr a
         ldx #0
         rts

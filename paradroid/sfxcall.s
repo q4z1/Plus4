@@ -11,7 +11,7 @@
 
         .export _sound, _sfx_tick, ted
         .importzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h
-        .importzp q0, q1, q2, r0, r1, tr0, tr1
+        .importzp q0, q1, r0, r1, tr0, tr1
         .importzp _snd_len
         .import _sfx_tab
         .import _ticks, _d_energy, _transfer_mode, _player_dead, _deck
@@ -96,25 +96,26 @@ _sfx_tick:
 @done:  rts
 
 ; for sfx.s: the TED's register for voice X's frequency, into tr0/tr1:
-; 1024 - 1887446 / f; 0 below 1844 (the TED's lowest)
+; 1024 - 1887446 / f; 0 below 1844 (the TED's lowest). From 1844 on the
+; quotient has ten bits, and 1887446 / 1024 (1843) is less than f: the
+; division starts with that as its remainder, and takes ten steps for the
+; ten bits left ($D6 of 1887446 = $1CCCD6).
 ted:    lda s_fl,x
         cmp #<1844
         lda s_fh,x
         sbc #>1844
         bcc @low
-        lda #$56                ; 1887446 = $1CCC56
+        lda #<($D6 << 6)
         sta q0
-        lda #$CC
+        lda #>($D6 << 6)
         sta q1
-        lda #$1C
-        sta q2
-        lda #0
+        lda #<1843
         sta r0
+        lda #>1843
         sta r1
-        ldy #24
+        ldy #10
 @bit:   asl q0
         rol q1
-        rol q2
         rol r0
         rol r1
         bcs @sub                ; a 17th bit: more than f anyway

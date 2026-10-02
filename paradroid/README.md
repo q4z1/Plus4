@@ -183,6 +183,26 @@ wall there, a door not open yet, and they wait two ticks. They do that
 near the player, where the doors open and close; elsewhere the doors stay
 shut, and the droids go on through them.
 
+### Where the time goes
+
+`tests/chprof.py` counts the cycles of every instruction of the last few
+pictures from VICE's CPU history, per routine: unlike sampling through the
+monitor, which stops the machine at moments of its own and so over- or
+under-counts whole routines, that is exact. With a deck full of droids and
+the fire button held, drawing the window takes about half of the time,
+the game itself about a seventh, and a good third is left over; while the
+window scrolls, building its new rows takes the most.
+
+Everything done for each droid or door every tick is in assembly: the
+droids' choices at their waypoints and their steps
+([engine.s](engine.s)), looking ahead, the doors, a droid touching the
+player and the block under a point ([move.s](move.s)), and putting the
+droids, their explosions and the shots into the window
+([figs.s](figs.s)). A droid looks ahead only when it has entered a new
+character or turned, not every tick: the door it found open stays open
+while it is that near. The doors look only at the droids that can be by
+a door on the screen, two to four usually, not at all of them.
+
 ### The transfer game, from the original and FreedroidClassic
 
 The board is the original's, character for character: its screen and
@@ -295,7 +315,7 @@ transfer mode every 8 ticks.
 [sfx.s](sfx.s) plays them as the original's driver does, once a picture
 from the interrupt, and turns the SID's frequency into the TED's register
 each picture (a division: the TED's frequency is not linear in its
-register). The TED has no envelope: an effect sounds while its gate and
+register; its lowest frequency leaves ten steps of it, not 24). The TED has no envelope: an effect sounds while its gate and
 half its release would. Its noise is only on the second voice, so the
 noisy effects go there. Played in a 6502 emulator, the original's driver
 and the model `sfx.s` follows give the same frequencies picture for
@@ -429,9 +449,9 @@ Each step draws the rows the window shows from the page's lines.
 | | |
 | --- | --- |
 | [paradroid.c](paradroid.c) | start, the main loop, transfer and lift hooks, pause |
-| [deck.c](deck.c) | the ship, loading a deck, doors, colours, alert |
-| [droids.c](droids.c) | the player, the droids, shots, energy, sound effects |
-| [draw.c](draw.c) | the window, figures, the status panel |
+| [deck.c](deck.c) | the ship, loading a deck and finding its doors, colours, alert |
+| [droids.c](droids.c) | the player, the droids, shots, hits, bumps, energy |
+| [draw.c](draw.c) | the window, the player's figure, the status panel |
 | [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course |
 | [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving; the introduction's letters and pictures |
 | [title.c](title.c) | the overlay: the title's round of briefing, scores and logo |
@@ -439,8 +459,9 @@ Each step draws the rows the window shows from the page's lines.
 | [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
 | [music.s](music.s) | the title's sound, in its overlay |
 | [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them |
-| [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead |
-| [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
+| [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead, the doors, droids touching the player |
+| [figs.s](figs.s) | the droids, their explosions and the shots into the window |
+| [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard |
 | [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
 | [game.h](game.h) | what the parts share |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
@@ -487,7 +508,8 @@ monitor on a port of its own:
 | --- | --- |
 | `stress.py [s]` | random joystick for a while; fails if the game stops ticking |
 | `speed.py keys s` | ticks per second while keys are held (16.7 is full speed) |
-| `profile.py keys` | where the time goes, by symbol |
+| `profile.py keys` | where the time goes, by symbol, sampled (rough) |
+| `chprof.py keys` | where the time goes, by symbol, every cycle of the last pictures |
 | `rowcheck.py` | every line of the window on screen against memory, for all eight fine positions |
 | `edges.py` | the window's top edge for every fine position |
 | `screens.py` | the screenshots in this README |

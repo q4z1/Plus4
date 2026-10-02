@@ -13,8 +13,6 @@ unsigned char d_boom[MAXD];
 unsigned char d_bx[MAXD], d_by[MAXD];   /* block of each droid */
 static unsigned char d_slot[MAXD];      /* where in ship[deck] */
 unsigned char d_wait[MAXD];
-unsigned char d_choose[MAXD];          /* droids_step: decide a direction */
-void droids_step(void);
 static unsigned char d_cool[MAXD];      /* ticks until it may fire again */
 
 unsigned s_x[MAXS], s_y[MAXS];
@@ -100,57 +98,7 @@ void remove_droid(unsigned char i)
     ship[deck][d_slot[i]] = 0;
 }
 
-/* bit k of a waypoint's directions, from bit 0: up-left, up, up-right,
- * right, down-right, down, down-left, left */
-static const signed char wbit_dx[8] = { -1, 0, 1, 1, 1, 0, -1, -1 };
-static const signed char wbit_dy[8] = { -1, -1, -1, 0, 1, 1, 1, 0 };
-
-/* a droid in the middle of a block on a waypoint picks where to go next */
-static void droid_choose(unsigned char i)
-{
-    static unsigned char w, dirs, k, n, pick, sp, bx, by, last;
-    static signed char cx[3], cy[3];
-    /* the deck's waypoint here */
-    bx = d_x[i] >> 3;                   /* its character: a waypoint's */
-    by = d_y[i] >> 3;                   /* own, as the original's $170D, */
-    last = wp_first[deck + 1];          /* not just one in its block */
-    for (w = wp_first[deck]; w < last; ++w)
-        if (wp_x[w] == bx && wp_y[w] == by)
-            break;
-    if (w == last)
-        return;                         /* not a waypoint: keep going */
-    dirs = wp_dir[w];
-    n = 0;
-    for (k = 0; k < 8 && n < 3; ++k)
-        if (dirs & (1 << k)) {
-            cx[n] = wbit_dx[k];
-            cy[n] = wbit_dy[k];
-            ++n;
-        }
-    pick = rnd() % 3;                   /* as the original: an empty pick waits */
-    sp = dr_drive[d_type[i]];
-    if (pick >= n) {
-        d_vx[i] = d_vy[i] = 0;
-        d_wait[i] = 8;
-        return;
-    }
-    d_vx[i] = cx[pick] * sp;
-    d_vy[i] = cy[pick] * sp;
-}
-
-void droid_move(unsigned char i);
-
-void move_droids(void)
-{
-    static unsigned char i;
-    droids_step();
-    for (i = 1; i < nd; ++i)
-        if (d_choose[i]) {
-            droid_choose(i);
-            if (!d_wait[i])
-                droid_move(i);          /* engine.s: unless a wall is ahead */
-        }
-}
+/* move_droids(): engine.s, their ways chosen as the original's */
 
 /* ======================================================================
  * The player
@@ -371,21 +319,20 @@ void droids_fire(void)
  * Touching droids, energy
  * ==================================================================== */
 
+/* the droids touching the player: bump_next() (move.s) gives each in turn,
+ * with the side the player is on of it */
+extern unsigned char bump_i, bump_r, bump_d;
+unsigned char bump_next(void);
+
 void collide(void)
 {
     static unsigned char i;
-    static int dx, dy;
     static signed char d;
     touched = 0;
     if (d_boom[0])
         return;                         /* nothing pushes an explosion */
-    for (i = 1; i < nd; ++i) {
-        if (d_boom[i])
-            continue;
-        dx = (int)PX - (int)d_x[i];
-        dy = (int)PY - (int)d_y[i];
-        if (dx <= -24 || dx >= 24 || dy <= -16 || dy >= 16)
-            continue;
+    bump_i = 0;
+    while ((i = bump_next()) != 0) {
         if (transfer_mode) {
             touched = i;
             return;
@@ -397,8 +344,8 @@ void collide(void)
             hit(i, d * 2, 1);
         else
             hit(0, (unsigned char)(-d - 1) >> 1, 0);
-        d_vx[0] = dx < 0 ? -3 : 3;
-        d_vy[0] = dy < 0 ? -2 : 2;
+        d_vx[0] = bump_r ? 3 : -3;
+        d_vy[0] = bump_d ? 2 : -2;
         sound(SFX_BUMP);
     }
 }

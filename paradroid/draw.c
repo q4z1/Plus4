@@ -117,7 +117,18 @@ void pictures_deck(void)
  * ==================================================================== */
 
 static int win_l, win_t;                /* world pixel at the window's corner */
-static int org_x, org_y;                /* window column 0 / row 0, less 64 */
+/* figs.s's, in the zero page: window column 0 / row 0, less 64; a
+ * figure's top left corner and slot */
+extern int org_x, org_y, fig_x, fig_y;
+extern unsigned char fig_n;
+#pragma zpsym ("org_x")
+#pragma zpsym ("org_y")
+#pragma zpsym ("fig_x")
+#pragma zpsym ("fig_y")
+#pragma zpsym ("fig_n")
+extern const unsigned char explo_col[];
+void figure(void);
+void draw_figs(void);
 
 static void window(void)
 {
@@ -144,67 +155,16 @@ static void window(void)
     e_cutn = 8 - k;
 }
 
-/* a figure with its top left corner at world pixel (fig_x, fig_y), from
- * slot fig_n */
-static int fig_x, fig_y;
-static unsigned char fig_n;
-
-static void figure(void)
-{
-    static int rx, ry;
-    /* relative to window column 0 and row 0, plus 64 to stay positive */
-    rx = fig_x - org_x;
-    ry = fig_y - org_y;
-    if ((unsigned)rx > 64 + 320 || (unsigned)ry > 64 + 160)
-        return;
-    f_col = (signed char)((unsigned char)(rx >> 3) - 8);
-    f_row = (signed char)((unsigned char)(ry >> 3) - 8);
-    f_line = (unsigned char)ry & 7;
-    f_pre = pre + ((unsigned)fig_n << 9) + (((unsigned char)rx & 6) << 6);
-    r_fig();
-}
-
-/* an explosion's colour by its stage, multicolour: the original's yellow,
- * then its orange as it dies down - a red of middle luminance, as cells in
- * multicolour can only have the colours 0-7 */
-static const unsigned char explo_col[NEXPLO] = { 0x7F, 0x7F, 0x7F, 0x4A, 0x4A, 0x4A };
-
-/* shot pictures: where their top left corner is from their middle */
-static const signed char laser_ox[4] = { -12, -12, -12, -12 };
-static const signed char laser_oy[4] = { -8, -8, -8, -8 };
+/* figure() and the droids' and shots' figures: figs.s */
 
 void draw(void)
 {
-    static unsigned char i, b;
+    static unsigned char b;
     window();
     while (ready)
         ;
     r_begin();
-    for (i = 1; i < nd; ++i) {
-        b = d_boom[i];
-        if (b == BOOM_GONE)
-            continue;
-        fig_x = d_x[i] - 13;
-        fig_y = d_y[i] - 8;
-        if (b) {
-            fig_n = SLOT_EXPLO + ((b - 1) >> 1);
-            f_tint = explo_col[(b - 1) >> 1];
-        } else {
-            fig_n = slot_of[d_type[i]];
-            if (fig_n == 255)
-                continue;
-        }
-        figure();
-        f_tint = 0;
-    }
-    for (i = 0; i < MAXS; ++i)
-        if (s_life[i]) {
-            b = s_img[i];
-            fig_x = s_x[i] + laser_ox[b];
-            fig_y = s_y[i] + laser_oy[b];
-            fig_n = SLOT_LASER + b;
-            figure();
-        }
+    draw_figs();
     fig_x = PX - 13;
     fig_y = PY - 8;
     b = d_boom[0];

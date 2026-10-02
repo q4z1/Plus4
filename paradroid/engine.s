@@ -114,6 +114,12 @@ LINE_BOTTOM = 197               ; less s, the line counter is behind then
 ; ---- zero page ------------------------------------------------------------
 
         .segment "ENGZP": zeropage
+c_i:        .res 1              ; choose: the droid
+c_bx:       .res 1              ; its character, its ways, its speed
+c_by:       .res 1
+c_last:     .res 1
+c_cx:       .res 3              ; the ways found
+c_cy:       .res 3
 _f_src:     .res 2              ; pre_shift: 4 bytes per line, top line first
 _f_pre:     .res 2              ; r_fig: the pre-shifted copy
 _p_pre:     .res 2              ; pre_shift: where to
@@ -1531,19 +1537,18 @@ cell_get:
 ; Droids
 ; ===========================================================================
 
-        .import _nd, _d_x, _d_y, _d_vx, _d_vy, _d_boom, _d_wait, _d_choose
-        .import droid_look
-        .export _droids_step, _droid_move
+        .import _nd, _d_x, _d_y, _d_vx, _d_vy, _d_boom, _d_wait, _d_type
+        .import _deck, _wp_first, _wp_x, _wp_y, _wp_dir, _dr_drive
+        .import droid_look, d_lk
+        .export _move_droids, _rnd
 
-; droids_step: a tick for droids 1 .. nd-1. An exploding one goes on
-; exploding, a waiting one waits; one in the middle of a block is noted in
-; d_choose for droids.c to decide where it goes; the others move.
-_droids_step:
+; move_droids(): a tick for droids 1 .. nd-1. An exploding one goes on
+; exploding, a waiting one waits; one in the middle of a block, on a
+; waypoint, chooses where it goes next; then they move.
+_move_droids:
         ldx #1
 @loop:  cpx _nd
         bcs @done
-        lda #0
-        sta _d_choose,x
         lda _d_boom,x
         beq @alive
         cmp #13                 ; BOOM_GONE in game.h
@@ -1557,32 +1562,172 @@ _droids_step:
 @go:    txa
         asl a
         tay
-        lda _d_x,y
-        ora _d_y,y
+        lda _d_x,y              ; in the middle of a block (the waypoints
+        and #31                 ; all are)
+        cmp #16
+        bne @move
+        lda _d_y,y
         and #31
         cmp #16
         bne @move
-        inc _d_choose,x
+        jsr choose              ; on a waypoint: a new way, or a wait
+        lda _d_wait,x
         bne @next
 @move:  jsr dmove
 @next:  inx
         bne @loop
 @done:  rts
 
-; droid_move(i): droid i a tick on, unless a wall is ahead (move.s's
-; droid_look: then it waits); for droids.c after it has chosen a way
-_droid_move:
-        tax
-; droid X a tick on, unless a wall is ahead; keeps X
+; droid X on its own waypoint (the very character, as the original's
+; $170D; two may share a block) takes one of its first three ways, each a
+; third of the time as the original picks ($1CAD there); an empty pick is
+; a wait of 8 ticks. Not on one: it goes on. Keeps X.
+choose: stx c_i
+        txa
+        asl a
+        tay
+        lda _d_x+1,y            ; its character
+        sta c_bx
+        lda _d_x,y
+        lsr c_bx
+        ror a
+        lsr c_bx
+        ror a
+        lsr c_bx
+        ror a
+        sta c_bx
+        lda _d_y+1,y
+        sta c_by
+        lda _d_y,y
+        lsr c_by
+        ror a
+        lsr c_by
+        ror a
+        lsr c_by
+        ror a
+        sta c_by
+        ldy _deck
+        lda _wp_first+1,y
+        sta c_last
+        lda _wp_first,y
+        tay
+@find:  cpy c_last
+        bcs @none
+        lda _wp_x,y
+        cmp c_bx
+        bne @nx
+        lda _wp_y,y
+        cmp c_by
+        beq @got
+@nx:    iny
+        bne @find
+@none:  rts
+@got:   lda _wp_dir,y           ; its ways: bit k for wbit_dx/dy[k]
+        sta c_bx
+        ldy #0
+        ldx #0
+@bit:   lsr c_bx
+        bcc @nb
+        lda wbit_dx,x
+        sta c_cx,y
+        lda wbit_dy,x
+        sta c_cy,y
+        iny
+        cpy #3
+        beq @have
+@nb:    inx
+        cpx #8
+        bne @bit
+@have:  sty c_last              ; (the ways found)
+        jsr _rnd
+        ldy #0
+        cmp #$AA
+        bcs :+
+        iny
+        cmp #$55
+        bcs :+
+        iny
+:       ldx c_i
+        cpy c_last
+        bcc @way
+        lda #0
+        sta _d_vx,x
+        sta _d_vy,x
+        lda #8
+        sta _d_wait,x
+        rts
+@way:   sty c_by
+        lda #0                  ; a new way: look ahead again
+        sta d_lk,x
+        ldy _d_type,x
+        lda _dr_drive,y
+        sta c_bx
+        ldy c_by
+        lda c_cx,y
+        jsr times
+        sta _d_vx,x
+        lda c_cy,y
+        jsr times
+        sta _d_vy,x
+        rts
+; A (-1, 0 or 1) times the droid's speed c_bx
+times:  beq @r
+        bmi :+
+        lda c_bx
+        rts
+:       lda #0
+        sec
+        sbc c_bx
+@r:     rts
+
+; bit k of a waypoint's ways, from bit 0: up-left, up, up-right, right,
+; down-right, down, down-left, left
+wbit_dx: .byte <-1, 0, 1, 1, 1, 0, <-1, <-1
+wbit_dy: .byte <-1, <-1, <-1, 0, 1, 1, 1, 0
+
+        .data
+rs:     .word $1234
+        .code
+
+; rnd(): the game's random numbers, a 16-bit xorshift (7, 9, 8)
+_rnd:   lda rs+1
+        lsr a
+        lda rs
+        ror a
+        eor rs+1
+        sta rs+1
+        ror a
+        eor rs
+        sta rs
+        eor rs+1
+        sta rs+1
+        rts
+
+; droid X a tick on, unless a wall is ahead; into a new character, it
+; looks ahead again next time. Keeps X.
 dmove:  jsr droid_look
         bcs @r
         txa
         asl a
         tay
+        lda _d_x,y
+        sta c_bx
+        lda _d_y,y
+        sta c_by
         lda _d_vx,x
         jsr addx
         lda _d_vy,x
         jsr addy
+        lda _d_x,y
+        eor c_bx
+        sta c_bx
+        lda _d_y,y
+        eor c_by
+        ora c_bx
+        and #$F8
+        beq @r
+        lda #0
+        sta d_lk,x
 @r:     rts
 
 ; d_x[Y/2] += A, A signed; keeps X and Y

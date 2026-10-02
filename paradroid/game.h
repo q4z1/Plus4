@@ -81,9 +81,9 @@ void colour_blocks(void);
 void deck_colours(void);                /* by alert, and dark if cleared */
 unsigned char deck_cleared(unsigned char d);
 unsigned char ship_cleared(void);
-unsigned char blk_at(unsigned x, unsigned y);
+unsigned char blk_at(unsigned x, unsigned y);    /* move.s */
 unsigned char solid_at(unsigned x, unsigned y);  /* move.s */
-void doors(void);
+void doors(void);                       /* move.s */
 unsigned char lift_here(void);           /* lift stop at the player, or 255 */
 extern const unsigned char pal_deck[16];
 extern const unsigned char pal_mc[16];      /* for multicolour cells */

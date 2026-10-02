@@ -11,15 +11,7 @@ unsigned char ndoor;
 unsigned char alert;
 unsigned char deck_bg;                  /* the deck's colour, without a flash */
 
-static unsigned rs = 0x1234;
-
-unsigned char rnd(void)
-{
-    rs ^= rs << 7;
-    rs ^= rs >> 9;
-    rs ^= rs << 8;
-    return (unsigned char)rs;
-}
+/* rnd(): engine.s */
 
 /* TED colour for each of the C64 colours the deck characters use. A deck
  * character in a cell that may turn multicolour must have a hue below 8. */
@@ -126,11 +118,7 @@ void new_ship(void)
     ship[1][11] = 0x17 + 1;             /* the command cyborg */
 }
 
-unsigned char blk_at(unsigned x, unsigned y)
-{
-    /* the block under world pixel (x, y), as an index */
-    return DMAP[((y >> 5) << 6) | ((x >> 5) & 63)] >> 2;
-}
+/* blk_at(): move.s */
 
 
 /* ======================================================================
@@ -138,9 +126,9 @@ unsigned char blk_at(unsigned x, unsigned y)
  * ==================================================================== */
 
 #define MAXDOOR 32
-static unsigned char door_x[MAXDOOR], door_y[MAXDOOR];
-static unsigned char door_v[MAXDOOR];   /* 1 vertical, 0 horizontal */
-static unsigned char door_s[MAXDOOR];   /* 0 closed .. 4 open */
+unsigned char door_x[MAXDOOR], door_y[MAXDOOR];   /* for doors(), move.s */
+unsigned char door_v[MAXDOOR];          /* 1 vertical, 0 horizontal */
+unsigned char door_s[MAXDOOR];          /* 0 closed .. 4 open */
 
 void load_deck(unsigned char d)
 {
@@ -180,51 +168,6 @@ void load_deck(unsigned char d)
 }
 
 /* ======================================================================
- * Doors: open while a droid is near
- * ==================================================================== */
-
-void doors(void)
-{
-    static unsigned char i, j, want, s, x, y, pbx, pby;
-    for (i = 0; i < nd; ++i) {
-        d_bx[i] = d_x[i] >> 5;
-        d_by[i] = d_y[i] >> 5;
-    }
-    pbx = d_bx[0];
-    pby = d_by[0];
-    for (i = 0; i < ndoor; ++i) {
-        x = door_x[i];
-        y = door_y[i];
-        /* only doors on the screen or about to be */
-        if ((unsigned char)(x - pbx + 7) > 14 || (unsigned char)(y - pby + 4) > 8)
-            continue;
-        want = 0;
-        for (j = 0; j < nd; ++j)
-            if (d_boom[j] == 0
-                && (unsigned char)(d_bx[j] - x + 1) <= 2
-                && (unsigned char)(d_by[j] - y + 1) <= 2) {
-                want = 1;
-                break;
-            }
-        s = door_s[i];
-        if (want && s < 4)
-            ++s;
-        else if (!want && s > 0)
-            --s;
-        else
-            continue;
-        door_s[i] = s;
-        bs_x = x;
-        bs_y = y;
-        if (s == 0)
-            bs_v = (door_v[i] ? BLK_VDOOR : BLK_HDOOR) << 2;
-        else
-            bs_v = ((door_v[i] ? BLK_VOPEN : BLK_HOPEN) + s - 1) << 2;
-        blk_set();
-    }
-}
-
-/* ======================================================================
  * Lifts
  * ==================================================================== */
 
@@ -250,20 +193,4 @@ unsigned char console_here(void)
            & B_CONSOLE;
 }
 
-/* a console within five blocks across and three up or down: one may be
- * used soon (paradroid.c starts the drive's motor for it, which takes two
- * seconds; the player walks three blocks a second) */
-unsigned char console_near(void)
-{
-    static unsigned char x, y, r, i;
-    static const unsigned char *q;
-    x = (unsigned char)(PX >> 5) - 5;
-    y = (unsigned char)(PY >> 5) - 3;
-    for (r = 0; r < 7; ++r, ++y) {
-        q = DMAP + ((y & 15) << 6);
-        for (i = 0; i < 11; ++i)
-            if (blk_flag[q[(x + i) & 63] >> 2] & B_CONSOLE)
-                return 1;
-    }
-    return 0;
-}
+/* console_near(): move.s */
