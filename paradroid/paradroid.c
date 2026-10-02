@@ -375,6 +375,15 @@ static void title(void)
     player_dead = 0;
     if (over)
         terminated();
+    else {
+        /* the first time: an empty window while the title loads, not the
+         * deck going on as if a game were running */
+        while (ready)
+            ;
+        eng_plain();
+        win_clear(0, 0x71);
+        panel_status("Loading");
+    }
     load_file("title", _OVL_START__);
     title_run();
     over = 1;

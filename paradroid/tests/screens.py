@@ -30,23 +30,24 @@ def to(g, x, y):
 
 g = Game(warp=False)
 try:
-    # a page of the briefing, a few lines rolled up
-    g.v.run_for(5.0)
+    # a page of the briefing, a few lines rolled up (the title's first
+    # screen, the original's logo, is over by the time Game() is ready)
+    g.v.run_for(3.0)
     save(g, 'briefing.png')
-    # the title's round on: the scores page (white), then the logo (the
-    # panel's rows in the window's set)
+    # the title's round on: the scores page (white), then the logo of the
+    # next round (the panel's rows in the window's set)
     g.v.cmd('warp on')
     for key in ('scores', 'title'):
-        for i in range(400):
-            g.v.run_for(0.2)
+        for i in range(2000):
+            g.v.run_for(0.05)
             if (g.byte('_panel_hi') == 0xD8) if key == 'title' else (g.byte('_col_deck') == 0x71):
                 break
         g.v.cmd('warp off')
-        g.v.run_for(0.4 if key == 'scores' else 1.0)
+        g.v.run_for(0.4)
         save(g, key + '.png')
         g.v.cmd('warp on')
     g.v.cmd('warp off')
-    g.keys(16, 0.1); g.keys(0, 1.0)
+    g.keys(16, 0.1); g.keys(0, 3.5)     # a new game waits 50 ticks first
     save(g, 'lift_stop.png')
     # a stroll and a shot
     g.keys(2, 0.35); g.keys(0, 0.3); g.keys(8, 0.6); g.keys(0, 0.5)

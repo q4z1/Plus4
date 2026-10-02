@@ -12,10 +12,10 @@
  * The original's title has its own sound throughout, a falling sweep and
  * a wavering low tone (music.s).
  *
- * The original's title goes round: the four pages of the briefing, in a
- * colour of their own each round (yellow, pink, light green); then on
- * white the day's top and worst scores, the keys and the credits, with a
- * droid's picture beside them; then its logo over the whole screen.
+ * The original's title goes round: first its logo over the whole screen;
+ * then the four pages of the briefing, in a colour of their own each round
+ * (yellow, pink, light green); then on white the day's top and worst
+ * scores, the keys and the credits, with a droid's picture beside them.
  *
  * The briefing's text comes with the characters it needs, as codes of the
  * panel's set (brief_srcs), and its letters: letter k is character
@@ -326,10 +326,12 @@ void title_run(void)
     mus_start();
     panel_status("Press fire");
     for (r = 0; ; r = r < 2 ? r + 1 : 0) {
+        if (logo())                     /* the original's starts with it */
+            break;
         for (n = 0; n < 4; ++n)
             if (brief(n, round_bg[r], round_fg[r], round_bd[r]))
                 goto out;
-        if (brief(4, pal_deck[1], pal_mc[8], round_bd[r]) || logo())
+        if (brief(4, pal_deck[1], pal_mc[8], round_bd[r]))
             break;
     }
 out:

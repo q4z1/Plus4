@@ -69,10 +69,10 @@ second. The window scrolls a pixel at a time in any direction.
 
 | | |
 | --- | --- |
-| ![The briefing](screenshots/briefing.png) | ![The day's scores](screenshots/scores.png) |
-| **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. | **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. |
-| ![The logo](screenshots/title.png) | |
-| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. Then the round starts again. | |
+| ![The logo](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
+| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it. | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
+| ![The day's scores](screenshots/scores.png) | |
+| **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. Then the round starts again with the logo. | |
 
 ## What is new compared with the other games here
 
