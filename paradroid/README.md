@@ -187,9 +187,8 @@ character code, in the original's characters `$00`-`$1F` and colours,
 hires, with the deck's blocks 3 to 41 across.
 
 The console is a second overlay, `console`, in the same place as the
-title's. It is loaded when fire is held at a console, which takes about
-three seconds, and the explosions' and lasers' pictures are made again
-afterwards. The pages about a droid come with its picture's file.
+title's. It is loaded when fire is held at a console, and the explosions'
+and lasers' pictures are made again afterwards. The pages about a droid come with its picture's file.
 
 ### The droids' pictures
 
@@ -254,9 +253,37 @@ briefing's text and the logo are linked to run in the slots of the
 pre-shifted pictures, all of them, as the title needs none, and written
 to a file of their own, `title`. [paradroid.cfg](paradroid.cfg) puts the
 overlay there, and ld65 writes it to `build/title.bin`. It is loaded for
-each title, and the pictures are made again when a game starts. With the
-KERNAL that is about 13 seconds of black screen. Loading something more often, for a lift or a transfer, would
-cost about the same, which is why the decks stay in memory.
+each title, and the pictures are made again when a game starts. Loading
+something more often, for a lift or a transfer, would cost too much time,
+which is why the decks stay in memory.
+
+With a **1551**, the Plus/4's own drive, a **fast loader** loads the files
+while the picture and the game's interrupt go on: the title in about 3.3
+seconds instead of 13 seconds of black screen with the KERNAL, a droid's
+picture in about one. At the start the game asks the drive who it is (the
+reply to `UI`: `CBM DOS V2.6 TDISK`) and sends it [drive1551.s](drive1551.s)
+with the DOS's `M-W` commands, then starts it with `M-E`
+([fastinit.c](fastinit.c), run once and then overwritten). From then on
+the drive waits for a file's name on its parallel port, finds the file in
+the directory, reads its sectors with the DOS's job queue and sends them a
+byte at a time. Each byte is answered by the other side's strobe
+([fastload.s](fastload.s)), so neither side depends on the other's
+timing: not on interrupts, not on the TED taking cycles, not on how an
+emulator times the drive. If the drive code does not answer, the KERNAL
+loads from then on.
+
+The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
+for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
+right for the KERNAL; the fast loader is ready for the next one sooner,
+and with 8 apart the title loads in 3.3 seconds instead of 4.3. The fast
+loader's files lie nearest the directory; the program, which the KERNAL
+loads, comes after them, 10 apart, and first in the directory.
+
+Any other drive, a **1541** too, loads with the KERNAL. A fast loader for
+the 1541 was tried: over the serial bus, with every bit answered, it
+needed about 87 ms for a block, and the 1541's DOS needs a long lead
+before it reads a sector, so the title still took over 7 seconds. Not
+worth its memory on a Plus/4.
 
 Loading with the KERNAL needs care in a program that uses all of memory:
 
@@ -305,6 +332,7 @@ Each step draws the rows the window shows from the page's lines.
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
+| [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
 | [game.h](game.h) | what the parts share |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
@@ -312,6 +340,7 @@ Each step draws the rows the window shows from the page's lines.
 | [tools/pictures.py](tools/pictures.py) | the droids' pictures, the console's symbols and the title's logo out of the original |
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
 | [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
+| [tools/d64.py](tools/d64.py) | the disk image, with each file's sectors as far apart as its loader wants |
 | [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
 
@@ -326,8 +355,9 @@ sh paradroid/build.sh
 xplus4 -autostart paradroid/build/paradroid.d64
 ```
 
-The disk is made with `c1541`, which comes with VICE. The `.prg` alone
-does not run: it needs the briefing from the disk.
+The disk is made by `tools/d64.py`. The `.prg` alone does not run: it
+needs the briefing from the disk. VICE's `xplus4` has a 1551 at device 8
+by default; with `-drive8type 1541` the game loads with the KERNAL.
 
 `tools/extract.py` is only needed to take the data out of the original
 again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in

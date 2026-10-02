@@ -54,7 +54,7 @@ def kill_emulators():
 class Vice:
     settle = 0.02            # after a prompt, how long to wait for more output
 
-    def __init__(self, image, workdir, warp=True, wav=None):
+    def __init__(self, image, workdir, warp=True, wav=None, drive=None):
         kill_emulators()
         os.makedirs(workdir, exist_ok=True)
         self.pidfile = os.path.join(workdir, 'vice.pid')
@@ -68,6 +68,8 @@ class Vice:
             args += ['+sound']
         if warp:
             args += ['-warp']
+        if drive:               # the drive at 8: 1541 or 1551 (the default)
+            args += ['-drive8type', str(drive)]
         args += ['-autostart', os.path.abspath(image)]
         inner = ' '.join("'" + a.replace("'", "'\\''") + "'" for a in args)
         if ON_HOST or shutil.which('gamescope'):
@@ -95,7 +97,7 @@ class Vice:
         """Read until the output ends in a prompt and nothing more follows."""
         buf = b''
         while True:
-            if re.search(rb'\(C:\$[0-9a-f]{4}\) $', buf):
+            if re.search(rb"\((?:C|\d+):\$[0-9a-f]{4}\) $", buf):
                 self.sock.settimeout(self.settle)
                 try:
                     chunk = self.sock.recv(65536)

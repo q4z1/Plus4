@@ -656,8 +656,9 @@ init = (('tile_font', sum(glyphs, [])), ('blk_code', bc), ('panel_font', pfont),
 for name, data in init:
     exports.append(name)
     s.append(asm_bytes(name, data))
-init_size = sum(len(d) for n, d in init)
-assert init_size <= 10 * 512, init_size
+# fastinit.c and the drive code are in INITDATA too (build.sh says how much)
+init_size = sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0))
+assert init_size <= PRE_SLOTS * 512, init_size
 s.append('        .segment "PREBSS"')
 s.append('        .res %d' % (PRE_SLOTS * 512 - init_size))
 exports.append('pre')

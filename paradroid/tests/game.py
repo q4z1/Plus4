@@ -17,22 +17,24 @@ def labels():
 
 
 class Game:
-    def __init__(self, god=True, warp=True):
+    def __init__(self, god=True, warp=True, drive=None):
         os.makedirs(WORK, exist_ok=True)
         # from the disk, which the briefing comes from
         d64 = os.path.join(WORK, 'paradroid.d64')
         open(d64, 'wb').write(open(os.path.join(ROOT, 'build', 'paradroid.d64'), 'rb').read())
         self.lbl = labels()
-        self.v = Vice(d64, WORK, warp=True)
+        self.v = Vice(d64, WORK, warp=True, drive=drive)
         irq = self.lbl['irq']
         # until the game's own interrupt runs and the title is up, loaded
-        # from the disk: the picture on again (the title counts pictures,
-        # not ticks)
+        # from the disk: the briefing's characters in the window (the
+        # picture is on while the fast loader loads; the title counts
+        # pictures, not ticks)
         for i in range(200):
             self.v.run_for(0.2)
             vec = self.v.mem(0xFFFE, 2)
             if (vec[0] | vec[1] << 8 == irq and self.byte('_hide_player')
-                    and self.v.mem(0xFF06, 1)[0] & 0x10):
+                    and self.v.mem(0xFF06, 1)[0] & 0x10
+                    and self.byte('_font_hi') == 0xD8):
                 break
         if god:
             self.poke('_dbg_god', 1)

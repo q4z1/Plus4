@@ -7,33 +7,42 @@ set -e
 cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
 mkdir -p build
-python3 tools/mkdata.py
+# the fast loader's drive code for a 1551, run at $0500 there, and what
+# puts it there at the start: their size in INITDATA, which the
+# pictures' slots take over afterwards, goes to mkdata (linked after
+# data.o: the slots start where data.s's INITDATA does)
+$B/cl65 -t none --start-addr 0x0500 -o build/drive1551.bin drive1551.s
+$B/cl65 -t plus4 -g -c -o build/drivecode.o build_drive.s
+$B/cl65 -t plus4 -O -Cl -g -c -o build/fastinit.o fastinit.c
+INIT_EXTRA=0
+for o in build/drivecode.o build/fastinit.o; do
+    n=$($B/od65 -S $o | awk '/INITDATA:/{print $2}')
+    INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
+done
+INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
 for f in paradroid deck droids draw transfer lift console title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
 done
 $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
 $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
+$B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
 $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
 $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
     -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o \
-    build/data.o build/brief.o build/condata.o
+    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o \
+    build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o
 
-# The disk. c1541 comes with VICE; inside a Flatpak sandbox it is on the host.
-if command -v c1541 >/dev/null 2>&1; then
-    C1541=c1541
-else
-    C1541="flatpak-spawn --host c1541"
-fi
-rm -f build/paradroid.d64
-set -- -format "paradroid,pd" d64 build/paradroid.d64 \
-       -write build/paradroid.prg paradroid -write build/title.bin title \
-       -write build/console.bin console
+# The disk (tools/d64.py): the files the fast loader loads nearest the
+# directory, their sectors IL apart; the program, which the KERNAL loads,
+# after them, 10 apart as the DOS would put them, and first in the
+# directory, so that LOAD"*" finds it.
+IL=${IL:-8}
+set -- build/paradroid.d64 "paradroid,pd" \
+       build/title.bin:title:$IL build/console.bin:console:$IL
 for f in build/pics/p*; do
-    set -- "$@" -write "$f" "$(basename "$f")"
+    set -- "$@" "$f:$(basename "$f"):$IL"
 done
-$C1541 "$@" >/dev/null
-echo "build/paradroid.d64:"
-$C1541 -attach build/paradroid.d64 -list
+python3 tools/d64.py "$@" build/paradroid.prg:!paradroid:10
+echo "build/paradroid.d64: $(ls build/pics | wc -l) pictures, interleave $IL"

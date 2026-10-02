@@ -257,12 +257,29 @@ static unsigned char dev;               /* the drive the game came from */
 #define KVARS ((unsigned char *)0x07D8)
 static unsigned char kvars[16];
 
-/* a file from the disk to addr. The screen is off meanwhile, as the KERNAL
- * loads with its own interrupt handler; the deck's map is unpacked again
- * afterwards. With no disk the border goes red, and it tries again. */
+/* a file from the disk to addr, with the fast loader (fastload.s) if the
+ * drive has it. Else the KERNAL loads, and the screen is off meanwhile, as
+ * it loads with its own interrupt handler; the deck's map is unpacked
+ * again afterwards. With no disk the border goes red, and it tries
+ * again. */
+extern unsigned char fl_kind;           /* fastload.s */
+extern const char *fl_name;
+extern void *fl_addr;
+unsigned fl_load(void);
+void fl_init(unsigned char dev);         /* fastinit.c */
+
 unsigned load_file(const char *name, void *addr)
 {
     static unsigned n;
+    /* the fast loader: the picture and the game's interrupt go on; if
+     * its drive code does not answer, the KERNAL from then on */
+    fl_name = name;
+    fl_addr = addr;
+    while (fl_kind)
+        if ((n = fl_load()) != 0)
+            return n;
+        else if (fl_kind)
+            *(volatile unsigned char *)0xFF19 = 0x32;
     eng_hide();
     *(volatile unsigned char *)0xFF11 = 0;  /* sound off */
     memcpy(KVARS, kvars, sizeof kvars);
@@ -357,6 +374,7 @@ void main(void)
     if (dev < 8)
         dev = 8;
     eng_stack();
+    fl_init(dev);                       /* (it needs the stack) */
     eng_init();
 
     memcpy(FONT0, tile_font, POOL * 8);
