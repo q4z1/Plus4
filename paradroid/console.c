@@ -143,7 +143,7 @@ static void enquiry_page(unsigned char t, unsigned char n)
     x_code = 140;
     x_attr = 0x63;                      /* the original's light cyan */
     unit_line(t);
-    x_attr = pal_deck[2];
+    x_attr = pal_mc[2];                 /* (beside a multicolour picture) */
     p = pic_pages;
     while (n--)
         while (*p++ != 0xFF)

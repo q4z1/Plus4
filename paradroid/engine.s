@@ -52,7 +52,7 @@
         .export _blk_set, _bs_x, _bs_y, _bs_v
         .export _panel_put, _pp_off, _pp_code, _pp_attr
         .export _keys_irq, _eng_keys, _dbg_keys
-        .export _pool_left, _eng_stack, _font_hi, _f_tint
+        .export _pool_left, _eng_stack, _font_hi, _f_tint, _panel_hi, _win_mc
         .export _snd_time, _sfx_lo, _sfx_hi, _sfx_noise, _sfx_len, _sfx_d, _eng_sfx
         .importzp sp
 
@@ -253,6 +253,13 @@ ident:      .res 256            ; the byte itself
 ; the window's character set per picture; the briefing puts the panel's there
 _font_hi:
 font_hi:    .byte >FONT0, >FONT1
+; the panel rows' character set: the panel's, or a picture over the whole
+; screen's (the title's logo)
+_panel_hi:  .byte >PANELF
+; the window's multicolour bit: off for pages of hires text only, whose
+; colours can then be any of the TED's (in multicolour mode a colour of 8
+; or more makes a cell multicolour)
+_win_mc:    .byte $10
 
         .rodata
 rowc_lo:    .repeat WROWS, R    ; window rows in the code matrix
@@ -495,7 +502,8 @@ irq_rc:
         lda font_hi,y
         sta TED_CHBASE
         lda b_sx,y
-        ora #$90                ; 256 characters, multicolour, 38 columns
+        ora #$80                ; 256 characters, 38 columns,
+        ora _win_mc             ; multicolour unless a page is all hires
         sta TED_CTRL2
         lda _col_fig1
         sta TED_COL1
@@ -595,7 +603,7 @@ irq_out:
 
 ; the panel at the top of the picture
 panel_regs:
-        lda #>PANELF
+        lda _panel_hi
         sta TED_CHBASE
         lda #$88                ; 256 characters, hires, 40 columns
         sta TED_CTRL2

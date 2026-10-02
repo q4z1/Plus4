@@ -383,6 +383,36 @@ decknames = ['deck %d' % d for d in range(16)]
 if os.path.exists(os.path.join(DATA, 'decknames.txt')):
     decknames = lines('decknames.txt')
 
+# --- the title's logo (title.c) ------------------------------------------------------
+# The original's PARADROID over the whole screen (logo.txt): its characters
+# numbered from 0 (the blank one) in the order met, each with its C64
+# colour (a character always has the same one), and the 1000 cells as
+# runs: number, count; a count of 0 ends.
+ltxt = read('logo.txt')
+lrows = [[int(x, 16) for x in l[4:].split()] for l in ltxt.split('\n') if l.startswith('row ')]
+lcols = [[int(x, 16) for x in l[4:]] for l in ltxt.split('\n') if l.startswith('col ')]
+LOGO_BG = int(re.search(r'^bg (\d+)', ltxt, re.M).group(1))
+lglyph = {int(m.group(1), 16): [int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(2).split()]
+          for m in re.finditer(r'char ([0-9a-f]{2})\n((?:[.#]{8}\n){8})', ltxt)}
+lorder = [0x00] + sorted(c for c in lglyph if c != 0)
+assert not any(lglyph[0])
+lcol = {}
+for r in range(25):
+    for c in range(40):
+        lcol[lrows[r][c]] = lcols[r][c]
+logo_font = sum((lglyph[c] for c in lorder), [])
+logo_col = [lcol[c] for c in lorder]
+flat = [lorder.index(c) for r in lrows for c in r]
+logo_rle = []
+i = 0
+while i < len(flat):
+    n = 1
+    while i + n < len(flat) and flat[i + n] == flat[i] and n < 255:
+        n += 1
+    logo_rle += [flat[i], n]
+    i += n
+logo_rle += [0, 0]
+
 # --- briefing (a file on the disk) ----------------------------------------------
 # The original's pages in the panel's codes: per page its height in rows,
 # then each line as row, column, length and codes, then $FF; a height of 0
@@ -421,6 +451,9 @@ for ln in lines('briefing.txt'):
     # the Plus/4 is the remote terminal here
     page.append((int(row) - 2, int(col), txt_codes(text.replace('C64', 'Plus4'))))
 brief.append(page)
+# an addition to the original's credits (page 4)
+brief[4].append((55 - 2, 13, txt_codes('Plus4 version 2026 in C.')))
+brief[4].sort()
 # The briefing brings a character set of its own, for the window to scroll
 # it in: the panel's characters it needs, each picture once, the blank one
 # first. Its text is in letters: letter k is glyph top[k] over bot[k].
@@ -439,6 +472,14 @@ for page in brief:
     for r, c, t in page:
         for pc in t:
             letter_of.setdefault((bglyph(pc), bglyph(pc | 0x80)), len(letter_of))
+# all digits and capitals too, for the day's scores and their initials,
+# which title.c writes into page 4
+def letters_of(text):
+    return [letter_of.setdefault((bglyph(pc), bglyph(pc | 0x80)), len(letter_of))
+            for pc in txt_codes(text)]
+brief_dig = sum((letters_of(str(d)) for d in range(10)), [])
+brief_cap = sum(((letters_of(chr(65 + i)) + letters_of(' '))[:2] for i in range(26)), [])  # (I is narrow)
+brief_misc = letters_of(' ') + letters_of('-')
 letters = sorted(letter_of, key=letter_of.get)
 NBRIEF = len(srcs)
 assert NBRIEF <= POOL, NBRIEF
@@ -468,10 +509,13 @@ for n, pic in enumerate(pics):
     open(os.path.join(ROOT, 'build', 'pics', 'p%02d' % n), 'wb').write(bytes([0, 0] + data))
 
 pages_bin = []
+score_at = []
 for page in brief:
     pages_bin.append(max(r for r, c, t in page) + 2)
     for r, c, t in page:
         assert 1 <= c and c + len(t) <= 39, (r, c, len(t))
+        if page is brief[4] and r in (3, 11):   # the day's top and worst score
+            score_at.append(len(pages_bin) + 3)
         pages_bin += [r, c, len(t)] + [letter_of[(bglyph(pc), bglyph(pc | 0x80))] for pc in t]
     pages_bin.append(0xFF)
 pages_bin.append(0)
@@ -638,8 +682,13 @@ b = ['; made by tools/mkdata.py - do not edit',
      '        .segment "OVLDATA"',
      '        .export _brief_srcs, _brief_top, _brief_bot, _brief_pages']
 for name, data in (('brief_srcs', srcs), ('brief_top', [t for t, u in letters]),
-                   ('brief_bot', [u for t, u in letters]), ('brief_pages', pages_bin)):
+                   ('brief_bot', [u for t, u in letters]), ('brief_pages', pages_bin),
+                   ('brief_dig', brief_dig), ('brief_cap', brief_cap), ('brief_misc', brief_misc)):
     b.append(asm_bytes(name, data))
+b[4] = b[4] + ', _brief_dig, _brief_cap, _brief_misc, _logo_font, _logo_col, _logo_rle'
+b.append(asm_bytes('logo_font', logo_font))
+b.append(asm_bytes('logo_col', logo_col))
+b.append(asm_bytes('logo_rle', logo_rle))
 open(os.path.join(GEN, 'brief.s'), 'w').write('\n'.join(b) + '\n')
 
 
@@ -672,6 +721,10 @@ h += ['#define ICON_N %d' % ICON_N, '#define ICON_CODE 1',
       '#define DECK_NAMES ' + ', '.join('"%s"' % n for n in decknames)]
 h.append('/* in the title\'s overlay (brief.s) */')
 h.append('extern const unsigned char brief_srcs[], brief_top[], brief_bot[], brief_pages[];')
+h.append('extern const unsigned char brief_dig[], brief_cap[], brief_misc[];')
+h.append('extern const unsigned char logo_font[], logo_col[], logo_rle[];')
+h += ['#define SCORE_TOP_AT %d' % score_at[0], '#define SCORE_LOW_AT %d' % score_at[1],
+      '#define NLOGO %d' % len(lorder), '#define LOGO_BG %d' % LOGO_BG]
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
 open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\n' % POOL)
 print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes, pictures up to %d' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE, pic_max))

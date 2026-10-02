@@ -23,6 +23,12 @@ twice as wide) beside its first page. With the same two dumps taken there
 (c0.bin, c0io.bin), this makes data/icons.txt:
 
     python3 tools/pictures.py --icons <directory with c0.bin, c0io.bin>
+
+The title's logo, the big PARADROID over the whole screen, is characters
+of the deck's set, hires. From the dumps taken while it shows (logoram.bin,
+logoio.bin), this makes data/logo.txt:
+
+    python3 tools/pictures.py --logo <directory with logoram.bin, logoio.bin>
 """
 import os, sys
 
@@ -58,6 +64,31 @@ if sys.argv[1] == '--icons':
         row_end = (row + h) * 8
     open(os.path.join(DATA, 'icons.txt'), 'w').write('\n'.join(t))
     print('data/icons.txt')
+    sys.exit()
+
+if sys.argv[1] == '--logo':
+    D = sys.argv[2]
+    ram = open(os.path.join(D, 'logoram.bin'), 'rb').read()[2:]
+    io = open(os.path.join(D, 'logoio.bin'), 'rb').read()[2:]
+    codes = ram[0x4800:0x4800 + 1000]
+    cols = [io[0x800 + i] & 15 for i in range(1000)]
+    t = ['# The title\'s logo (tools/pictures.py --logo): 25 rows of 40 character',
+         '# codes of the deck\'s set, then their C64 colours (hires), the',
+         '# background\'s colour, then the characters.', '']
+    for r in range(25):
+        t.append('row ' + ' '.join('%02x' % c for c in codes[r * 40:r * 40 + 40]))
+    for r in range(25):
+        t.append('col ' + ''.join('%x' % c for c in cols[r * 40:r * 40 + 40]))
+    t.append('bg %d' % (io[0x21] & 15))
+    t.append('')
+    for c in sorted(set(codes)):
+        t.append('char %02x' % c)
+        for y in range(8):
+            v = ram[0x7800 + c * 8 + y]
+            t.append(''.join('#' if v & (0x80 >> i) else '.' for i in range(8)))
+        t.append('')
+    open(os.path.join(DATA, 'logo.txt'), 'w').write('\n'.join(t))
+    print('data/logo.txt')
     sys.exit()
 
 DIR = sys.argv[1]

@@ -110,3 +110,21 @@ page 3
 46 2 host's security clearance  which is
 48 2 used to access the console.
 56 10 Press fire to play
+
+page 4
+2 13 Top score of the day:
+5 15     6809 - AEB
+10 12 Worst score of the day:
+13 15     6502 - TSO
+22 10 To pause: press run-stop.
+26 12 From pause mode only:
+30 14 fire      - restarts,
+32 14 run-stop  - restarts,
+34 14 clr-home - quits game,
+36 14 f7        - cheese,
+38 14 f8        - pause.
+46 11 Paradroid programmed by
+48 14 Andrew Braybrook.
+50 16 Sound advice by
+52 16 Steve Turner.
+57 15 Press fire to play

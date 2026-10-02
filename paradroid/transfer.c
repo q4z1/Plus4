@@ -338,7 +338,7 @@ void picture(unsigned char t, unsigned char row, unsigned char col)
     pic_pages = e + 4;
     font_hi[0] = 0xD8;
     col_fig2 = pal_deck[e[3]];
-    x_attr = pal_deck[e[2]];
+    x_attr = pal_mc[e[2]];
     x_row = row;
     x_col = col;
     x_code = e[1];
@@ -412,8 +412,8 @@ unsigned char transfer_game(unsigned char i)
     memcpy(FONT0 + POOL * 8, board_font, NBOARD * 8);
     memcpy(FONT1 + POOL * 8, board_font, NBOARD * 8);
     eng_plain();
-    tcol[0] = pal_deck[7] | 8;
-    tcol[1] = pal_deck[4] | 8;
+    tcol[0] = pal_mc[7] | 8;
+    tcol[1] = pal_mc[4] | 8;
     blk = pal_deck[0] | 8;
     cd = col_deck;
     col_deck = pal_deck[2];

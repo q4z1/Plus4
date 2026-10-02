@@ -97,6 +97,7 @@ unsigned char blk_at(unsigned x, unsigned y);
 void doors(void);
 unsigned char lift_here(void);           /* lift stop at the player, or 255 */
 extern const unsigned char pal_deck[16];
+extern const unsigned char pal_mc[16];      /* for multicolour cells */
 
 /* ======================================================================
  * Droids, the player, shots (droids.c)
@@ -178,5 +179,7 @@ void side_view(void);                    /* lift.c */
 void side_light(unsigned char d);
 extern unsigned char x_row, x_col, x_attr, x_code;  /* xfer.s */
 extern unsigned char font_hi[2];          /* the window's character set */
+extern unsigned char panel_hi;            /* the panel rows' */
+extern unsigned char win_mc;              /* $10: the window in multicolour */
 
 #endif

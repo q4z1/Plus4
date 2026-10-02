@@ -30,19 +30,22 @@ def to(g, x, y):
 
 g = Game(warp=False)
 try:
-    # the title page: from when it is drawn
-    # (the title is an overlay: its next title page may be a round away)
-    g.v.cmd('break %04x' % g.lbl['_title_page'])
-    g.v.run_for(45)
-    g.v.cmd('del')
-    g.v.run_for(1.0)
-    save(g, 'title.png')
     # a page of the briefing, a few lines rolled up
-    g.v.cmd('break %04x' % g.lbl['_brief'])
-    g.v.run_for(45)
-    g.v.cmd('del')
     g.v.run_for(5.0)
     save(g, 'briefing.png')
+    # the title's round on: the scores page (white), then the logo (the
+    # panel's rows in the window's set)
+    g.v.cmd('warp on')
+    for key in ('scores', 'title'):
+        for i in range(400):
+            g.v.run_for(0.2)
+            if (g.byte('_panel_hi') == 0xD8) if key == 'title' else (g.byte('_col_deck') == 0x71):
+                break
+        g.v.cmd('warp off')
+        g.v.run_for(0.4 if key == 'scores' else 1.0)
+        save(g, key + '.png')
+        g.v.cmd('warp on')
+    g.v.cmd('warp off')
     g.keys(16, 0.1); g.keys(0, 1.0)
     save(g, 'lift_stop.png')
     # a stroll and a shot

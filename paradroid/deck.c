@@ -23,9 +23,20 @@ unsigned char rnd(void)
 
 /* TED colour for each of the C64 colours the deck characters use. A deck
  * character in a cell that may turn multicolour must have a hue below 8. */
+/* The C64's colours on the TED: for each, the nearest of the TED's 121, as
+ * VICE draws both (measured: tests of all colours on each machine). The
+ * deck's light blue is the nearest of 0-7, as deck characters turn into
+ * multicolour in the cells figures cover. */
 const unsigned char pal_deck[16] = {
-    0x00, 0x71, 0x32, 0x53, 0x34, 0x45, 0x36, 0x67,
-    0x37, 0x17, 0x52, 0x11, 0x31, 0x65, 0x66, 0x61
+    0x00, 0x71, 0x3B, 0x63, 0x4E, 0x55, 0x36, 0x77,
+    0x48, 0x39, 0x5B, 0x31, 0x51, 0x7F, 0x56, 0x61
+};
+
+/* the same for multicolour cells, whose colour can only be 0-7: the
+ * nearest of those */
+const unsigned char pal_mc[16] = {
+    0x00, 0x71, 0x42, 0x63, 0x44, 0x55, 0x36, 0x77,
+    0x42, 0x37, 0x52, 0x31, 0x51, 0x75, 0x56, 0x61
 };
 
 /* the same, with the lights out: a deck without droids */
@@ -35,7 +46,7 @@ static const unsigned char pal_dark[16] = {
 };
 
 /* the ALERT console's lights, by the alert */
-static const unsigned char pal_alert[4] = { 0x45, 0x67, 0x52, 0x32 };
+static const unsigned char pal_alert[4] = { 0x55, 0x77, 0x42, 0x32 };
 
 static const unsigned char *pal = pal_deck;
 

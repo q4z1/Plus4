@@ -240,8 +240,10 @@ static void mc_font(void)
     }
 }
 
-/* the best score since the machine was switched on (title.c shows it) */
-unsigned long best;
+/* the day's top and worst scores, with initials (title.c shows them); the
+ * original starts with these */
+unsigned long top_score = 6809, low_score = 6502;
+char top_name[4] = "AEB", low_name[4] = "TSO";
 
 /* ======================================================================
  * The disk
@@ -282,26 +284,67 @@ unsigned load_file(const char *name, void *addr)
  * no use for them. So it is loaded for each title, and those pictures made
  * again for each game. */
 extern unsigned char _OVL_START__[];
-void title_run(unsigned char over);
+void title_run(void);
 
 /* the ship's computer, an overlay too (console.c), in the same place */
+extern unsigned char _CON_START__[];
+
 static void console(void)
 {
-    load_file("console", _OVL_START__);
+    load_file("console", _CON_START__);
     console_run();
     pictures_fixed();
 }
 
 static unsigned char over;              /* a game has been played */
 
+/* after a game, as the original: a droid picked at random between
+ * "Transmission" and "Terminated"; then the title loads */
+static void terminated(void)
+{
+    static unsigned char cd, f;
+    while (ready)
+        ;
+    eng_plain();
+    cd = col_deck;
+    col_deck = pal_deck[1];
+    picture(rnd() & 15, 11, 16);
+    x_attr = 0x63;                      /* the original's light cyan */
+    x_row = 10;
+    x_col = 13;
+    say("Transmission");
+    x_row = 22;
+    x_col = 14;
+    say("Terminated");
+    for (f = 0; f < 66; ++f)            /* four seconds, as the original */
+        wait_tick();
+    while (ready)
+        ;
+    win_clear(0, 0x71);
+    memcpy(FONT1, FONT0, POOL * 8);
+    font_hi[0] = 0xC8;
+    col_fig2 = 0x71;
+    col_deck = cd;
+}
+
 static void title(void)
 {
-    if (score > best)
-        best = score;
+    if (over) {
+        if (score > top_score) {
+            top_score = score;
+            strcpy(top_name, "P4 ");
+        }
+        if (score < low_score) {
+            low_score = score;
+            strcpy(low_name, "P4 ");
+        }
+    }
     hide_player = 1;
     player_dead = 0;
+    if (over)
+        terminated();
     load_file("title", _OVL_START__);
-    title_run(over);
+    title_run();
     over = 1;
     hide_player = 0;
     pictures_fixed();
@@ -324,7 +367,7 @@ void main(void)
     colour_blocks();
 
     col_panel = 0x71;
-    col_border = 0x34;
+    col_border = 0x4E;                 /* the original's purple */
     col_deck = 0x5D;
     col_fig1 = 0x00;
     col_fig2 = 0x71;

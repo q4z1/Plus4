@@ -226,7 +226,7 @@ void draw(void)
  * The status panel
  * ==================================================================== */
 
-#define PANEL_TEXT 0x32                 /* the panel's red */
+#define PANEL_TEXT 0x3B                 /* the panel's red */
 
 static void panel_char(unsigned char col, unsigned char c)
 {
@@ -285,7 +285,7 @@ void panel_init(void)
     for (i = 0; i < 240; ++i) {
         pp_off = i;
         pp_code = panel_codes[i];
-        pp_attr = panel_cols[i] == 4 ? 0x34 : PANEL_TEXT;
+        pp_attr = panel_cols[i] == 4 ? 0x4E : PANEL_TEXT;
         panel_put();
     }
     for (i = 240; i < 360; ++i) {      /* the gap rows: blank */

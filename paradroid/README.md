@@ -69,8 +69,10 @@ second. The window scrolls a pixel at a time in any direction.
 
 | | |
 | --- | --- |
-| ![The title page](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
-| **Title.** Whose game it is and the best score since switching on. It takes turns with a page of the briefing and the last deck with its droids going about. | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time. They come from the disk, see below. |
+| ![The briefing](screenshots/briefing.png) | ![The day's scores](screenshots/scores.png) |
+| **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. | **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. |
+| ![The logo](screenshots/title.png) | |
+| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. Then the round starts again. | |
 
 ## What is new compared with the other games here
 
@@ -246,15 +248,14 @@ it is overwritten as soon as it has been copied.
 
 ### The disk
 
-The game runs from `build/paradroid.d64`. The title page, the briefing and
-the attract mode are an **overlay**: [title.c](title.c) and the briefing's
-text (5.3 KB, 22 blocks) are linked to run in the slots of the explosions'
-and lasers' pictures, which the title does not need, and written to a file
-of their own, `title`. [paradroid.cfg](paradroid.cfg) puts the overlay
-`$1400` bytes behind the start of the slots, and ld65 writes it to
-`build/title.bin`. It is loaded for each title, and the pictures are made
-again when a game starts. That costs about five seconds of black screen at
-the title. Loading something more often, for a lift or a transfer, would
+The game runs from `build/paradroid.d64`. The title, with the briefing,
+the scores page and the logo, is an **overlay**: [title.c](title.c), the
+briefing's text and the logo are linked to run in the slots of the
+pre-shifted pictures, all of them, as the title needs none, and written
+to a file of their own, `title`. [paradroid.cfg](paradroid.cfg) puts the
+overlay there, and ld65 writes it to `build/title.bin`. It is loaded for
+each title, and the pictures are made again when a game starts. With the
+KERNAL that is about 13 seconds of black screen. Loading something more often, for a lift or a transfer, would
 cost about the same, which is why the decks stay in memory.
 
 Loading with the KERNAL needs care in a program that uses all of memory:
@@ -300,7 +301,7 @@ Each step draws the rows the window shows from the page's lines.
 | [draw.c](draw.c) | the window, figures, the status panel |
 | [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course |
 | [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving; the introduction's letters and pictures |
-| [title.c](title.c) | the overlay: title page, briefing, attract mode |
+| [title.c](title.c) | the overlay: the title's round of briefing, scores and logo |
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
@@ -308,10 +309,10 @@ Each step draws the rows the window shows from the page's lines.
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
-| [tools/pictures.py](tools/pictures.py) | the droids' pictures and the console's symbols out of the original's sprites |
+| [tools/pictures.py](tools/pictures.py) | the droids' pictures, the console's symbols and the title's logo out of the original |
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
 | [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
-| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, as text |
+| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
 
 ## Building and running

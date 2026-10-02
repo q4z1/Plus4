@@ -256,8 +256,8 @@ write('sprites.txt', '\n'.join(t))
 # (the panel's font) and $FF. Codes from $3A on are wide letters, drawn as
 # the code and the code + $20 beside it: the capitals from $3A, and m and w
 # at $42 and $54. Their narrow places hold I ($16) and (c) ($20, '@' here). The rows grow down a page; a smaller one
-# starts the next. Pages 0-3 are the briefing; 4 (scores, keys) and 5
-# (credits) belong to the original's own title and are left out.
+# starts the next. Pages 0-3 are the briefing; 4 (the day's scores, the
+# keys) and 5 (credits) are one page, shown after them.
 TXT_MAP = {0x16: 'I', 0x20: '@', 0x42: 'm', 0x54: 'w', 0x28: '.', 0x29: ',', 0x2a: ':',
            0x2d: "'", 0x2e: '-', 0x30: ' '}
 def txt_char(b):
@@ -289,7 +289,8 @@ while ram[p] >= 0x80 and ram[p] != 0xFF:
 pages.append(cur)
 t = ['# The original\'s briefing: per page, lines as "row col text" (rows in',
      '# the original\'s steps of two, columns of 40).', '']
-for k, pg in enumerate(pages[:4]):
+pages = pages[:4] + [sorted(pages[4] + pages[5])]
+for k, pg in enumerate(pages):
     t.append('page %d' % k)
     for row, col, text in pg:
         t.append('%d %d %s' % (row, col, text.rstrip()))

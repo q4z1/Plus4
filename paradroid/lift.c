@@ -22,7 +22,7 @@ void enter(unsigned char d, unsigned char bx, unsigned char by);
 
 static unsigned char side_attr(unsigned char col)
 {
-    return col >= 8 ? (pal_deck[col & 7] | 8) : pal_deck[col];
+    return col >= 8 ? (pal_mc[col & 7] | 8) : pal_mc[col];
 }
 
 void side_view(void)
@@ -52,7 +52,7 @@ static void shaft(unsigned char s, unsigned char on)
 {
     static unsigned char r, a;
     static unsigned off;
-    a = on ? (pal_deck[1] | 8) : side_attr(side_col[0x26]);
+    a = on ? (pal_mc[1] | 8) : side_attr(side_col[0x26]);
     off = shaft_top[s] * 40 + shaft_col[s];
     for (r = 0; r < shaft_len[s]; ++r, off += 40)
         SCR0A[off] = SCR1A[off] = a;
