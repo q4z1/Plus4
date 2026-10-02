@@ -79,11 +79,10 @@ second. The window scrolls a pixel at a time in any direction.
 ### Fine scrolling under a fixed panel
 
 The C64 version changes the VIC's vertical scroll register below its status
-panel. The TED, the Plus/4's video chip, reads that register **once per
-picture**, so writing it in the middle of the screen does nothing. That was
-measured in VICE first: with the same character on every row, nothing moved.
-
-What the TED does follow are two counters, and both can be written:
+panel. In VICE, writing the TED's (`$FF06`) in the middle of the screen
+does nothing: VICE reads it once per picture. Yape, whose TED is the
+closer one to the real chip, does follow it there. What both follow are
+two counters, and both can be written:
 
 - `$FF1D`, the **line counter**, decides when the next row of characters is
   fetched.
@@ -105,9 +104,16 @@ $FF1F := (6 - s) & 7   ; row line counter (bits 0-2) - one line later than
 
 This moves the whole window down by `s` lines, `s` from 0 to 7. Below the
 window, the line counter is put back to where it would have been, so the
-picture ends where it always does. `tests/rowcheck.py` checks the result for
-all eight positions. For each one it compares every line of the window on
-VICE's screen with the characters in memory.
+picture ends where it always does: in line 202 it is set to 202. The TED
+ends the picture's fetching only on a line that starts as 203; set
+straight to 203 within the line, as it first was, that line is skipped,
+the fetching goes on through the border, and the next picture starts with
+the row line counter wrong, the panel already. VICE did not mind, Yape
+showed garbage from the first scrolled picture on.
+
+`tests/rowcheck.py` checks the result for all eight positions in VICE,
+`tests/yape_rowcheck.py` in Yape. For each one they compare every line of
+the window on the screen with the characters in memory.
 
 Moving rows down makes the top edge of the window move as well. The top
 character row of the window is therefore cut: its cells get copies of their
@@ -480,7 +486,7 @@ Each step draws the rows the window shows from the page's lines.
 | [tools/sid.py](tools/sid.py), [tools/sidmusic.py](tools/sidmusic.py) | the original's sound driver run in a 6502 emulator; its title sound into `data/music.txt` |
 | [tools/d64.py](tools/d64.py) | the disk image, with each file's sectors as far apart as its loader wants |
 | [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, as text |
-| [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
+| [tests/](tests/) | headless VICE and Yape: screenshots, speed, profile, edges and rows, stress |
 
 ## Building and running
 
@@ -521,3 +527,18 @@ monitor on a port of its own:
 | `screens.py` | the screenshots in this README |
 
 All of them start the game from the disk.
+
+The `yape_*.py` tests run **Yape** the same way, as its TED is closer to
+the real one than VICE's: a build of Yape from its sources
+([yapesdl](https://github.com/calmopyrin/yapesdl)) in
+`~/.cache/paradroid/yapesdl`, with two hooks in its `main.cpp`: SIGUSR1
+enters its monitor, which reads its commands from stdin, and SIGUSR2
+saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has no
+true 1551; with a disk image it uses a true 1541, so the game loads with
+the KERNAL there, slowly.
+
+| | |
+| --- | --- |
+| `yape_boot.py [s] [warp]` | the start from the disk: registers and a screenshot every five seconds |
+| `yape_play.py [s] [seed]` | the title, fire, a random joystick; fails if the game stops ticking |
+| `yape_rowcheck.py` | `rowcheck.py` in Yape |

@@ -523,15 +523,18 @@ irq_bottom:
         ldy front
         lda b_s,y
         beq @end
-        ; right after the counter has stepped to line 203 (203 - s in
-        ; counter terms) it is set to 203. Writing it earlier or later in
-        ; the line upsets the TED's row fetching for the next picture.
-        lda #202
+        ; in line 202 (202 - s in counter terms) it is set to 202, so that
+        ; the next line starts as 203: the TED ends the picture's fetching
+        ; only on a line that starts as 203. Set to 203 within the line,
+        ; that line is skipped, the fetching goes on, and the next
+        ; picture starts with its row line counter wrong (Yape, as the
+        ; real TED; VICE did not mind).
+        lda #201
         sec
         sbc b_s,y
 :       cmp TED_LINE
         bcs :-
-        lda #203
+        lda #202
         sta TED_LINE
 @end:   lda #203                ; the picture's end, then the panel
 :       cmp TED_LINE
