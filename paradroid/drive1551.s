@@ -9,7 +9,7 @@
 ; strobe when it has put a byte on the port or taken one from it; the
 ; other waits for that change, so neither needs to be quick.
 ;
-; The name comes as its length and its letters. A file goes as blocks: a
+; The name comes as its length and its letters (no name: see idle). A file goes as blocks: a
 ; byte with the block's length (1-254), then its bytes, the file's load
 ; address left out; a length of 0 ends the file, 255 means it was not
 ; found.
@@ -35,11 +35,18 @@ start:  sei
         and #$80
         sta host                ; its strobe as it is
 
-; wait for a name, with the controller running meanwhile
+; wait for a name, with the controller running meanwhile. No name (a
+; length of 0) only starts the motor, so that a load soon after need not
+; wait for it: the directory is read, with nobody waiting for it.
 idle:   cli
         jsr getbyte
         sta len
-        ldx #0
+        bne :+
+        lda #18
+        ldx #1
+        jsr post
+        jmp idle
+:       ldx #0
 :       cpx len
         beq :+
         jsr getbyte
@@ -151,16 +158,43 @@ finish: lda #$00
         sta DDRA
         jmp idle
 
-; read track A, sector X into BUF; carry set on an error
-read:   sta TRK0
+; wait until the controller is done with any job asked of it; what BUF
+; holds is then known (buft 0: nothing)
+settle: cli
+:       ldy JOB0
+        bmi :-
+        dey                     ; 1 = done
+        beq :+
+        ldy #0
+        sty buft
+:       rts
+
+; a read of track A, sector X into BUF asked of the controller, once it is
+; done with any before
+post:   jsr settle
+        sta TRK0
+        sta buft
         stx SEC0
+        stx bufs
         lda #$80
         sta JOB0
-        cli
-:       lda JOB0
-        bmi :-
-        sei
-        cmp #$02                ; 1 = done
+        rts
+
+; read track A, sector X into BUF; carry set on an error. A sector already
+; there is not read again: the directory, read when the motor was started.
+read:   jsr settle
+        cmp buft
+        bne :+
+        cpx bufs
+        beq @have
+:       jsr post
+        jsr settle
+@have:  sei
+        lda buft
+        beq :+
+        clc
+        rts
+:       sec
         rts
 
 ; a byte from the Plus/4: when its strobe changes; then ours changes
@@ -199,6 +233,8 @@ sendbyte:
         rts
 
 host:   .byte 0
+buft:   .byte 0                 ; the sector BUF holds (track 0: none)
+bufs:   .byte 0
 len:    .byte 0
 pos:    .byte 0
 skip:   .byte 0                 ; the load address's bytes still to skip

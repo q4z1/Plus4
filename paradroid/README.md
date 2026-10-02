@@ -258,7 +258,7 @@ something more often, for a lift or a transfer, would cost too much time,
 which is why the decks stay in memory.
 
 With a **1551**, the Plus/4's own drive, a **fast loader** loads the files
-while the picture and the game's interrupt go on: the title in about 3.3
+while the picture and the game's interrupt go on: the title in about 3.7
 seconds instead of 13 seconds of black screen with the KERNAL, a droid's
 picture in about one. At the start the game asks the drive who it is (the
 reply to `UI`: `CBM DOS V2.6 TDISK`) and sends it [drive1551.s](drive1551.s)
@@ -272,12 +272,25 @@ timing: not on interrupts, not on the TED taking cycles, not on how an
 emulator times the drive. If the drive code does not answer, the KERNAL
 loads from then on.
 
+The console is not in memory: there is no room for its 2.9 KB. What made
+it slow to load was the drive's motor, which the DOS stops when the drive
+is idle and then waits two seconds for, every time: 3.3 seconds for the
+console's twelve blocks. So whenever the player comes within five blocks
+across and three up or down of a console, the game asks the drive for no
+file at all, and the drive code only gives the DOS a read of the
+directory to do, with nobody waiting for it: the motor starts, and keeps
+going while the player stays near. The directory stays in the drive's
+buffer, and is not read again for the load. Walking up to a console and
+pressing fire at once, it loads in about 1.3 seconds; after two seconds
+or more by it, in one.
+
 The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
 for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
 right for the KERNAL; the fast loader is ready for the next one sooner,
-and with 8 apart the title loads in 3.3 seconds instead of 4.3. The fast
-loader's files lie nearest the directory; the program, which the KERNAL
-loads, comes after them, 10 apart, and first in the directory.
+and with 8 apart the title loads a second faster. The fast loader's files
+lie nearest the directory, the console on the very next track, then the
+title, then the pictures; the program, which the KERNAL loads, comes after
+them, 10 apart, and first in the directory.
 
 Any other drive, a **1541** too, loads with the KERNAL. A fast loader for
 the 1541 was tried: over the serial bus, with every bit answered, it

@@ -49,6 +49,8 @@ class Game:
             if self.byte('_hide_player') == 0:
                 break
             self.v.run_for(0.1)
+        else:
+            raise RuntimeError('the title missed fire')
         self.v.run_for(2.0)         # entering the deck takes a moment
 
     def word(self, name):

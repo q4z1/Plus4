@@ -35,12 +35,14 @@ $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl
     build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o
 
 # The disk (tools/d64.py): the files the fast loader loads nearest the
-# directory, their sectors IL apart; the program, which the KERNAL loads,
-# after them, 10 apart as the DOS would put them, and first in the
-# directory, so that LOAD"*" finds it.
+# directory, their sectors IL apart: the console first, then the title,
+# then the droids' pictures (three blocks each, a track further matters
+# little to them); the program, which the KERNAL loads, after them, 10
+# apart as the DOS would put them, and first in the directory, so that
+# LOAD"*" finds it.
 IL=${IL:-8}
-set -- build/paradroid.d64 "paradroid,pd" \
-       build/title.bin:title:$IL build/console.bin:console:$IL
+set -- build/paradroid.d64 "paradroid,pd" build/console.bin:console:$IL \
+       build/title.bin:title:$IL
 for f in build/pics/p*; do
     set -- "$@" "$f:$(basename "$f"):$IL"
 done

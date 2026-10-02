@@ -217,7 +217,7 @@ static void score_line(unsigned off, unsigned long v, const char *name)
 static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, unsigned char bd)
 {
     static unsigned y, end;
-    static unsigned char cd, cb, pic_on;
+    static unsigned char cd, cb, pic_on, hit;
     static const unsigned char *p;
     cd = col_deck;
     cb = col_border;
@@ -251,7 +251,8 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
         while (ready)
             ;
         page_show(y, pic_on);
-        if (fire_in(y == 0 || y == end ? 120 : 1) || y == end)
+        hit = fire_in(y == 0 || y == end ? 120 : 1);
+        if (hit || y == end)
             break;
     }
     deck_font();
@@ -261,7 +262,7 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
     col_border = cb;
     col_fig2 = 0x71;
     panel_status("Press fire");
-    return keys_irq & K_FIRE;
+    return hit;                         /* (a short press is over by now) */
 }
 
 /* the original's logo over the whole screen, the panel's rows too; 1 if

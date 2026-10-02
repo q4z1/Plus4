@@ -61,8 +61,11 @@ void enter(unsigned char d, unsigned char bx, unsigned char by)
 unsigned char transfer_game(unsigned char i);
 void ride_lift(unsigned char li);
 unsigned char console_here(void);
+unsigned char console_near(void);
 void console_run(void);
 static void console(void);
+extern unsigned char fl_kind;           /* fastload.s */
+void fl_spin(void);
 
 static void transfer(unsigned char i)
 {
@@ -145,8 +148,9 @@ static void pause(void)
 
 static void play(void)
 {
-    static unsigned char k, held, li;
+    static unsigned char k, held, li, by, t4;
     held = 0;
+    by = 0;
     lights_out = deck_cleared(deck);
     for (;;) {
         wait_tick();
@@ -154,6 +158,17 @@ static void play(void)
         if (k & K_STOP) {
             pause();
             continue;
+        }
+        /* near a console: the drive's motor started already, so that the
+         * console loads without waiting the two seconds for it; and kept
+         * going while the player stays near */
+        if (fl_kind && !(++t4 & 3)) {
+            if (!console_near())
+                by = 0;
+            else if (!by--) {
+                fl_spin();
+                by = 12;                /* again in 48 ticks */
+            }
         }
         if (player_dead) {
             if (d_boom[0] < BOOM_GONE)
@@ -175,6 +190,7 @@ static void play(void)
             if (held == 2 && console_here()) {
                 console();
                 held = 0;
+                by = 0;                 /* (the motor kept going) */
                 continue;
             }
             if (held == 3 && !transfer_mode) {
@@ -262,7 +278,6 @@ static unsigned char kvars[16];
  * it loads with its own interrupt handler; the deck's map is unpacked
  * again afterwards. With no disk the border goes red, and it tries
  * again. */
-extern unsigned char fl_kind;           /* fastload.s */
 extern const char *fl_name;
 extern void *fl_addr;
 unsigned fl_load(void);

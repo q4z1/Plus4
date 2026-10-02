@@ -248,3 +248,21 @@ unsigned char console_here(void)
             | blk_flag[blk_at(PX, PY - 18)] | blk_flag[blk_at(PX, PY + 18)])
            & B_CONSOLE;
 }
+
+/* a console within five blocks across and three up or down: one may be
+ * used soon (paradroid.c starts the drive's motor for it, which takes two
+ * seconds; the player walks three blocks a second) */
+unsigned char console_near(void)
+{
+    static unsigned char x, y, r, i;
+    static const unsigned char *q;
+    x = (unsigned char)(PX >> 5) - 5;
+    y = (unsigned char)(PY >> 5) - 3;
+    for (r = 0; r < 7; ++r, ++y) {
+        q = DMAP + ((y & 15) << 6);
+        for (i = 0; i < 11; ++i)
+            if (blk_flag[q[(x + i) & 63] >> 2] & B_CONSOLE)
+                return 1;
+    }
+    return 0;
+}

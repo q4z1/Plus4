@@ -13,8 +13,11 @@
 ; First the name, its length and its letters; then the file as blocks,
 ; each its length (1-254; 0 the end, 255 not found) and its bytes. The
 ; drive leaves out the file's load address.
+;
+; fl_spin(): no name, only for the drive to start its motor, for a load
+; that may come soon (a console's): the motor takes two seconds.
 
-        .export _fl_load, _fl_kind, _fl_name, _fl_addr
+        .export _fl_load, _fl_spin, _fl_kind, _fl_name, _fl_addr
 
 TPA     = $FEF0
 TPC     = $FEF2
@@ -117,6 +120,20 @@ _fl_load:
         sta _fl_kind
         tax
         rts
+
+_fl_spin:
+        lda #$FF
+        sta TDDRA
+        lda TPC
+        and #$80
+        sta drv
+        lda #0
+        jsr t_send
+        lda #$00
+        sta TDDRA
+        bcc :+
+        sta _fl_kind            ; no answer: the KERNAL from now on
+:       rts
 
 ; a wait's time: a few seconds (the drive may have to start its motor)
 tmo_set:
