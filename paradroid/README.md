@@ -154,11 +154,34 @@ The 001 has the original's turning dome, a slanted gap running round it, as
 four extra slots. As in the original, each of the four stays for two ticks:
 a turn takes half a second.
 
-Walls are whole blocks, but four of the consoles fill only half their
-block, the other half floor. As in the original, the player can stand on
-that floor, right at the console: the blocks' flags say which half is
-solid, and the test for a wall ([engine.s](engine.s), `solid_at`) looks at
-the half the point is in.
+### Driving, walls and the droids' ways, as measured in the original
+
+The player drives as the original's does, read from its code in x64sc
+([move.s](move.s)): the speed is a signed 8.8 number per axis; the
+joystick adds 0.8125 a tick (0.8086 the other way), up to the host's top
+speed by its drive; let go, it falls by 0.6875 a tick. The position moves
+by the whole pixels of it, rounded up as there. So it starts with 1, 2, 3,
+4, 5, 5, 6, 7 pixels a tick and rolls out with 7, 6, 5, 5, 4, 3, 3, 2, 1,
+tick for tick as in the original.
+
+Walls are characters there, not blocks: a character code from $80 on. A
+wall block is solid only in its two middle characters, a console often
+only in its outermost row. After each move the player looks at three
+points around its character, ahead the way it drives; a wall there stops
+it at the edge of its character. So it comes up close to everything, as
+there. The walls of each block are four bits per character row, kept in
+the unused end of the block code tables at `$E800`.
+
+The window follows the player across in steps of two pixels, in step with
+its figure: the figures are of multicolour pixels, two wide, and the
+player stands still in the middle of the window, as the original's sprite.
+
+The droids choose their ways as the original's (from up to three ways of a
+waypoint, each a third, or eight ticks' wait), and like the original's
+they look ahead before each step: their character and the next two. A
+wall there, a door not open yet, and they wait two ticks. They do that
+near the player, where the doors open and close; elsewhere the doors stay
+shut, and the droids go on through them.
 
 ### The transfer game, from the original and FreedroidClassic
 
@@ -380,6 +403,7 @@ Each step draws the rows the window shows from the page's lines.
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
 | [music.s](music.s) | the title's sound, in its overlay |
+| [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
 | [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
 | [game.h](game.h) | what the parts share |

@@ -123,7 +123,11 @@ static void window(void)
 {
     static unsigned char k;
     static signed char r0;
-    win_l = (int)PX - 152;
+    /* across in steps of two: the figures are of multicolour pixels, two
+     * wide, and with the window on every pixel the player would shake by
+     * one. In step with the player's figure (its left edge at PX - 13), it
+     * stands still in the middle, as the original's sprite does. */
+    win_l = (int)((PX + 1) & ~1) - 153;
     win_t = (int)PY - 56;
     e_sx = (unsigned char)(-win_l) & 7;
     e_m0 = (unsigned char)(((win_l + e_sx) >> 3) - 1);

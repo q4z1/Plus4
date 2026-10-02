@@ -61,6 +61,11 @@ static const unsigned char round_bg[3] = { 0x77, 0x5B, 0x7F };
 static const unsigned char round_fg[3] = { 0x48, 0x39, 0x00 };
 static const unsigned char round_bd[3] = { 0x3B, 0x3B, 0x55 };
 
+/* fire pressed: held now, or gone down since the last look (the
+ * interrupt notes it), so that a short press while a page is being made
+ * is not lost */
+#define FIRED ((keys_irq | eng_keys()) & K_FIRE)
+
 /* n pictures; 1 as soon as fire is pressed */
 static unsigned char fire_in(unsigned n)
 {
@@ -69,18 +74,20 @@ static unsigned char fire_in(unsigned n)
         f = frames;
         while (frames == f)
             ;
-        if (keys_irq & K_FIRE)
+        if (FIRED)
             return 1;
     }
     return 0;
 }
 
-/* until picture t; 1 as soon as fire is pressed */
+/* until picture t; 1 as soon as fire is pressed (looked at once at least,
+ * also when picture t has gone by already) */
 static unsigned char fire_by(unsigned char t)
 {
-    while ((signed char)(frames - t) < 0)
-        if (keys_irq & K_FIRE)
+    do
+        if (FIRED)
             return 1;
+    while ((signed char)(frames - t) < 0);
     return 0;
 }
 
@@ -357,6 +364,7 @@ void title_run(void)
     pic_col = e[2];
     pic_lay = e - pic_rows * 6;
     mus_start();
+    eng_keys();                         /* (presses from before: gone) */
     panel_status("Press fire");
     for (r = 0; ; r = r < 2 ? r + 1 : 0) {
         if (logo())                     /* the original's starts with it */

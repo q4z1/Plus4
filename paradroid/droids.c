@@ -152,6 +152,8 @@ static void droid_choose(unsigned char i)
     d_vy[i] = cy[pick] * sp;
 }
 
+void droid_move(unsigned char i);
+
 void move_droids(void)
 {
     static unsigned char i;
@@ -159,10 +161,8 @@ void move_droids(void)
     for (i = 1; i < nd; ++i)
         if (d_choose[i]) {
             droid_choose(i);
-            if (!d_wait[i]) {
-                d_x[i] += d_vx[i];
-                d_y[i] += d_vy[i];
-            }
+            if (!d_wait[i])
+                droid_move(i);          /* engine.s: unless a wall is ahead */
         }
 }
 
@@ -170,54 +170,7 @@ void move_droids(void)
  * The player
  * ==================================================================== */
 
-static const unsigned char vmax_of[9] = { 0, 5, 6, 0, 7, 0, 0, 0, 7 };
-
-static unsigned char box_free(unsigned x, unsigned y)
-{
-    return !solid_at(x - 10, y - 7) && !solid_at(x + 10, y - 7)
-        && !solid_at(x - 10, y + 7) && !solid_at(x + 10, y + 7);
-}
-
-void move_player(unsigned char k)
-{
-    static signed char vm;
-    vm = vmax_of[dr_drive[d_type[0]]];
-    if (k & K_FIRE)
-        k = 0;                          /* firing or transfer: no driving */
-    if (k & K_LEFT) {
-        if (d_vx[0] > -vm)
-            --d_vx[0];
-    } else if (k & K_RIGHT) {
-        if (d_vx[0] < vm)
-            ++d_vx[0];
-    } else if (d_vx[0] > 0)
-        --d_vx[0];
-    else if (d_vx[0] < 0)
-        ++d_vx[0];
-    if (k & K_UP) {
-        if (d_vy[0] > -vm)
-            --d_vy[0];
-    } else if (k & K_DOWN) {
-        if (d_vy[0] < vm)
-            ++d_vy[0];
-    } else if (d_vy[0] > 0)
-        --d_vy[0];
-    else if (d_vy[0] < 0)
-        ++d_vy[0];
-
-    if (d_vx[0]) {
-        if (box_free(PX + d_vx[0], PY))
-            PX += d_vx[0];
-        else
-            d_vx[0] = 0;
-    }
-    if (d_vy[0]) {
-        if (box_free(PX, PY + d_vy[0]))
-            PY += d_vy[0];
-        else
-            d_vy[0] = 0;
-    }
-}
+/* move_player(): move.s, as the original drives */
 
 /* ======================================================================
  * Shots

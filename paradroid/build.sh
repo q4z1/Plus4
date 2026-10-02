@@ -27,12 +27,13 @@ $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
 $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
 $B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/music.o music.s
+$B/cl65 -t plus4 -g -c -o build/move.o move.s
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
 $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
 $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
     -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/music.o \
+    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/music.o build/move.o \
     build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o
 
 # The disk (tools/d64.py): the files the fast loader loads nearest the

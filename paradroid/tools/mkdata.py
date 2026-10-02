@@ -95,8 +95,8 @@ blocks += door_frames(1, True)      # 32..35
 blocks += door_frames(2, False)     # 36..39
 NBLK = len(blocks)
 
-# what a block is: 1 solid, 2 door, 4 lift, 8 console, 16 energizer, 32-224
-# which half is solid (below)
+# what a block is: 1 solid, 2 door, 4 lift, 8 console, 16 energizer (where
+# its walls are, character by character: the block codes' tables, below)
 FLAG = {}
 for b in range(NBLK):
     FLAG[b] = 1
@@ -109,11 +109,6 @@ for b in range(32, 40):
     FLAG[b] = 2 | (0 if b in (35, 39) else 1)
 for b in (16, 17, 18, 19, 28, 29, 30):
     FLAG[b] = 1 | 8
-# the consoles that fill only half their block, the other half floor: solid
-# in that half only (bits 5-7: 1 the top, 2 the bottom, 3 the left, 4 the
-# right), so the player gets as close to them as in the original
-for b, half in ((16, 1), (17, 2), (18, 3), (19, 4)):
-    FLAG[b] |= half << 5
 
 # --- decks --------------------------------------------------------------------
 decks = []
@@ -546,13 +541,18 @@ def emit(name, data, per=16):
 
 
 emit('tile_col', colours)
-# block codes, [yy][blk*4 + x]: 4 tables of 256
+# block codes, [yy][blk*4 + x]: 4 tables of 256. The free end of each,
+# from 192 on, holds the walls: for block b, at 192 + b, a bit for each of
+# its four characters in row yy that is a wall - in the original, a
+# character code from $80 on (doors open by clearing that bit, above)
 bc = []
+assert NBLK <= 64
 for yy in range(4):
     row = [0] * 256
     for b in range(NBLK):
         for x in range(4):
             row[b * 4 + x] = code_of[blocks[b][yy * 4 + x]]
+        row[192 + b] = sum(1 << x for x in range(4) if blocks[b][yy * 4 + x] >= 0x80)
     bc += row
 emit('blk_flag', [FLAG[b] for b in range(NBLK)])
 # decks
