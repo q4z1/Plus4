@@ -176,7 +176,9 @@ wait:   ldx #12
 ; drive's answer and its next pair's load, shift and mask: 23 us). Each
 ; pair is taken apart while waiting for the next (before the first, two
 ; bits of nothing, which go out at the top of the byte).
-t_recv: lda fl_s
+t_recv: nop                     ; (the drive's 37 us between two bytes)
+        nop
+        lda fl_s
         sta PORT
         jsr pair
         lda fl_b

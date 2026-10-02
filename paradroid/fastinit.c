@@ -66,7 +66,7 @@ void fl_init(unsigned char dev)
         fl_kind = 2;
         code = drive1541;
         size = drive1541_size;
-        at = 0x0400;
+        at = 0x0300;
         memcpy(_FL41_RUN__, _FL41_LOAD__, (unsigned)_FL41_SIZE__);
     } else {
         cbm_close(15);

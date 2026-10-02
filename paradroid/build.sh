@@ -64,11 +64,11 @@ $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl
 # pictures (three blocks each, a track further matters
 # little to them); the program, which the KERNAL loads, after them, 10
 # apart as the DOS would put them, and first in the directory, so that
-# LOAD"*" finds it. IL 14: a 1541 is ready for the next sector 14 on
-# (its DOS decodes a sector and takes the next job for 50 ms, the transfer
-# takes another 55); a 1551 would be faster with 8 (5.2 s for the title
-# instead of 7.5; the 1541 12.3 s instead of 7.0).
-IL=${IL:-14}
+# LOAD"*" finds it. IL 10: a 1541 with its fast loader reads, decodes and
+# sends a sector in about 95 ms, ten sectors' time; a 1551 would be a
+# little faster with 8 (5.2 s for the title instead of 6.0; the 1541
+# 10.9 s instead of 4.3).
+IL=${IL:-10}
 set -- build/paradroid.d64 "paradroid,pd" build/title.bin:title:$IL
 for f in build/pics/p*; do
     set -- "$@" "$f:$(basename "$f"):$IL"

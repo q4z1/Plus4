@@ -384,34 +384,41 @@ drive who it is (the reply to `UI`: `CBM DOS V2.6 TDISK` for a 1551,
 `... 1541` for a 1541) and sends it its drive code with the DOS's `M-W`
 commands, then starts it with `M-E` ([fastinit.c](fastinit.c), run once
 and then overwritten). From then on the drive waits for a file's name,
-finds the file in the directory, reads its sectors with the DOS's job
-queue and sends them over. The Plus/4's half for that drive is copied to
+finds the file in the directory, reads its sectors and sends them over. The Plus/4's half for that drive is copied to
 the end of the program's memory at the start ([fastload.s](fastload.s)
 calls it there); there is room for one of them, not both. If the drive
 code does not answer, the KERNAL loads from then on.
 
 - **1551** ([drive1551.s](drive1551.s), [fastload51.s](fastload51.s)):
-  over its parallel port, a byte at a time, each answered by the other
-  side's strobe, so neither side depends on the other's timing.
+  the sectors read with the DOS's job queue, sent over its parallel port
+  a byte at a time, each answered by the other side's strobe, so neither
+  side depends on the other's timing.
 - **1541** ([drive1541.s](drive1541.s), [fastload41.s](fastload41.s)):
   over the serial bus, two bits at a time on CLK and DATA, clocked by the
   Plus/4 with ATN: at each change of ATN the drive puts the next pair on
   the lines, and the Plus/4 reads it a fixed time later. That time is
   the only timing there is, and interrupts or the TED's stolen cycles only
-  make it longer, so the picture can stay on. The drive's own interrupt
-  is off meanwhile (its handler could take milliseconds), and on while it
-  reads a sector. ATN is wired into the 1541's DATA line through an
-  acknowledge bit, which the drive code turns with every change. Between
-  two changes of ATN the drive has only a table lookup, a shift and a
-  mask to do (a table it makes itself at the start, at `$0700`); a sector
-  takes about 55 ms to go over. Yape, whose TED is closer to the real one,
-  has a true 1541 but no 1551, so this is the loader it uses.
+  make it longer, so the picture can stay on. ATN is wired into the
+  1541's DATA line through an acknowledge bit, which the drive code turns
+  with every change. Between two changes of ATN the drive has only a
+  table lookup, a shift and a mask to do.
 
-The title (9.7 KB) loads in 7.0 seconds with a 1541 and 7.5 with a 1551,
-measured in VICE with `tests/loadtime.py`; with the KERNAL a 1541 takes
-much longer, with a black screen. Most of the time is not the
-transfer but the DOS: after a sector, a 1541 needs about 50 ms (decoding
-it, taking the next job) before it can read the next one.
+  The 1541's DOS is not used for the sectors: it needed 50 ms after each
+  one (decoding it, taking the next job) before it could read the next.
+  The drive code has the drive to itself, its interrupt off: it turns the
+  motor on (and off after a few idle seconds), moves the head, sets the
+  bit rate of the track's zone, waits for the sector's header after a
+  SYNC, and reads its data block as GCR into the very place the DOS uses,
+  `$01BB`–`$02FF`, the top of the stack's page and the command buffer.
+  It is decoded there in place, five bytes to four, with the checksum
+  checked: 18 ms. Read, decoded and sent (55 ms), a sector takes about 95
+  ms. Yape, whose TED is closer to the real one, has a true 1541 but no
+  1551, so this is the loader it uses.
+
+The title (9.7 KB) loads in 4.3 seconds with a 1541 and 6.0 with a 1551,
+measured in VICE with `tests/loadtime.py` (7.0 seconds with a 1541 when
+the DOS still read its sectors); with the KERNAL a 1541 takes much
+longer, with a black screen.
 
 The droid enquiry at a console loads the droids' pictures. What makes a
 load slow is the drive's motor, which the DOS stops when the drive is
@@ -425,10 +432,10 @@ in the drive's buffer, and is not read again for the load.
 The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
 for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
 right for the KERNAL. With the fast loader, a 1541 is ready for the next
-sector 14 on (50 ms of its DOS and 55 of the transfer, about 9.5 ms a
-sector): 14 apart, the title takes 7.0 seconds instead of 12.3 with 8.
-A 1551 would rather have 8 (5.2 seconds instead of 7.5); one disk serves
-both, and 14 is the better one for the two together. The fast loader's
+sector 10 on (about 9.5 ms a sector): 10 apart, the title takes 4.3
+seconds instead of 10.9 with 8. A 1551 would rather have 8 (5.2 seconds
+instead of 6.0); one disk serves both, and 10 is the better one for the
+two together. The fast loader's
 files lie nearest the directory, the title on the very next track, then
 the pictures; the program, which the KERNAL loads, comes after them, 10
 apart, and first in the directory.
@@ -562,4 +569,5 @@ limit.
 | `yape_boot.py [s] [warp]` | the start from the disk: registers and a screenshot every five seconds |
 | `yape_play.py [s] [seed]` | the title, fire, a random joystick; fails if the game stops ticking |
 | `yape_rowcheck.py` | `rowcheck.py` in Yape |
+| `yape_xfer.py [n]` | transfers in Yape, their droids' pictures loaded with the fast loader |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |
