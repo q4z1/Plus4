@@ -32,7 +32,7 @@ g = Game(warp=False)
 try:
     # a page of the briefing, a few lines rolled up (the title's first
     # screen, the original's logo, is over by the time Game() is ready)
-    g.v.run_for(3.0)
+    g.v.run_for(5.0)
     save(g, 'briefing.png')
     # the title's round on: the scores page (white), then the logo of the
     # next round (the panel's rows in the window's set)

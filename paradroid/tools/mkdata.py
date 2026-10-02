@@ -95,7 +95,8 @@ blocks += door_frames(1, True)      # 32..35
 blocks += door_frames(2, False)     # 36..39
 NBLK = len(blocks)
 
-# what a block is: 1 solid, 2 door, 4 lift, 8 console, 16 energizer
+# what a block is: 1 solid, 2 door, 4 lift, 8 console, 16 energizer, 32-224
+# which half is solid (below)
 FLAG = {}
 for b in range(NBLK):
     FLAG[b] = 1
@@ -108,6 +109,11 @@ for b in range(32, 40):
     FLAG[b] = 2 | (0 if b in (35, 39) else 1)
 for b in (16, 17, 18, 19, 28, 29, 30):
     FLAG[b] = 1 | 8
+# the consoles that fill only half their block, the other half floor: solid
+# in that half only (bits 5-7: 1 the top, 2 the bottom, 3 the left, 4 the
+# right), so the player gets as close to them as in the original
+for b, half in ((16, 1), (17, 2), (18, 3), (19, 4)):
+    FLAG[b] |= half << 5
 
 # --- decks --------------------------------------------------------------------
 decks = []

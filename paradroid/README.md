@@ -151,7 +151,14 @@ pixels. Drawing is then copying through a mask, and only into cells with
 something in them.
 
 The 001 has the original's turning dome, a slanted gap running round it, as
-four extra slots.
+four extra slots. As in the original, each of the four stays for two ticks:
+a turn takes half a second.
+
+Walls are whole blocks, but four of the consoles fill only half their
+block, the other half floor. As in the original, the player can stand on
+that floor, right at the console: the blocks' flags say which half is
+solid, and the test for a wall ([engine.s](engine.s), `solid_at`) looks at
+the half the point is in.
 
 ### The transfer game, from the original and FreedroidClassic
 
@@ -332,12 +339,15 @@ Loading with the KERNAL needs care in a program that uses all of memory:
   keeps them from the start and puts them back before each load. Then the
   deck's map is unpacked again.
 
-The briefing scrolls up a pixel every second picture, the same way as the
-deck: rows moved down by the two counters, and the window's top row made
+The briefing scrolls up a pixel a tick, as the original's (measured in
+x64sc: 16.7 pixels a second), and two while the joystick is held down, as
+there. It scrolls the same way as the deck: rows moved down by the two counters, and the window's top row made
 of copies of its characters with their top lines cleared. For that, the
 file brings a character set of its own: the 109 different characters of
 the panel's letters it uses, put into picture 1's character set, which
 both pictures show meanwhile. That leaves room for each picture's copies.
+Between rows only the top row is made again, the fine scroll moves the
+rest; a step that took longer, a new row, is made up for by the next.
 Each step draws the rows the window shows from the page's lines.
 
 ## What is not 1:1

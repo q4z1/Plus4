@@ -28,6 +28,7 @@
 
 #pragma code-name (push, "OVLCODE")
 #pragma rodata-name (push, "OVLDATA")
+#pragma data-name (push, "OVLDATA")     /* (variables with a start value) */
 
 void wait_tick(void);
 void mus_start(void);                   /* music.s: the original's sound */
@@ -71,6 +72,15 @@ static unsigned char fire_in(unsigned n)
         if (keys_irq & K_FIRE)
             return 1;
     }
+    return 0;
+}
+
+/* until picture t; 1 as soon as fire is pressed */
+static unsigned char fire_by(unsigned char t)
+{
+    while ((signed char)(frames - t) < 0)
+        if (keys_irq & K_FIRE)
+            return 1;
     return 0;
 }
 
@@ -151,16 +161,24 @@ static unsigned char cut_copy(unsigned char c, unsigned char k)
     return (*cut)++;
 }
 
+/* Rows 1 to 15 only change when the page has moved by a row: the lines
+ * between, the fine scroll moves them, and only row 0, the cut one, is
+ * made again. shown[] is each picture's row as last made (0xFF: none). */
+static unsigned char shown[2] = { 0xFF, 0xFF };
+
 static void page_show(unsigned y, unsigned char with_pic)
 {
     static unsigned char *d, *a, *q;
     static const unsigned char *p, *l;
     static unsigned char k, rr, r, n, h, w, i, c, half, code;
+    static unsigned char rows = 16;     /* (in the overlay: a start value) */
     k = (unsigned char)-(unsigned char)y & 7;
     rr = (y + k) >> 3;                  /* the page's row in window row 1 */
+    rows = shown[back] == rr ? 1 : 16;  /* the rows to make */
+    shown[back] = rr;
     d = (back ? SCR1C : SCR0C) + 9 * 40;
     a = (back ? SCR1A : SCR0A) + 9 * 40;
-    memset(d, 0, 16 * 40);
+    memset(d, 0, rows * 40);
     /* each picture copies of its own: the free characters halved */
     half = (unsigned char)(256 - free_code) >> 1;
     code = back ? free_code + half : free_code;
@@ -170,7 +188,7 @@ static void page_show(unsigned y, unsigned char with_pic)
         n = p[2];
         for (h = 0; h < 2; ++h) {
             w = r + h + 1 - rr;         /* its window row */
-            if (w >= 16 || (!w && !k))
+            if (w >= rows || (!w && !k))
                 continue;
             q = d + w * 40 + p[1];
             for (i = 0; i < n; ++i) {
@@ -182,12 +200,12 @@ static void page_show(unsigned y, unsigned char with_pic)
     bnext = p[1] ? p + 1 : brief_pages;
     if (with_pic) {
         /* its column of cells: the text's colour, then the picture's */
-        for (w = 0, q = a + 2; w < 16; ++w, q += 40)
+        for (w = 0, q = a + 2; w < rows; ++w, q += 40)
             memset(q, b_fg, 6);
         for (r = 0, l = pic_lay; r < pic_rows; ++r)
             for (i = 0; i < 6; ++i, ++l) {
                 w = PIC_ROW + r + 1 - rr;
-                if (!*l || w >= 16 || (!w && !k))
+                if (!*l || w >= rows || (!w && !k))
                     continue;
                 c = pic_code + (*l & 0x7F) - 1;
                 d[w * 40 + 2 + i] = w ? c : cut_copy(c, k);
@@ -223,6 +241,7 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
 {
     static unsigned y, end;
     static unsigned char cd, cb, pic_on, hit;
+    static unsigned char t = 0, dt = 0; /* (in the overlay: a start value) */
     static const unsigned char *p;
     cd = col_deck;
     cb = col_border;
@@ -252,13 +271,27 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
     }
     b_h = *bpage;
     end = b_h * 8 > 120 ? b_h * 8 - 120 : 0;
-    for (y = 0; ; ++y) {
+    /* a line of pixels a tick, as the original; two while the joystick
+     * is held down */
+    shown[0] = shown[1] = 0xFF;
+    for (y = 0; ; ) {
         while (ready)
             ;
         page_show(y, pic_on);
-        hit = fire_in(y == 0 || y == end ? 120 : 1);
+        if (y == 0 || y == end) {
+            hit = fire_in(120);
+            t = frames - 3;
+        } else
+            hit = fire_by(t + 3);
         if (hit || y == end)
             break;
+        /* as many lines as ticks have gone by: a step that took longer
+         * (a new row of characters) is made up for */
+        dt = (unsigned char)(frames - t) / 3;
+        t += dt * 3;
+        y += keys_irq & K_DOWN ? dt << 1 : dt;
+        if (y > end)
+            y = end;
     }
     deck_font();
     win_mc = 0x10;

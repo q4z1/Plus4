@@ -54,7 +54,8 @@
         .export _keys_irq, _eng_keys, _dbg_keys
         .export _pool_left, _eng_stack, _font_hi, _f_tint, _panel_hi, _win_mc
         .export _snd_time, _sfx_lo, _sfx_hi, _sfx_noise, _sfx_len, _sfx_d, _eng_sfx
-        .export _mus_hook
+        .export _mus_hook, _solid_at
+        .import popax, _blk_flag
         .importzp sp
 
 ; ---- TED ------------------------------------------------------------------
@@ -114,6 +115,10 @@ LINE_BOTTOM = 197               ; less s, the line counter is behind then
 ; ---- zero page ------------------------------------------------------------
 
         .segment "ENGZP": zeropage
+s_p:        .res 2              ; solid_at: the block's place in DMAP
+s_x:        .res 1
+s_y:        .res 1
+s_c:        .res 1
 _f_src:     .res 2              ; pre_shift: 4 bytes per line, top line first
 _f_pre:     .res 2              ; r_fig: the pre-shifted copy
 _p_pre:     .res 2              ; pre_shift: where to
@@ -1632,6 +1637,65 @@ _eng_sfx:
         lda _sfx_len
         sta _snd_time
         plp
+        rts
+
+; solid_at(x, y): a wall at world pixel (x, y), for the main program. A
+; console that fills only half its block (the other half floor) is solid
+; in that half (tools/mkdata.py: the flag's bits 5-7, 1 the top, 2 the
+; bottom, 3 the left, 4 the right), so the player gets as close to it as
+; in the original.
+_solid_at:
+        sta s_y                 ; y; the deck is 512 high
+        and #$E0                ; its row: (y & $1E0) * 2 into DMAP
+        asl a
+        sta s_p
+        txa
+        and #1
+        rol a
+        adc #>DMAP              ; (carry clear: rol's was bit 7 of 0)
+        sta s_p+1
+        jsr popax               ; x
+        sta s_x
+        stx s_c                 ; its column: x >> 5
+        asl a
+        rol s_c
+        asl a
+        rol s_c
+        asl a
+        rol s_c
+        lda s_c
+        and #63
+        tay
+        lda (s_p),y
+        lsr a
+        lsr a
+        tay
+        lda _blk_flag,y
+        lsr a                   ; solid: carry
+        bcc @no
+        lsr a
+        lsr a
+        lsr a
+        lsr a                   ; the half
+        beq @yes
+        tay
+        asl a
+        asl a
+        asl a
+        asl a                   ; bit 4: the top or left one
+        cpy #3
+        bcs :+
+        eor s_y
+        bcc @half
+:       eor s_x
+@half:  and #16
+        ldx #0
+        rts
+@yes:   lda #1
+        ldx #0
+        rts
+@no:    lda #0
+        tax
         rts
 
 ; music, while there is some: its player, once a picture

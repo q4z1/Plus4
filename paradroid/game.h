@@ -93,7 +93,7 @@ void deck_colours(void);                /* by alert, and dark if cleared */
 unsigned char deck_cleared(unsigned char d);
 unsigned char ship_cleared(void);
 unsigned char blk_at(unsigned x, unsigned y);
-#define solid_at(x, y) (blk_flag[blk_at(x, y)] & B_SOLID)
+unsigned char solid_at(unsigned x, unsigned y);  /* engine.s */
 void doors(void);
 unsigned char lift_here(void);           /* lift stop at the player, or 255 */
 extern const unsigned char pal_deck[16];
