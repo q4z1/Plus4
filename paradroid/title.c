@@ -9,6 +9,9 @@
  * to the next. After a game, the original's "Transmission terminated" is
  * on the screen while it loads (paradroid.c).
  *
+ * The original's title has its own sound throughout, a falling sweep and
+ * a wavering low tone (music.s).
+ *
  * The original's title goes round: the four pages of the briefing, in a
  * colour of their own each round (yellow, pink, light green); then on
  * white the day's top and worst scores, the keys and the credits, with a
@@ -27,6 +30,8 @@
 #pragma rodata-name (push, "OVLDATA")
 
 void wait_tick(void);
+void mus_start(void);                   /* music.s: the original's sound */
+void mus_stop(void);
 extern unsigned long top_score, low_score;  /* paradroid.c: the day's */
 extern char top_name[4], low_name[4];
 extern unsigned char _OVL_LAST__[];     /* free after the overlay */
@@ -318,6 +323,7 @@ void title_run(void)
     pic_rows = e[1];
     pic_col = e[2];
     pic_lay = e - pic_rows * 6;
+    mus_start();
     panel_status("Press fire");
     for (r = 0; ; r = r < 2 ? r + 1 : 0) {
         for (n = 0; n < 4; ++n)
@@ -329,4 +335,5 @@ void title_run(void)
 out:
     while (keys_irq & K_FIRE)
         wait_tick();
+    mus_stop();                         /* (the overlay's memory goes) */
 }

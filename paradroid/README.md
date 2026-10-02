@@ -245,6 +245,30 @@ panel's character set, and the block tables. The data that is only used
 once at the start is linked into the very bytes where the slots begin, so
 it is overwritten as soon as it has been copied.
 
+### The title's sound
+
+The original has no music, but its title has a sound of its own: a sweep
+falling from 3.7 kHz to 120 Hz, a new pitch every picture, over and over,
+and a low tone that wavers down from F3 to A2 and up again, then rests.
+Both are triangles, at a third of the SID's volume. Its third voice plays
+noise, which the original switches off and only uses for random numbers.
+
+The tune as ripped (`Paradroid.sid`) is the game's own sound driver, set
+the way the title leaves it; in x64sc the original's title shows the same
+SID registers. [tools/sid.py](tools/sid.py), a small 6502 emulator, runs
+that driver picture by picture and records what it writes to the SID;
+[tools/sidmusic.py](tools/sidmusic.py) turns one round of its loop, 2.56
+seconds, into [data/music.txt](data/music.txt): two voices, as the TED
+has, as text, a pitch and a length per entry, as Stardew Pond keeps its
+music. The pitches are not notes of a scale, so they stay hertz there, and
+`mkdata.py` turns them into the TED's registers.
+
+[music.s](music.s) plays them on the TED's two squares, at volume 3. It is
+in the title's overlay with its data, and the engine's interrupt calls it
+once a picture through a pointer while the title runs: the tempo is the
+picture's, whatever the title is drawing. A sound effect would keep voice
+2 meanwhile, as in Stardew Pond.
+
 ### The disk
 
 The game runs from `build/paradroid.d64`. The title, with the briefing,
@@ -327,7 +351,8 @@ Each step draws the rows the window shows from the page's lines.
   characters have half the horizontal resolution.
 - The deck's colour starts a line above the window's top edge (see
   above); in the original, the edge and the colour change are the same.
-- **Sound** is a handful of effects on one voice.
+- **Sound** in the game is a handful of effects on one voice. The title's
+  sound is the original's, but on squares instead of triangles.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here.
 
@@ -344,6 +369,7 @@ Each step draws the rows the window shows from the page's lines.
 | [title.c](title.c) | the overlay: the title's round of briefing, scores and logo |
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
+| [music.s](music.s) | the title's sound, in its overlay |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
 | [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
 | [game.h](game.h) | what the parts share |
@@ -353,6 +379,7 @@ Each step draws the rows the window shows from the page's lines.
 | [tools/pictures.py](tools/pictures.py) | the droids' pictures, the console's symbols and the title's logo out of the original |
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
 | [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
+| [tools/sid.py](tools/sid.py), [tools/sidmusic.py](tools/sidmusic.py) | the original's sound driver run in a 6502 emulator; its title sound into `data/music.txt` |
 | [tools/d64.py](tools/d64.py) | the disk image, with each file's sectors as far apart as its loader wants |
 | [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, as text |
 | [tests/](tests/) | headless VICE: screenshots, speed, profile, edges and rows, stress |
@@ -375,7 +402,9 @@ by default; with `-drive8type 1541` the game loads with the KERNAL.
 `tools/extract.py` is only needed to take the data out of the original
 again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in
 VICE's monitor (`bank ram`, `save "ram.bin" 0 0000 ffff`, and `bank io`,
-`save "io.bin" 0 d000 dfff`) during a game.
+`save "io.bin" 0 d000 dfff`) during a game. Likewise `tools/sidmusic.py`
+only makes `data/music.txt` again, from the ripped tune:
+`python3 tools/sidmusic.py Paradroid.sid`.
 
 ## Tests
 

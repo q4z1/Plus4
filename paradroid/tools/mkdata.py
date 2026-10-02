@@ -690,6 +690,34 @@ b[4] = b[4] + ', _brief_dig, _brief_cap, _brief_misc, _logo_font, _logo_col, _lo
 b.append(asm_bytes('logo_font', logo_font))
 b.append(asm_bytes('logo_col', logo_col))
 b.append(asm_bytes('logo_rle', logo_rle))
+
+# the title's sound (data/music.txt, from the original by tools/sidmusic.py):
+# per voice its entries, each a length in pictures and the TED's frequency
+# register, low byte and high bits ($FF: a rest); a length of 0 ends the
+# voice, which then starts again
+TED_CLOCK = 17734470 / 20 / 8                   # PAL: the sound's clock
+mus = {'v1': [], 'v2': []}
+for l in lines('music.txt'):
+    w = l.split()
+    if w[0] not in mus:
+        sys.exit('music.txt: unknown line ' + l)
+    n = mus[w[0]][-1][1] if mus[w[0]] else 1
+    for tok in w[1:]:
+        hz, _, ln = tok.partition(':')
+        if ln:
+            n = int(ln)
+        if hz == 'r':
+            mus[w[0]].append((None, n))
+        else:
+            reg = min(1023, max(0, round(1024 - TED_CLOCK / int(hz))))
+            mus[w[0]].append((reg, n))
+for v in ('v1', 'v2'):
+    data = []
+    for reg, n in mus[v]:
+        data += [n, 0, 0xFF] if reg is None else [n, reg & 255, reg >> 8]
+    b.append('        .export _mus_' + v)
+    b.append(asm_bytes('mus_' + v, data + [0]))
+    print('music: %s %d entries, %d pictures' % (v, len(mus[v]), sum(n for r, n in mus[v])))
 open(os.path.join(GEN, 'brief.s'), 'w').write('\n'.join(b) + '\n')
 
 
