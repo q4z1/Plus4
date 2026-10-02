@@ -14,7 +14,8 @@
 ; effect, should one play, keeps voice 2 meanwhile.
 
         .export _mus_start, _mus_stop
-        .import _mus_v1, _mus_v2, _mus_hook, _snd_time
+        .import _mus_v1, _mus_v2, _mus_hook
+        .importzp _snd_time              ; sfx.s
 
 TED_V1LO    = $FF0E
 TED_V2LO    = $FF0F

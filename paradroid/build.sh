@@ -14,11 +14,15 @@ mkdir -p build
 $B/cl65 -t none --start-addr 0x0500 -o build/drive1551.bin drive1551.s
 $B/cl65 -t plus4 -g -c -o build/drivecode.o build_drive.s
 $B/cl65 -t plus4 -O -Cl -g -c -o build/fastinit.o fastinit.c
+$B/cl65 -t plus4 -g -c -o build/sfx.o sfx.s
 INIT_EXTRA=0
 for o in build/drivecode.o build/fastinit.o; do
     n=$($B/od65 -S $o | awk '/INITDATA:/{print $2}')
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done
+# (the sound effects' player too: it is copied to $FC00 at the start)
+n=$($B/od65 -S build/sfx.o | awk '/SFXCODE:/{print $2}')
+INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
 for f in paradroid deck droids draw transfer lift console title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
@@ -28,13 +32,15 @@ $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
 $B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/music.o music.s
 $B/cl65 -t plus4 -g -c -o build/move.o move.s
+$B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/sfxcall.o sfxcall.s
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
 $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
 $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
     -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/music.o build/move.o \
-    build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o
+    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/music.o build/move.o build/sfxcall.o \
+    build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
+    build/sfx.o
 
 # The disk (tools/d64.py): the files the fast loader loads nearest the
 # directory, their sectors IL apart: the console first, then the title,

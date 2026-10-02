@@ -234,7 +234,7 @@ static void put_in(unsigned char s)
     draw_line(s, r);
     draw_cursor(s, 1);
     draw_pulses(s);
-    sound(SND_PULSE);
+    sound(SFX_PULSE);
 }
 
 /* one tick of the board: pulses age, pass on, the lights follow */
@@ -384,7 +384,9 @@ static void intro(unsigned char i)
     eng_plain();
     cd = col_deck;
     col_deck = pal_deck[1];
+    sound(SFX_COMPLETE);                /* as the original's, each */
     unit(d_type[0], pal_deck[5], "currently control.", "");
+    sound(SFX_REJECTED);
     unit(d_type[i], pal_deck[6], "wish to control. Prepare to", "transfer.");
     win_clear(0, 0x71);
     memcpy(FONT1, FONT0, POOL * 8);
@@ -459,6 +461,8 @@ unsigned char transfer_game(unsigned char i)
         prev = keys_irq;
         for (t = 0; t < 167 + 40; ++t) {
             wait3();
+            if (!t)
+                sound(SFX_FINISH);
             if (t < 167) {
                 if (t % 3 == 0)
                     count("Finish -", (166 - t) * 3 / 5);
@@ -485,6 +489,7 @@ unsigned char transfer_game(unsigned char i)
         if (leader != 2)
             break;
         panel_status("Deadlock");
+        sound(SFX_DEADLOCK);
         for (t = 0; t < 30; ++t)
             wait3();
     }

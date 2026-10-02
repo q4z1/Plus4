@@ -55,21 +55,7 @@ static void points(unsigned char n)
     score_changed = 1;
 }
 
-/* the effects: frequency, change a picture, pictures, noise */
-static const unsigned freq_of[9]   = { 900, 700, 600, 200, 800, 500, 650, 300, 600 };
-static const signed char d_of[9]   = { -40, -25, -3, -6, 12, 0, 6, 10, -10 };
-static const unsigned char len_of[9]   = { 6, 8, 25, 6, 4, 3, 3, 30, 30 };
-static const unsigned char noise_of[9] = { 0, 0, 1, 1, 0, 0, 0, 0, 0 };
-
-void sound(unsigned char n)
-{
-    sfx_lo = (unsigned char)freq_of[n];
-    sfx_hi = freq_of[n] >> 8;
-    sfx_d = d_of[n];
-    sfx_len = len_of[n];
-    sfx_noise = noise_of[n];
-    eng_sfx();
-}
+/* sound(): sfxcall.s, the original's effects */
 
 /* damage of a droid's shot, by weapon; the player's depends on the
  * target as well (hit) */
@@ -201,7 +187,8 @@ static void shoot(unsigned char i, signed char dx, signed char dy, unsigned char
         s_img[k] = 1;
     else
         s_img[k] = 3;
-    sound(i ? SND_ESHOT : SND_SHOT);
+    if (!i)                             /* the original's: by the weapon; */
+        sound(SFX_SHOT1 + dr_weapon[d_type[0]]);   /* the droids' silent */
 }
 
 static void hit(unsigned char i, unsigned char dmg, unsigned char by_player);
@@ -224,7 +211,7 @@ static void disrupt(unsigned char from)
     static unsigned char i, t;
     static signed char d;
     flash = 3;
-    sound(SND_BOOM);
+    sound(SFX_DBOOM);
     for (i = 1; i < nd; ++i) {
         if (i == from || d_boom[i] || immune(d_type[i]))
             continue;
@@ -268,8 +255,7 @@ static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
         return;                         /* (exploding already: it stays so) */
     if (d_energy[i] > dmg) {
         d_energy[i] -= dmg;
-        if (i == 0)
-            sound(SND_HIT);
+        sound(i ? SFX_DHIT : SFX_PHIT);
         return;
     }
     d_energy[i] = 0;
@@ -277,7 +263,7 @@ static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
         player_dead = 1;
         d_boom[0] = 1;
         d_vx[0] = d_vy[0] = 0;          /* the explosion stays where it is */
-        sound(SND_BOOM);
+        sound(SFX_PBOOM);
         return;
     }
     d_boom[i] = 1;
@@ -286,7 +272,7 @@ static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
         points(kill_pts[dr_class[d_type[i]]]);
         alert_acc = alert_acc + d_type[i] < alert_acc ? 255 : alert_acc + d_type[i];
     }
-    sound(SND_BOOM);
+    sound(SFX_DBOOM);
 }
 
 /* what a shot of the player's does to droid j: 16 per class of his
@@ -413,6 +399,7 @@ void collide(void)
             hit(0, (unsigned char)(-d - 1) >> 1, 0);
         d_vx[0] = dx < 0 ? -3 : 3;
         d_vy[0] = dy < 0 ? -2 : 2;
+        sound(SFX_BUMP);
     }
 }
 
@@ -436,8 +423,7 @@ void energy_tick(void)
             if (score >= 5)
                 score -= 5;
             score_changed = 1;
-            if (!(tick & 7))
-                sound(SND_ENERGY);
+            sound(SFX_ENERGY);          /* each unit, as the original */
         }
         for (i = 1; i < nd; ++i)
             if (!d_boom[i] && d_energy[i] < 64) {
@@ -489,5 +475,5 @@ void burnt_out(void)
     d_energy[0] = 0;
     player_dead = 1;
     d_boom[0] = 1;
-    sound(SND_BOOM);
+    sound(SFX_PBOOM);
 }

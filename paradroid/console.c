@@ -185,7 +185,7 @@ static void enquiry(void)
             t = pressed(K_UP) ? (t ? t - 1 : top) : (t < top ? t + 1 : 0);
             n = 0;
         }
-        sound(SND_LIFT);
+        sound(SFX_LIFT);
     }
 }
 
@@ -226,7 +226,7 @@ void console_run(void)
         if (pressed(K_UP) || pressed(K_DOWN)) {
             sel = (sel + (pressed(K_UP) ? 3 : 1)) & 3;
             icons();
-            sound(SND_LIFT);
+            sound(SFX_LIFT);
         }
         if (!pressed(K_FIRE))
             continue;

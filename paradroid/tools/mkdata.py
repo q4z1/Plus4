@@ -554,6 +554,35 @@ for yy in range(4):
             row[b * 4 + x] = code_of[blocks[b][yy * 4 + x]]
         row[192 + b] = sum(1 << x for x in range(4) if blocks[b][yy * 4 + x] >= 0x80)
     bc += row
+
+# the original's sound effects (data/sfx.txt, from it by tools/sfx.py), for
+# sfx.s: 8 bytes each - the SID's start frequency and step, the first
+# period and the ones after, then their count (bits 0-4) with reset (5),
+# voice 2 (6: the original's channel 2, or noise, which only the TED's
+# voice 2 has) and noise (7), and the pictures it sounds: until the period
+# ends, or the gate and half the release (the TED has no envelope). The
+# deck's hum's periods go into the block code tables' free end (row 0 at
+# 160 and 176, row 1 at 160).
+sfx_tab, sfx_names, hum = [], [], {}
+for l in lines('sfx.txt'):
+    w = l.split()
+    if w[0].startswith('hum_'):
+        hum[w[0]] = [int(x) for x in w[1:]]
+        continue
+    name, num, ch, start, step, first, per, cnt, reset, wave, gate, rel = w
+    start, step, first, per, cnt = int(start), int(step) & 0xFFFF, int(first), int(per), int(cnt)
+    total = first + per * (cnt - 1)
+    sounds = min(total, int(gate) + round(int(rel) / 20 / 2), 255)
+    noise = wave == 'N'
+    flags = cnt | int(reset) << 5 | (noise or ch == '2') << 6 | noise << 7
+    assert cnt < 32
+    sfx_tab += [start & 255, start >> 8, step & 255, step >> 8, first, per, flags, sounds]
+    sfx_names.append(name)
+assert len(sfx_tab) <= 186, len(sfx_tab)
+for k in range(16):
+    bc[160 + k] = hum['hum_first'][k]
+    bc[176 + k] = hum['hum_period'][k]
+    bc[256 + 160 + k] = hum['hum_count'][k]
 emit('blk_flag', [FLAG[b] for b in range(NBLK)])
 # decks
 allrle = []
@@ -663,14 +692,20 @@ for name, data in init:
     exports.append(name)
     s.append(asm_bytes(name, data))
 # fastinit.c and the drive code are in INITDATA too (build.sh says how much)
-init_size = sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0))
+init_size = (sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0))
+             + len(sfx_tab))
 assert init_size <= PRE_SLOTS * 512, init_size
+s.append('        .segment "SFXDATA"')       # run at $FF40, copied there at the start
+s.append(asm_bytes('sfx_tab', sfx_tab))
+exports.append('sfx_tab')
 s.append('        .segment "PREBSS"')
 s.append('        .res %d' % (PRE_SLOTS * 512 - init_size))
 exports.append('pre')
 
 s.insert(2, '\n'.join('        .export _%s' % e for e in exports) + '\n')
 open(os.path.join(GEN, 'data.s'), 'w').write('\n'.join(s))
+open(os.path.join(GEN, 'sfx.inc'), 'w').write(
+    ''.join('SFX_%s = %d\n' % (n.upper(), i) for i, n in enumerate(sfx_names)))
 
 # into the title's overlay (title.c), which is a file on the disk
 c = ['; made by tools/mkdata.py - do not edit',
@@ -742,8 +777,9 @@ h = ['/* made by tools/mkdata.py - do not edit */',
      '#define NXFER %d' % len(XFER_ORDER), '#define NBOARD %d' % NBOARD, '#define PRE_SLOTS 23',
      '#define BRIEF_SIZE %d' % BRIEF_SIZE, '#define NBRIEF %d' % NBRIEF] + \
     ['#define X_%s %d' % (n.upper(), i) for i, n in enumerate(XFER_ORDER)] + \
-    ['#define NSIDE %d' % NSIDE, '#define SIDE_BASE %d' % SIDE_BASE,
-     '']
+    ['#define NSIDE %d' % NSIDE, '#define SIDE_BASE %d' % SIDE_BASE] + \
+    ['#define SFX_%s %d' % (n.upper(), i) for i, n in enumerate(sfx_names)] + \
+    ['']
 for e in exports:
     if e == 'deck_off':
         h.append('extern const unsigned char *const deck_off[];')

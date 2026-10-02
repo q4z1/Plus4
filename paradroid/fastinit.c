@@ -6,6 +6,8 @@
  * (drive1551.s) over with the DOS's M-W commands and starts it with M-E.
  * Anything else, a 1541 too, keeps loading with the KERNAL (fl_kind 0).
  *
+ * It also puts the sound effects' player where it runs (sfx.s).
+ *
  * Code and drive code are in INITDATA: used once, then overwritten. The
  * variables are in LOWBSS, which has room: not in INITDATA, as cc65 puts
  * a function's static locals in the bss segment right where it is, so in
@@ -25,11 +27,21 @@ extern const unsigned drive1551_size;
 
 static char buf[40];
 
+/* the sound effects' player and their table, linked to run at $FC00 and
+ * $FF40 (paradroid.cfg, sfx.s): there, and both voices quiet */
+extern unsigned char _SFXCODE_LOAD__[], _SFXCODE_RUN__[], _SFXCODE_SIZE__[];
+extern unsigned char _SFXDATA_LOAD__[], _SFXDATA_RUN__[], _SFXDATA_SIZE__[];
+extern unsigned char snd_len[2];
+#pragma zpsym ("snd_len")
+
 void fl_init(unsigned char dev)
 {
     static unsigned a;
     static unsigned char n, i;
     static int got;
+    memcpy(_SFXCODE_RUN__, _SFXCODE_LOAD__, (unsigned)_SFXCODE_SIZE__);
+    memcpy(_SFXDATA_RUN__, _SFXDATA_LOAD__, (unsigned)_SFXDATA_SIZE__);
+    snd_len[0] = snd_len[1] = 0;
     fl_kind = 0;
     if (cbm_open(15, dev, 15, "ui"))
         return;

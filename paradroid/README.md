@@ -71,8 +71,8 @@ second. The window scrolls a pixel at a time in any direction.
 | --- | --- |
 | ![The logo](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
 | **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it. | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
-| ![The day's scores](screenshots/scores.png) | |
-| **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. Then the round starts again with the logo. | |
+| ![The day's scores](screenshots/scores.png) | ![After a game](screenshots/highscore.png) |
+| **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. Then the round starts again with the logo. | **After a game** its score is the day's top or worst, if it is: the number alone, without the original's initials. |
 
 ## What is new compared with the other games here
 
@@ -275,6 +275,38 @@ panel's character set, and the block tables. The data that is only used
 once at the start is linked into the very bytes where the slots begin, so
 it is overwritten as soon as it has been copied.
 
+### The sound effects, the original's
+
+The game's sounds are the original's own effects, read from its sound
+driver in x64sc ([tools/sfx.py](tools/sfx.py) into
+[data/sfx.txt](data/sfx.txt)): 22 of them, each a record of a start
+frequency, a step added each picture and periods, at the end of each of
+which the step turns round or the frequency goes back to the start. The
+original plays them on two channels, as the TED has two voices. Which
+event starts which effect was read off its code: the shot by the host's
+weapon (the droids' shots are silent there), a droid hit and destroyed,
+the player hit and destroyed, a bump, the energizer for each unit of
+energy, "Lift" and the ride from deck to deck, the deck cleared, the
+transfer's "Finish", "Complete", "Rejected", "Burnt Out" and "Deadlock",
+and on their own: the ship's hum every 32 ticks while the second voice is
+free, with each deck's own periods; a warning while the energy is below 8;
+transfer mode every 8 ticks.
+
+[sfx.s](sfx.s) plays them as the original's driver does, once a picture
+from the interrupt, and turns the SID's frequency into the TED's register
+each picture (a division: the TED's frequency is not linear in its
+register). The TED has no envelope: an effect sounds while its gate and
+half its release would. Its noise is only on the second voice, so the
+noisy effects go there. Played in a 6502 emulator, the original's driver
+and the model `sfx.s` follows give the same frequencies picture for
+picture for all 22.
+
+There is no room for them in the program's memory, which is full: the
+player runs at `$FC00`, below cc65's stack, which needs a few dozen bytes,
+and the effects' table lies at `$FF40`, above the TED's registers; both
+are copied there at the start, from the data that is overwritten later.
+The deck's hum's periods are in the free end of the block code tables.
+
 ### The title's sound
 
 The original has no music, but its title has a sound of its own: a sweep
@@ -384,8 +416,11 @@ Each step draws the rows the window shows from the page's lines.
   characters have half the horizontal resolution.
 - The deck's colour starts a line above the window's top edge (see
   above); in the original, the edge and the colour change are the same.
-- **Sound** in the game is a handful of effects on one voice. The title's
-  sound is the original's, but on squares instead of triangles.
+- **Sound**: the effects and the title's sound are the original's, but on
+  the TED's squares instead of the SID's triangles, saws and pulses, and
+  without its envelopes; the TED's noise and lowest notes are higher than
+  the SID's.
+- The day's **scores** have no initials.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here.
 
@@ -403,6 +438,7 @@ Each step draws the rows the window shows from the page's lines.
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the overlay for the ship's computer: menu, droid enquiry, deck plan, ship |
 | [music.s](music.s) | the title's sound, in its overlay |
+| [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them |
 | [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, keyboard |
 | [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
@@ -413,6 +449,7 @@ Each step draws the rows the window shows from the page's lines.
 | [tools/pictures.py](tools/pictures.py) | the droids' pictures, the console's symbols and the title's logo out of the original |
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
 | [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
+| [tools/sfx.py](tools/sfx.py) | the original's sound effects out of a memory dump |
 | [tools/sid.py](tools/sid.py), [tools/sidmusic.py](tools/sidmusic.py) | the original's sound driver run in a 6502 emulator; its title sound into `data/music.txt` |
 | [tools/d64.py](tools/d64.py) | the disk image, with each file's sectors as far apart as its loader wants |
 | [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, as text |
@@ -438,7 +475,8 @@ again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in
 VICE's monitor (`bank ram`, `save "ram.bin" 0 0000 ffff`, and `bank io`,
 `save "io.bin" 0 d000 dfff`) during a game. Likewise `tools/sidmusic.py`
 only makes `data/music.txt` again, from the ripped tune:
-`python3 tools/sidmusic.py Paradroid.sid`.
+`python3 tools/sidmusic.py Paradroid.sid`. And `tools/sfx.py` makes
+`data/sfx.txt` again from the same memory dump: `python3 tools/sfx.py ram.bin`.
 
 ## Tests
 

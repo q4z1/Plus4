@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """screens.py - the README's screenshots, made in a headless VICE:
 title, briefing, a deck with droids, the transfer game, a lift, the deck plan and
-the droid enquiry, the transfer's introduction. Written to screenshots/."""
+the droid enquiry, the transfer's introduction, the day's top score after a
+game. Written to screenshots/."""
 import os, sys, shutil
 sys.path.insert(0, os.path.dirname(__file__))
 from game import Game, ROOT
@@ -122,5 +123,24 @@ try:
         g.keys(16, 0.12); g.keys(0, 0.2)
     g.v.run_for(1.0)
     save(g, 'transfer.png')
+    # the day's top score after a game: the transfer played out, the game
+    # ended with a score, and the next title round's scores page
+    g.v.cmd('warp on')
+    for i in range(100):
+        if g.byte('_hide_player') == 0:
+            break
+        g.v.run_for(0.2)
+    g.poke('_score', 12345 & 255, 12345 >> 8, 0, 0)
+    g.poke('_dbg_god', 0)
+    g.poke('_d_energy', 0)
+    g.poke('_player_dead', 1); g.poke('_d_boom', 1)
+    for key in ('title', 'scores'):         # the logo, then on to the scores
+        for i in range(3000):
+            g.v.run_for(0.05)
+            if (g.byte('_panel_hi') == 0xD8) if key == 'title' else (g.byte('_col_deck') == 0x71):
+                break
+    g.v.cmd('warp off')
+    g.v.run_for(0.4)
+    save(g, 'highscore.png')
 finally:
     g.stop()

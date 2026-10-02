@@ -117,6 +117,7 @@ void ride_lift(unsigned char li)
     static unsigned char k, prev, n;
     while (ready)
         ;
+    sound(SFX_LIFT);
     side_view();
     shaft(lift_shaft[li], 1);
     side_light(lift_deck[li]);
@@ -140,7 +141,7 @@ void ride_lift(unsigned char li)
             li = n;
             side_light(lift_deck[li]);
             deck_name(li);
-            sound(SND_LIFT);
+            sound(SFX_RIDE);
         }
     }
     if (lift_deck[li] != deck)

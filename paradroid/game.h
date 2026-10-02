@@ -30,18 +30,8 @@ extern unsigned char pp_code, pp_attr;
 extern volatile unsigned char keys_irq;
 extern unsigned char dbg_keys;
 extern unsigned char pool_left;
-extern unsigned char sfx_lo, sfx_hi, sfx_noise, sfx_len;
-extern signed char sfx_d;
-void sound(unsigned char n);            /* SND_..., droids.c */
-#define SND_SHOT    0
-#define SND_ESHOT   1
-#define SND_BOOM    2
-#define SND_HIT     3
-#define SND_PULSE   4
-#define SND_LIFT    5
-#define SND_ENERGY  6
-#define SND_TAKEN   7
-#define SND_LOST    8
+void sound(unsigned char n);            /* SFX_... (data.h), sfxcall.s */
+void sfx_tick(void);
 void eng_stack(void);
 void eng_init(void);
 void eng_show(void);
@@ -53,7 +43,6 @@ void r_done(void);
 void blk_set(void);
 void panel_put(void);
 unsigned char eng_keys(void);
-void eng_sfx(void);
 void eng_dirty(void);
 void eng_plain(void);
 

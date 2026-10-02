@@ -74,15 +74,16 @@ static void transfer(unsigned char i)
         ;
     won = transfer_game(i);
     if (won) {
-        sound(SND_TAKEN);
+        sound(SFX_COMPLETE);
         take_over(i);
         panel_status("Complete");
     } else if (d_type[0]) {
-        sound(SND_LOST);
+        sound(SFX_REJECTED);
         transfer_lost();
         panel_status("Rejected");
     } else {
         panel_status("Burnt Out");
+        sound(SFX_BURNT);
         burnt_out();
     }
     transfer_mode = 0;
@@ -204,6 +205,7 @@ static void play(void)
                 panel_status("Mobile");
             }
         }
+        sfx_tick();                     /* the original's own: hum, warning */
         move_player(k);
         player_fire(k);
         move_droids();
@@ -220,6 +222,7 @@ static void play(void)
                 lights_out = 1;
                 score += 250;
                 deck_colours();
+                sound(SFX_CLEARED);
                 panel_status(ship_cleared() ? "Fleet" : "Cleared");
                 if (ship_cleared()) {
                     score += 2000;
@@ -259,7 +262,6 @@ static void mc_font(void)
 /* the day's top and worst scores, with initials (title.c shows them); the
  * original starts with these */
 unsigned long top_score = 6809, low_score = 6502;
-char top_name[4] = "AEB", low_name[4] = "TSO";
 
 /* ======================================================================
  * The disk
@@ -362,14 +364,10 @@ static void terminated(void)
 static void title(void)
 {
     if (over) {
-        if (score > top_score) {
+        if (score > top_score)
             top_score = score;
-            strcpy(top_name, "P4 ");
-        }
-        if (score < low_score) {
+        if (score < low_score)
             low_score = score;
-            strcpy(low_name, "P4 ");
-        }
     }
     hide_player = 1;
     player_dead = 0;

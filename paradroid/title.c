@@ -34,7 +34,8 @@ void wait_tick(void);
 void mus_start(void);                   /* music.s: the original's sound */
 void mus_stop(void);
 extern unsigned long top_score, low_score;  /* paradroid.c: the day's */
-extern char top_name[4], low_name[4];
+#define SCORE_CELLS 17                  /* a score's line: the original's
+                                         * room for the number and initials */
 extern unsigned char _OVL_LAST__[];     /* free after the overlay */
 
 #define SCR0A ((unsigned char *)0xC000)
@@ -225,23 +226,21 @@ static void page_show(unsigned y, unsigned char with_pic)
     r_done();
 }
 
-/* the day's score into page 4's line at off: the number in eight cells,
- * " - ", the initials */
-static void score_line(unsigned off, unsigned long v, const char *name)
+/* the day's score into page 4's line at off: the number in the middle of
+ * the line, without the original's initials */
+static void score_line(unsigned off, unsigned long v)
 {
-    static unsigned char *l, i, c;
+    static unsigned char *l, i, n, d[8];
     l = (unsigned char *)brief_pages + off;
-    for (i = 8; i--; v /= 10)
-        l[i] = v || i == 7 ? brief_dig[(unsigned char)(v % 10)] : brief_misc[0];
-    l[8] = l[10] = brief_misc[0];
-    l[9] = brief_misc[1];
-    for (i = 0, l += 11; i < 3; ++i, l += 2) {
-        c = name[i] - 'A';
-        l[0] = c < 26 ? brief_cap[c * 2] : brief_misc[0];
-        l[1] = c < 26 ? brief_cap[c * 2 + 1] : brief_misc[0];
-    }
+    for (i = 0; i < SCORE_CELLS; ++i)
+        l[i] = brief_misc[0];
+    n = 0;
+    do
+        d[n++] = brief_dig[(unsigned char)(v % 10)];
+    while (v /= 10);
+    for (i = (SCORE_CELLS - n) >> 1; n; )
+        l[i++] = d[--n];
 }
-
 /* page n of the briefing, rolled up, on bg in letters fg, the border bd;
  * page 4 has the picture; 1 if fire ended it */
 static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, unsigned char bd)
@@ -261,8 +260,8 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
         memcpy(FONT1 + pic_code * 8, pic, pic_n * 8);
         free_code += pic_n;
         col_fig2 = pal_deck[pic[(unsigned)pic_n * 8 + pic_rows * 6 + 3]];
-        score_line(SCORE_TOP_AT, top_score, top_name);
-        score_line(SCORE_LOW_AT, low_score, low_name);
+        score_line(SCORE_TOP_AT, top_score);
+        score_line(SCORE_LOW_AT, low_score);
     }
     col_deck = bg;
     win_mc = pic_on ? 0x10 : 0;         /* hires but for the picture */

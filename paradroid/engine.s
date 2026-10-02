@@ -53,8 +53,8 @@
         .export _panel_put, _pp_off, _pp_code, _pp_attr
         .export _keys_irq, _eng_keys, _dbg_keys
         .export _pool_left, _eng_stack, _font_hi, _f_tint, _panel_hi, _win_mc
-        .export _snd_time, _sfx_lo, _sfx_hi, _sfx_noise, _sfx_len, _sfx_d, _eng_sfx
         .export _mus_hook
+        .import sfx_frame               ; sfx.s
         .importzp sp
 
 ; ---- TED ------------------------------------------------------------------
@@ -216,14 +216,6 @@ kprev:      .res 1
 kj:         .res 1
 kr:         .res 1
 
-; sound
-_snd_time:  .res 1
-_sfx_lo:    .res 1
-_sfx_hi:    .res 1
-_sfx_noise: .res 1
-_sfx_len:   .res 1
-_sfx_d:     .res 1              ; frequency change a picture, signed
-snd_f:      .res 2
 _mus_hook:  .res 2              ; music once a picture (title.c's, music.s)
 
 next_code:  .res 1
@@ -371,7 +363,6 @@ _eng_init:
         sta b_valid+1
         sta cl_n
         sta cl_n+1
-        sta _snd_time
         sta _dbg_keys
         sta keys_hit
         sta z_tag
@@ -1619,66 +1610,8 @@ addy:   sta z_t
         sta _d_y+1,y
         rts
 
-; ===========================================================================
-; Sound: one effect on voice 2
-; ===========================================================================
-
-; A sound effect: voice 2 at frequency sfx_hi/lo, moved by sfx_d (signed)
-; every picture, for sfx_len pictures; noise if sfx_noise.
-_eng_sfx:
-        php
-        sei
-        lda _sfx_lo
-        sta snd_f
-        sta TED_V2LO
-        lda _sfx_hi
-        and #3
-        sta snd_f+1
-        sta TED_V2HI
-        lda _sfx_noise
-        beq :+
-        lda #$40 | 6            ; voice 2 as noise
-        bne :++
-:       lda #$20 | 6            ; voice 2 as a square
-:       sta z_t
-        lda TED_SOUND
-        and #$90
-        ora z_t
-        sta TED_SOUND
-        lda _sfx_len
-        sta _snd_time
-        plp
-        rts
-
 ; music, while there is some: its player, once a picture
 mus_go: jmp (_mus_hook)
-
-; once a picture, from the interrupt
-sfx_frame:
-        lda _snd_time
-        beq @r
-        dec _snd_time
-        bne :+
-        lda TED_SOUND
-        and #$9F
-        sta TED_SOUND
-@r:     rts
-:       lda _sfx_d
-        beq @r
-        clc
-        adc snd_f
-        sta snd_f
-        lda _sfx_d
-        and #$80
-        beq :+
-        lda #$FF
-:       adc snd_f+1
-        and #3
-        sta snd_f+1
-        sta TED_V2HI
-        lda snd_f
-        sta TED_V2LO
-        rts
 
 ; ===========================================================================
 ; Keyboard and joysticks
