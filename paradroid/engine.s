@@ -1561,10 +1561,8 @@ _droids_step:
         bne @next
 @alive: lda _d_wait,x
         beq @go
-        dec _d_wait,x
-        bne @next
-        inc _d_choose,x         ; done waiting: a new direction
-        bne @next
+        dec _d_wait,x           ; (done waiting: on, and a new way only in
+        jmp @next               ; the middle of a block, as the original)
 @go:    txa
         asl a
         tay

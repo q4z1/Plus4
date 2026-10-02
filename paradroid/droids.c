@@ -124,12 +124,12 @@ static void droid_choose(unsigned char i)
 {
     static unsigned char w, dirs, k, n, pick, sp, bx, by, last;
     static signed char cx[3], cy[3];
-    /* the deck's waypoint in this block */
-    bx = d_x[i] >> 5;
-    by = d_y[i] >> 5;
-    last = wp_first[deck + 1];
+    /* the deck's waypoint here */
+    bx = d_x[i] >> 3;                   /* its character: a waypoint's */
+    by = d_y[i] >> 3;                   /* own, as the original's $170D, */
+    last = wp_first[deck + 1];          /* not just one in its block */
     for (w = wp_first[deck]; w < last; ++w)
-        if ((wp_x[w] >> 2) == bx && (wp_y[w] >> 2) == by)
+        if (wp_x[w] == bx && wp_y[w] == by)
             break;
     if (w == last)
         return;                         /* not a waypoint: keep going */

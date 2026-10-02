@@ -125,9 +125,12 @@ class Vice:
         out = self.cmd(f'm {addr:04x} {addr + length - 1:04x}')
         data = []
         for line in out.splitlines():
-            m = re.match(r'>C:([0-9a-f]{4})\s+((?:[0-9a-f]{2}\s+)+)', line)
+            m = re.match(r'>C:[0-9a-f]{4}  (.*)', line)
             if m:
-                data += [int(b, 16) for b in m.group(2).split()]
+                # the bytes, before the three spaces and the text column
+                # (which may look like bytes itself)
+                hexes = re.split(r'\s{3,}', m.group(1))[0].split()
+                data += [int(b, 16) for b in hexes[:16]]
         return data[:length]
 
     def poke(self, addr, values):
