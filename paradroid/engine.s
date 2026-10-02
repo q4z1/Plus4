@@ -1496,10 +1496,14 @@ cell_get:
         sta (p_scr),y
         inc next_code
         lda _f_tint             ; the figure's colour, multicolour,
-        bne :+
-        lda (p_att),y
+        beq :+
+        sta (p_att),y
+        ldx #0                  ; (and nothing behind it: the deck's lines
+        beq :++                 ; would show in that colour too)
+:       lda (p_att),y
         ora #$08                ; or the deck's, multicolour
-:       sta (p_att),y
+        sta (p_att),y
+:
         lda code_lo,x           ; behind it: the deck character in multicolour
         sta p_src
         lda code_hi,x

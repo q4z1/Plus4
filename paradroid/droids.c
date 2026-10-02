@@ -264,8 +264,8 @@ static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
 {
     if (i == 0 && dbg_god)
         return;
-    if (!dmg)
-        return;
+    if (!dmg || d_boom[i])
+        return;                         /* (exploding already: it stays so) */
     if (d_energy[i] > dmg) {
         d_energy[i] -= dmg;
         if (i == 0)
@@ -276,6 +276,7 @@ static void hit(unsigned char i, unsigned char dmg, unsigned char by_player)
     if (i == 0) {
         player_dead = 1;
         d_boom[0] = 1;
+        d_vx[0] = d_vy[0] = 0;          /* the explosion stays where it is */
         sound(SND_BOOM);
         return;
     }
@@ -390,6 +391,8 @@ void collide(void)
     static int dx, dy;
     static signed char d;
     touched = 0;
+    if (d_boom[0])
+        return;                         /* nothing pushes an explosion */
     for (i = 1; i < nd; ++i) {
         if (d_boom[i])
             continue;
