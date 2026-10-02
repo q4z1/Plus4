@@ -11,6 +11,7 @@ mkdir -p build
 # pictures' slots take over afterwards, goes to mkdata (linked after
 # data.o: the slots start where data.s's INITDATA does)
 $B/cl65 -t none --start-addr 0x0500 -o build/drive1551.bin drive1551.s
+$B/cl65 -t none --start-addr 0x0500 -o build/drive1541.bin drive1541.s
 $B/cl65 -t plus4 -g -c -o build/drivecode.o build_drive.s
 $B/cl65 -t plus4 -O -Cl -g -c -o build/fastinit.o fastinit.c
 $B/cl65 -t plus4 -g -c -o build/sfx.o sfx.s
@@ -19,9 +20,16 @@ for o in build/drivecode.o build/fastinit.o; do
     n=$($B/od65 -S $o | awk '/INITDATA:/{print $2}')
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done
-# (the sound effects' player too: it is copied to $FC00 at the start)
+# (the sound effects' player too: it is copied to $FC00 at the start; and
+# the Plus/4's halves of the fast loaders, one of which goes to FLRUN)
 n=$($B/od65 -S build/sfx.o | awk '/SFXCODE:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
+$B/cl65 -t plus4 -g -c -o build/fastload51.o fastload51.s
+$B/cl65 -t plus4 -g -c -o build/fastload41.o fastload41.s
+for o in build/fastload51.o:FL51 build/fastload41.o:FL41; do
+    n=$($B/od65 -S ${o%:*} | awk "/${o#*:}:/{print \$2}")
+    INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
+done
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
 # (and the console's and the figures' code, copied to $F400 at the start:
 # its size is known once they are compiled, which needs mkdata's data.h -
@@ -47,7 +55,7 @@ $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
 $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
 $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
     -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/music.o build/move.o build/figs.o build/sfxcall.o \
+    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/move.o build/figs.o build/sfxcall.o \
     build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
     build/sfx.o
 
@@ -56,8 +64,11 @@ $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl
 # pictures (three blocks each, a track further matters
 # little to them); the program, which the KERNAL loads, after them, 10
 # apart as the DOS would put them, and first in the directory, so that
-# LOAD"*" finds it.
-IL=${IL:-8}
+# LOAD"*" finds it. IL 14: a 1541 is ready for the next sector 14 on
+# (its DOS decodes a sector and takes the next job for 50 ms, the transfer
+# takes another 55); a 1551 would be faster with 8 (5.2 s for the title
+# instead of 7.5; the 1541 12.3 s instead of 7.0).
+IL=${IL:-14}
 set -- build/paradroid.d64 "paradroid,pd" build/title.bin:title:$IL
 for f in build/pics/p*; do
     set -- "$@" "$f:$(basename "$f"):$IL"

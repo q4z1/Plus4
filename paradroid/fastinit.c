@@ -2,9 +2,11 @@
  * fastinit.c - the fast loader into the drive, once at the start
  *
  * Asks the drive at device dev who it is (the reply to a UI command: "CBM
- * DOS V2.6 TDISK" for a 1551), and for a 1551 sends the drive code
- * (drive1551.s) over with the DOS's M-W commands and starts it with M-E.
- * Anything else, a 1541 too, keeps loading with the KERNAL (fl_kind 0).
+ * DOS V2.6 TDISK" for a 1551, "... 1541" for a 1541), sends the drive code
+ * for it (drive1551.s, drive1541.s) over with the DOS's M-W commands and
+ * starts it with M-E, and puts the Plus/4's half for it (fastload51.s,
+ * fastload41.s) where fastload.s calls it. Any other drive keeps loading
+ * with the KERNAL (fl_kind 0).
  *
  * It also puts the sound effects' player where it runs (sfx.s).
  *
@@ -22,8 +24,11 @@
 #pragma bss-name (push, "LOWBSS")
 
 extern unsigned char fl_kind;
-extern const unsigned char drive1551[];
-extern const unsigned drive1551_size;
+extern const unsigned char drive1551[], drive1541[];
+extern const unsigned drive1551_size, drive1541_size;
+/* the Plus/4's halves, linked to run at FLRUN (paradroid.cfg) */
+extern unsigned char _FL51_LOAD__[], _FL51_RUN__[], _FL51_SIZE__[];
+extern unsigned char _FL41_LOAD__[], _FL41_RUN__[], _FL41_SIZE__[];
 
 static char buf[40];
 
@@ -38,9 +43,10 @@ extern unsigned char snd_len[2];
 
 void fl_init(unsigned char dev)
 {
-    static unsigned a;
+    static unsigned a, size, at;
     static unsigned char n, i;
     static int got;
+    static const unsigned char *code;
     memcpy(_SFXCODE_RUN__, _SFXCODE_LOAD__, (unsigned)_SFXCODE_SIZE__);
     memcpy(_SFXDATA_RUN__, _SFXDATA_LOAD__, (unsigned)_SFXDATA_SIZE__);
     memcpy(_HICODE_RUN__, _HICODE_LOAD__, (unsigned)_HICODE_SIZE__);
@@ -50,22 +56,33 @@ void fl_init(unsigned char dev)
         return;
     got = cbm_read(15, buf, sizeof buf - 1);
     buf[got > 0 ? got : 0] = 0;
-    if (!strstr(buf, "tdisk")) {
+    if (strstr(buf, "tdisk")) {
+        fl_kind = 1;
+        code = drive1551;
+        size = drive1551_size;
+        at = 0x0500;
+        memcpy(_FL51_RUN__, _FL51_LOAD__, (unsigned)_FL51_SIZE__);
+    } else if (strstr(buf, "1541")) {
+        fl_kind = 2;
+        code = drive1541;
+        size = drive1541_size;
+        at = 0x0400;
+        memcpy(_FL41_RUN__, _FL41_LOAD__, (unsigned)_FL41_SIZE__);
+    } else {
         cbm_close(15);
         return;
     }
-    fl_kind = 1;
-    /* M-W: 32 bytes at a time to $0500 on */
-    for (a = 0; a < drive1551_size; a += 32) {
-        n = drive1551_size - a < 32 ? drive1551_size - a : 32;
+    /* M-W: 32 bytes at a time to its place on */
+    for (a = 0; a < size; a += 32) {
+        n = size - a < 32 ? size - a : 32;
         buf[0] = 'm';
         buf[1] = '-';
         buf[2] = 'w';
-        buf[3] = (unsigned char)(0x0500 + a);
-        buf[4] = (unsigned char)((0x0500 + a) >> 8);
+        buf[3] = (unsigned char)(at + a);
+        buf[4] = (unsigned char)((at + a) >> 8);
         buf[5] = n;
         for (i = 0; i < n; ++i)
-            buf[6 + i] = drive1551[a + i];
+            buf[6 + i] = code[a + i];
         cbm_write(15, buf, 6 + n);
     }
     /* M-E: the drive code runs from now on, and nothing more goes to the
@@ -73,7 +90,7 @@ void fl_init(unsigned char dev)
     buf[0] = 'm';
     buf[1] = '-';
     buf[2] = 'e';
-    buf[3] = 0x00;
-    buf[4] = 0x05;
+    buf[3] = (unsigned char)at;
+    buf[4] = (unsigned char)(at >> 8);
     cbm_write(15, buf, 5);
 }

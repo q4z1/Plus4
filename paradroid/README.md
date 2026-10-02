@@ -378,20 +378,40 @@ each title, and the pictures are made again when a game starts. Loading
 something more often, for a lift or a transfer, would cost too much time,
 which is why the decks stay in memory.
 
-With a **1551**, the Plus/4's own drive, a **fast loader** loads the files
-while the picture and the game's interrupt go on: the title in about 3.7
-seconds instead of 13 seconds of black screen with the KERNAL, a droid's
-picture in about one. At the start the game asks the drive who it is (the
-reply to `UI`: `CBM DOS V2.6 TDISK`) and sends it [drive1551.s](drive1551.s)
-with the DOS's `M-W` commands, then starts it with `M-E`
-([fastinit.c](fastinit.c), run once and then overwritten). From then on
-the drive waits for a file's name on its parallel port, finds the file in
-the directory, reads its sectors with the DOS's job queue and sends them a
-byte at a time. Each byte is answered by the other side's strobe
-([fastload.s](fastload.s)), so neither side depends on the other's
-timing: not on interrupts, not on the TED taking cycles, not on how an
-emulator times the drive. If the drive code does not answer, the KERNAL
-loads from then on.
+With a **1551** or a **1541**, a **fast loader** loads the files while the
+picture and the game's interrupt go on. At the start the game asks the
+drive who it is (the reply to `UI`: `CBM DOS V2.6 TDISK` for a 1551,
+`... 1541` for a 1541) and sends it its drive code with the DOS's `M-W`
+commands, then starts it with `M-E` ([fastinit.c](fastinit.c), run once
+and then overwritten). From then on the drive waits for a file's name,
+finds the file in the directory, reads its sectors with the DOS's job
+queue and sends them over. The Plus/4's half for that drive is copied to
+the end of the program's memory at the start ([fastload.s](fastload.s)
+calls it there); there is room for one of them, not both. If the drive
+code does not answer, the KERNAL loads from then on.
+
+- **1551** ([drive1551.s](drive1551.s), [fastload51.s](fastload51.s)):
+  over its parallel port, a byte at a time, each answered by the other
+  side's strobe, so neither side depends on the other's timing.
+- **1541** ([drive1541.s](drive1541.s), [fastload41.s](fastload41.s)):
+  over the serial bus, two bits at a time on CLK and DATA, clocked by the
+  Plus/4 with ATN: at each change of ATN the drive puts the next pair on
+  the lines, and the Plus/4 reads it a fixed time later. That time is
+  the only timing there is, and interrupts or the TED's stolen cycles only
+  make it longer, so the picture can stay on. The drive's own interrupt
+  is off meanwhile (its handler could take milliseconds), and on while it
+  reads a sector. ATN is wired into the 1541's DATA line through an
+  acknowledge bit, which the drive code turns with every change. Between
+  two changes of ATN the drive has only a table lookup, a shift and a
+  mask to do (a table it makes itself at the start, at `$0700`); a sector
+  takes about 55 ms to go over. Yape, whose TED is closer to the real one,
+  has a true 1541 but no 1551, so this is the loader it uses.
+
+The title (9.7 KB) loads in 7.0 seconds with a 1541 and 7.5 with a 1551,
+measured in VICE with `tests/loadtime.py`; with the KERNAL a 1541 takes
+much longer, with a black screen. Most of the time is not the
+transfer but the DOS: after a sector, a 1541 needs about 50 ms (decoding
+it, taking the next job) before it can read the next one.
 
 The droid enquiry at a console loads the droids' pictures. What makes a
 load slow is the drive's motor, which the DOS stops when the drive is
@@ -404,17 +424,14 @@ in the drive's buffer, and is not read again for the load.
 
 The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
 for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
-right for the KERNAL; the fast loader is ready for the next one sooner,
-and with 8 apart the title loads a second faster. The fast loader's files
-lie nearest the directory, the title on the very next track, then the
-pictures; the program, which the KERNAL loads, comes after
-them, 10 apart, and first in the directory.
-
-Any other drive, a **1541** too, loads with the KERNAL. A fast loader for
-the 1541 was tried: over the serial bus, with every bit answered, it
-needed about 87 ms for a block, and the 1541's DOS needs a long lead
-before it reads a sector, so the title still took over 7 seconds. Not
-worth its memory on a Plus/4.
+right for the KERNAL. With the fast loader, a 1541 is ready for the next
+sector 14 on (50 ms of its DOS and 55 of the transfer, about 9.5 ms a
+sector): 14 apart, the title takes 7.0 seconds instead of 12.3 with 8.
+A 1551 would rather have 8 (5.2 seconds instead of 7.5); one disk serves
+both, and 14 is the better one for the two together. The fast loader's
+files lie nearest the directory, the title on the very next track, then
+the pictures; the program, which the KERNAL loads, comes after them, 10
+apart, and first in the directory.
 
 Loading with the KERNAL needs care in a program that uses all of memory:
 
@@ -474,7 +491,7 @@ Each step draws the rows the window shows from the page's lines.
 | [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead, the doors, droids touching the player |
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard |
-| [fastload.s](fastload.s), [drive1551.s](drive1551.s), [fastinit.c](fastinit.c) | the fast loader: the Plus/4's half, the 1551's half, and sending that to the drive |
+| [fastload.s](fastload.s), [fastload51.s](fastload51.s), [fastload41.s](fastload41.s), [drive1551.s](drive1551.s), [drive1541.s](drive1541.s), [fastinit.c](fastinit.c) | the fast loaders: what the Plus/4's halves share, its half for a 1551 and for a 1541, the drives' halves, and sending the right one to the drive |
 | [game.h](game.h) | what the parts share |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
@@ -501,7 +518,8 @@ xplus4 -autostart paradroid/build/paradroid.d64
 
 The disk is made by `tools/d64.py`. The `.prg` alone does not run: it
 needs the briefing from the disk. VICE's `xplus4` has a 1551 at device 8
-by default; with `-drive8type 1541` the game loads with the KERNAL.
+by default; with `-drive8type 1541` it has a 1541, and the game loads
+with the fast loader for that.
 
 `tools/extract.py` is only needed to take the data out of the original
 again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in
@@ -522,6 +540,7 @@ monitor on a port of its own:
 | `speed.py keys s` | ticks per second while keys are held (16.7 is full speed) |
 | `profile.py keys` | where the time goes, by symbol, sampled (rough) |
 | `chprof.py keys` | where the time goes, by symbol, every cycle of the last pictures |
+| `loadtime.py [drive]` | how long the title takes to load, with a 1551 or a 1541 |
 | `rowcheck.py` | every line of the window on screen against memory, for all eight fine positions |
 | `edges.py` | the window's top edge for every fine position |
 | `screens.py` | the screenshots in this README |
@@ -534,11 +553,13 @@ the real one than VICE's: a build of Yape from its sources
 `~/.cache/paradroid/yapesdl`, with two hooks in its `main.cpp`: SIGUSR1
 enters its monitor, which reads its commands from stdin, and SIGUSR2
 saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has no
-true 1551; with a disk image it uses a true 1541, so the game loads with
-the KERNAL there, slowly.
+true 1551; with a disk image it uses a true 1541. The program itself
+loads with the KERNAL there, slowly; the tests run Yape without its speed
+limit.
 
 | | |
 | --- | --- |
 | `yape_boot.py [s] [warp]` | the start from the disk: registers and a screenshot every five seconds |
 | `yape_play.py [s] [seed]` | the title, fire, a random joystick; fails if the game stops ticking |
 | `yape_rowcheck.py` | `rowcheck.py` in Yape |
+| `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |
