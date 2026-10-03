@@ -458,7 +458,15 @@ file brings a character set of its own: the 109 different characters of
 the panel's letters it uses, put into picture 1's character set, which
 both pictures show meanwhile. That leaves room for each picture's copies.
 Between rows only the top row is made again, the fine scroll moves the
-rest; a step that took longer, a new row, is made up for by the next.
+rest. Each step is made as soon as the last one shows and handed to the
+interrupt in the picture before its turn, so it shows exactly every third
+picture. Making the 16 rows of a new row of characters took a few
+pictures in C, twice (each picture needs them), and the page stood still
+meanwhile and then caught up two lines at a time; on Yape's TED, which
+leaves the processor less time than VICE's, that showed. It is assembly
+now ([briefrows.s](briefrows.s)) and takes under a picture.
+`tests/yape_brief.py` takes the pictures one by one and measures how far
+the page moves in each.
 Each step draws the rows the window shows from the page's lines.
 
 ## What is not 1:1
@@ -494,6 +502,7 @@ Each step draws the rows the window shows from the page's lines.
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the ship's computer, run at `$F400`: menu, droid enquiry, deck plan, ship |
 | [music.s](music.s) | the title's sound, in its overlay |
+| [briefrows.s](briefrows.s) | the briefing's text into the window's rows, in the title's overlay |
 | [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them |
 | [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead, the doors, droids touching the player |
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
@@ -570,4 +579,6 @@ limit.
 | `yape_play.py [s] [seed]` | the title, fire, a random joystick; fails if the game stops ticking |
 | `yape_rowcheck.py` | `rowcheck.py` in Yape |
 | `yape_xfer.py [n]` | transfers in Yape, their droids' pictures loaded with the fast loader |
+| `yape_brief.py [n]` | the briefing in Yape, n pictures in a row: how far it moves in each |
+| `yape_title.py` | the title's scores page in Yape, with its picture |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

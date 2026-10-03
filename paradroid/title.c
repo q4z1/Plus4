@@ -156,6 +156,14 @@ static void frame(unsigned char to)
  * too, in the rows from PIC_ROW. */
 static unsigned char *cut, cut_end;
 
+/* the page's text (briefrows.s): its lines from br_p on, into br_rows
+ * rows at br_d */
+void brief_rows(void);
+extern unsigned char *br_d;
+extern const unsigned char *br_p;
+#pragma zpsym ("br_p")
+extern unsigned char br_rr, br_rows, br_k, br_code, br_cutend;
+
 static unsigned char cut_copy(unsigned char c, unsigned char k)
 {
     static unsigned char *g, *o;
@@ -178,7 +186,7 @@ static void page_show(unsigned y, unsigned char with_pic)
 {
     static unsigned char *d, *a, *q;
     static const unsigned char *p, *l;
-    static unsigned char k, rr, r, n, h, w, i, c, half, code;
+    static unsigned char k, rr, r, w, i, c, half, code;
     static unsigned char rows = 16;     /* (in the overlay: a start value) */
     k = (unsigned char)-(unsigned char)y & 7;
     rr = (y + k) >> 3;                  /* the page's row in window row 1 */
@@ -190,22 +198,19 @@ static void page_show(unsigned y, unsigned char with_pic)
     /* each picture copies of its own: the free characters halved */
     half = (unsigned char)(256 - free_code) >> 1;
     code = back ? free_code + half : free_code;
-    cut = &code;
-    cut_end = half;
-    for (p = bpage + 1; (r = *p) != 0xFF; p += 3 + n) {
-        n = p[2];
-        for (h = 0; h < 2; ++h) {
-            w = r + h + 1 - rr;         /* its window row */
-            if (w >= rows || (!w && !k))
-                continue;
-            q = d + w * 40 + p[1];
-            for (i = 0; i < n; ++i) {
-                c = h ? brief_bot[p[3 + i]] : brief_top[p[3 + i]];
-                q[i] = w ? c : c ? cut_copy(c, k) : 0;
-            }
-        }
-    }
+    br_d = d;
+    br_rr = rr;
+    br_rows = rows;
+    br_k = k;
+    br_code = code;
+    br_cutend = half;
+    br_p = bpage + 1;
+    brief_rows();
+    p = br_p;
     bnext = p[1] ? p + 1 : brief_pages;
+    code = br_code;                     /* (the picture's cut copies after) */
+    cut = &code;
+    cut_end = br_cutend;
     if (with_pic) {
         /* its column of cells: the text's colour, then the picture's */
         for (w = 0, q = a + 2; w < rows; ++w, q += 40)
@@ -222,8 +227,7 @@ static void page_show(unsigned y, unsigned char with_pic)
     }
     e_sx = 0;
     e_cutrow = 0;
-    e_s = k;
-    r_done();
+    e_s = k;                            /* (r_done(): brief(), at its time) */
 }
 
 /* the day's score into page 4's line at off: the number in the middle of
@@ -283,17 +287,24 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
     for (y = 0; ; ) {
         while (ready)
             ;
+        /* each step made as soon as the last is shown, and shown at its
+         * picture: ready in picture t + 2, so the interrupt shows it from
+         * t + 3 on - every third picture, however long the step took to
+         * make (one with a new row of characters takes about one) */
         page_show(y, pic_on);
         if (y == 0 || y == end) {
+            r_done();
             hit = fire_in(120);
             t = frames - 3;
-        } else
-            hit = fire_by(t + 3);
+        } else {
+            hit = fire_by(t + 2);
+            r_done();
+        }
         if (hit || y == end)
             break;
-        /* as many lines as ticks have gone by: a step that took longer
-         * (a new row of characters) is made up for */
-        dt = (unsigned char)(frames - t) / 3;
+        /* as many lines as ticks have gone by: a step that was late after
+         * all is made up for */
+        dt = (unsigned char)(frames + 1 - t) / 3;
         t += dt * 3;
         y += keys_irq & K_DOWN ? dt << 1 : dt;
         if (y > end)

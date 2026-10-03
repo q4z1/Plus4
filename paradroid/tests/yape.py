@@ -58,7 +58,7 @@ def ppm_to_png(src, dst):
 
 
 class Yape:
-    def __init__(self, image, warp=False):
+    def __init__(self, image, warp=False, series=0):
         kill_emulators()
         conf = os.path.join(HOME, 'Gaia', 'yapeSDL')
         os.makedirs(conf, exist_ok=True)
@@ -68,6 +68,8 @@ class Yape:
         env = ['--env=XDG_DATA_HOME=' + HOME, '--env=YAPE_SHOT=' + SHOT]
         if warp:
             env.append('--env=YAPE_WARP=1')
+        if series:                  # png_series(): so many pictures in a row
+            env.append('--env=YAPE_SHOTN=%d' % series)
         self.p = subprocess.Popen(
             ['flatpak-spawn', '--host'] + env +
             ['gamescope', '--backend', 'headless', '-W', '1280', '-H', '800', '--',
@@ -128,6 +130,21 @@ class Yape:
             time.sleep(0.05)
         ppm_to_png(SHOT, path)
         return path
+
+    def png_series(self, prefix):
+        """the next pictures, one a frame (as many as series= said), as
+        prefix000.png on; their names"""
+        import glob
+        for f in glob.glob(SHOT + '.*'):
+            os.remove(f)
+        host('pkill', '-USR2', '-x', 'yapesdl')
+        self._read_until(b'SHOT ')
+        out = []
+        for f in sorted(glob.glob(SHOT + '.[0-9][0-9][0-9]')):
+            png = '%s%s.png' % (prefix, f[-3:])
+            ppm_to_png(f, png)
+            out.append(png)
+        return out
 
     def stop(self):
         try:
