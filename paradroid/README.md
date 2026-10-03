@@ -3,15 +3,21 @@
 **Paradroid** by Andrew Braybrook (Graftgold, published by Hewson, 1985) was
 written for the C64, which has hardware sprites and a video chip that scrolls
 smoothly under a fixed status panel. The Plus/4 has neither of those, and
-this version is about how it manages anyway.
+this version is about how it manages anyway - as close to the original as
+the machine allows.
 
 The decks, their blocks and characters, the waypoints the droids walk, the
-lifts, the droid types, the status panel, the side view of the ship and the
-briefing all come from the original. `tools/extract.py` took them out of the memory of
-the C64 game running in VICE. The program around them is new, in C with the
-time-critical parts in assembly.
+lifts, the droid types, the status panel, the side view of the ship, the
+briefing, the droids' pictures, the console's pages, the colours, the sound
+effects and the title's sound all come from the original, taken out of the
+memory of the C64 game running in VICE. How it plays - driving, walls,
+doors, bumps, the droids' ways, a game's start and end - was read from the
+original's code and measured against it, often to the pixel and the tick.
+The program around it is new, in C with the time-critical parts in
+assembly. It loads from a disk, with a fast loader for both the 1551 and
+the 1541.
 
-![A deck: the influence device, droid 247, a laser on its way](screenshots/deck.png)
+![A deck: the influence device, a droid, a laser on its way](screenshots/deck.png)
 
 **Controls**
 
@@ -26,11 +32,10 @@ time-critical parts in assembly.
 
 On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
 key as fire (Yape puts the left Ctrl on `C=` and the right one on `CTRL`).
-In Yape here only the **right Ctrl** key fires: Space and the left Ctrl
-do not arrive in the game, though Yape's keyboard map has them where the
-game looks (row 7, bits 4 and 5, beside `CTRL` at bit 2) - not found out
-why yet.
-The original's briefing said "Plug your joystick into port 2" and
+In Yape here only the **right Ctrl** key fires: Space and the left Ctrl do
+not arrive in the game, though Yape's keyboard map has them where the game
+looks (row 7, bits 4 and 5, beside `CTRL` at bit 2) - not found out why
+yet. The original's briefing said "Plug your joystick into port 2" and
 "Control is by joystick only"; here both ports and the keys work, and the
 briefing says so.
 
@@ -50,7 +55,12 @@ original's, read from its code:
 - How much energy you may have **sinks** while you stay in a host: one
   point every 128 ticks in the 001, every 16 in the 999. When it reaches
   nothing, so do you. Moving on to a new host resets it. **Energizers**
-  refill you up to it, at 5 points of score per point of energy.
+  refill you up to it, at 5 points of score per point of energy. Below 8,
+  the player flashes from white to black and back, with a warning sound.
+- Touching a droid is a **bump**: the player is thrown back at twice its
+  speed (at most its host's top speed; at 2 up and left if it stood
+  still), the droid turns round and waits 16 ticks, and the stronger of
+  the two hurts the weaker. It bumps once until the two are apart again.
 - A lost transfer throws you out of your host, back into the bare 001,
   and takes that host's kill points off your score. Lost as the 001, it
   is the end.
@@ -60,29 +70,23 @@ original's, read from its code:
   slowly. While it is up it pays points, and the ALERT consoles turn from
   green through yellow and orange to red.
 
-A game starts as the original's: a page with the 001 and what it is there
-for, "Game on!" in the panel, for three and a half seconds or until fire;
-then the 001 is beamed aboard, with the original's sound, at the first
-waypoint of a deck between 4 and 7 (its top left; the droids start on the
-waypoints after it), flashing from white to black and back for 32 steps
-of two pictures, while the droids stand still. That flashing is the
-original's warning of low energy: it starts with 7 for that while, and
-the player flashes the same way whenever its energy is below 8.
-
-Touching a droid is a **bump**, as in the original's code: the player is
-thrown back at twice its speed (at 2 up and left if it stood still that
-way), the droid turns round and waits 16 ticks, and the stronger of the
-two hurts the weaker. It bumps once until the two are apart again.
-
-A game ends as the original's ($378B): the window full of static - its
-four noise characters at random, black on white, going round and
-rolling down the lines, with its noise - for 1.2 seconds, here for as
-long as the 999's picture takes to load (the rolling is the interrupt's,
-so it goes on meanwhile), then the 999 with "Transmission terminated"
-and its rising tune, for 4.2 seconds.
-
 When a deck has no droids left, its lights go out. When the whole ship is
 dark, the next ship of the fleet follows, with droids a class higher.
+
+**A game starts** as the original's: a page with the 001 and what it is
+there for, "Game on!" in the panel, for three and a half seconds or until
+fire. Then the 001 is beamed aboard, with the original's sound, at the
+first waypoint of a deck between 4 and 7 - its top left; the droids start
+on the waypoints after it - flashing as with low energy (it starts with
+7 for that while) for 32 steps of two pictures, while the droids stand
+still.
+
+**A game ends** as the original's: the window full of static - its four
+noise characters at random, black on white, going round and rolling down
+the lines, with its noise - for 1.2 seconds, here for as long as the 999's
+picture takes to load (the rolling is the interrupt's, so it goes on
+meanwhile); then the 999 with "Transmission terminated" and its rising
+tune, for 4.2 seconds.
 
 The game runs in ticks of three pictures, as the original does: 16.7 a
 second. The window scrolls a pixel at a time in any direction.
@@ -96,7 +100,7 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
 | **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and are files on the disk. |
 | ![Console](screenshots/console.png) | ![Deck plan](screenshots/plan.png) |
-| **Console.** The original's first page and its four symbols: leave, droid enquiry, deck plan, ship. | **Deck plan.** As the original draws it: a character per block, the character's code being the block's number, in its characters and colours. |
+| **Console.** The original's first page and its four symbols: leave, droid enquiry, deck plan, ship. | **Deck plan.** As the original draws it: a character per block, the character's code being the block's number, in its characters and the deck's colours; the energizers' symbol turns and the player's blinks. |
 | ![Droid enquiry](screenshots/droids.png) | ![Its pages](screenshots/droids_more.png) |
 | **Droid enquiry.** For the types up to your host's, with the original's picture. | Its pages are the original's, read off its screens for every type (`tools/console.py`) and stored with each picture's file. |
 
@@ -111,7 +115,226 @@ Each of the title's screens is built with the picture off - only the
 border shows, in the coming screen's colour - and switched on whole: the
 logo takes some 16 pictures to build, a page about 7.
 
-## What is new compared with the other games here
+## As the original, measured
+
+### Driving, walls and doors
+
+The player drives as the original's does, read from its code in x64sc
+([move.s](move.s)): the speed is a signed 8.8 number per axis; the
+joystick adds 0.8125 a tick (0.8086 the other way), up to the host's top
+speed by its drive; let go, it falls by 0.6875 a tick. The position moves
+by the whole pixels of it, rounded up as there. So it starts with 1, 2, 3,
+4, 5, 5, 6, 7 pixels a tick and rolls out with 7, 6, 5, 5, 4, 3, 3, 2, 1,
+tick for tick as in the original.
+
+Walls are characters there, not blocks: a character code from `$80` on. A
+wall block is solid only in its two middle characters, a console often
+only in its outermost row. Each tick, as there (`$39F9`, `$29C1`,
+`$3849`): first the speed, then the walls - three points around the
+player's character ((x + 7) / 8 across and down) for each way, looked at
+only the way it drives (left and up also standing still); a wall there
+stops it, its position set to 1 into its character driving right or
+down, to the next character's start driving left or up - and only then
+the move, by the speed's whole part. Driven into walls from one place on
+the same deck in eight ways, the original and this stop on the same
+pixel. The walls of each block are four bits per character row, kept in
+the unused end of the block code tables at `$E800`.
+
+The doors open as the original's (`$2A3E`, `$2A6D`, `$2B08`): when one of
+those twelve points lies on a door's frame (the characters either side of
+the door), the first tick only notes the door, and each tick after it
+opens a row (or a column) more; untouched, it shuts one a tick. Driven at
+a door, the player waits for it as long as in the original, to the tick.
+A droid by a door opens it too; the original's droids touch it with the
+points they look ahead at.
+
+The droids choose their ways as the original's (from up to three ways of a
+waypoint, each a third, or eight ticks' wait), at the original's speeds,
+and like the original's they look ahead before each step: their
+character and the next two. A wall there, a door not open yet, and they
+wait two ticks. They do that near the player, where the doors open and
+close; elsewhere the doors stay shut, and the droids go on through them.
+
+The window follows the player across in steps of two pixels, in step with
+its figure: the figures are of multicolour pixels, two wide, and the
+player stands still in the middle of the window, as the original's
+sprite. Measured against the original's screen (the same deck, the same
+place, the energizer's dots found to the pixel), its deck stands a
+character up and left of where the player's own coordinates put it: its
+player's sprite is drawn a character right of and below its place, its
+droids' sprites are not. So here too the window and the player's figure
+are a character on, and where figures meet - bumps, shots, the droids'
+aim, which the original leaves to its sprites' collisions - the player
+counts where its figure is.
+
+### The decks' colours
+
+Every deck has its own colours, as in the original: each character
+belongs to one of its colour classes, and each deck has one of eight
+schemes, which give the classes their colours - read from the original
+([data/colours.txt](data/colours.txt)). The scheme's first colour is the
+window's background, its fourth the border's and the panel frame's. A
+deck whose droids are gone has the dark scheme 7, and the ALERT console's
+lights take the alert's colour. On the Plus/4 the colours are the nearest
+of the TED's, the deck's characters' those of 0-7, as they turn
+multicolour where figures are; the light green is a level darker than the
+nearest, which left white figures and doors on it hard to see. The
+console's deck plan, which shows the deck's own characters, has the
+scheme too.
+
+### Characters that move
+
+The original animates some of the deck's characters itself, and so does
+this (phases and speeds read from its lists, [data/anim.txt](data/anim.txt)):
+the energizer's character `$14` turns a phase every three ticks (`$2605`,
+list `$6C28`); the deck plan's symbol for an energizer is that same
+character, and turns there too, while the plan's player blinks, on three
+phases and off for one. Every other tick the energizer's dots, its
+characters `$4C`-`$4F`, go round one character on (`$38C4`). The 001 has
+the original's turning dome, a slanted gap running round it: measured in
+x64sc, a hires pixel a tick over eight positions; here a multicolour
+pixel every two ticks over four - the same speed.
+
+### The transfer game
+
+The board is the original's, character for character: its screen and
+characters (`$F1`–`$FE`, `$D0`, `$D1` of the deck's set, multicolour) were
+read in VICE while the original's transfer game ran. How the parts are
+laid out and how a pulse passes them follows
+[FreedroidClassic](https://github.com/ReinhardPrix/FreedroidClassic)
+(`src/takeover.c`), whose authors rebuilt Paradroid. It has the same parts
+as the original's screen and the same panel texts (*Colour? 76*,
+*Finish -52*, always two digits). A side has four layers of twelve lines:
+where pulses go in, two layers of parts, the connection to the column.
+
+The work done for every line in every tick is in assembly
+([xfer.s](xfer.s)): passing the pulses on, drawing a line again when it
+changed, and the dashes moving along live wires, which are the two wire
+characters turned by a pixel. Laying the board out and the course of the
+game stay in C ([transfer.c](transfer.c)), and its state lives in the low
+memory at `$0C68`, which only a disk load could disturb.
+
+### The console
+
+The ship's computer is the original's, read from it in VICE: its first
+page (unit, ship, deck, alert) beside four symbols, which are its hires
+sprites; the deck's names; and for each droid type its pages (entry,
+class, height, weight, drive, brain, armament, sensors, notes). The
+original builds those from a dictionary of words at `$C000`; they were
+read off its screens instead, by driving its joystick through every page
+of every type in the monitor and decoding the screen memory. The deck plan
+is drawn the way the original's code does it: each block's number is the
+character code, in the original's characters `$00`-`$1F`, hires, with the
+deck's blocks 3 to 41 across.
+
+The console is always in memory, so it opens at once: its code (1.7 KB)
+at `$F400`, copied there at the start, its data in the program. The pages
+about a droid come with its picture's file.
+
+### The droids' pictures
+
+The original draws a droid's picture from parts into eight sprites, two
+side by side in four rows, with the right half often mirrored. The parts
+are not stored as pictures anywhere, so [tools/pictures.py](tools/pictures.py)
+works from what the original's own routine (`$3629`, type in `$58`) draws:
+run in VICE's monitor once per droid type, its sprites saved each time.
+The script turns them into [data/pictures.txt](data/pictures.txt), and
+`mkdata.py` turns each into multicolour characters, six wide and up to
+twelve high. Multicolour 1 is black, as on the C64; multicolour 2 and the
+sprites' colour are set per picture. Cells with only the hires sprites'
+pixels stay hires.
+
+That is 24 files of up to three blocks, `p00`-`p23`. One is loaded for each
+screen that shows a droid, straight into picture 1's character set, which
+the window shows for both pictures meanwhile; the text goes there too, in
+the panel's letters. The words are the original's: its unit lines read
+*Unit type 476 - Maintenance robot*, *robot* for classes 1-4, *droid* for
+5-8, *cyborg* for 9 and *device* for the 001.
+
+### The sound effects
+
+The game's sounds are the original's own effects, read from its sound
+driver in x64sc ([tools/sfx.py](tools/sfx.py) into
+[data/sfx.txt](data/sfx.txt)): 25 of them, each a record of a start
+frequency, a step added each picture and periods, at the end of each of
+which the step turns round or the frequency goes back to the start. The
+original plays them on two channels, as the TED has two voices. Which
+event starts which effect was read off its code: the beam at a game's
+start, the shot by the host's weapon (the droids' shots are silent
+there), a droid hit and destroyed, the player hit and destroyed, a bump,
+the energizer for each unit of energy, "Lift" and the ride from deck to
+deck, the deck cleared, the transfer's "Finish", "Complete", "Rejected",
+"Burnt Out" and "Deadlock", the static and "Transmission terminated"
+after a game; and on their own: the ship's hum every 32 ticks while the
+second voice is free, with each deck's own periods, a warning while the
+energy is below 8, and transfer mode every 8 ticks.
+
+[sfx.s](sfx.s) plays them as the original's driver does, once a picture
+from the interrupt, and turns the SID's frequency into the TED's register
+each picture (a division: the TED's frequency is not linear in its
+register; its lowest frequency leaves ten steps of it, not 24). The TED
+has no envelope: an effect sounds while its gate and half its release
+would. The TED's one volume is for both voices: the ship's hum, on the
+second, plays at 2 instead of 6 while the first voice is quiet - the
+original's is a soft triangle, the TED's a square, and at 6 it stood out
+far more than the original's. Its noise is only on the second voice, so
+the noisy effects go there. Played in a 6502 emulator, the original's
+driver and the model `sfx.s` follows gave the same frequencies picture
+for picture for the 22 effects compared. The player runs at `$FC00`,
+copied there at the start; the effects' table is in the program, the
+deck's hum's periods in the free end of the block code tables.
+
+### The title's sound
+
+The original has no music, but its title has a sound of its own: a sweep
+falling from 3.7 kHz to 120 Hz, a new pitch every picture, over and over,
+and a low tone that wavers down from F3 to A2 and up again, then rests.
+Both are triangles, at a third of the SID's volume. Its third voice plays
+noise, which the original switches off and only uses for random numbers.
+
+The tune as ripped (`Paradroid.sid`) is the game's own sound driver, set
+the way the title leaves it; in x64sc the original's title shows the same
+SID registers. [tools/sid.py](tools/sid.py), a small 6502 emulator, runs
+that driver picture by picture and records what it writes to the SID;
+[tools/sidmusic.py](tools/sidmusic.py) turns one round of its loop, 2.56
+seconds, into [data/music.txt](data/music.txt): two voices, as the TED
+has, as text, a pitch and a length per entry. The pitches are not notes
+of a scale, so they stay hertz there, and `mkdata.py` turns them into the
+TED's registers. [music.s](music.s) plays them on the TED's two squares,
+at volume 3, from the title's overlay; the engine's interrupt calls it
+once a picture while the title runs.
+
+### The data, from the original's memory
+
+The C64 game keeps everything in memory once it has loaded. A dump of its
+64 KB, taken in VICE's monitor during a game, holds it all. The addresses
+were found by tracing the game:
+
+| | |
+| --- | --- |
+| `$E800` | 32 blocks of 4 × 4 characters |
+| `$F100` | 16 decks, run-length coded, 64 × 16 blocks each |
+| `$7800` | the deck character set |
+| `$0800` | each character's colour: the upper half its colour class, the lower its colour in the deck's scheme |
+| `$6A44` | eight colour schemes, 12 colours each (classes 0-11; 12-15 are fixed). `$F160` gives each deck its scheme; a deck without droids has scheme 7 |
+| `$C800` | waypoints per deck. The third byte has a bit for each of eight directions a droid may leave in. A game starts on the first |
+| `$6CC8` | lift stops: deck and shaft. The position stored is where the *window* is when the player stands on the lift, five blocks left of and two above the lift itself |
+| `$EA00` | droid types: number, drive, weapon |
+| `$F180` | the side view of the ship, run-length coded. Code `c` shows as `c + $80`, from the upper half of the deck's character set |
+| `$F120`–`$F15F` | each deck's box in the side view: row, column, rows, columns. Lighting a deck turns codes `$80`.. into `$90`.. and back |
+| `$6CB0`–`$6CC7` | the lift shafts: column, top row, length. The shaft ridden gets colour `$F9`, white multicolour |
+| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
+| `$7F88`–`$7FF7` | the transfer game's characters `$F1`–`$FE` (and `$D0`, `$D1`): wires, arrows, the colour changer, boxes, the lights |
+| `$6C28` | the animated characters: the energizer's, the plan's player; and at `$7BD0` the static's |
+| `$C610` | the sound effects' records, their instruments at `$EAA0` |
+| `$D000` | the briefing: per line its row and column, then the panel's codes. Capitals, `m` and `w` are two characters wide |
+
+`tools/extract.py` writes most of it as text into [data/](data/): decks
+as letters, characters as pictures. [tools/mkdata.py](tools/mkdata.py)
+turns that into tables, adds the doors' half-open stages, and works out
+the lift cabin's row for each deck from the shafts.
+
+## On the Plus/4
 
 ### Fine scrolling under a fixed panel
 
@@ -185,6 +408,17 @@ characters but not in the panel's: switched a few lines into the gap, as
 it was, the switch came late now and then, and a short dashed line of the
 panel's characters showed in the gap (`tests/yape_gap.py` finds it).
 
+The briefing scrolls the same way, up a pixel a tick, as the original's
+(measured in x64sc: 16.7 pixels a second), and two while the joystick is
+held down, as there. For that, its file brings a character set of its
+own: the 109 different characters of the panel's letters it uses, put
+into picture 1's character set. Between rows only the top row is made
+again, the fine scroll moves the rest. Each step is made as soon as the
+last one shows and handed to the interrupt in the picture before its
+turn, so it shows exactly every third picture; a new row of characters is
+made in assembly ([briefrows.s](briefrows.s)) in under a picture.
+`tests/yape_brief.py` measures how far the page moves in each picture.
+
 ### Figures over a hires deck
 
 The decks are hires characters, as on the C64: each cell has a background
@@ -210,63 +444,6 @@ other with blank lines between them, and for each column which lines have
 pixels. Drawing is then copying through a mask, and only into cells with
 something in them.
 
-The 001 has the original's turning dome, a slanted gap running round it, as
-four extra slots. Measured in x64sc, the original's gap moves a hires pixel
-a tick, rightwards, eight positions in eight ticks; here it moves a
-multicolour pixel every two ticks over four - the same speed. (It moved
-two multicolour pixels at a time before, leftwards: twice as fast.)
-
-### Driving, walls and the droids' ways, as measured in the original
-
-The player drives as the original's does, read from its code in x64sc
-([move.s](move.s)): the speed is a signed 8.8 number per axis; the
-joystick adds 0.8125 a tick (0.8086 the other way), up to the host's top
-speed by its drive; let go, it falls by 0.6875 a tick. The position moves
-by the whole pixels of it, rounded up as there. So it starts with 1, 2, 3,
-4, 5, 5, 6, 7 pixels a tick and rolls out with 7, 6, 5, 5, 4, 3, 3, 2, 1,
-tick for tick as in the original.
-
-Walls are characters there, not blocks: a character code from $80 on. A
-wall block is solid only in its two middle characters, a console often
-only in its outermost row. Each tick, as there ($29C1): first the speed,
-then the walls - three points around the player's character ((x + 7) / 8
-across and down) for each way, looked at only the way it drives (left
-and up also standing still); a wall there stops it, its position set to
-1 into its character driving right or down, to the next character's start
-driving left or up - and only then the move, by the speed's whole part.
-Driven into walls from one place on the same deck, the original and this
-stop on the same pixel, straight and diagonally alike. The walls of each block are four bits per character row, kept in
-the unused end of the block code tables at `$E800`.
-
-The window follows the player across in steps of two pixels, in step with
-its figure: the figures are of multicolour pixels, two wide, and the
-player stands still in the middle of the window, as the original's sprite.
-
-Measured against the original's screen (the same deck, the same place,
-the energizer's dots found to the pixel), its deck stands a character up
-and left of where the player's own coordinates put it: its player's
-sprite is drawn a character right of and below its place, its droids'
-sprites are not. So here too: the window and the player's figure are a
-character on, and where figures meet - bumps, shots, the droids' aim,
-which the original leaves to its sprites' collisions - the player counts
-where its figure is. Walls, doors, lifts and consoles go by its place, as
-there.
-
-The droids choose their ways as the original's (from up to three ways of a
-waypoint, each a third, or eight ticks' wait), and like the original's
-they look ahead before each step: their character and the next two. A
-wall there, a door not open yet, and they wait two ticks. They do that
-near the player, where the doors open and close; elsewhere the doors stay
-shut, and the droids go on through them.
-
-The doors open as the original's ($2A3E, $2A6D, $2B08): when one of the
-twelve points the player looks at for the walls lies on a door's frame
-(the characters either side of the door), the first tick only notes the
-door, and each tick after it opens a row (or a column) more; untouched,
-it shuts one a tick. Driven at a door, the player waits for it as long as
-in the original, to the tick. A droid by a door opens it too: the
-original's droids touch it with the points they look ahead at.
-
 ### Where the time goes
 
 `tests/chprof.py` counts the cycles of every instruction of the last few
@@ -279,203 +456,29 @@ window scrolls, building its new rows takes the most.
 
 Everything done for each droid or door every tick is in assembly: the
 droids' choices at their waypoints and their steps
-([engine.s](engine.s)), looking ahead, the doors, a droid touching the
-player and the block under a point ([move.s](move.s)), and putting the
-droids, their explosions and the shots into the window
+([engine.s](engine.s)), looking ahead, the walls, the doors, a droid
+touching the player and the block under a point ([move.s](move.s)), and
+putting the droids, their explosions and the shots into the window
 ([figs.s](figs.s)). A droid looks ahead only when it has entered a new
-character or turned, not every tick: the door it found open stays open
-while it is that near. The doors look only at the droids that can be by
-a door on the screen, two to four usually, not at all of them.
-
-### The transfer game, from the original and FreedroidClassic
-
-The board is the original's, character for character: its screen and
-characters (`$F1`–`$FE`, `$D0`, `$D1` of the deck's set, multicolour) were
-read in VICE while the original's transfer game ran. How the parts are
-laid out and how a pulse passes them follows
-[FreedroidClassic](https://github.com/ReinhardPrix/FreedroidClassic)
-(`src/takeover.c`), whose authors rebuilt Paradroid. It has the same parts
-as the original's screen and the same panel texts (*Colour? 76*,
-*Finish -52*). A side has four layers of twelve lines: where pulses go in,
-two layers of parts, the connection to the column.
-
-The work done for every line in every tick is in assembly
-([xfer.s](xfer.s)): passing the pulses on, drawing a line again when it
-changed, and the dashes moving along live wires, which are the two wire
-characters turned by a pixel. Written in C, the game was 2 KB larger than
-memory allowed. Laying the board out and the course of the game stay in C
-([transfer.c](transfer.c)), and its state lives in the low memory at
-`$0C68`, which only a disk load could disturb.
-
-### The console
-
-The ship's computer is the original's, read from it in VICE: its first
-page (unit, ship, deck, alert) beside four symbols, which are its hires
-sprites; the deck's names; and for each droid type its pages (entry,
-class, height, weight, drive, brain, armament, sensors, notes). The
-original builds those from a dictionary of words at `$C000`; they were
-read off its screens instead, by driving its joystick through every page
-of every type in the monitor and decoding the screen memory. The deck plan
-is drawn the way the original's code does it: each block's number is the
-character code, in the original's characters `$00`-`$1F` and colours,
-hires, with the deck's blocks 3 to 41 across. As there, the energizers' symbol
-turns and the player's blinks, on three phases and off for one.
-
-The energizers on the deck turn too. Both are the original's own
-animation (its routine at `$2605`, phases and speeds read from its list at
-`$6C28`, [data/anim.txt](data/anim.txt)): the energizer is the deck's
-character `$14`, the plan's symbol for block 20 is the same character, and
-it turns a phase every three ticks in the game. Every other tick the
-energizer's dots, its characters `$4C`-`$4F`, go round one character on,
-as there ($38C4).
-
-The console is always in memory, so it opens at once: its code (1.7 KB)
-at `$F400`, copied there at the start, its data in the program. The pages
-about a droid come with its picture's file.
-
-### The droids' pictures
-
-The original draws a droid's picture from parts into eight sprites, two
-side by side in four rows, with the right half often mirrored. The parts
-are not stored as pictures anywhere, so [tools/pictures.py](tools/pictures.py)
-works from what the original's own routine (`$3629`, type in `$58`) draws:
-run in VICE's monitor once per droid type, its sprites saved each time.
-The script turns them into [data/pictures.txt](data/pictures.txt), and
-`mkdata.py` turns each into multicolour characters, six wide and up to
-twelve high. Multicolour 1 is black, as on the C64; multicolour 2 and the
-sprites' colour are set per picture. Cells with only the hires sprites'
-pixels stay hires.
-
-That is 24 files of up to three blocks, `p00`-`p23`. One is loaded for each
-screen before a transfer, straight into picture 1's character set, which
-the window shows for both pictures meanwhile; the text goes there too, in
-the panel's letters. The words are the original's: its texts are made of
-words from a dictionary at `$C000`, and its unit lines read *Unit type 476
-- Maintenance robot*, *robot* for classes 1-4, *droid* for 5-8, *cyborg*
-for 9 and *device* for the 001.
-
-### The decks' colours
-
-Every deck has its own colours, as in the original: each character
-belongs to one of its colour classes, and each deck has one of eight
-schemes, which give the classes their colours - read from the original
-([data/colours.txt](data/colours.txt)). The scheme's first colour is the
-window's background, its fourth the border's and the panel frame's. A
-deck whose droids are gone has the dark scheme 7, and the ALERT
-console's lights take the alert's colour. On the Plus/4 the colours are
-the nearest of the TED's, the deck's characters' those of 0-7, as they
-turn multicolour where figures are. The console's deck plan, which shows
-the deck's own characters there, has the scheme too.
-
-### The data, from the original's memory
-
-The C64 game keeps everything in memory once it has loaded. A dump of its
-64 KB, taken in VICE's monitor during a game, holds it all. The addresses
-were found by tracing the game:
-
-| | |
-| --- | --- |
-| `$E800` | 32 blocks of 4 × 4 characters |
-| `$F100` | 16 decks, run-length coded, 64 × 16 blocks each |
-| `$7800` | the deck character set |
-| `$0800` | each character's colour: the upper half its colour class, the lower its colour in the deck's scheme |
-| `$6A44` | eight colour schemes, 12 colours each (classes 0-11; 12-15 are fixed). `$F160` gives each deck its scheme; a deck without droids has scheme 7 |
-| `$C800` | waypoints per deck. The third byte has a bit for each of eight directions a droid may leave in |
-| `$6CC8` | lift stops: deck and shaft. The position stored is where the *window* is when the player stands on the lift, five blocks left of and two above the lift itself |
-| `$EA00` | droid types: number, drive, weapon |
-| `$F180` | the side view of the ship, run-length coded. Code `c` shows as `c + $80`, from the upper half of the deck's character set |
-| `$F120`–`$F15F` | each deck's box in the side view: row, column, rows, columns. Lighting a deck turns codes `$80`.. into `$90`.. and back |
-| `$6CB0`–`$6CC7` | the lift shafts: column, top row, length. The shaft ridden gets colour `$F9`, white multicolour |
-| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
-| `$7F88`–`$7FF7` | the transfer game's characters `$F1`–`$FE` (and `$D0`, `$D1`): wires, arrows, the colour changer, boxes, the lights |
-| `$D000` | the briefing: per line its row and column, then the panel's codes. Capitals, `m` and `w` are two characters wide |
-
-`tools/extract.py` writes all of it as text into [data/](data/): decks as
-letters, characters as pictures. [tools/mkdata.py](tools/mkdata.py) turns
-that into tables, adds the doors' half-open stages, and works out the lift
-cabin's row for each deck from the shafts.
+character or turned, not every tick. The doors look only at the droids
+that can be by a door on the screen, two to four usually, not at all of
+them.
 
 ### Memory
 
-The program, the tables and 23 slots of pre-shifted pictures fill the Plus/4
-up to `$C000`. Above that sit two pictures with their character sets, the
-panel's character set, the block tables, and at `$F000` the engine's
-tables and the code of the console and the figures. The data that is only
-used once at the start is linked into the very bytes where the slots
-begin, so it is overwritten as soon as it has been copied; the code
-copied above `$F000` comes from there too, and the code that runs only
-once at the start: the fast loader's set-up, the panel's first drawing,
-the engine's tables (`INITCODE`, right after the data, as the slots
-start at the data's first byte).
+The program, the tables and 23 slots of pre-shifted pictures fill the
+Plus/4 up to `$C000`. Above that sit two pictures with their character
+sets, the panel's character set, the block tables, and at `$F000` the
+engine's tables and the code of the console and the figures. The data and
+code used only once at the start - the fast loader's set-up and the talk
+with the drive, the panel's first drawing, the engine's tables, the
+character sets' first copies - are linked into the very bytes where the
+slots begin, so they are overwritten as soon as they have done their work
+(`INITCODE` comes right after the data: the slots start at the data's
+first byte). The code copied above `$F000` and to `$FC00` comes from there
+too. The title is an overlay in the slots (below).
 
-The console needed 2.9 KB. The assembly of the figures, droids, doors and
-bumps made 805 bytes of the program's memory free; 2 KB more came from
-two tables at `$F000`, each byte shifted right by 0 to 3 multicolour
-pixels and what falls out. Only the pictures shifted in advance used
-them, when a deck is entered or the host changes; shifting there instead
-costs a fraction of a picture's time, and gives the same bytes.
-
-### The sound effects, the original's
-
-The game's sounds are the original's own effects, read from its sound
-driver in x64sc ([tools/sfx.py](tools/sfx.py) into
-[data/sfx.txt](data/sfx.txt)): 25 of them, each a record of a start
-frequency, a step added each picture and periods, at the end of each of
-which the step turns round or the frequency goes back to the start. The
-original plays them on two channels, as the TED has two voices. Which
-event starts which effect was read off its code: the beam at a game's
-start, the shot by the host's
-weapon (the droids' shots are silent there), a droid hit and destroyed,
-the player hit and destroyed, a bump, the energizer for each unit of
-energy, "Lift" and the ride from deck to deck, the deck cleared, the
-transfer's "Finish", "Complete", "Rejected", "Burnt Out" and "Deadlock",
-the static and "Transmission terminated" after a game, and on their own: the ship's hum every 32 ticks while the second voice is
-free, with each deck's own periods; a warning while the energy is below 8;
-transfer mode every 8 ticks.
-
-[sfx.s](sfx.s) plays them as the original's driver does, once a picture
-from the interrupt, and turns the SID's frequency into the TED's register
-each picture (a division: the TED's frequency is not linear in its
-register; its lowest frequency leaves ten steps of it, not 24). The TED has no envelope: an effect sounds while its gate and
-half its release would. The TED's one volume is for both voices: the
-ship's hum, on the second, plays at 2 instead of 6 while the first voice
-is quiet - the original's is a soft triangle, the TED's a square, and at
-6 it stood out far more than the original's. Its noise is only on the second voice, so the
-noisy effects go there. Played in a 6502 emulator, the original's driver
-and the model `sfx.s` follows give the same frequencies picture for
-picture for all 22.
-
-The player runs at `$FC00`, below cc65's stack, which needs a few dozen
-bytes, copied there at the start from the data that is overwritten
-later; the effects' table is in the program (at `$FF40`, above the TED's
-registers, where it first was, there is room for 23).
-The deck's hum's periods are in the free end of the block code tables.
-
-### The title's sound
-
-The original has no music, but its title has a sound of its own: a sweep
-falling from 3.7 kHz to 120 Hz, a new pitch every picture, over and over,
-and a low tone that wavers down from F3 to A2 and up again, then rests.
-Both are triangles, at a third of the SID's volume. Its third voice plays
-noise, which the original switches off and only uses for random numbers.
-
-The tune as ripped (`Paradroid.sid`) is the game's own sound driver, set
-the way the title leaves it; in x64sc the original's title shows the same
-SID registers. [tools/sid.py](tools/sid.py), a small 6502 emulator, runs
-that driver picture by picture and records what it writes to the SID;
-[tools/sidmusic.py](tools/sidmusic.py) turns one round of its loop, 2.56
-seconds, into [data/music.txt](data/music.txt): two voices, as the TED
-has, as text, a pitch and a length per entry, as Stardew Pond keeps its
-music. The pitches are not notes of a scale, so they stay hertz there, and
-`mkdata.py` turns them into the TED's registers.
-
-[music.s](music.s) plays them on the TED's two squares, at volume 3. It is
-in the title's overlay with its data, and the engine's interrupt calls it
-once a picture through a pointer while the title runs: the tempo is the
-picture's, whatever the title is drawing. A sound effect would keep voice
-2 meanwhile, as in Stardew Pond.
-
-### The disk
+## The disk and the fast loaders
 
 The game runs from `build/paradroid.d64`. The title, with the briefing,
 the scores page and the logo, is an **overlay**: [title.c](title.c), the
@@ -483,9 +486,8 @@ briefing's text and the logo are linked to run in the slots of the
 pre-shifted pictures, all of them, as the title needs none, and written
 to a file of their own, `title`. [paradroid.cfg](paradroid.cfg) puts the
 overlay there, and ld65 writes it to `build/title.bin`. It is loaded for
-each title, and the pictures are made again when a game starts. Loading
-something more often, for a lift or a transfer, would cost too much time,
-which is why the decks stay in memory.
+each title, and the pictures are made again when a game starts. The decks
+stay in memory: loading for a lift or a transfer would cost too much time.
 
 With a **1551** or a **1541**, a **fast loader** loads the files while the
 picture and the game's interrupt go on. At the start the game asks the
@@ -493,10 +495,11 @@ drive who it is (the reply to `UI`: `CBM DOS V2.6 TDISK` for a 1551,
 `... 1541` for a 1541) and sends it its drive code with the DOS's `M-W`
 commands, then starts it with `M-E` ([fastinit.c](fastinit.c), run once
 and then overwritten). From then on the drive waits for a file's name,
-finds the file in the directory, reads its sectors and sends them over. The Plus/4's half for that drive is copied to
-the end of the program's memory at the start ([fastload.s](fastload.s)
-calls it there); there is room for one of them, not both. If the drive
-code does not answer, the KERNAL loads from then on.
+finds the file in the directory, reads its sectors and sends them over.
+The Plus/4's half for that drive is copied to the end of the program's
+memory at the start ([fastload.s](fastload.s) calls it there); there is
+room for one of them, not both. If the drive code does not answer, the
+KERNAL loads from then on.
 
 - **1551** ([drive1551.s](drive1551.s), [fastload51.s](fastload51.s)):
   the sectors read with the DOS's job queue, sent over its parallel port
@@ -524,19 +527,19 @@ code does not answer, the KERNAL loads from then on.
   ms. Yape, whose TED is closer to the real one, has a true 1541 but no
   1551, so this is the loader it uses.
 
-The title (9.7 KB) loads in 4.3 seconds with a 1541 and 6.0 with a 1551,
-measured in VICE with `tests/loadtime.py` (7.0 seconds with a 1541 when
-the DOS still read its sectors); with the KERNAL a 1541 takes much
+The title (10 KB) loads in about 4.5 seconds with a 1541 and 6.4 with a
+1551, measured in VICE with `tests/loadtime.py` (7.0 seconds with a 1541
+when the DOS still read its sectors); with the KERNAL a 1541 takes much
 longer, with a black screen.
 
-The droid enquiry at a console loads the droids' pictures. What makes a
-load slow is the drive's motor, which the DOS stops when the drive is
-idle and then waits two seconds for, every time. So whenever the player
-comes within five blocks across and three up or down of a console, the
-game asks the drive for no file at all, and the drive code only gives the
-DOS a read of the directory to do, with nobody waiting for it: the motor
-starts, and keeps going while the player stays near. The directory stays
-in the drive's buffer, and is not read again for the load.
+What makes a load slow is the drive's motor, which the DOS stops when the
+drive is idle and then waits two seconds for, every time. So whenever the
+player comes within five blocks across and three up or down of a console,
+whose droid enquiry loads the droids' pictures, and when a game ends, the
+game asks the drive for no file at all, and the drive code only gives
+the DOS a read of the directory to do, with nobody waiting for it: the
+motor starts, and keeps going while the player stays near. The directory
+stays in the drive's buffer, and is not read again for the load.
 
 The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
 for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
@@ -544,10 +547,9 @@ right for the KERNAL. With the fast loader, a 1541 is ready for the next
 sector 10 on (about 9.5 ms a sector): 10 apart, the title takes 4.3
 seconds instead of 10.9 with 8. A 1551 would rather have 8 (5.2 seconds
 instead of 6.0); one disk serves both, and 10 is the better one for the
-two together. The fast loader's
-files lie nearest the directory, the title on the very next track, then
-the pictures; the program, which the KERNAL loads, comes after them, 10
-apart, and first in the directory.
+two together. The fast loader's files lie nearest the directory, the
+title on the very next track, then the pictures; the program, which the
+KERNAL loads, comes after them, 10 apart, and first in the directory.
 
 Loading with the KERNAL needs care in a program that uses all of memory:
 
@@ -559,25 +561,6 @@ Loading with the KERNAL needs care in a program that uses all of memory:
   keeps them from the start and puts them back before each load. Then the
   deck's map is unpacked again.
 
-The briefing scrolls up a pixel a tick, as the original's (measured in
-x64sc: 16.7 pixels a second), and two while the joystick is held down, as
-there. It scrolls the same way as the deck: rows moved down by the two counters, and the window's top row made
-of copies of its characters with their top lines cleared. For that, the
-file brings a character set of its own: the 109 different characters of
-the panel's letters it uses, put into picture 1's character set, which
-both pictures show meanwhile. That leaves room for each picture's copies.
-Between rows only the top row is made again, the fine scroll moves the
-rest. Each step is made as soon as the last one shows and handed to the
-interrupt in the picture before its turn, so it shows exactly every third
-picture. Making the 16 rows of a new row of characters took a few
-pictures in C, twice (each picture needs them), and the page stood still
-meanwhile and then caught up two lines at a time; on Yape's TED, which
-leaves the processor less time than VICE's, that showed. It is assembly
-now ([briefrows.s](briefrows.s)) and takes under a picture.
-`tests/yape_brief.py` takes the pictures one by one and measures how far
-the page moves in each.
-Each step draws the rows the window shows from the page's lines.
-
 ## What is not 1:1
 
 - In the **transfer game**, how the parts are laid out and how long a
@@ -587,22 +570,32 @@ Each step draws the rows the window shows from the page's lines.
 - The droids are **13 multicolour pixels wide** with their number in a dark
   band. The original's hires sprites are 24 pixels wide, and the Plus/4's
   characters have half the horizontal resolution.
-- The deck's colour starts a line above the window's top edge (see
-  above); in the original, the edge and the colour change are the same.
-- **Sound**: the effects and the title's sound are the original's, but on
-  the TED's squares instead of the SID's triangles, saws and pulses, and
-  without its envelopes; the TED's noise and lowest notes are higher than
-  the SID's.
 - The player's **colour** is the TED's second multicolour colour, which
   the droids' numbers have too: when the player flashes (low energy, a
   game's start), so do they. For the same reason the player keeps its
   white in transfer mode, where the original's turns dark grey.
-- Between the start page and the deck, the window is empty for about four
-  pictures, while the deck is drawn the first time.
+- The droids look ahead, and so open **doors**, only near the player; in
+  the original they do so all over the deck. A droid near a door opens it
+  here rather than touching its frame.
+- The deck's colour starts a line above the window's top edge (see
+  above); in the original, the edge and the colour change are the same.
+- **Colours**: the nearest of the TED's, the light green a level darker
+  (see above); some, like the red and the light green, look a little
+  different from the C64's.
+- **Sound**: the effects and the title's sound are the original's, but on
+  the TED's squares instead of the SID's triangles, saws and pulses, and
+  without its envelopes; the TED's noise and lowest notes are higher than
+  the SID's.
 - The droids' **pictures** (console, transfer, the start page, the end)
   start two lines lower than the original's: the heading's letters are two
   rows tall, and the original's picture, a sprite over them, starts in
   their lower row. Characters cannot share a cell that way.
+- They are files on the disk: the 999's after a game takes a second or
+  two to load, during which the static goes on (1.2 seconds in the
+  original). Between the start page and the deck, the window is empty for
+  about four pictures, while the deck is drawn the first time.
+- The player's **explosion** at a game's end is ours, shorter than the
+  original's several explosions around it.
 - The day's **scores** have no initials.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here.
@@ -611,25 +604,25 @@ Each step draws the rows the window shows from the page's lines.
 
 | | |
 | --- | --- |
-| [paradroid.c](paradroid.c) | start, the main loop, transfer and lift hooks, pause |
-| [deck.c](deck.c) | the ship, loading a deck and finding its doors, colours, alert |
+| [paradroid.c](paradroid.c) | start, the main loop, transfer and lift hooks, pause, a game's end |
+| [deck.c](deck.c) | the ship, loading a deck and finding its doors |
 | [droids.c](droids.c) | the player, the droids, shots, hits, bumps, energy |
 | [draw.c](draw.c) | the window, the player's figure, the status panel |
-| [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course |
+| [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course; the droids' pictures |
 | [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving; the introduction's letters and pictures |
-| [title.c](title.c) | the overlay: the title's round of briefing, scores and logo |
+| [title.c](title.c) | the overlay: the title's round of logo, briefing and scores; a game's start page |
 | [lift.c](lift.c) | the side view and riding a lift |
 | [console.c](console.c) | the ship's computer, run at `$F400`: menu, droid enquiry, deck plan, ship |
 | [music.s](music.s) | the title's sound, in its overlay |
 | [briefrows.s](briefrows.s) | the briefing's text into the window's rows, in the title's overlay |
-| [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them |
-| [move.s](move.s) | the player's driving, the walls character by character, the droids looking ahead, the doors, droids touching the player |
+| [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them, the beam-in |
+| [move.s](move.s) | the player's driving, the walls, the doors, the droids looking ahead, bumps, the decks' colours |
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
-| [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard |
-| [fastload.s](fastload.s), [fastload51.s](fastload51.s), [fastload41.s](fastload41.s), [drive1551.s](drive1551.s), [drive1541.s](drive1541.s), [fastinit.c](fastinit.c) | the fast loaders: what the Plus/4's halves share, its half for a 1551 and for a 1541, the drives' halves, and sending the right one to the drive |
+| [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
+| [fastload.s](fastload.s), [fastload51.s](fastload51.s), [fastload41.s](fastload41.s), [drive1551.s](drive1551.s), [drive1541.s](drive1541.s), [fastinit.c](fastinit.c) | the fast loaders: what the Plus/4's halves share, its half for a 1551 and for a 1541, the drives' halves, and sending the right one to the drive; with the rest of the start |
 | [game.h](game.h) | what the parts share |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
-| [build.sh](build.sh), [run.sh](run.sh) | building the program and the disk; starting VICE from the disk |
+| [build.sh](build.sh), [run.sh](run.sh), [run-yape.sh](run-yape.sh) | building the program and the disk; starting VICE or Yape from the disk |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
 | [tools/pictures.py](tools/pictures.py) | the droids' pictures, the console's symbols and the title's logo out of the original |
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
@@ -637,8 +630,9 @@ Each step draws the rows the window shows from the page's lines.
 | [tools/sfx.py](tools/sfx.py) | the original's sound effects out of a memory dump |
 | [tools/sid.py](tools/sid.py), [tools/sidmusic.py](tools/sidmusic.py) | the original's sound driver run in a 6502 emulator; its title sound into `data/music.txt` |
 | [tools/d64.py](tools/d64.py) | the disk image, with each file's sectors as far apart as its loader wants |
-| [data/](data/) | decks, blocks, characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, as text |
-| [tests/](tests/) | headless VICE and Yape: screenshots, speed, profile, edges and rows, stress |
+| [tools/yape.patch](tools/yape.patch) | Yape's changes for the gamepad and the tests |
+| [data/](data/) | decks, blocks, characters, colours, animated characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, sound, as text |
+| [tests/](tests/) | headless VICE and Yape: screenshots, speed, profile, edges and rows, stress, the title and a game's start |
 
 ## Building and running
 
@@ -650,6 +644,11 @@ and the start to [run.sh](run.sh). Without an editor:
 sh paradroid/build.sh
 xplus4 -autostart paradroid/build/paradroid.d64
 ```
+
+The `.prg` alone does not run: it needs the title and the pictures from
+the disk. VICE's `xplus4` has a 1551 at device 8 by default; with
+`-drive8type 1541` it has a 1541, and the game loads with the fast loader
+for that.
 
 The second F5 configuration, "... in Yape", starts it in **Yape** instead
 ([run-yape.sh](run-yape.sh); `sh paradroid/run-yape.sh` without an
@@ -669,18 +668,14 @@ also leaves the controller's other buttons alone (`YAPE_PADKEYS=off`):
 Yape's own B steps the active joystick on (BOTH leaves it on none), LB
 types RUN, RB opens its menu. The patch also has the tests' hooks.
 
-The disk is made by `tools/d64.py`. The `.prg` alone does not run: it
-needs the briefing from the disk. VICE's `xplus4` has a 1551 at device 8
-by default; with `-drive8type 1541` it has a 1541, and the game loads
-with the fast loader for that.
-
 `tools/extract.py` is only needed to take the data out of the original
 again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in
 VICE's monitor (`bank ram`, `save "ram.bin" 0 0000 ffff`, and `bank io`,
 `save "io.bin" 0 d000 dfff`) during a game. Likewise `tools/sidmusic.py`
-only makes `data/music.txt` again, from the ripped tune:
-`python3 tools/sidmusic.py Paradroid.sid`. And `tools/sfx.py` makes
-`data/sfx.txt` again from the same memory dump: `python3 tools/sfx.py ram.bin`.
+only makes `data/music.txt` again, from the ripped tune
+(`python3 tools/sidmusic.py Paradroid.sid`), and `tools/sfx.py` makes
+`data/sfx.txt` again from the same memory dump
+(`python3 tools/sfx.py ram.bin`).
 
 ## Tests
 
@@ -705,8 +700,8 @@ the real one than VICE's: a build of Yape from its sources
 ([yapesdl](https://github.com/calmopyrin/yapesdl)) in
 `~/.cache/paradroid/yapesdl` with [tools/yape.patch](tools/yape.patch):
 SIGUSR1 enters its monitor, which reads its commands from stdin, and
-SIGUSR2 saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has no
-true 1551; with a disk image it uses a true 1541. The program itself
+SIGUSR2 saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has
+no true 1551; with a disk image it uses a true 1541. The program itself
 loads with the KERNAL there, slowly; the tests run Yape without its speed
 limit.
 
@@ -718,9 +713,9 @@ limit.
 | `yape_xfer.py [n]` | transfers in Yape, their droids' pictures loaded with the fast loader |
 | `yape_brief.py [n]` | the briefing in Yape, n pictures in a row: how far it moves in each |
 | `yape_title.py` | the title's scores page in Yape, with its picture |
-| `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
+| `yape_start.py [logo]` | a game's start in Yape (fire on the briefing, or on the logo), 400 pictures in a row: the start page, the beam, "Mobile" |
 | `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
 | `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
-| `yape_start.py [logo]` | a game's start in Yape (fire on the briefing, or on the logo), 400 pictures in a row: the start page, the beam, "Mobile" |
 | `yape_snow.py [n] [label ...]` | the window's bottom edge in Yape, n pictures in a row: stray pixels there (with labels, those routines switched off) |
+| `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |
