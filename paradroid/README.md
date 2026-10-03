@@ -145,6 +145,12 @@ the next panel was drawn on the gap's colour, a flicker every eighth line
 of scrolling. So the next interrupt's line is set before the counter.
 Yape does this as the chip does; VICE does not raise it.
 
+The panel's registers for the next picture (its character set, 40
+columns, its colours) are set in the vertical blank, at line 252, by an
+interrupt of their own. Set right under the window, as they first were,
+VICE drew a pixel of the window's colour into the border where each was
+written - a dot of "snow" under the window in every picture.
+
 `tests/rowcheck.py` checks the result for all eight positions in VICE,
 `tests/yape_rowcheck.py` in Yape. For each one they compare every line of
 the window on the screen with the characters in memory.
@@ -568,6 +574,10 @@ Each step draws the rows the window shows from the page's lines.
   white in transfer mode, where the original's turns dark grey.
 - Between the start page and the deck, the window is empty for about four
   pictures, while the deck is drawn the first time.
+- The droids' **pictures** (console, transfer, the start page, the end)
+  start two lines lower than the original's: the heading's letters are two
+  rows tall, and the original's picture, a sprite over them, starts in
+  their lower row. Characters cannot share a cell that way.
 - The day's **scores** have no initials.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here.
@@ -687,4 +697,5 @@ limit.
 | `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
 | `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
 | `yape_start.py` | a game's start in Yape, 400 pictures in a row: the start page, the beam, "Mobile" |
+| `yape_snow.py [n] [label ...]` | the window's bottom edge in Yape, n pictures in a row: stray pixels there (with labels, those routines switched off) |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

@@ -298,7 +298,11 @@ def swap_mc(b):
 # (0 none, else the character's number from 1, +$80 hires), then the number
 # of characters, rows, and the two C64 colours. It is loaded to character 1
 # of picture 1's set (transfer.c), its end found from its length.
-PIC_TOP = 6
+# The original's sprite starts 6 lines into the row under the heading;
+# here a picture starts at the next row's top (2 lines lower): the
+# heading's letters are two rows tall, their lower halves in that row, and
+# a cell cannot hold both (the original's picture is a sprite over them).
+PIC_TOP = 0
 pics = []
 cur = None
 for l in read('pictures.txt').split('\n'):

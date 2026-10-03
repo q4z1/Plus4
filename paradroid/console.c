@@ -137,7 +137,7 @@ static void enquiry_page(unsigned char t, unsigned char n)
     static const unsigned char *p;
     static unsigned char i, len, first;
     first = n == 0;
-    picture(t, 11, 2);
+    picture(t, 12, 2);
     col_deck = pal_deck[1];
     x_code = 140;
     x_attr = 0x63;                      /* the original's light cyan */

@@ -111,6 +111,7 @@ LINE_RC     = 50                ; (the panel ends with line 51)
 LINE_SCROLL = 71                ; two lines before the gap's last, 74
 GAP_LAST    = 74
 LINE_BOTTOM = 197               ; less s, the line counter is behind then
+LINE_VBL    = 252               ; in the vertical blank: the panel's set-up
 
 ; ---- zero page ------------------------------------------------------------
 
@@ -442,8 +443,8 @@ irq:    pha
         lda @hi,x
         sta @j+2
 @j:     jmp $FFFF
-@lo:    .byte <irq_gap, <irq_rc, <irq_scroll, <irq_bottom
-@hi:    .byte >irq_gap, >irq_rc, >irq_scroll, >irq_bottom
+@lo:    .byte <irq_gap, <irq_rc, <irq_scroll, <irq_bottom, <irq_vbl
+@hi:    .byte >irq_gap, >irq_rc, >irq_scroll, >irq_bottom, >irq_vbl
 
 ; Under the panel: the deck's background. The panel's last row is all
 ; foreground, so it can change anywhere in it. The gap row under it is the
@@ -570,13 +571,23 @@ irq_bottom:
         lda #0
         sta _ready
 @same:  inc _frames
-        jsr panel_regs
         jsr kpoll
         jsr sfx_frame
         lda _mus_hook+1
         beq :+
         jsr mus_go
-:       lda #0
+:       lda #4
+        sta phase
+        lda #LINE_VBL
+        sta TED_RCMP
+        jmp irq_out
+
+; In the vertical blank: the panel's registers for the picture's top. Not
+; right under the window: VICE draws a pixel of the window's colour into
+; the border where a TED register is written there ("snow").
+irq_vbl:
+        jsr panel_regs
+        lda #0
         sta phase
         lda #LINE_GAP
         sta TED_RCMP

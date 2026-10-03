@@ -349,7 +349,7 @@ void picture(unsigned char t, unsigned char row, unsigned char col)
 
 static void unit(unsigned char t, unsigned char a, const char *l1, const char *l2)
 {
-    picture(t, 11, 2);
+    picture(t, 12, 2);
     x_attr = a;
     x_row = 10;
     x_col = 3;

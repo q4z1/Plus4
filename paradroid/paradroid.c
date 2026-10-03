@@ -346,7 +346,7 @@ static void terminated(void)
     eng_plain();
     cd = col_deck;
     col_deck = pal_deck[1];
-    picture(rnd() & 15, 11, 16);
+    picture(rnd() & 15, 12, 16);
     x_attr = 0x63;                      /* the original's light cyan */
     x_row = 10;
     x_col = 13;

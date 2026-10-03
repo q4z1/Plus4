@@ -54,7 +54,7 @@ static unsigned char free_code;         /* picture 1's first character not in us
  * behind the overlay: its characters, layout and colours. The page is in
  * multicolour for it, so its letters' colour is one of 0-7. */
 #define PIC_TYPE 14
-#define PIC_ROW  1                      /* its first row in the page */
+#define PIC_ROW  2                      /* its first row in the page */
 static unsigned char *pic, *pic_lay;
 static unsigned char pic_n, pic_rows, pic_col, pic_code;
 
@@ -348,7 +348,7 @@ static void start_page(void)
     eng_plain();
     col_deck = pal_deck[1];
     panel_status("Game on!");
-    picture(0, 11, 2);
+    picture(0, 12, 2);
     x_attr = pal_mc[4];
     x_row = 10;
     x_col = 3;
