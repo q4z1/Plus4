@@ -23,6 +23,14 @@
 #include <string.h>
 #include "game.h"
 
+/* The transfer's overlay (with xfer.s's board): kept packed, unpacked into
+ * the pictures' slots by paradroid.c, which makes them again afterwards.
+ * The droids' pictures and the panel's letters (picture(), say(),
+ * unit_name()) are always there, in picture.c: the console, the title and
+ * a game's end show them too. */
+#pragma code-name (push, "XFERCODE")
+#pragma rodata-name (push, "XFERDATA")
+
 #define NL      12                      /* lines a side */
 #define ROW0    12                      /* screen row of the first line */
 #define GLYPH(c) (POOL + (c) - 0xF1)    /* the original's $F1-$FE, */
@@ -138,8 +146,6 @@ static void draw_leader(void)
     cell(20, GLYPH(0xFE), a);
 }
 
-static unsigned char target_slot;
-
 static void draw_droids(void)
 {
     static unsigned char k;
@@ -149,10 +155,9 @@ static void draw_droids(void)
     x_row = 9;
     x_code = FIG;
     x_col = me ? 29 : 7;
-    x_droid(SLOT_PLAYER);
+    x_droid(SLOT_PANIM + 1);
     x_col = me ? 7 : 29;
-    if (target_slot != 255)
-        x_droid(target_slot);
+    x_droid(SLOT_PANIM + 2);
 }
 
 static void board(void)
@@ -285,79 +290,9 @@ static void wait3(void)
 
 /* ---- the introduction: both droids, as the original shows them ---- */
 
-/* The pictures are files on the disk, "p00" to "p23" (tools/mkdata.py),
- * loaded to character 1 of picture 1's set, which the window shows for
- * both pictures meanwhile. The text is in the panel's letters, their
- * characters copied there too, from 100 on, the first time each is met. */
-static char name[4] = "p00";
+/* picture(), say(), unit_name(): picture.c */
+static char num[4];
 
-static const char *const noun[4] = { " device", " robot", " droid", " cyborg" };
-static const char *const class_name[10] = {
-    "influence", "disposal", "servant", "messenger", "maintenance",
-    "crew", "sentinel", "battle", "security", "command"
-};
-static char word[20];
-
-/* "Maintenance robot": the class, a capital first, and what it is */
-const char *unit_name(unsigned char t)
-{
-    strcpy(word, class_name[dr_class[t]]);
-    word[0] ^= 0x80;                    /* a capital (PETSCII) */
-    strcat(word, noun[(dr_class[t] + 3) / 4]);
-    return word;
-}
-
-/* text from x_row, x_col on, in the panel's letters (title.c too) */
-void say(const char *s)
-{
-    static unsigned char c;
-    while (*s) {
-        c = panel_code(*s++);
-        x_letter(c);
-        if (c >= 0x3A)
-            x_letter(c + 0x20);
-    }
-}
-
-/* droid type t's screen: its picture and what it is; the second line is
- * the player's or the other droid's */
-/* droid type t's picture from the disk at row, col of a cleared window,
- * picture 1's set shown for both pictures; letters can follow (title.c,
- * console.c too). The file (tools/mkdata.py) ends with where its header
- * is; after the header come the console's pages about the droid. */
-const unsigned char *pic_pages;
-unsigned char pic_late;                 /* the window cleared once loaded, */
-unsigned char pic_until;                /* not before this picture, and */
-                                        /* the static stopped */
-
-void picture(unsigned char t, unsigned char row, unsigned char col)
-{
-    static unsigned char *e;
-    if (!pic_late)
-        win_clear(0, 0x71);
-    name[1] = '0' + t / 10;
-    name[2] = '0' + t % 10;
-    e = FONT1 + 8 + load_file(name, FONT1 + 8);
-    if (pic_late) {
-        while ((signed char)(frames - pic_until) < 0)
-            ;
-        roll = 0;
-        eng_roll(0);
-        win_clear(0, 0x71);
-        pic_late = 0;
-    }
-    e = FONT1 + 8 + (e[-2] | e[-1] << 8);
-    pic_pages = e + 4;
-    font_hi[0] = 0xD8;
-    col_fig2 = pal_deck[e[3]];
-    x_attr = pal_mc[e[2]];
-    x_row = row;
-    x_col = col;
-    x_code = e[1];
-    x_picture(e - e[1] * 6);
-    memset(xmap, 0, sizeof xmap);
-    x_code = 140;
-}
 
 static void unit(unsigned char t, unsigned char a, const char *l1, const char *l2)
 {
@@ -366,11 +301,10 @@ static void unit(unsigned char t, unsigned char a, const char *l1, const char *l
     x_row = 10;
     x_col = 3;
     say("Unit type ");
-    name[0] = '0' + dr_class[t];        /* (the file's name done with) */
-    name[1] = '0' + dr_num[t] / 10;
-    name[2] = '0' + dr_num[t] % 10;
-    say(name);
-    name[0] = 'p';
+    num[0] = '0' + dr_class[t];
+    num[1] = '0' + dr_num[t] / 10;
+    num[2] = '0' + dr_num[t] % 10;
+    say(num);
     say(" - ");
     say(unit_name(t));
     x_row = 12;
@@ -430,7 +364,10 @@ unsigned char transfer_game(unsigned char i)
     blk = pal_deck[0] | 8;
     cd = col_deck;
     col_deck = pal_deck[2];
-    target_slot = slot_of[d_type[i]];
+    /* both droids into the slots after this overlay (it is unpacked
+     * where theirs were): the player's in its colours */
+    board_droid(SLOT_PANIM + 1, d_type[0], 1);
+    board_droid(SLOT_PANIM + 2, d_type[i], 0);
     for (;;) {
         x_layout(0);
         x_layout(1);

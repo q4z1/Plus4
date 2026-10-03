@@ -12,7 +12,7 @@
  * side. Fire goes back to the menu from there.
  *
  * The enquiry shows a droid's picture and its pages, as the original
- * words them; both come with the picture's file from the disk (transfer.c,
+ * words them; both come with the picture's file from the disk (picture.c,
  * picture()). Right and left turn the pages, up and down go through the
  * droid types the host is cleared for: its own and those below.
  *
@@ -31,7 +31,7 @@ void x_letter(unsigned char c);
 extern unsigned char xmap[128];
 extern const unsigned char plan_font[], plan_cls[];
 extern const unsigned char icon_font[], icon_tab[], icon_lay[];
-extern const unsigned char *pic_pages;  /* transfer.c: the picture's pages */
+extern const unsigned char *pic_pages;  /* picture.c: the picture's pages */
 
 static unsigned char k, prev;
 

@@ -89,6 +89,7 @@ void new_ship(void);
 void load_deck(unsigned char d);
 extern unsigned char *unp_dst;          /* unpack.s: what exomizer packed, */
 void __fastcall__ unpack(const void *src);  /* to unp_dst on */
+void board_droid(unsigned char n, unsigned char t, unsigned char p);  /* draw.c */
 void colour_blocks(void);
 void deck_colours(void);                /* move.s: the deck's scheme, alert */
 extern unsigned char bw;                /* move.s: black and white (F2) */
@@ -172,12 +173,12 @@ void win_put(void);
 const char *num_text(unsigned long v);   /* up to seven digits */
 unsigned char panel_code(char ch);       /* a letter's code in the panel's set */
 unsigned load_file(const char *name, void *addr);   /* paradroid.c: bytes loaded */
-void picture(unsigned char t, unsigned char row, unsigned char col);  /* transfer.c */
+void picture(unsigned char t, unsigned char row, unsigned char col);  /* picture.c */
 extern unsigned char pic_late, pic_until;  /* picture(): clear once loaded */
 extern unsigned char roll;              /* engine.s: the static rolls */
 void __fastcall__ page_end(unsigned char cd);  /* paradroid.c */
-void say(const char *s);                 /* transfer.c: at x_row, x_col */
-const char *unit_name(unsigned char t);  /* transfer.c: "Maintenance robot" */
+void say(const char *s);                 /* picture.c: at x_row, x_col */
+const char *unit_name(unsigned char t);  /* picture.c: "Maintenance robot" */
 void side_view(void);                    /* lift.c */
 void side_light(unsigned char d);
 extern unsigned char x_row, x_col, x_attr, x_code;  /* xfer.s */

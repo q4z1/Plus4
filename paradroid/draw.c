@@ -97,6 +97,20 @@ void player_picture(void)
     }
 }
 
+/* droid type t into slot n, the player's colours if p: the transfer's
+ * board shows the two droids from slots its overlay leaves alone */
+void board_droid(unsigned char n, unsigned char t, unsigned char p)
+{
+    static unsigned char i, b;
+    droid_picture(t);
+    if (p)
+        for (i = 0; i < DROID_H * 4; ++i) {
+            b = pimg[i];
+            pimg[i] = ((b & 0x55) << 1) | ((b & 0xAA) >> 1);
+        }
+    shift_into(n, pimg, DROID_H);
+}
+
 void pictures_deck(void)
 {
     static unsigned char i, t, n;

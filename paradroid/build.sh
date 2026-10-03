@@ -49,7 +49,7 @@ $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/fastinit.o fastinit.c
 n=$($B/od65 -S build/fastinit.o | awk '/INITDATA:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
-for f in paradroid deck droids draw transfer lift title; do
+for f in paradroid deck droids draw picture transfer lift title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
 done
 $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
@@ -70,11 +70,11 @@ $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
 # segment, so nothing else moves) are packed from the first link's, then
 # go into the second. They must not refer to BLOBS themselves: the two
 # links' overlays are compared.
-OVLS="con"
+OVLS="con xfer"
 link() {
     $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
         -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-        build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
+        build/draw.o build/picture.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
         build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
         build/sfx.o build/unpack.o build/blobs.o
 }

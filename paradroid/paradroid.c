@@ -77,11 +77,19 @@ static void lift(unsigned char li);
 extern unsigned char fl_kind;           /* fastload.s */
 void fl_spin(void);
 
+/* the transfer's overlay (transfer.c, xfer.s): unpacked into the
+ * pictures' slots, which are made again afterwards (slots_again()) */
+extern const unsigned char blob_xfer[];
+extern unsigned char _XFEROVL_START__[];
+static void slots_again(void);
+
 static void transfer(unsigned char i)
 {
     static unsigned char won;
     while (ready)
         ;
+    unp_dst = _XFEROVL_START__;
+    unpack(blob_xfer);
     won = transfer_game(i);
     if (won) {
         sound(SFX_COMPLETE);
@@ -97,6 +105,7 @@ static void transfer(unsigned char i)
         burnt_out();
     }
     transfer_mode = 0;
+    slots_again();
     wait_free(K_FIRE);
 }
 

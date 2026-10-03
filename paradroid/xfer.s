@@ -5,6 +5,11 @@
 ; A side has 4 layers of 12 lines, a layer after the other: part[] holds
 ; the parts (transfer.c), live[] whether each carries a pulse (0 or 1).
 ; Side 0 is the left, yellow; side 1 the right, purple, drawn mirrored.
+;
+; The board's part is in the transfer's overlay (XFERCODE, XFERDATA: kept
+; packed, unpacked into the pictures' slots by paradroid.c); the letters
+; and the droids' pictures (x_letter, x_picture) are always there, for
+; the console, the title and a game's end too.
 
         .include "build/gen/tiles.inc"
 
@@ -77,7 +82,7 @@ _xr:    .res 1
 _tcol:  .res 2                  ; the sides' colours
 _blk:   .res 1                  ; a dead wire's
 
-        .rodata
+        .segment "XFERDATA"
 ; a part passes a pulse on to the right; it takes one from the left; its
 ; character (the arrows of DEAD and AMP for the left side)
 _out_r: .byte 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0
@@ -96,7 +101,7 @@ rowhi:  .repeat NL, R
         .byte >((ROW0 + R) * 40)
         .endrepeat
 
-        .code
+        .segment "XFERCODE"
 
 ; ---------------------------------------------------------------------------
 ; x_pass: side A's pulses passed on, layer by layer (FreedroidClassic's
@@ -560,6 +565,8 @@ _x_layout:
 
 PANELF  = $E000
 
+        .code                   ; (always there: x_letter, x_picture)
+
 ; row x_row of both pictures into pa0/pc0, pa1/pc1
 rowptr: lda #0
         sta pa0 + 1
@@ -710,6 +717,8 @@ _x_picture:
         lda xcs
         sta _x_attr
         rts
+
+        .segment "XFERCODE"
 
 ; x_droid(slot): a droid's picture from its pre-shifted slot (the first of
 ; its four positions: columns at 8 + 24 * column) as eight characters

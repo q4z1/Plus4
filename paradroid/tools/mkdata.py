@@ -818,8 +818,11 @@ s.append('        .rodata')
 xf = []
 for name in XFER_ORDER:
     xf += [int(r.replace('.', '0').replace('#', '1'), 2) for r in XFER[name]]
+# (in the transfer's overlay, kept packed: transfer.c, xfer.s)
+s.append('        .segment "XFERDATA"')
 emit('xfer_font', xf)
 emit('board_font', board)
+s.append('        .rodata')
 
 # Used once at the start, then overwritten: the pre-shifted pictures
 # (draw.c) start where these are, 23 slots of 512 bytes. The start makes
