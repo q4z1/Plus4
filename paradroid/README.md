@@ -96,7 +96,7 @@ second. The window scrolls a pixel at a time in any direction.
 | | |
 | --- | --- |
 | ![The logo](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
-| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it. | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
+| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it. In its empty box at the bottom right, the port's credit, in the letters of the original's plates (those missing drawn in their style). | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
 | ![The day's scores](screenshots/scores.png) | ![After a game](screenshots/highscore.png) |
 | **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. Then the round starts again with the logo. | **After a game** its score is the day's top or worst, if it is: the number alone, without the original's initials. |
 

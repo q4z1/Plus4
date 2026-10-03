@@ -395,6 +395,39 @@ lcols = [[int(x, 16) for x in l[4:]] for l in ltxt.split('\n') if l.startswith('
 LOGO_BG = int(re.search(r'^bg (\d+)', ltxt, re.M).group(1))
 lglyph = {int(m.group(1), 16): [int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(2).split()]
           for m in re.finditer(r'char ([0-9a-f]{2})\n((?:[.#]{8}\n){8})', ltxt)}
+# The port's credit in the empty box at the bottom right, two lines in the
+# letters of the original's plates ("BY ANDREW BRAYBROOK"): those it has,
+# and the others drawn in their style, numbered from $100 on.
+CREDIT = ((20, 'PLUS/4 CONVERSION'), (21, 'BY Q4Z1 2026'))
+CREDIT_COL = 11                         # the plates' letters' dark grey
+CREDIT_HAS = {'B': 0xE0, 'Y': 0xFF, 'A': 0xDF, 'N': 0xE4, 'D': 0xE1, 'R': 0xE6,
+              'E': 0xE2, 'W': 0xE7, 'O': 0xE5, 'K': 0xE3, ' ': 0x00}
+CREDIT_NEW = {
+    'P': ['######..', '##...##.', '######..', '##......', '##......', '###.....'],
+    'L': ['##......', '##......', '##......', '##......', '##....#.', '#######.'],
+    'U': ['##...##.', '##...##.', '##...##.', '##...##.', '##...##.', '.#####..'],
+    'S': ['.#####..', '##......', '.#####..', '.....##.', '##...##.', '.#####..'],
+    'C': ['.#####..', '##...##.', '##......', '##......', '##...##.', '.#####..'],
+    'V': ['##...##.', '##...##.', '##...##.', '.##.##..', '..###...', '...#....'],
+    'I': ['.####...', '..##....', '..##....', '..##....', '..##....', '.####...'],
+    'Q': ['.#####..', '##...##.', '##...##.', '##.#.##.', '##..##..', '.###.##.'],
+    'Z': ['#######.', '#....##.', '...##...', '.##.....', '##....#.', '#######.'],
+    '/': ['.....##.', '....##..', '...##...', '..##....', '.##.....', '##......'],
+    '4': ['...###..', '..####..', '.##.##..', '##..##..', '#######.', '....##..'],
+    '1': ['..##....', '.###....', '..##....', '..##....', '..##....', '.####...'],
+    '2': ['.#####..', '##...##.', '....##..', '..##....', '.##.....', '#######.'],
+    '0': ['.#####..', '##..###.', '##.#.##.', '##.#.##.', '###..##.', '.#####..'],
+    '6': ['.#####..', '##......', '######..', '##...##.', '##...##.', '.#####..'],
+}
+for k, (ch, g) in enumerate(sorted(CREDIT_NEW.items())):
+    CREDIT_HAS[ch] = 0x100 + k
+    lglyph[0x100 + k] = [0] + [int(r.replace('.', '0').replace('#', '1'), 2) for r in g] + [0]
+for row, text in CREDIT:
+    col = 18 + (20 - len(text)) // 2        # the box's inside: columns 18-37
+    for i, ch in enumerate(text):
+        lrows[row][col + i] = CREDIT_HAS[ch]
+        if ch != ' ':
+            lcols[row][col + i] = CREDIT_COL
 lorder = [0x00] + sorted(c for c in lglyph if c != 0)
 assert not any(lglyph[0])
 lcol = {}
