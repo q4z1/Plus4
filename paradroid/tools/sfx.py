@@ -21,12 +21,14 @@ EFFECTS = [
     ('shot2', 0x02, 1),
     ('shot3', 0x03, 1),
     ('shot4', 0x04, 1),
+    ('terminated', 0x05, 1),  # "Transmission terminated", after a game
     ('beam', 0x07, 1),      # a game's start: the player beamed aboard
     ('low', 0x08, 2),       # energy below 8: every 32 ticks
     ('complete', 0x0B, 1),  # "Complete"; and the transfer's own droid shown
     ('rejected', 0x0C, 1),  # "Rejected"; and the other droid shown
     ('burnt', 0x0D, 1),     # "Burnt Out"
     ('deadlock', 0x0E, 1),  # "Deadlock"
+    ('static', 0x0F, 1),    # the static after a game, before "terminated"
     ('ride', 0x10, 2),      # the lift going from deck to deck
     ('dhit', 0x11, 2),      # a droid hit
     ('dboom', 0x12, 1),     # a droid destroyed

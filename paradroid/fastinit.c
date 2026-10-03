@@ -34,10 +34,9 @@ extern unsigned char _FL41_LOAD__[], _FL41_RUN__[], _FL41_SIZE__[];
 
 static char buf[40];
 
-/* the sound effects' player and their table, linked to run at $FC00 and
- * $FF40 (paradroid.cfg, sfx.s): there, and both voices quiet */
+/* the sound effects' player, linked to run at $FC00 (paradroid.cfg,
+ * sfx.s): there, and both voices quiet */
 extern unsigned char _SFXCODE_LOAD__[], _SFXCODE_RUN__[], _SFXCODE_SIZE__[];
-extern unsigned char _SFXDATA_LOAD__[], _SFXDATA_RUN__[], _SFXDATA_SIZE__[];
 /* the console and the figures, linked to run at $F400 likewise */
 extern unsigned char _HICODE_LOAD__[], _HICODE_RUN__[], _HICODE_SIZE__[];
 extern unsigned char snd_len[2];
@@ -62,7 +61,6 @@ void fl_init(unsigned char dev)
     static unsigned char got;
     static const unsigned char *code;
     memcpy(_SFXCODE_RUN__, _SFXCODE_LOAD__, (unsigned)_SFXCODE_SIZE__);
-    memcpy(_SFXDATA_RUN__, _SFXDATA_LOAD__, (unsigned)_SFXDATA_SIZE__);
     memcpy(_HICODE_RUN__, _HICODE_LOAD__, (unsigned)_HICODE_SIZE__);
     snd_len[0] = snd_len[1] = 0;
     fl_kind = 0;

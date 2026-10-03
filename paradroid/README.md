@@ -74,6 +74,13 @@ thrown back at twice its speed (at 2 up and left if it stood still that
 way), the droid turns round and waits 16 ticks, and the stronger of the
 two hurts the weaker. It bumps once until the two are apart again.
 
+A game ends as the original's ($378B): the window full of static - its
+four noise characters at random, black on white, going round and
+rolling down the lines, with its noise - for 1.2 seconds, here for as
+long as the 999's picture takes to load (the rolling is the interrupt's,
+so it goes on meanwhile), then the 999 with "Transmission terminated"
+and its rising tune, for 4.2 seconds.
+
 When a deck has no droids left, its lights go out. When the whole ship is
 dark, the next ship of the fleet follows, with droids a class higher.
 
@@ -318,7 +325,9 @@ The energizers on the deck turn too. Both are the original's own
 animation (its routine at `$2605`, phases and speeds read from its list at
 `$6C28`, [data/anim.txt](data/anim.txt)): the energizer is the deck's
 character `$14`, the plan's symbol for block 20 is the same character, and
-it turns a phase every three ticks in the game.
+it turns a phase every three ticks in the game. Every other tick the
+energizer's dots, its characters `$4C`-`$4F`, go round one character on,
+as there ($38C4).
 
 The console is always in memory, so it opens at once: its code (1.7 KB)
 at `$F400`, copied there at the start, its data in the program. The pages
@@ -410,7 +419,7 @@ costs a fraction of a picture's time, and gives the same bytes.
 
 The game's sounds are the original's own effects, read from its sound
 driver in x64sc ([tools/sfx.py](tools/sfx.py) into
-[data/sfx.txt](data/sfx.txt)): 23 of them, each a record of a start
+[data/sfx.txt](data/sfx.txt)): 25 of them, each a record of a start
 frequency, a step added each picture and periods, at the end of each of
 which the step turns round or the frequency goes back to the start. The
 original plays them on two channels, as the TED has two voices. Which
@@ -420,7 +429,7 @@ weapon (the droids' shots are silent there), a droid hit and destroyed,
 the player hit and destroyed, a bump, the energizer for each unit of
 energy, "Lift" and the ride from deck to deck, the deck cleared, the
 transfer's "Finish", "Complete", "Rejected", "Burnt Out" and "Deadlock",
-and on their own: the ship's hum every 32 ticks while the second voice is
+the static and "Transmission terminated" after a game, and on their own: the ship's hum every 32 ticks while the second voice is
 free, with each deck's own periods; a warning while the energy is below 8;
 transfer mode every 8 ticks.
 
@@ -436,10 +445,10 @@ noisy effects go there. Played in a 6502 emulator, the original's driver
 and the model `sfx.s` follows give the same frequencies picture for
 picture for all 22.
 
-There is no room for them in the program's memory, which is full: the
-player runs at `$FC00`, below cc65's stack, which needs a few dozen bytes,
-and the effects' table lies at `$FF40`, above the TED's registers; both
-are copied there at the start, from the data that is overwritten later.
+The player runs at `$FC00`, below cc65's stack, which needs a few dozen
+bytes, copied there at the start from the data that is overwritten
+later; the effects' table is in the program (at `$FF40`, above the TED's
+registers, where it first was, there is room for 23).
 The deck's hum's periods are in the free end of the block code tables.
 
 ### The title's sound

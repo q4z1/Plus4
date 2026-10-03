@@ -587,7 +587,10 @@ irq_bottom:
 ; the border where a TED register is written there ("snow").
 irq_vbl:
         jsr panel_regs
-        lda #0
+        lda _roll                       ; the static rolling (terminated())
+        beq :+
+        jsr roll_step
+:       lda #0
         sta phase
         lda #LINE_GAP
         sta TED_RCMP
@@ -1865,13 +1868,35 @@ _eng_keys:
 ; The original's animated characters ($2605 there, list $6C28)
 ; ===========================================================================
 
-        .export _anim_deck, _anim_plan
-        .import _anim_e, _anim_emc, _anim_p
+        .export _anim_deck, _anim_plan, _anim_static, _eng_roll, _roll
+        .import _anim_e, _anim_emc, _anim_p, _tick
+
+.macro dots B                   ; the four dots' row X, round once
+        ldy B + (DOT_CHAR + 3) * 8,x
+        lda B + (DOT_CHAR + 2) * 8,x
+        sta B + (DOT_CHAR + 3) * 8,x
+        lda B + (DOT_CHAR + 1) * 8,x
+        sta B + (DOT_CHAR + 2) * 8,x
+        lda B + DOT_CHAR * 8,x
+        sta B + (DOT_CHAR + 1) * 8,x
+        tya
+        sta B + DOT_CHAR * 8,x
+.endmacro
 
 ; anim_deck(): once a tick in the game: the energizer's character turns, a
-; phase every three ticks, as the original's
+; phase every three ticks, and every other tick its dots go round a
+; character on ($38C4 there), as the original's
 _anim_deck:
-        dec a_ec
+        lda _tick
+        lsr a
+        bcs @e
+        ldx #7
+@d:     dots FONT0
+        dots FONT1
+        dots MCFONT
+        dex
+        bpl @d
+@e:     dec a_ec
         bne @out
         lda #3
         sta a_ec
@@ -1924,6 +1949,50 @@ _anim_plan:
         bpl :-
 @out:   rts
 
+; anim_static(): the static's four characters (250-253 of picture 1's
+; set, above a picture's and the letters', terminated() in paradroid.c)
+; go round a character on, as the dots
+STATIC  = FONT1 + 250 * 8
+_anim_static:
+        ldx #7
+:       ldy STATIC + 24,x
+        lda STATIC + 16,x
+        sta STATIC + 24,x
+        lda STATIC + 8,x
+        sta STATIC + 16,x
+        lda STATIC,x
+        sta STATIC + 8,x
+        tya
+        sta STATIC,x
+        dex
+        bpl :-
+        rts
+
+; roll_step: in the vertical blank, while roll is set: the static a line
+; further down, and round a character every other picture - in the
+; interrupt, so that it goes on while the 999's picture loads
+roll_step:
+        inc rollc
+        lda rollc
+        lsr a
+        bcs :+
+        jsr _anim_static
+:       lda rollc
+        and #7
+        ; (on into eng_roll)
+
+; eng_roll(s): a page in the window moved down by s lines (0-7), both
+; pictures - the static's rolling, as the original's fine scroll
+_eng_roll:
+        sta b_s
+        sta b_s+1
+        eor #$FF                ; 6 - s
+        sec
+        adc #6
+        sta b_rcv
+        sta b_rcv+1
+        rts
+
 ; the energizer's next phase: X its last byte's index
 a_next: inc a_ep
         lda a_ep
@@ -1940,3 +2009,5 @@ a_ec:   .byte 1                 ; ticks to the next phase
 a_ep:   .byte 0                 ; the phase
 a_pc:   .byte 1                 ; the plan's player likewise
 a_pp:   .byte 0
+_roll:  .byte 0                 ; the static rolls (roll_step)
+rollc:  .byte 0

@@ -635,7 +635,6 @@ for l in lines('sfx.txt'):
     assert cnt < 32
     sfx_tab += [start & 255, start >> 8, step & 255, step >> 8, first, per, flags, sounds]
     sfx_names.append(name)
-assert len(sfx_tab) <= 186, len(sfx_tab)
 for k in range(16):
     bc[160 + k] = hum['hum_first'][k]
     bc[176 + k] = hum['hum_period'][k]
@@ -645,12 +644,15 @@ emit('blk_flag', [FLAG[b] for b in range(NBLK)])
 # energizer's, in the game and on the deck plan, hires and as multicolour;
 # the plan's player (engine.s, anim_deck() and anim_plan())
 anim = {}
-for m in re.finditer(r'(energizer|player) (\d)\n((?:[.#]{8}\n){8})', read('anim.txt')):
+for m in re.finditer(r'(energizer|player|static) (\d)\n((?:[.#]{8}\n){8})', read('anim.txt')):
     anim.setdefault(m.group(1), []).extend(
         int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(3).split())
 emit('anim_e', anim['energizer'])
 emit('anim_emc', [mc(b) for b in anim['energizer']])
 emit('anim_p', anim['player'])
+emit('anim_s', anim['static'])
+# the energizer's dots, $4C-$4F, turned round in the game (engine.s)
+assert [code_of[c] for c in range(0x4C, 0x50)] == list(range(code_of[0x4C], code_of[0x4C] + 4))
 # decks
 allrle = []
 offs = []
@@ -760,9 +762,9 @@ for name, data in init:
     s.append(asm_bytes(name, data))
 # fastinit.c and the drive code are in INITDATA too (build.sh says how much)
 init_size = (sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0))
-             + len(sfx_tab))
+             )
 assert init_size <= PRE_SLOTS * 512, init_size
-s.append('        .segment "SFXDATA"')       # run at $FF40, copied there at the start
+s.append('        .rodata')                  # (in the program: $FF40 had room for 23)
 s.append(asm_bytes('sfx_tab', sfx_tab))
 exports.append('sfx_tab')
 s.append('        .segment "PREBSS"')
@@ -863,5 +865,5 @@ h.append('extern const unsigned char logo_font[], logo_col[], logo_rle[];')
 h += ['#define SCORE_TOP_AT %d' % score_at[0], '#define SCORE_LOW_AT %d' % score_at[1],
       '#define NLOGO %d' % len(lorder), '#define LOGO_BG %d' % LOGO_BG]
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
-open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\nENERGY_CHAR = %d\n' % (POOL, code_of[0x14]))
+open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\nENERGY_CHAR = %d\nDOT_CHAR = %d\n' % (POOL, code_of[0x14], code_of[0x4C]))
 print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes, pictures up to %d' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE, pic_max))

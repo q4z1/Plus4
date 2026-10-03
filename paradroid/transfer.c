@@ -326,14 +326,26 @@ void say(const char *s)
  * console.c too). The file (tools/mkdata.py) ends with where its header
  * is; after the header come the console's pages about the droid. */
 const unsigned char *pic_pages;
+unsigned char pic_late;                 /* the window cleared once loaded, */
+unsigned char pic_until;                /* not before this picture, and */
+                                        /* the static stopped */
 
 void picture(unsigned char t, unsigned char row, unsigned char col)
 {
     static unsigned char *e;
-    win_clear(0, 0x71);
+    if (!pic_late)
+        win_clear(0, 0x71);
     name[1] = '0' + t / 10;
     name[2] = '0' + t % 10;
     e = FONT1 + 8 + load_file(name, FONT1 + 8);
+    if (pic_late) {
+        while ((signed char)(frames - pic_until) < 0)
+            ;
+        roll = 0;
+        eng_roll(0);
+        win_clear(0, 0x71);
+        pic_late = 0;
+    }
     e = FONT1 + 8 + (e[-2] | e[-1] << 8);
     pic_pages = e + 4;
     font_hi[0] = 0xD8;

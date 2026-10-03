@@ -338,15 +338,40 @@ static unsigned char over;              /* a game has been played */
 
 /* after a game, as the original: a droid picked at random between
  * "Transmission" and "Terminated"; then the title loads */
+#define SCR0A ((unsigned char *)0xC000)  /* the pictures' colours, codes */
+#define SCR0C ((unsigned char *)0xC400)
+#define SCR1A ((unsigned char *)0xD000)
+#define SCR1C ((unsigned char *)0xD400)
+
 static void terminated(void)
 {
     static unsigned char cd, f;
+    static unsigned off;
     while (ready)
         ;
     eng_plain();
+    if (fl_kind)
+        fl_spin();                      /* (the 999's picture loads after) */
     cd = col_deck;
     col_deck = pal_deck[1];
-    picture(rnd() & 15, 12, 16);
+    /* first the static, as the original's ($378B): the window full of its
+     * four noise characters at random, black on white, going round and
+     * rolling down the window's lines, 52 steps in 1.2 seconds, with its
+     * noise */
+    memcpy(FONT1 + 250 * 8, anim_s, 4 * 8);
+    font_hi[0] = 0xD8;                  /* (the deck shows the same in it) */
+    for (off = 9 * 40; off < 1000; ++off) {
+        SCR0C[off] = SCR1C[off] = 250 + (rnd() & 3);
+        SCR0A[off] = SCR1A[off] = 0x00;
+    }
+    sound(SFX_STATIC);
+    /* then the 999's picture, "Transmission terminated" and its tune: the
+     * static goes on while the picture loads (picture(): pic_late), 1.2
+     * seconds at least, as the original's (61 pictures) */
+    roll = 1;
+    pic_late = 1;
+    pic_until = frames + 61;
+    picture(23, 12, 16);
     x_attr = 0x63;                      /* the original's light cyan */
     x_row = 10;
     x_col = 13;
@@ -354,7 +379,8 @@ static void terminated(void)
     x_row = 22;
     x_col = 14;
     say("Terminated");
-    for (f = 0; f < 66; ++f)            /* four seconds, as the original */
+    sound(SFX_TERMINATED);
+    for (f = 0; f < 70; ++f)            /* 4.2 seconds, as the original */
         wait_tick();
     page_end(cd);
 }

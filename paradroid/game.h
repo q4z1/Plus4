@@ -51,6 +51,8 @@ void __fastcall__ panel_frame(unsigned char c);  /* engine.s */
 #define CLS_MC  ((unsigned char *)0xEAB0)
 void anim_deck(void);                   /* the original's animated */
 void anim_plan(void);                   /* characters (engine.s) */
+void anim_static(void);
+void __fastcall__ eng_roll(unsigned char s);  /* engine.s: a page down s lines */
 void eng_plain(void);
 
 #define DMAP    ((unsigned char *)0x0400)
@@ -167,6 +169,8 @@ const char *num_text(unsigned long v);   /* up to seven digits */
 unsigned char panel_code(char ch);       /* a letter's code in the panel's set */
 unsigned load_file(const char *name, void *addr);   /* paradroid.c: bytes loaded */
 void picture(unsigned char t, unsigned char row, unsigned char col);  /* transfer.c */
+extern unsigned char pic_late, pic_until;  /* picture(): clear once loaded */
+extern unsigned char roll;              /* engine.s: the static rolls */
 void __fastcall__ page_end(unsigned char cd);  /* paradroid.c */
 void say(const char *s);                 /* transfer.c: at x_row, x_col */
 const char *unit_name(unsigned char t);  /* transfer.c: "Maintenance robot" */
