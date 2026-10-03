@@ -107,17 +107,18 @@ static void new_game(void)
     d_energy[0] = 64;
     burn = 64;
     alert_acc = 0;
-    /* the first lift of a deck between 4 and 7, as the original starts */
+    /* a deck between 4 and 7, as the original starts, on its first
+     * waypoint (the droids start on the ones after) */
     k = 4 + (rnd() & 3);
-    for (i = 0; i < NLIFTS; ++i)
-        if (lift_deck[i] == k)
-            break;
-    enter(k, lift_bx[i], lift_by[i]);
-    panel_status("Mobile");
+    enter(k, 0, 0);
+    i = wp_first[k];
+    PX = wp_x[i] << 3;
+    PY = wp_y[i] << 3;
     panel_score();
 }
 
 static unsigned char lights_out;         /* this deck went dark already */
+void beam_in(void);
 
 /* the ship is clear: on to the next of the fleet, droids a class higher */
 static void next_ship(void)
@@ -348,6 +349,14 @@ static void terminated(void)
     say("Terminated");
     for (f = 0; f < 66; ++f)            /* four seconds, as the original */
         wait_tick();
+    page_end(cd);
+}
+
+/* a page in the window done with (here, title.c, transfer.c, console.c):
+ * the window cleared, the deck's characters and colours back, the
+ * window's colour cd */
+void __fastcall__ page_end(unsigned char cd)
+{
     while (ready)
         ;
     win_clear(0, 0x71);
@@ -415,7 +424,11 @@ void main(void)
     last = frames;
     for (;;) {
         title();
-        new_game();
+        new_game();                     /* (the start page still up) */
+        page_end(deck_bg);
+        beam_in();                      /* (sfxcall.s) */
+        last = frames;
+        panel_status("Mobile");
         play();
         panel_status("Game over");
         while (keys_irq & K_FIRE)

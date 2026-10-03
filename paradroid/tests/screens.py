@@ -27,6 +27,8 @@ def to(g, x, y):
     X, Y = x * 32 + 16, y * 32 + 16
     g.poke('_d_x', X & 255, X >> 8)
     g.poke('_d_y', Y & 255, Y >> 8)
+    g.poke('_d_vx', 0)                  # (no rolling on from where it was)
+    g.poke('_d_vy', 0)
 
 
 g = Game(warp=False)
@@ -48,7 +50,7 @@ try:
         save(g, key + '.png')
         g.v.cmd('warp on')
     g.v.cmd('warp off')
-    g.keys(16, 0.1); g.keys(0, 3.5)     # a new game waits 50 ticks first
+    g.start_play()                      # the start page, the beam
     save(g, 'lift_stop.png')
     # a stroll and a shot
     g.keys(2, 0.35); g.keys(0, 0.3); g.keys(8, 0.6); g.keys(0, 0.5)
@@ -61,7 +63,8 @@ try:
     to(g, lx, ly); g.keys(0, 0.4)
     g.keys(16, 1.0); g.keys(17, 0.15); g.keys(16, 0.4)
     save(g, 'lift.png')
-    g.keys(18, 0.15); g.keys(16, 0.3); g.keys(0, 0.8)
+    g.keys(18, 0.15); g.keys(16, 0.3); g.keys(0, 0.2)
+    g.settle()                          # (another deck takes a moment)
     # a console: plan and enquiry
     m = decks[g.byte('_deck')]
     x, y = [(x, y) for y in range(1, 15) for x in range(1, 63) if m[y][x] == 'l'
@@ -97,7 +100,7 @@ try:
     px = g.word('_d_x'); py = g.word('_d_y')
     i = [i for i in range(1, g.byte('_nd')) if g.byte('_d_boom', i) == 0][0]
     g.poke('_d_x', px & 255, px >> 8, off=2 * i); g.poke('_d_y', py & 255, py >> 8, off=2 * i)
-    g.keys(16, 0.5); g.keys(0, 0.1)
+    g.keys(16, 0.1); g.keys(0, 0.1)     # (held on, fire would skip a page)
     # the introduction: both droids, from the disk, in picture 1's set
     for i in range(60):
         if g.byte('_font_hi') == 0xD8:

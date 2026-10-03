@@ -84,8 +84,7 @@ void deck_colours(void)
         pal = pal_deck;
         deck_bg = 0x5D;
     }
-    col_deck = deck_bg;
-    colour_blocks();
+    colour_blocks();                    /* (col_deck: the game's loop) */
     eng_dirty();
 }
 

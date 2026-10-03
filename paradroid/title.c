@@ -29,6 +29,7 @@
 #pragma code-name (push, "OVLCODE")
 #pragma rodata-name (push, "OVLDATA")
 #pragma data-name (push, "OVLDATA")     /* (variables with a start value) */
+#pragma bss-name (push, "OVLDATA")      /* (and the rest: zero at each load) */
 
 void wait_tick(void);
 void mus_start(void);                   /* music.s: the original's sound */
@@ -360,6 +361,44 @@ static unsigned char logo(void)
     return k;
 }
 
+/* a game's start, as the original's: for three and a half seconds (or
+ * until fire) the player's unit and what it is there for, in the
+ * original's purple, "Game on!" in the panel - as the transfer's pages
+ * show a unit (transfer.c). The page stays up while the game makes its
+ * figures and the deck, some 65 pictures (paradroid.c, page_end()). */
+static void start_page(void)
+{
+    while (ready)
+        ;
+    eng_plain();
+    col_deck = pal_deck[1];
+    panel_status("Game on!");
+    picture(0, 11, 2);
+    x_attr = pal_mc[4];
+    x_row = 10;
+    x_col = 3;
+    say("Unit type 001 - ");
+    say(unit_name(0));
+    x_row = 12;
+    x_col = 10;
+    say("This is the unit that you");
+    x_row = 14;
+    x_col = 9;
+    say("currently control. Prepare");
+    x_row = 16;
+    x_col = 9;
+    say("to board Robo-Freighter");
+    x_row = 18;
+    x_col = 9;
+    say("Paradroid to eliminate all");
+    x_row = 20;
+    x_col = 9;
+    say("rogue robots.");
+    fire_in(175 - 65);
+    while (keys_irq & K_FIRE)
+        wait_tick();
+}
+
 /* the title's rounds, until fire is pressed and let go */
 void title_run(void)
 {
@@ -388,5 +427,6 @@ void title_run(void)
 out:
     while (keys_irq & K_FIRE)
         wait_tick();
-    mus_stop();                         /* (the overlay's memory goes) */
+    mus_stop();
+    start_page();                       /* (before the overlay's memory goes) */
 }

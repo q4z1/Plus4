@@ -249,13 +249,7 @@ void console_run(void)
         font_hi[0] = 0xC8;
         menu_page();
     }
-    while (ready)
-        ;
-    win_clear(0, 0x71);
-    memcpy(FONT1, FONT0, POOL * 8);
-    font_hi[0] = 0xC8;
-    col_fig2 = 0x71;
-    col_deck = cd;
+    page_end(cd);
     while (keys_irq & K_FIRE)
         wait_tick();
     panel_status("Mobile");

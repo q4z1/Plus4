@@ -228,6 +228,7 @@ unsigned char panel_code(char ch)
     case ',': return 0x29;
     case ':': return 0x2A;
     case '\'': return 0x2D;
+    case '!': return 0x25;
     }
     return 0x30;                        /* space */
 }

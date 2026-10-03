@@ -7,14 +7,20 @@
 ; sfx_tick(): once a tick, the effects the original starts on its own: the
 ; ship's hum when voice 2 is free (every 32 ticks, with the deck's own
 ; periods), a warning while the energy is below 8 (every 32 ticks), and
-; transfer mode (every 8 ticks).
+; transfer mode (every 8 ticks). And the player's colour: flashing while
+; its energy is below 8, as the original's.
+;
+; beam_in(): a game's start, as the original's ($1326): the player beamed
+; aboard, flashing as with its energy low for 32 steps of two pictures,
+; the droids still.
 
-        .export _sound, _sfx_tick, ted
+        .export _sound, _sfx_tick, _beam_in, ted
         .importzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h, s_vol
         .importzp q0, q1, r0, r1, tr0, tr1
         .importzp _snd_len
         .import _sfx_tab
         .import _ticks, _d_energy, _transfer_mode, _player_dead, _deck
+        .import _col_fig2, _frames, _draw
         .include "sfx.inc"
 
 BLKC    = $E800                 ; the hum's periods in its free end
@@ -86,6 +92,13 @@ _sfx_tick:
         plp
 @low:   lda _d_energy
         cmp #8
+        lda #$71                ; white, or flashing (the droids' numbers
+        bcs :+                  ; have the colour too, and flash along)
+        lda _ticks
+        and #7
+        tax
+        lda low_col,x
+:       sta _col_fig2
         bcs @mode
         lda _ticks
         and #$1F
@@ -100,6 +113,44 @@ _sfx_tick:
         lda #SFX_TMODE
         jsr _sound
 @done:  rts
+
+; the player's colours while its energy is low, a step a tick, as the
+; original's ($6D49): white to black and back
+low_col:
+        .byte $61, $51, $31, $00, $31, $51, $61, $71
+
+_beam_in:
+        lda #SFX_BEAM
+        jsr _sound
+        lda #SFX_LOW
+        jsr _sound
+        lda #0
+        sta bstep
+@step:  and #7
+        tax
+        lda low_col,x
+        sta _col_fig2
+        jsr _draw
+        lda _frames
+        sta bstart
+:       lda _frames
+        sec
+        sbc bstart
+        cmp #2
+        bcc :-
+        inc bstep
+        lda bstep
+        cmp #32
+        bne @step
+        lda #$71
+        sta _col_fig2
+        rts
+
+        .bss
+bstep:  .res 1
+bstart: .res 1
+
+        .code
 
 ; for sfx.s: the TED's register for voice X's frequency, into tr0/tr1:
 ; 1024 - 1887446 / f; 0 below 1844 (the TED's lowest). From 1844 on the

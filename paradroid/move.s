@@ -18,7 +18,7 @@
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
         .export _move_player, _solid_at, droid_look, d_lk, _console_near
-        .export _doors, _blk_at, _bump_next, _bump_i, _bump_r, _bump_d
+        .export _doors, _blk_at, _bump_next, _bump_i, _bump_back
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
         .import _ndoor, _door_x, _door_y, _door_v, _door_s
@@ -57,8 +57,6 @@ nn:     .res 1
 
         .bss
 _bump_i: .res 1                 ; bump_next(): the droid last found
-_bump_r: .res 1                 ; the player right of it (or level), below
-_bump_d: .res 1
 nbx:    .res 13                 ; doors(): the droids by the screen
 nby:    .res 13
 d_lk:   .res 13                 ; looked ahead, free: no look till the droid
@@ -653,7 +651,7 @@ door1:  lda _door_x,x           ; near the player?
 
 ; bump_next(): from droid bump_i + 1 on, the next one (not exploding) that
 ; touches the player: less than 24 across and 16 up or down between their
-; middles. Its number, 0 if none; bump_r and bump_d the player's side.
+; middles. Its number, 0 if none.
 _bump_next:
         ldx _bump_i
 @n:     inx
@@ -699,22 +697,42 @@ _bump_next:
         cmp #31
         bcs @n
         stx _bump_i
-        lda tx
-        cmp #23
-        lda #0
-        rol a
-        sta _bump_r
-        lda c_q
-        cmp #15
-        lda #0
-        rol a
-        sta _bump_d
         txa
         ldx #0
         rts
 @none:  stx _bump_i
         lda #0
         tax
+        rts
+
+; bump_back(i): the bump of droid i, as the original's ($1A73): the droid
+; turns round and waits 16 ticks, the player is thrown back at twice its
+; speed, at 2 up and left if still that way
+_bump_back:
+        tax
+        lda #16
+        sta _d_wait,x
+        lda #0
+        sec
+        sbc _d_vx,x
+        sta _d_vx,x
+        lda #0
+        sec
+        sbc _d_vy,x
+        sta _d_vy,x
+        lda _d_vx               ; the player
+        jsr @back
+        sta _d_vx
+        lda _d_vy
+        jsr @back
+        sta _d_vy
+        rts
+@back:  bne :+                  ; -(v + v), with 1 for 0
+        lda #1
+:       eor #$FF
+        clc
+        adc #1
+        asl a
         rts
 
 ; blk_at(x, y): the block under world pixel (x, y), as an index

@@ -60,6 +60,20 @@ original's, read from its code:
   slowly. While it is up it pays points, and the ALERT consoles turn from
   green through yellow and orange to red.
 
+A game starts as the original's: a page with the 001 and what it is there
+for, "Game on!" in the panel, for three and a half seconds or until fire;
+then the 001 is beamed aboard, with the original's sound, at the first
+waypoint of a deck between 4 and 7 (its top left; the droids start on the
+waypoints after it), flashing from white to black and back for 32 steps
+of two pictures, while the droids stand still. That flashing is the
+original's warning of low energy: it starts with 7 for that while, and
+the player flashes the same way whenever its energy is below 8.
+
+Touching a droid is a **bump**, as in the original's code: the player is
+thrown back at twice its speed (at 2 up and left if it stood still that
+way), the droid turns round and waits 16 ticks, and the stronger of the
+two hurts the weaker. It bumps once until the two are apart again.
+
 When a deck has no droids left, its lights go out. When the whole ship is
 dark, the next ship of the fleet follows, with droids a class higher.
 
@@ -68,6 +82,8 @@ second. The window scrolls a pixel at a time in any direction.
 
 | | |
 | --- | --- |
+| ![Game on](screenshots/start.png) | ![Beamed aboard](screenshots/beam.png) |
+| **A game's start.** The original's page, with its words and the 001's picture, in its purple. | **Beamed aboard.** The 001 flashing at the top left of the deck, as in the original, before the panel says *Mobile*. |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
 | **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*), then have ten seconds (*Finish -52*). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
@@ -337,11 +353,12 @@ costs a fraction of a picture's time, and gives the same bytes.
 
 The game's sounds are the original's own effects, read from its sound
 driver in x64sc ([tools/sfx.py](tools/sfx.py) into
-[data/sfx.txt](data/sfx.txt)): 22 of them, each a record of a start
+[data/sfx.txt](data/sfx.txt)): 23 of them, each a record of a start
 frequency, a step added each picture and periods, at the end of each of
 which the step turns round or the frequency goes back to the start. The
 original plays them on two channels, as the TED has two voices. Which
-event starts which effect was read off its code: the shot by the host's
+event starts which effect was read off its code: the beam at a game's
+start, the shot by the host's
 weapon (the droids' shots are silent there), a droid hit and destroyed,
 the player hit and destroyed, a bump, the energizer for each unit of
 energy, "Lift" and the ride from deck to deck, the deck cleared, the
@@ -510,6 +527,12 @@ Each step draws the rows the window shows from the page's lines.
   the TED's squares instead of the SID's triangles, saws and pulses, and
   without its envelopes; the TED's noise and lowest notes are higher than
   the SID's.
+- The player's **colour** is the TED's second multicolour colour, which
+  the droids' numbers have too: when the player flashes (low energy, a
+  game's start), so do they. For the same reason the player keeps its
+  white in transfer mode, where the original's turns dark grey.
+- Between the start page and the deck, the window is empty for about four
+  pictures, while the deck is drawn the first time.
 - The day's **scores** have no initials.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here.
@@ -628,4 +651,5 @@ limit.
 | `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
 | `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
 | `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
+| `yape_start.py` | a game's start in Yape, 400 pictures in a row: the start page, the beam, "Mobile" |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

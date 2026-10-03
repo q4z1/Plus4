@@ -21,6 +21,7 @@ EFFECTS = [
     ('shot2', 0x02, 1),
     ('shot3', 0x03, 1),
     ('shot4', 0x04, 1),
+    ('beam', 0x07, 1),      # a game's start: the player beamed aboard
     ('low', 0x08, 2),       # energy below 8: every 32 ticks
     ('complete', 0x0B, 1),  # "Complete"; and the transfer's own droid shown
     ('rejected', 0x0C, 1),  # "Rejected"; and the other droid shown

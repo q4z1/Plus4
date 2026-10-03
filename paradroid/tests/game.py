@@ -45,13 +45,23 @@ class Game:
         """from the title into a game, standing still"""
         self.keys(16, 0.15)
         self.keys(0, 0.3)
-        for i in range(50):
+        for i in range(80):
             if self.byte('_hide_player') == 0:
                 break
             self.v.run_for(0.1)
         else:
             raise RuntimeError('the title missed fire')
-        self.v.run_for(2.0)         # entering the deck takes a moment
+        # the deck made while the start page is up, then the player beamed
+        # in: the game's ticks only run once it plays
+        self.settle()
+
+    def settle(self):
+        """until the game ticks again (after a new deck is made, say)"""
+        t = self.word('_ticks')
+        for i in range(80):
+            self.v.run_for(0.1)
+            if (self.word('_ticks') - t) & 0xFFFF >= 3:
+                break
 
     def word(self, name):
         m = self.v.mem(self.lbl[name], 2)

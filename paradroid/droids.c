@@ -319,10 +319,12 @@ void droids_fire(void)
  * Touching droids, energy
  * ==================================================================== */
 
-/* the droids touching the player: bump_next() (move.s) gives each in turn,
- * with the side the player is on of it */
-extern unsigned char bump_i, bump_r, bump_d;
+/* the droids touching the player: bump_next() (move.s) gives each in turn */
+extern unsigned char bump_i;
 unsigned char bump_next(void);
+void __fastcall__ bump_back(unsigned char i);
+
+static unsigned char bumped;            /* the droid bumped last */
 
 void collide(void)
 {
@@ -332,22 +334,27 @@ void collide(void)
     if (d_boom[0])
         return;                         /* nothing pushes an explosion */
     bump_i = 0;
-    while ((i = bump_next()) != 0) {
-        if (transfer_mode) {
-            touched = i;
-            return;
-        }
-        /* a bump: as in the original, the stronger hurts the weaker, and
-         * the player is pushed back */
-        d = (signed char)d_type[0] + 2 - (signed char)d_type[i];
-        if (d >= 0)
-            hit(i, d * 2, 1);
-        else
-            hit(0, (unsigned char)(-d - 1) >> 1, 0);
-        d_vx[0] = bump_r ? 3 : -3;
-        d_vy[0] = bump_d ? 2 : -2;
-        sound(SFX_BUMP);
+    i = bump_next();
+    if (!i) {
+        bumped = 0;                     /* apart: the next touch bumps */
+        return;
     }
+    if (transfer_mode) {
+        touched = i;
+        return;
+    }
+    if (i == bumped)
+        return;                         /* once, as long as they touch */
+    bumped = i;
+    /* a bump, as the original's: both thrown back, the stronger hurts
+     * the weaker */
+    bump_back(i);                       /* (move.s) */
+    sound(SFX_BUMP);
+    d = (signed char)d_type[0] + 2 - (signed char)d_type[i];
+    if (d >= 0)
+        hit(i, d * 2, 1);
+    else
+        hit(0, (unsigned char)(-d - 1) >> 1, 0);
 }
 
 void energy_tick(void)

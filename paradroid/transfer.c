@@ -388,11 +388,7 @@ static void intro(unsigned char i)
     unit(d_type[0], pal_deck[5], "currently control.", "");
     sound(SFX_REJECTED);
     unit(d_type[i], pal_deck[6], "wish to control. Prepare to", "transfer.");
-    win_clear(0, 0x71);
-    memcpy(FONT1, FONT0, POOL * 8);
-    font_hi[0] = 0xC8;
-    col_fig2 = 0x71;
-    col_deck = cd;
+    page_end(cd);
 }
 
 static char text[12];
