@@ -16,17 +16,19 @@ unsigned char deck_bg;                  /* the deck's colour, without a flash */
 /* The C64's colours on the TED: for each, the nearest of the TED's 121, as
  * VICE draws both (measured: tests of all colours on each machine). The
  * deck's light blue is the nearest of 0-7, as deck characters turn into
- * multicolour in the cells figures cover. */
+ * multicolour in the cells figures cover. The light green one level
+ * darker than the nearest found (0x7F, 0x75): nearer the C64's to the
+ * eye, and white figures, doors and consoles stand out on it. */
 const unsigned char pal_deck[16] = {
     0x00, 0x71, 0x3B, 0x63, 0x4E, 0x55, 0x36, 0x77,
-    0x48, 0x39, 0x5B, 0x31, 0x51, 0x7F, 0x56, 0x61
+    0x48, 0x39, 0x5B, 0x31, 0x51, 0x6F, 0x56, 0x61
 };
 
 /* the same for multicolour cells, whose colour can only be 0-7: the
  * nearest of those */
 const unsigned char pal_mc[16] = {
     0x00, 0x71, 0x42, 0x63, 0x44, 0x55, 0x36, 0x77,
-    0x42, 0x37, 0x52, 0x31, 0x51, 0x75, 0x56, 0x61
+    0x42, 0x37, 0x52, 0x31, 0x51, 0x65, 0x56, 0x61
 };
 
 /* colour_blocks(), deck_colours(): move.s, by the original's schemes */
