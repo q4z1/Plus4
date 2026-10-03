@@ -6,13 +6,13 @@ page 0
 4 16 presents
 7 15 Paradroid
 10 8 @ Graftgold Ltd. 1985.
-14 4 Plug your joystick into port 2
+14 4 Joystick in either port, or keys
 18 10 Press fire to play
 22 3 Clear  the freighter  of robots by
 24 2 destroying them with twin  lasers
 26 2 or by transferring control to them.
-30 3 Control is  by  joystick  only, as
-32 2 follows:
+30 3 Control is by joystick  or by the
+32 2 cursor keys, space or ctrl to fire:
 36 2 At all times joystick moves robot
 38 2 and holding fire down will  allow
 40 2 use of lifts and consoles.

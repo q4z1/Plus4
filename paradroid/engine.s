@@ -1738,8 +1738,8 @@ mus_go: jmp (_mus_hook)
 ; The interrupt reads them once a picture and notes every key that goes
 ; down, so a short press is not lost. The row goes to both latches, and
 ; $FF08 is read twice: the first read still sees the value just written.
-; Bits: up 1, down 2, left 4, right 8, fire 16 (also space), space 32,
-; run/stop 64.
+; Bits: up 1, down 2, left 4, right 8, fire 16 (also space, CTRL and C=),
+; space 32, run/stop 64. The cursor keys drive as the joystick does.
 ; ===========================================================================
 
 kpoll:  ldx #$FF
@@ -1793,6 +1793,12 @@ kpoll:  ldx #$FF
         and #$10
         beq :+
         lda #16 | 32            ; space is fire as well
+        ora kr
+        sta kr
+:       txa
+        and #$24                ; so are CTRL and C= (an emulator's Ctrl
+        beq :+                  ; keys: Yape's right and left one)
+        lda #16
         ora kr
         sta kr
 :       txa

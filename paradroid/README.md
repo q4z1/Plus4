@@ -18,11 +18,17 @@ time-critical parts in assembly.
 | | |
 | --- | --- |
 | Joystick in either port, or the cursor keys | drive. The droid has inertia, as in the original |
-| Fire (or `Space`) with a direction | lasers in that direction |
+| Fire (or `Space`, `CTRL` or `C=`) with a direction | lasers in that direction |
 | Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game |
 | Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there |
 | Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
 | `Run/Stop` | pause |
+
+On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
+key as fire (Yape puts the left Ctrl on `C=` and the right one on `CTRL`).
+The original's briefing said "Plug your joystick into port 2" and
+"Control is by joystick only"; here both ports and the keys work, and the
+briefing says so.
 
 ## The game
 
