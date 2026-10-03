@@ -31,7 +31,12 @@ ARRAYS = [('_nd', 1), ('_d_type', MAXD), ('_d_x', 2 * MAXD), ('_d_y', 2 * MAXD),
           ('_d_vx', MAXD), ('_d_vy', MAXD), ('_d_energy', MAXD), ('_d_boom', MAXD),
           ('_d_wait', MAXD), ('_s_x', 2 * MAXS), ('_s_y', 2 * MAXS), ('_s_life', MAXS),
           ('_s_img', MAXS), ('_score', 4), ('_alert_acc', 1), ('_burn', 1),
-          ('_flash', 1), ('_player_dead', 1), ('_touched', 1), ('rs', 2)]
+          ('_flash', 1), ('_player_dead', 1), ('_touched', 1), ('rs', 2),
+          ('_e_sx', 1), ('_e_m0', 1), ('_e_s', 1), ('_e_r', 1), ('_e_blank7', 1),
+          ('_e_cutrow', 1), ('_e_cutn', 1), ('_org_x', 2), ('_org_y', 2),
+          ('_fig_x', 2), ('_fig_y', 2), ('_fig_n', 1), ('_f_tint', 1),
+          ('_ndoor', 1), ('_door_x', 32), ('_door_y', 32), ('_door_s', 32),
+          ('_ship', 192), ('_deck', 1)]
 
 v = Vice(d64, WORK, warp=True)
 def go(timeout=0.05):
@@ -84,10 +89,15 @@ try:
         for t in range(T):
             st = {n: list(v.mem(lbl[n], k)) for n, k in ARRAYS}
             if t % 10 == 9:             # what is drawn, every tenth tick:
+                # (the pictures themselves are not the same from run to
+                # run at this moment: the panel's rows are, and the slots)
                 h = lambda a, n: hashlib.md5(bytes(v.mem(a, n))).hexdigest()[:12]
-                # both pictures, in whichever order the interrupt has them
-                st['pictures'] = sorted(h(a, 0x1000) for a in (0xC000, 0xD000))
+                st['panel'] = [h(a, 240) for a in (0xC000, 0xC400, 0xD000, 0xD400)]
                 st['slots'] = h(lbl['_pre'], 23 * 512)
+                st['dmap'] = h(0x0400, 1024)
+                if os.environ.get('TRACE_DUMP') == str(t):   # (to look into)
+                    for a in (0xC000, 0xD000):
+                        open(out + '.%04x' % a, 'wb').write(bytes(v.mem(a, 0x1000)))
             f.write(json.dumps(st) + '\n')
             if t % 6 == 0:
                 d = rnd.choice([0, 1, 2, 4, 8, 5, 9, 6, 10])
