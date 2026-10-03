@@ -178,8 +178,10 @@ pixels. Drawing is then copying through a mask, and only into cells with
 something in them.
 
 The 001 has the original's turning dome, a slanted gap running round it, as
-four extra slots. As in the original, each of the four stays for two ticks:
-a turn takes half a second.
+four extra slots. Measured in x64sc, the original's gap moves a hires pixel
+a tick, rightwards, eight positions in eight ticks; here it moves a
+multicolour pixel every two ticks over four - the same speed. (It moved
+two multicolour pixels at a time before, leftwards: twice as fast.)
 
 ### Driving, walls and the droids' ways, as measured in the original
 

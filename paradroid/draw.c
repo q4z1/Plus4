@@ -72,9 +72,11 @@ static void clear_px(unsigned char line, unsigned char x)
 }
 
 /* the player's droid: the same picture with its two colours swapped, in
- * four turns of its domes - as in the original, a slanted gap runs round
- * them from right to left */
-static const unsigned char gap_at[4] = { 9, 7, 5, 3 };
+ * four turns of its domes. As in the original (measured in x64sc): a
+ * slanted gap, its top to the right, runs round them from left to right,
+ * a hires pixel a tick over eight; here a multicolour pixel every two
+ * ticks over four (it went two at a time before, twice as fast) */
+static const unsigned char gap_at[4] = { 4, 5, 6, 7 };
 
 void player_picture(void)
 {
@@ -87,9 +89,9 @@ void player_picture(void)
     }
     for (f = 0; f < 4; ++f) {
         memcpy(pimg, base, sizeof base);
-        for (r = 0; r < 3; ++r) {
-            clear_px(r, gap_at[f] + r - 1);
-            clear_px(14 - r, gap_at[f] + r - 1);
+        for (r = 0, b = gap_at[f] + 1; r < 3; ++r, --b) {
+            clear_px(r, b);
+            clear_px(14 - r, b);
         }
         shift_into(f ? SLOT_PANIM + f - 1 : SLOT_PLAYER, pimg, DROID_H);
     }
