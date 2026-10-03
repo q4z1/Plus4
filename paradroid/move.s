@@ -545,7 +545,8 @@ _solid_at:
 ; such a door are looked at: those noted in nbx/nby (nn of them).
 _doors: ldx #0
         stx nn
-        jsr dblk                ; the player's first
+        jsr dblk                ; the player's block (it opens doors by
+        jmp @nx                 ; touching them, door1)
 @all:   lda _d_boom,x           ; droid X by the screen?
         bne @nx
         lda _d_bx,x
@@ -615,22 +616,35 @@ dblk:   txa
         sta _d_by,x
         rts
 
-; door X, if near the player
+; door X, if near the player. As the original's ($2A3E, $2A6D, $2B08):
+; one of the player's twelve points (around its character, as for the
+; walls) on its frame - its $20 characters either side of the door - the
+; first tick only notes it (door_s bit 7), each tick after it opens a
+; stage. A droid by it opens it too (here: the original's droids touch it
+; with the points they look ahead at). Else it shuts a stage a tick.
 door1:  lda _door_x,x           ; near the player?
         sec
         sbc _d_bx
         clc
         adc #7
         cmp #15
-        bcs @next
+        bcs @out
         lda _door_y,x
         sec
         sbc _d_by
         clc
         adc #4
         cmp #9
-        bcs @next
-        ldy _door_x,x           ; a droid by it: its block, less one, up to
+        bcc :+
+@out:   rts
+:       jsr ptch                ; touched by the player
+        bcc @droid
+        lda _door_s,x
+        bmi @open
+        ora #$80
+        sta _door_s,x
+        rts
+@droid: ldy _door_x,x           ; a droid by it: its block, less one, up to
         dey                     ; two blocks less than the droid's
         sty tx
         ldy _door_y,x
@@ -649,20 +663,25 @@ door1:  lda _door_x,x           ; near the player?
         sbc ty
         cmp #3
         bcs @j
-        lda _door_s,x           ; open a stage
+@open:  lda _door_s,x           ; open a stage
+        and #7
         cmp #4
         bcs @next
         inc _door_s,x
         bne @set
 @shut:  lda _door_s,x
-        beq @next
-        dec _door_s,x
+        and #7
+        bne :+
+        sta _door_s,x           ; shut: no longer noted
+        rts
+:       dec _door_s,x
 @set:   lda _door_x,x
         sta _bs_x
         lda _door_y,x
         sta _bs_y
         ldy _door_v,x
         lda _door_s,x
+        and #7
         bne @stage
         lda #BLK_HDOOR << 2
         cpy #0
@@ -680,6 +699,54 @@ door1:  lda _door_x,x           ; near the player?
 @put:   sta _bs_v
         jmp _blk_set
 @next:  rts
+
+; ptch: carry set if one of the player's twelve points is on door X's
+; frame: within its block, at the side of its middle (up and down doors:
+; columns 0 and 3 of rows 1 and 2; across: rows 0 and 3 of columns 1, 2)
+ptch:   lda _door_x,x
+        asl a
+        asl a
+        sta n3
+        lda _door_y,x
+        asl a
+        asl a
+        sta c_q
+        lda _door_v,x           ; (row middle less column middle: 2 for
+        beq :+                  ; up and down, -2 across)
+        lda #2
+        bne :++
+:       lda #$FE
+:       sta c_q+1
+        ldy #11
+@k:     lda cx
+        clc
+        adc sen_dx,y
+        sec
+        sbc n3
+        cmp #4
+        bcs @nk
+        adc #1                  ; (carry clear) its column: 2 in the middle
+        and #2
+        sta tx
+        lda cy
+        clc
+        adc sen_dy,y
+        sec
+        sbc c_q
+        cmp #4
+        bcs @nk
+        adc #1
+        and #2
+        sec
+        sbc tx
+        cmp c_q+1
+        beq @hit
+@nk:    dey
+        bpl @k
+        clc
+        rts
+@hit:   sec
+        rts
 
 ; bump_next(): from droid bump_i + 1 on, the next one (not exploding) that
 ; touches the player: less than 24 across and 16 up or down between their

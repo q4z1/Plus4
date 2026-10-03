@@ -43,21 +43,46 @@ extern unsigned char _HICODE_LOAD__[], _HICODE_RUN__[], _HICODE_SIZE__[];
 extern unsigned char snd_len[2];
 #pragma zpsym ("snd_len")
 
+/* the drive's command channel, 15, the KERNAL's way (cbm_k_...): with the
+ * library's cbm_open(), cbm_read() and cbm_write() those would stay in the
+ * program for good, this goes with the start's code */
+static void cmd_out(unsigned char n)
+{
+    static unsigned char i;
+    if (!cbm_k_ckout(15))
+        for (i = 0; i < n; ++i)
+            cbm_k_bsout(buf[i]);
+    cbm_k_clrch();
+}
+
 void fl_init(unsigned char dev)
 {
     static unsigned a, size, at;
     static unsigned char n, i;
-    static int got;
+    static unsigned char got;
     static const unsigned char *code;
     memcpy(_SFXCODE_RUN__, _SFXCODE_LOAD__, (unsigned)_SFXCODE_SIZE__);
     memcpy(_SFXDATA_RUN__, _SFXDATA_LOAD__, (unsigned)_SFXDATA_SIZE__);
     memcpy(_HICODE_RUN__, _HICODE_LOAD__, (unsigned)_HICODE_SIZE__);
     snd_len[0] = snd_len[1] = 0;
     fl_kind = 0;
-    if (cbm_open(15, dev, 15, "ui"))
+    cbm_k_setlfs(15, dev, 15);
+    cbm_k_setnam("ui");
+    if (cbm_k_open())
         return;
-    got = cbm_read(15, buf, sizeof buf - 1);
-    buf[got > 0 ? got : 0] = 0;
+    got = 0;                            /* its answer, to the end (EOI) */
+    if (!cbm_k_chkin(15))
+        while (got < sizeof buf - 1) {
+            buf[got] = cbm_k_basin();
+            n = cbm_k_readst();
+            if (n & 0xBF)
+                break;
+            ++got;
+            if (n)
+                break;
+        }
+    cbm_k_clrch();
+    buf[got] = 0;
     if (strstr(buf, "tdisk")) {
         fl_kind = 1;
         code = drive1551;
@@ -71,7 +96,7 @@ void fl_init(unsigned char dev)
         at = 0x0300;
         memcpy(_FL41_RUN__, _FL41_LOAD__, (unsigned)_FL41_SIZE__);
     } else {
-        cbm_close(15);
+        cbm_k_close(15);
         return;
     }
     /* M-W: 32 bytes at a time to its place on */
@@ -85,7 +110,7 @@ void fl_init(unsigned char dev)
         buf[5] = n;
         for (i = 0; i < n; ++i)
             buf[6 + i] = code[a + i];
-        cbm_write(15, buf, 6 + n);
+        cmd_out(6 + n);
     }
     /* M-E: the drive code runs from now on, and nothing more goes to the
      * drive the KERNAL's way (no close: that would talk to it) */
@@ -94,7 +119,7 @@ void fl_init(unsigned char dev)
     buf[2] = 'e';
     buf[3] = (unsigned char)at;
     buf[4] = (unsigned char)(at >> 8);
-    cbm_write(15, buf, 5);
+    cmd_out(5);
 }
 
 /* the status panel, the original's, and the gap's rows under it blank */

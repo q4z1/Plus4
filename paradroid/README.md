@@ -252,6 +252,14 @@ wall there, a door not open yet, and they wait two ticks. They do that
 near the player, where the doors open and close; elsewhere the doors stay
 shut, and the droids go on through them.
 
+The doors open as the original's ($2A3E, $2A6D, $2B08): when one of the
+twelve points the player looks at for the walls lies on a door's frame
+(the characters either side of the door), the first tick only notes the
+door, and each tick after it opens a row (or a column) more; untouched,
+it shuts one a tick. Driven at a door, the player waits for it as long as
+in the original, to the tick. A droid by a door opens it too: the
+original's droids touch it with the points they look ahead at.
+
 ### Where the time goes
 
 `tests/chprof.py` counts the cycles of every instruction of the last few
