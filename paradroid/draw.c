@@ -139,9 +139,13 @@ static void window(void)
     /* across in steps of two: the figures are of multicolour pixels, two
      * wide, and with the window on every pixel the player would shake by
      * one. In step with the player's figure (its left edge at PX - 13), it
-     * stands still in the middle, as the original's sprite does. */
-    win_l = (int)((PX + 1) & ~1) - 153;
-    win_t = (int)PY - 56;
+     * stands still in the middle, as the original's sprite does.
+     * The deck a character up and left of where the player's coordinates
+     * put it, as the original draws it (measured against its screen): its
+     * player's sprite stands a character down and right of its droids'
+     * for the same place. */
+    win_l = (int)((PX + 1) & ~1) - 153 + 8;
+    win_t = (int)PY - 56 + 8;
     e_sx = (unsigned char)(-win_l) & 7;
     e_m0 = (unsigned char)(((win_l + e_sx) >> 3) - 1);
     /* rows under the gap move down by k: window row 0 (screen row 7)
@@ -167,8 +171,8 @@ void draw(void)
         ;
     r_begin();
     draw_figs();
-    fig_x = PX - 13;
-    fig_y = PY - 8;
+    fig_x = PX - 13 + 8;                /* (see window()) */
+    fig_y = PY - 8 + 8;
     b = d_boom[0];
     if (b) {
         if (b < BOOM_GONE) {
@@ -246,22 +250,7 @@ static unsigned char panel_text(unsigned char col, const char *s)
     return col;
 }
 
-void panel_init(void)
-{
-    static unsigned i;
-    for (i = 0; i < 240; ++i) {
-        pp_off = i;
-        pp_code = panel_codes[i];
-        pp_attr = panel_cols[i] == 4 ? 0x4E : PANEL_TEXT;
-        panel_put();
-    }
-    for (i = 240; i < 360; ++i) {      /* the gap rows: blank */
-        pp_off = i;
-        pp_code = 0;
-        pp_attr = col_deck;
-        panel_put();
-    }
-}
+/* panel_init(): fastinit.c, once at the start */
 
 void panel_status(const char *s)
 {

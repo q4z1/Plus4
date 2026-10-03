@@ -19,7 +19,7 @@ for l in open(os.path.join(ROOT, 'build', 'paradroid.lbl')):
 g = Game(warp=False)
 v = g.v
 try:
-    g.keys(16, 0.1); g.keys(0, 0.8)
+    g.start_play()
     y0 = v.mem(lbl['_d_y'], 2)
     py = y0[0] | y0[1] << 8
     for k in range(9):

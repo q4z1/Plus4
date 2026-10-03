@@ -18,7 +18,7 @@
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
         .export _move_player, _solid_at, droid_look, d_lk, _console_near
-        .export _doors, _blk_at, _bump_next, _bump_i, _bump_back
+        .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
         .import _ndoor, _door_x, _door_y, _door_v, _door_s
@@ -733,6 +733,30 @@ _bump_back:
         clc
         adc #1
         asl a
+        rts
+
+; fig_place(d): the player's place moved by d (signed) across and down
+_fig_place:
+        tay
+        clc
+        adc _d_x
+        sta _d_x
+        tya                     ; (the sign into the high byte; the carry
+        and #$80                ; stays)
+        beq :+
+        lda #$FF
+:       adc _d_x+1
+        sta _d_x+1
+        tya
+        clc
+        adc _d_y
+        sta _d_y
+        tya
+        and #$80
+        beq :+
+        lda #$FF
+:       adc _d_y+1
+        sta _d_y+1
         rts
 
 ; blk_at(x, y): the block under world pixel (x, y), as an index

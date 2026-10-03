@@ -44,6 +44,8 @@ void blk_set(void);
 void panel_put(void);
 unsigned char eng_keys(void);
 void eng_dirty(void);
+void anim_deck(void);                   /* the original's animated */
+void anim_plan(void);                   /* characters (engine.s) */
 void eng_plain(void);
 
 #define DMAP    ((unsigned char *)0x0400)
@@ -117,6 +119,7 @@ extern unsigned char player_dead;
 
 void spawn_droids(void);
 void move_player(unsigned char k);
+void __fastcall__ fig_place(signed char d);  /* move.s */
 void move_droids(void);
 void player_fire(unsigned char k);
 void move_shots(void);

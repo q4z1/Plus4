@@ -617,6 +617,16 @@ for k in range(16):
     bc[176 + k] = hum['hum_period'][k]
     bc[256 + 160 + k] = hum['hum_count'][k]
 emit('blk_flag', [FLAG[b] for b in range(NBLK)])
+# the original's animated characters (anim.txt), four phases each: the
+# energizer's, in the game and on the deck plan, hires and as multicolour;
+# the plan's player (engine.s, anim_deck() and anim_plan())
+anim = {}
+for m in re.finditer(r'(energizer|player) (\d)\n((?:[.#]{8}\n){8})', read('anim.txt')):
+    anim.setdefault(m.group(1), []).extend(
+        int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(3).split())
+emit('anim_e', anim['energizer'])
+emit('anim_emc', [mc(b) for b in anim['energizer']])
+emit('anim_p', anim['player'])
 # decks
 allrle = []
 offs = []
@@ -829,5 +839,5 @@ h.append('extern const unsigned char logo_font[], logo_col[], logo_rle[];')
 h += ['#define SCORE_TOP_AT %d' % score_at[0], '#define SCORE_LOW_AT %d' % score_at[1],
       '#define NLOGO %d' % len(lorder), '#define LOGO_BG %d' % LOGO_BG]
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
-open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\n' % POOL)
+open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\nENERGY_CHAR = %d\n' % (POOL, code_of[0x14]))
 print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes, pictures up to %d' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE, pic_max))

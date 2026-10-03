@@ -8,7 +8,8 @@
  * fastload41.s) where fastload.s calls it. Any other drive keeps loading
  * with the KERNAL (fl_kind 0).
  *
- * It also puts the sound effects' player where it runs (sfx.s).
+ * It also puts the sound effects' player where it runs (sfx.s), and
+ * draws the status panel (panel_init()).
  *
  * Code and drive code are in INITDATA: used once, then overwritten. The
  * variables are in LOWBSS, which has room: not in INITDATA, as cc65 puts
@@ -93,4 +94,27 @@ void fl_init(unsigned char dev)
     buf[3] = (unsigned char)at;
     buf[4] = (unsigned char)(at >> 8);
     cbm_write(15, buf, 5);
+}
+
+/* the status panel, the original's, and the gap's rows under it blank */
+extern unsigned pp_off;
+extern unsigned char pp_code, pp_attr, col_deck;
+extern const unsigned char panel_codes[], panel_cols[];
+void panel_put(void);
+
+void panel_init(void)
+{
+    static unsigned i;
+    for (i = 0; i < 240; ++i) {
+        pp_off = i;
+        pp_code = panel_codes[i];
+        pp_attr = panel_cols[i] == 4 ? 0x4E : 0x3B;   /* purple, red */
+        panel_put();
+    }
+    for (i = 240; i < 360; ++i) {
+        pp_off = i;
+        pp_code = 0;
+        pp_attr = col_deck;
+        panel_put();
+    }
 }

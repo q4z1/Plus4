@@ -51,6 +51,10 @@ $B/cl65 -t plus4 -g -c -o build/music.o music.s
 $B/cl65 -t plus4 -g -c -o build/briefrows.o briefrows.s
 $B/cl65 -t plus4 -g -c -o build/move.o move.s
 $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/sfxcall.o sfxcall.s
+# (and the engine's start-up, in INITCODE right after INITDATA - not in
+# it, as the slots start at its data's beginning: the data again with it)
+n=$($B/od65 -S build/engine.o | awk '/INITCODE:/{print $2}')
+INIT_EXTRA=$((INIT_EXTRA + ${n:-0})) python3 tools/mkdata.py >/dev/null
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
 $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s

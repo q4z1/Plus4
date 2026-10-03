@@ -208,12 +208,17 @@ static void play(void)
         }
         sfx_tick();                     /* the original's own: hum, warning */
         move_player(k);
-        player_fire(k);
         move_droids();
         doors();
+        /* figures against figures: the player where its figure is, a
+         * character right of and below its place (draw.c), as the
+         * original's sprites meet */
+        fig_place(8);
+        player_fire(k);
         droids_fire();
         move_shots();
         collide();
+        fig_place(-8);
         if (transfer_mode && touched)
             transfer(touched);
         energy_tick();
@@ -233,6 +238,7 @@ static void play(void)
             }
         }
         col_deck = flash ? 0x71 : deck_bg;  /* the disruptor's flash */
+        anim_deck();                    /* the energizers turning */
         k = alert_acc >> 6;
         if (k != alert) {
             alert = k;

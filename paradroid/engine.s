@@ -288,6 +288,7 @@ _eng_stack:
         sta sp+1
         rts
 
+        .segment "INITCODE"     ; once at the start, then overwritten
 _eng_init:
         sei
         sta $FF3F               ; RAM everywhere
@@ -360,6 +361,8 @@ _eng_init:
         sta $FFFB
         cli
         rts
+
+        .code
 
 nmi:    rti
 
@@ -1846,3 +1849,83 @@ _eng_keys:
         stx keys_hit
         plp
         rts
+
+; ===========================================================================
+; The original's animated characters ($2605 there, list $6C28)
+; ===========================================================================
+
+        .export _anim_deck, _anim_plan
+        .import _anim_e, _anim_emc, _anim_p
+
+; anim_deck(): once a tick in the game: the energizer's character turns, a
+; phase every three ticks, as the original's
+_anim_deck:
+        dec a_ec
+        bne @out
+        lda #3
+        sta a_ec
+        jsr a_next
+        ldy #7
+:       lda _anim_e,x
+        sta FONT0 + ENERGY_CHAR * 8,y
+        sta FONT1 + ENERGY_CHAR * 8,y
+        lda _anim_emc,x
+        sta MCFONT + ENERGY_CHAR * 8,y
+        dex
+        dey
+        bpl :-
+@out:   rts
+
+; anim_plan(): once a tick on the console's deck plan (console.c), where
+; the original calls it about every 2.3 pictures: the energizer's symbol
+; (block 20's) a phase every two ticks, the player's (32) every three
+PLAN_E  = 20
+PLAN_P  = 32
+_anim_plan:
+        dec a_ec
+        bne @p
+        lda #2
+        sta a_ec
+        jsr a_next
+        ldy #7
+:       lda _anim_e,x
+        sta FONT1 + PLAN_E * 8,y
+        dex
+        dey
+        bpl :-
+@p:     dec a_pc
+        bne @out
+        lda #3
+        sta a_pc
+        inc a_pp
+        lda a_pp
+        and #3
+        asl a
+        asl a
+        asl a
+        ora #7
+        tax
+        ldy #7
+:       lda _anim_p,x
+        sta FONT1 + PLAN_P * 8,y
+        dex
+        dey
+        bpl :-
+@out:   rts
+
+; the energizer's next phase: X its last byte's index
+a_next: inc a_ep
+        lda a_ep
+        and #3
+        asl a
+        asl a
+        asl a
+        ora #7
+        tax
+        rts
+
+        .data
+a_ec:   .byte 1                 ; ticks to the next phase
+a_ep:   .byte 0                 ; the phase
+a_pc:   .byte 1                 ; the plan's player likewise
+a_pp:   .byte 0

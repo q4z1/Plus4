@@ -242,9 +242,11 @@ void console_run(void)
                 side_light(deck);
                 panel_status("Ship");
             }
-            do
+            do {
                 tick_keys();
-            while (!pressed(K_FIRE));
+                if (sel == 2)
+                    anim_plan();        /* energizers, the player */
+            } while (!pressed(K_FIRE));
         }
         font_hi[0] = 0xC8;
         menu_page();

@@ -21,7 +21,7 @@ def pixels(scr, att, font, r, c, y):
 
 g = Game(warp=False)
 try:
-    g.keys(16, 0.1); g.keys(0, 0.8)
+    g.start_play()
     g.poke('_nd', 1)
     py0 = g.word('_d_y')
     for t in range(9):

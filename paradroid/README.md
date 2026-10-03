@@ -221,6 +221,16 @@ The window follows the player across in steps of two pixels, in step with
 its figure: the figures are of multicolour pixels, two wide, and the
 player stands still in the middle of the window, as the original's sprite.
 
+Measured against the original's screen (the same deck, the same place,
+the energizer's dots found to the pixel), its deck stands a character up
+and left of where the player's own coordinates put it: its player's
+sprite is drawn a character right of and below its place, its droids'
+sprites are not. So here too: the window and the player's figure are a
+character on, and where figures meet - bumps, shots, the droids' aim,
+which the original leaves to its sprites' collisions - the player counts
+where its figure is. Walls, doors, lifts and consoles go by its place, as
+there.
+
 The droids choose their ways as the original's (from up to three ways of a
 waypoint, each a third, or eight ticks' wait), and like the original's
 they look ahead before each step: their character and the next two. A
@@ -279,7 +289,14 @@ read off its screens instead, by driving its joystick through every page
 of every type in the monitor and decoding the screen memory. The deck plan
 is drawn the way the original's code does it: each block's number is the
 character code, in the original's characters `$00`-`$1F` and colours,
-hires, with the deck's blocks 3 to 41 across.
+hires, with the deck's blocks 3 to 41 across. As there, the energizers' symbol
+turns and the player's blinks, on three phases and off for one.
+
+The energizers on the deck turn too. Both are the original's own
+animation (its routine at `$2605`, phases and speeds read from its list at
+`$6C28`, [data/anim.txt](data/anim.txt)): the energizer is the deck's
+character `$14`, the plan's symbol for block 20 is the same character, and
+it turns a phase every three ticks in the game.
 
 The console is always in memory, so it opens at once: its code (1.7 KB)
 at `$F400`, copied there at the start, its data in the program. The pages
@@ -340,7 +357,10 @@ panel's character set, the block tables, and at `$F000` the engine's
 tables and the code of the console and the figures. The data that is only
 used once at the start is linked into the very bytes where the slots
 begin, so it is overwritten as soon as it has been copied; the code
-copied above `$F000` comes from there too.
+copied above `$F000` comes from there too, and the code that runs only
+once at the start: the fast loader's set-up, the panel's first drawing,
+the engine's tables (`INITCODE`, right after the data, as the slots
+start at the data's first byte).
 
 The console needed 2.9 KB. The assembly of the figures, droids, doors and
 bumps made 805 bytes of the program's memory free; 2 KB more came from
