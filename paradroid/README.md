@@ -352,7 +352,10 @@ transfer mode every 8 ticks.
 from the interrupt, and turns the SID's frequency into the TED's register
 each picture (a division: the TED's frequency is not linear in its
 register; its lowest frequency leaves ten steps of it, not 24). The TED has no envelope: an effect sounds while its gate and
-half its release would. Its noise is only on the second voice, so the
+half its release would. The TED's one volume is for both voices: the
+ship's hum, on the second, plays at 2 instead of 6 while the first voice
+is quiet - the original's is a soft triangle, the TED's a square, and at
+6 it stood out far more than the original's. Its noise is only on the second voice, so the
 noisy effects go there. Played in a 6502 emulator, the original's driver
 and the model `sfx.s` follows give the same frequencies picture for
 picture for all 22.

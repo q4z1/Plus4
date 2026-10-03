@@ -10,7 +10,7 @@
 ; transfer mode (every 8 ticks).
 
         .export _sound, _sfx_tick, ted
-        .importzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h
+        .importzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h, s_vol
         .importzp q0, q1, r0, r1, tr0, tr1
         .importzp _snd_len
         .import _sfx_tab
@@ -18,6 +18,8 @@
         .include "sfx.inc"
 
 BLKC    = $E800                 ; the hum's periods in its free end
+VOL     = 6                     ; the effects' volume (sfx.s), the hum's
+HUMVOL  = 2
 
         .code
 
@@ -50,6 +52,8 @@ _sound: asl a
         sta s_fg,x
         lda _sfx_tab+7,y
         sta _snd_len,x
+        lda #VOL
+        sta s_vol,x
         plp
         rts
 
@@ -77,6 +81,8 @@ _sfx_tick:
         sta s_fg+1
         lda #255                ; (the periods end it)
         sta _snd_len+1
+        lda #HUMVOL             ; and quieter than the rest: the original's
+        sta s_vol+1             ; is a soft triangle, the TED's a square
         plp
 @low:   lda _d_energy
         cmp #8

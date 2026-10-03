@@ -17,7 +17,7 @@
 ; start (fastinit.c) from INITDATA. sfxcall.s starts the effects.
 
         .export sfx_frame, _snd_len, _snd_time
-        .exportzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h
+        .exportzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h, s_vol
         .exportzp q0, q1, r0, r1, tr0, tr1
         .import ted                     ; (sfxcall.s: the program has room)
 
@@ -41,6 +41,8 @@ _snd_len:
 s_ln:   .res 2                  ; pictures it still sounds; 0 none
 s_0l:   .res 2                  ; the start frequency, for reset
 s_0h:   .res 2
+s_vol:  .res 2                  ; the volume of voice 2's effect (+1): the
+                                ; ship's hum is quieter (sfxcall.s)
 q0:     .res 1                  ; the division
 q1:     .res 1
 r0:     .res 1
@@ -90,7 +92,8 @@ sfx_frame:
         lsr a                   ; noise: bit 6
         bne :+
         lda #$20                ; else the square
-:       ora #VOL
+:       ora s_vol+1             ; (the TED has one volume for both voices:
+                                ; voice 1, written after, sets its own)
         sta tr0
         lda TED_SOUND
         and #$90

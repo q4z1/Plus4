@@ -25,8 +25,8 @@
 ; drive is busy again (CLK low) before the Plus/4 looks at CLK.
 
         .import _fl_kind, _fl_name, _fl_addr
-        .import fl_len, fl_cnt, fl_total, tmo_set, tmo_tick
-        .importzp fl_p, fl_n, fl_b, fl_t, fl_s, fl_u
+        .import tmo_set, tmo_tick
+        .importzp fl_p, fl_n, fl_b, fl_t, fl_s, fl_u, fl_len, fl_cnt, fl_total
 
 PORT    = $01
 ATN     = $04

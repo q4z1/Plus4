@@ -8,8 +8,8 @@
 ; drive leaves out the file's load address.
 
         .import _fl_kind, _fl_name, _fl_addr
-        .import fl_len, fl_cnt, fl_total, tmo_set, tmo_tick
-        .importzp fl_p, fl_n, fl_b
+        .import tmo_set, tmo_tick
+        .importzp fl_p, fl_n, fl_b, fl_len, fl_cnt, fl_total
 
 TPA     = $FEF0
 TPC     = $FEF2

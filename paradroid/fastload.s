@@ -18,8 +18,8 @@
 ; fl_kind: 0 the KERNAL, 1 a 1551, 2 a 1541.
 
         .export _fl_load, _fl_spin, _fl_kind, _fl_name, _fl_addr
-        .export fl_len, fl_cnt, fl_total, tmo_set, tmo_tick
-        .exportzp fl_p, fl_n, fl_b, fl_t, fl_s, fl_u
+        .export tmo_set, tmo_tick
+        .exportzp fl_p, fl_n, fl_b, fl_t, fl_s, fl_u, fl_len, fl_cnt, fl_total
         .import __FLRUN51_START__
 
         .segment "ENGZP": zeropage
@@ -30,15 +30,15 @@ fl_b:   .res 1                  ; the 1551's: its strobe as last seen; the
 fl_t:   .res 1                  ; a byte as it comes or goes
 fl_s:   .res 1                  ; the 1541's: the port with ATN set
 fl_u:   .res 1                  ; the 1541's: the port as last read
+fl_len: .res 1
+fl_cnt: .res 1
+fl_total:   .res 2
+tmo:    .res 3                  ; a wait's time left
 
         .bss
 _fl_kind:   .res 1
 _fl_name:   .res 2
 _fl_addr:   .res 2
-fl_len: .res 1
-fl_cnt: .res 1
-fl_total:   .res 2
-tmo:    .res 3                  ; a wait's time left
 
         .code
 
