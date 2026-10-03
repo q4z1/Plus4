@@ -19,7 +19,7 @@ CONF = '''[Yape configuration file]
 DisplayFrameRate = 0
 DisplayQuickDebugInfo = 0
 50HzTimerActive = 1
-ActiveJoystick = 3
+ActiveJoystick = 0
 RamMask = ffff
 256KBRAM = 0
 SaveSettingsOnExit = 0
@@ -58,18 +58,20 @@ def ppm_to_png(src, dst):
 
 
 class Yape:
-    def __init__(self, image, warp=False, series=0):
+    def __init__(self, image, warp=False, series=0, env=()):
         kill_emulators()
         conf = os.path.join(HOME, 'Gaia', 'yapeSDL')
         os.makedirs(conf, exist_ok=True)
         with open(os.path.join(conf, 'yape.conf'), 'w') as f:
             f.write(CONF)
         os.makedirs(os.path.dirname(SHOT), exist_ok=True)
+        env_extra = env
         env = ['--env=XDG_DATA_HOME=' + HOME, '--env=YAPE_SHOT=' + SHOT]
         if warp:
             env.append('--env=YAPE_WARP=1')
         if series:                  # png_series(): so many pictures in a row
             env.append('--env=YAPE_SHOTN=%d' % series)
+        env += ['--env=' + e for e in env_extra]
         self.p = subprocess.Popen(
             ['flatpak-spawn', '--host'] + env +
             ['gamescope', '--backend', 'headless', '-W', '1280', '-H', '800', '--',
@@ -145,6 +147,20 @@ class Yape:
             ppm_to_png(f, png)
             out.append(png)
         return out
+
+    def lines(self, secs):
+        """what Yape writes in the next secs seconds, line by line"""
+        import select
+        t = time.time() + secs
+        while time.time() < t:
+            r, _, _ = select.select([self.p.stdout], [], [], 0.1)
+            if r:
+                chunk = os.read(self.p.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                self.buf += chunk
+        out, self.buf = self.buf, b''
+        return out.decode('latin-1').splitlines()
 
     def stop(self):
         try:

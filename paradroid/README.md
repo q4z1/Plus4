@@ -540,9 +540,15 @@ controller's right stick and A as the joystick, so for the Xbox One S
 controller over Bluetooth the script hides the Steam Deck's own
 controller from SDL, hands SDL a mapping that gives the left stick as the
 right one too, and sets Yape's "active joy for keyset" to NONE, which puts
-a single controller on both joystick ports. The controller's B button
-steps that setting on (BOTH leaves it on none); LB types RUN, RB opens
-Yape's menu.
+a single controller on both joystick ports. It takes a Yape built with
+[tools/yape.patch](tools/yape.patch) if there is one (the script says how
+to build it): Yape took one of SDL's events a frame, and a gamepad's
+stream of axis events left the stick seconds behind; with all of them a
+frame the stick arrives in about 30 ms (`tests/yape_joylag.py` measures
+that against SDL itself, with someone moving the stick). The patched Yape
+also leaves the controller's other buttons alone (`YAPE_PADKEYS=off`):
+Yape's own B steps the active joystick on (BOTH leaves it on none), LB
+types RUN, RB opens its menu. The patch also has the tests' hooks.
 
 The disk is made by `tools/d64.py`. The `.prg` alone does not run: it
 needs the briefing from the disk. VICE's `xplus4` has a 1551 at device 8
@@ -578,9 +584,9 @@ All of them start the game from the disk.
 The `yape_*.py` tests run **Yape** the same way, as its TED is closer to
 the real one than VICE's: a build of Yape from its sources
 ([yapesdl](https://github.com/calmopyrin/yapesdl)) in
-`~/.cache/paradroid/yapesdl`, with two hooks in its `main.cpp`: SIGUSR1
-enters its monitor, which reads its commands from stdin, and SIGUSR2
-saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has no
+`~/.cache/paradroid/yapesdl` with [tools/yape.patch](tools/yape.patch):
+SIGUSR1 enters its monitor, which reads its commands from stdin, and
+SIGUSR2 saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has no
 true 1551; with a disk image it uses a true 1541. The program itself
 loads with the KERNAL there, slowly; the tests run Yape without its speed
 limit.
@@ -593,4 +599,5 @@ limit.
 | `yape_xfer.py [n]` | transfers in Yape, their droids' pictures loaded with the fast loader |
 | `yape_brief.py [n]` | the briefing in Yape, n pictures in a row: how far it moves in each |
 | `yape_title.py` | the title's scores page in Yape, with its picture |
+| `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

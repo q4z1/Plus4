@@ -1,0 +1,178 @@
+Paradroid's changes to Yape (github.com/calmopyrin/yapesdl, at f5fcf8d):
+- all of SDL's events each frame, not one (a gamepad's stream of axis
+  events left its stick far behind);
+- YAPE_PADKEYS=off: the gamepad's buttons do nothing but fire (B stepped
+  the active joystick on, LB typed RUN, RB opened the menu);
+- for the tests: SIGUSR1 enters the monitor, reading stdin; SIGUSR2 saves
+  the TED's picture as a PPM to $YAPE_SHOT ($YAPE_SHOTN of them, one a
+  frame); YAPE_WARP starts without the speed limit; YAPE_JOYLOG writes each
+  change of the joystick ports as read, with the time.
+
+diff --git a/keyboard.cpp b/keyboard.cpp
+index f1c63a5..da9d284 100644
+--- a/keyboard.cpp
++++ b/keyboard.cpp
+@@ -1,3 +1,4 @@
++#include <sys/time.h>
+ /*
+ 	YAPE - Yet Another Plus/4 Emulator
+ 
+@@ -284,6 +285,19 @@ unsigned char KEYS::feedjoy(unsigned char latch)
+ 		if (sdlJoys[activePcJoy2ix])
+ 			tmp &= getPcJoyState(activePcJoy2ix, 1);
+ 	}
++	// YAPE_JOYLOG: each change of what the machine reads, with the time
++	{
++		static int log = -1;
++		static unsigned char last = 0xFF;
++		if (log < 0)
++			log = getenv("YAPE_JOYLOG") != NULL;
++		if (log && tmp != last && (latch & 0x06) != 0x06) {
++			struct timeval tv;
++			gettimeofday(&tv, NULL);
++			printf("JOY %ld.%03ld %02X\n", (long) tv.tv_sec, (long) tv.tv_usec / 1000, tmp);
++			last = tmp;
++		}
++	}
+ 	return tmp;
+ }
+ 
+diff --git a/main.cpp b/main.cpp
+index 9859b40..e35b3a9 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -7,7 +7,7 @@
+ 	and/or modify it under certain conditions. For more information,
+ 	read 'Copying'.
+ 
+-	(c) 2000, 2001, 2004, 2005, 2007, 2015-2026 Attila Grósz
++	(c) 2000, 2001, 2004, 2005, 2007, 2015-2026 Attila Grï¿½sz
+ 	(c) 2005 VENESZ Roland
+ */
+ 
+@@ -402,7 +402,7 @@ static void showKeyboardOverlay()
+ 		SDL_RWops *rwops = SDL_RWFromMem((void*) keyoverlay, sizeof(keyoverlay));
+ 		SDL_Surface* loadedSurface = SDL_LoadBMP_RW(rwops, 1);
+ 		if (loadedSurface) {
+-			// Note: the logical size of the window surface is 2×!
++			// Note: the logical size of the window surface is 2ï¿½!
+ 			rc.w = loadedSurface->w * 2;
+ 			rc.h = loadedSurface->h * 2;
+ 			rc.x = SCREENX - rc.w / 2;
+@@ -968,7 +968,9 @@ inline static void poll_events(void)
+ 			SDL_ShowCursor(0);
+ 	}
+ 
+-	if ( SDL_PollEvent(&event) ) {
++	// all the events there are (Paradroid's tests: one a frame fell behind
++	// a game controller's stream of axis events)
++	while ( SDL_PollEvent(&event) ) {
+ 		switch (event.type) {
+ 
+ 			case SDL_WINDOWEVENT:
+@@ -1141,6 +1143,13 @@ inline static void poll_events(void)
+ 
+ 			case SDL_JOYBUTTONUP:
+ 				//printf("joy: %u, button: %u was pressed!\n", event.jbutton.which, event.jbutton.button);
++				// (YAPE_PADKEYS=off: none of these, for a game that uses
++				// the controller's other buttons, or not at all)
++				{
++					const char *pk = getenv("YAPE_PADKEYS");
++					if (pk && !strcmp(pk, "off"))
++						break;
++				}
+ 				if (event.jbutton.button == 5 || event.jbutton.button == 14) { // START button
+ 					enterMenu();
+ 				} else if (event.jbutton.button == 4) {
+@@ -1355,9 +1364,72 @@ static void app_initialise()
+ 	KEYS::initPcJoys();
+ }
+ 
++/* ---------- test hooks (Paradroid's tests): SIGUSR1 enters the monitor,
++   which reads its commands from stdin; SIGUSR2 saves a screenshot to
++   $YAPE_SHOT ---------- */
++#include <signal.h>
++static volatile sig_atomic_t g_sigMon = 0, g_sigShot = 0;
++static void onSigMon(int) { g_sigMon = 1; }
++static void onSigShot(int) { g_sigShot = 1; }
++
++static void testHooks()
++{
++	if (g_sigMon) {
++		g_sigMon = 0;
++		monitorEnter(machine);
++		printf("MONITOR LEFT\n");
++	}
++	// $YAPE_SHOTN pictures in a row, one a frame: $YAPE_SHOT.000 on
++	static int shotLeft = 0, shotIdx = 0, shotSeries = 0;
++	if (g_sigShot) {
++		g_sigShot = 0;
++		const char *n = getenv("YAPE_SHOTN");
++		shotLeft = n ? atoi(n) : 1;
++		shotSeries = n != NULL;
++		shotIdx = 0;
++	}
++	if (shotLeft) {
++		shotLeft--;
++		// the TED's own picture, as a PPM (not the renderer's, whose
++		// buffer is undefined after presenting)
++		const char *f0 = getenv("YAPE_SHOT");
++		char f[1024], tmp[1100];
++		FILE *fp = NULL;
++		if (f0) {
++			if (shotSeries)
++				snprintf(f, sizeof f, "%s.%03d", f0, shotIdx++);
++			else
++				snprintf(f, sizeof f, "%s", f0);
++			snprintf(tmp, sizeof tmp, "%s.tmp", f);
++			fp = fopen(tmp, "wb");
++		}
++		if (fp) {
++			const unsigned int cpr = ted8360->getCyclesPerRow();
++			const unsigned char *src = ted8360->getScreenData() + (cpr - 384 - 8) / 2;
++			const unsigned int *pal = palette_get_rgb();
++			fprintf(fp, "P6\n%d %d\n255\n", SCREENX, SCREENY);
++			for (unsigned int y = 0; y < SCREENY; y++)
++				for (unsigned int x = 0; x < SCREENX; x++) {
++					unsigned int c = pal[src[y * cpr + x]];
++					fputc((c >> 16) & 255, fp);
++					fputc((c >> 8) & 255, fp);
++					fputc(c & 255, fp);
++				}
++			fclose(fp);
++			rename(tmp, f);
++			if (!shotLeft)
++				printf("SHOT SAVED %s\n", f);
++		} else {
++			shotLeft = 0;
++			printf("SHOT FAILED\n");
++		}
++	}
++}
++
+ /* ---------- MAIN LOOP ---------- */
+ static void mainLoop()
+ {
++	testHooks();
+ 	// hook into the emulation loop if active
+ 	if (g_bActive) {
+ 		ted8360->ted_process(1);
+@@ -1413,6 +1485,9 @@ static void printSpecialKeys()
+ /* ---------- MAIN ---------- */
+ int main(int argc, char *argv[])
+ {
++	setvbuf(stdout, NULL, _IONBF, 0);
++	signal(SIGUSR1, onSigMon);
++	signal(SIGUSR2, onSigShot);
+ 	machineInit();
+ 	uinterface = new UI(ted8360);
+ 
+@@ -1501,6 +1576,8 @@ int main(int argc, char *argv[])
+ 	setMainLoop(1);
+ #else
+ 	printSpecialKeys();
++	if (getenv("YAPE_WARP") && g_50Hz)
++		toggleFullThrottle(NULL);
+ 	ad_vsync_init(50);
+ 	for (;;) {
+ 		mainLoop();
