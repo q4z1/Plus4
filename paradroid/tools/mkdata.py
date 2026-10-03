@@ -580,6 +580,17 @@ def emit(name, data, per=16):
     s.append(asm_bytes(name, data, per))
 
 
+def pack(data):
+    """data packed by exomizer (its raw files, unpack.s unpacks them)"""
+    import subprocess, tempfile
+    with tempfile.TemporaryDirectory() as t:
+        src, dst = os.path.join(t, 'in'), os.path.join(t, 'out')
+        open(src, 'wb').write(bytes(data))
+        subprocess.run([os.environ.get('EXOMIZER', 'exomizer'), 'raw', '-q', '-o', dst, src],
+                       check=True)
+        return list(open(dst, 'rb').read())
+
+
 # the decks' colours (colours.txt): each character's colour class, and
 # per scheme the colour of classes 0-11, 12 a scheme (deck.c sets 14 and
 # 15; 12 and 13 no character has), and each deck's scheme (deck.c,
@@ -662,9 +673,11 @@ offs = []
 for r in deck_rle:
     offs.append(len(allrle))
     allrle += r
-emit('deck_rle', allrle)
+# packed: deck.c unpacks them all when a deck is entered (into the droid
+# types' slots, which are made again then), and takes its own
+emit('deck_pk', pack(allrle))
 exports.append('deck_off')
-s.append('_deck_off:\n        .word ' + ','.join('_deck_rle+%d' % o for o in offs) + '\n')
+s.append('_deck_off:\n        .word ' + ','.join('%d' % o for o in offs) + '\n')
 # waypoints
 wx, wy, wd, wofs = [], [], [], []
 for d in wps:
@@ -906,7 +919,7 @@ h = ['/* made by tools/mkdata.py - do not edit */',
     ['']
 for e in exports:
     if e == 'deck_off':
-        h.append('extern const unsigned char *const deck_off[];')
+        h.append('extern const unsigned deck_off[];')
     elif e == 'pre':
         h.append('extern unsigned char pre[];')
     else:

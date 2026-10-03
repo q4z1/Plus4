@@ -40,6 +40,9 @@ extern unsigned char _SFXCODE_LOAD__[], _SFXCODE_RUN__[], _SFXCODE_SIZE__[];
 /* the console and the figures, linked to run at $F400 likewise */
 extern unsigned char _HICODE_LOAD__[], _HICODE_RUN__[], _HICODE_SIZE__[];
 extern unsigned char snd_len[2];
+/* the unpacker, linked to run at $0200 (unpack.s): there only the
+ * KERNAL's loading kept anything, and it is done with by now */
+extern unsigned char _UNPACK_LOAD__[], _UNPACK_RUN__[], _UNPACK_SIZE__[];
 #pragma zpsym ("snd_len")
 
 /* the drive's command channel, 15, the KERNAL's way (cbm_k_...): with the
@@ -145,6 +148,8 @@ void mc_font(void);                     /* paradroid.c */
 void start_up(void)
 {
     eng_init();
+    /* (once the KERNAL's interrupt, whose vector is at $0314, is off) */
+    memcpy(_UNPACK_RUN__, _UNPACK_LOAD__, (unsigned)_UNPACK_SIZE__);
     memcpy(FONT0, tile_font, POOL * 8);
     memcpy(FONT1, tile_font, POOL * 8);
     mc_font();

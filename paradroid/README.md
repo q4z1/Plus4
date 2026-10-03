@@ -640,6 +640,7 @@ Loading with the KERNAL needs care in a program that uses all of memory:
 | [music.s](music.s) | the title's sound, in its overlay |
 | [briefrows.s](briefrows.s) | the briefing's text into the window's rows, in the title's overlay |
 | [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them, the beam-in |
+| [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what exomizer packed: so far the decks' maps, all at once into the droid types' slots when a deck is entered |
 | [move.s](move.s) | the player's driving, the walls, the doors, the droids looking ahead, bumps, the decks' colours |
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
@@ -668,6 +669,12 @@ and the start to [run.sh](run.sh). Without an editor:
 sh paradroid/build.sh
 xplus4 -autostart paradroid/build/paradroid.d64
 ```
+
+The build needs [exomizer](https://bitbucket.org/magli143/exomizer) 3.1
+besides cc65 (`$EXOMIZER`, else beside cc65's tools): it packs what the
+game keeps packed in memory. [unpack.s](unpack.s) unpacks it with
+exomizer's own unpacker, [exodecrunch.s](exodecrunch.s), changed only
+where it says so.
 
 The `.prg` alone does not run: it needs the title and the pictures from
 the disk. VICE's `xplus4` has a 1551 at device 8 by default; with

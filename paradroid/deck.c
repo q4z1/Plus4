@@ -99,7 +99,11 @@ void load_deck(unsigned char d)
     static unsigned i;
 
     deck = d;
-    p = deck_off[d];
+    /* all decks unpacked into the droid types' slots, which are made
+     * again for the deck after this (enter()) */
+    unp_dst = pre + 512;
+    unpack(deck_pk);
+    p = pre + 512 + deck_off[d];
     q = DMAP;
     i = 0;
     while (i < 1024) {

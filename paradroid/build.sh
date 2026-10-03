@@ -14,6 +14,9 @@ $B/cl65 -t none --start-addr 0x0500 -o build/drive1551.bin drive1551.s
 $B/cl65 -t none --start-addr 0x0500 -o build/drive1541.bin drive1541.s
 $B/cl65 -t plus4 -g -c -o build/drivecode.o build_drive.s
 $B/cl65 -t plus4 -g -c -o build/sfx.o sfx.s
+$B/cl65 -t plus4 -g -c -o build/unpack.o unpack.s
+# exomizer packs: the decks' maps (mkdata.py)
+export EXOMIZER=${EXOMIZER:-$B/exomizer}
 INIT_EXTRA=0
 for o in build/drivecode.o; do
     n=$($B/od65 -S $o | awk '/INITDATA:/{print $2}')
@@ -22,6 +25,8 @@ done
 # (the sound effects' player too: it is copied to $FC00 at the start; and
 # the Plus/4's halves of the fast loaders, one of which goes to FLRUN)
 n=$($B/od65 -S build/sfx.o | awk '/SFXCODE:/{print $2}')
+INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
+n=$($B/od65 -S build/unpack.o | awk '/UNPACK:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 $B/cl65 -t plus4 -g -c -o build/fastload51.o fastload51.s
 $B/cl65 -t plus4 -g -c -o build/fastload41.o fastload41.s
@@ -65,7 +70,7 @@ $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl
     -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
     build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
     build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
-    build/sfx.o
+    build/sfx.o build/unpack.o
 
 # The disk (tools/d64.py): the files the fast loader loads nearest the
 # directory, their sectors IL apart: the title first, then the droids'

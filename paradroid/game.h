@@ -87,6 +87,8 @@ extern unsigned char ndoor;
 unsigned char rnd(void);
 void new_ship(void);
 void load_deck(unsigned char d);
+extern unsigned char *unp_dst;          /* unpack.s: what exomizer packed, */
+void __fastcall__ unpack(const void *src);  /* to unp_dst on */
 void colour_blocks(void);
 void deck_colours(void);                /* move.s: the deck's scheme, alert */
 extern unsigned char bw;                /* move.s: black and white (F2) */
