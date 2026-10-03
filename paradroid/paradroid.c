@@ -68,11 +68,12 @@ void enter(unsigned char d, unsigned char bx, unsigned char by)
  * ==================================================================== */
 
 unsigned char transfer_game(unsigned char i);
-void ride_lift(unsigned char li);
+unsigned char ride_lift(unsigned char li);
 unsigned char console_here(void);
 unsigned char console_near(void);
 void console_run(void);
 static void console(void);
+static void lift(unsigned char li);
 extern unsigned char fl_kind;           /* fastload.s */
 void fl_spin(void);
 
@@ -224,7 +225,7 @@ static void play(void)
             if (held < 255)
                 ++held;
             if (held == 2 && (li = lift_here()) != 255) {
-                ride_lift(li);
+                lift(li);
                 lights_out = deck_cleared(deck);
                 held = 0;
                 continue;
@@ -368,10 +369,38 @@ unsigned load_file(const char *name, void *addr)
 extern unsigned char _OVL_START__[];
 void title_run(void);
 
-/* the ship's computer (console.c): always there */
+/* The console's and lift's overlay (console.c, lift.c): unpacked into
+ * the pictures' slots, which are made again afterwards */
+extern const unsigned char blob_con[];
+extern unsigned char _CONOVL_START__[];
+
+static void screens(void)
+{
+    unp_dst = _CONOVL_START__;
+    unpack(blob_con);
+}
+
+static void slots_again(void)
+{
+    pictures_deck();
+    pictures_fixed();
+}
+
 static void console(void)
 {
+    screens();
     console_run();
+    slots_again();
+}
+
+static void lift(unsigned char li)
+{
+    screens();
+    li = ride_lift(li);
+    if (lift_deck[li] != deck)
+        enter(lift_deck[li], lift_bx[li], lift_by[li]);
+    slots_again();
+    panel_status("Mobile");
 }
 
 

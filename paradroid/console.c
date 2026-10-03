@@ -1,9 +1,9 @@
 /*
  * console.c - the ship's computer, as the original's
  *
- * Always there: its code runs at $F400 (paradroid.cfg), copied there at the
- * start; its data is in the program. paradroid.c runs it when fire is held
- * at a console.
+ * An overlay, with the lift's side view (lift.c): kept packed in the
+ * program, unpacked into the pictures' slots when fire is held at a
+ * console (paradroid.c), which are made again afterwards.
  *
  * The original's console: a page with the host's unit and the ship, deck
  * and alert, and a menu of four symbols beside it. Up and down choose,
@@ -23,7 +23,8 @@
 #include <string.h>
 #include "game.h"
 
-#pragma code-name (push, "HICODE")
+#pragma code-name (push, "CONCODE")
+#pragma rodata-name (push, "CONDATA")
 
 void wait_tick(void);
 void x_letter(unsigned char c);

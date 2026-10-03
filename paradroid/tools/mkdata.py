@@ -804,6 +804,8 @@ for c in range(0x80, 0x80 + NSIDE):
         g = [swap_mc(b) for b in g]
     sf += g
     scol.append(col)
+# (in the console's and lift's overlay, kept packed: console.c, lift.c)
+s.append('        .segment "CONDATA"')
 emit('side_font', sf)
 emit('side_col', scol)
 emit('side_rle', side_rle)
@@ -811,6 +813,7 @@ emit('side_box', [v for b in side_box for v in b])
 emit('shaft_col', [x[0] for x in shafts])
 emit('shaft_top', [x[1] for x in shafts])
 emit('shaft_len', [x[2] for x in shafts])
+s.append('        .rodata')
 
 xf = []
 for name in XFER_ORDER:
@@ -845,9 +848,9 @@ open(os.path.join(GEN, 'data.s'), 'w').write('\n'.join(s))
 open(os.path.join(GEN, 'sfx.inc'), 'w').write(
     ''.join('SFX_%s = %d\n' % (n.upper(), i) for i, n in enumerate(sfx_names)))
 
-# into the title's overlay (title.c), which is a file on the disk
+# into the console's and lift's overlay (console.c), kept packed
 c = ['; made by tools/mkdata.py - do not edit',
-     '        .rodata', '        .export _plan_font, _plan_cls']
+     '        .segment "CONDATA"', '        .export _plan_font, _plan_cls']
 c.append(asm_bytes('plan_font', plan_font))
 c.append(asm_bytes('plan_cls', plan_cls))
 c.append('        .export _icon_font, _icon_tab, _icon_lay')

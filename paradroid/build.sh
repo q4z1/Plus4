@@ -40,7 +40,7 @@ INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
 # so mkdata again, with that)
 $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/console.o console.c
 $B/cl65 -t plus4 -g -c -o build/figs.o figs.s
-for o in build/console.o build/figs.o; do
+for o in build/figs.o; do
     n=$($B/od65 -S $o | awk '/HICODE:/{print $2}')
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done
@@ -66,11 +66,45 @@ INIT_EXTRA=$((INIT_EXTRA + ${n:-0})) python3 tools/mkdata.py >/dev/null
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -g -c -o build/brief.o build/gen/brief.s
 $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
-$B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
-    -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-    build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
-    build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
-    build/sfx.o build/unpack.o
+# Linked twice: the overlays kept packed in the program (BLOBS, its last
+# segment, so nothing else moves) are packed from the first link's, then
+# go into the second. They must not refer to BLOBS themselves: the two
+# links' overlays are compared.
+OVLS="con"
+link() {
+    $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
+        -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
+        build/draw.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
+        build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
+        build/sfx.o build/unpack.o build/blobs.o
+}
+blobs() {
+    {
+        echo '; made by build.sh - do not edit'
+        echo '        .segment "BLOBS"'
+        for o in $OVLS; do
+            echo "        .export _blob_$o"
+            if [ "$1" = packed ]; then
+                echo "_blob_$o: .incbin \"build/$o.exo\""
+            else
+                echo "_blob_$o:"
+            fi
+        done
+    } > build/gen/blobs.s
+    $B/cl65 -t plus4 -c -o build/blobs.o build/gen/blobs.s
+}
+blobs
+link
+for o in $OVLS; do
+    cp build/$o.bin build/$o.bin.1
+    $EXOMIZER raw -q -o build/$o.exo build/$o.bin
+done
+blobs packed
+link
+for o in $OVLS; do
+    cmp -s build/$o.bin build/$o.bin.1 || { echo "overlay $o refers to BLOBS" >&2; exit 1; }
+    echo "overlay $o: $(stat -c%s build/$o.bin) bytes, packed $(stat -c%s build/$o.exo)"
+done
 
 # The disk (tools/d64.py): the files the fast loader loads nearest the
 # directory, their sectors IL apart: the title first, then the droids'

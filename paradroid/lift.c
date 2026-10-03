@@ -11,8 +11,12 @@
 #include <string.h>
 #include "game.h"
 
+/* in the console's overlay (console.c), with its data: kept packed,
+ * unpacked into the pictures' slots by paradroid.c */
+#pragma code-name (push, "CONCODE")
+#pragma rodata-name (push, "CONDATA")
+
 void wait_tick(void);
-void enter(unsigned char d, unsigned char bx, unsigned char by);
 
 #define SCR0A ((unsigned char *)0xC000)
 #define SCR0C ((unsigned char *)0xC400)
@@ -112,7 +116,9 @@ static void deck_name(unsigned char li)
     panel_status(buf);
 }
 
-void ride_lift(unsigned char li)
+/* the lift li is on; returns the one got out at (paradroid.c enters its
+ * deck: that unpacks into the slots, where this runs) */
+unsigned char ride_lift(unsigned char li)
 {
     static unsigned char k, prev, n;
     while (ready)
@@ -144,7 +150,5 @@ void ride_lift(unsigned char li)
             sound(SFX_RIDE);
         }
     }
-    if (lift_deck[li] != deck)
-        enter(lift_deck[li], lift_bx[li], lift_by[li]);
-    panel_status("Mobile");
+    return li;
 }
