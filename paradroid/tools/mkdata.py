@@ -573,7 +573,27 @@ def emit(name, data, per=16):
     s.append(asm_bytes(name, data, per))
 
 
-emit('tile_col', colours)
+# the decks' colours (colours.txt): each character's colour class, and
+# per scheme the colour of classes 0-11, 12 a scheme (deck.c sets 14 and
+# 15; 12 and 13 no character has), and each deck's scheme (deck.c,
+# deck_colours())
+ctxt = read('colours.txt')
+cclass = [int(ch, 16) for l in ctxt.split('\n') if l.startswith('class ') for ch in l[6:]]
+assert len(cclass) == 256
+cfixed = [int(x, 16) for x in re.search(r'^fixed (.*)$', ctxt, re.M).group(1).split()]
+schemes = []
+for m in re.finditer(r'^scheme \d+ (.*)$', ctxt, re.M):
+    schemes += [int(x, 16) for x in m.group(1).split()]
+assert len(schemes) == 8 * 12
+assert cfixed[3] == 14 and not {12, 13} & set(cclass)    # (deck.c)
+tile_cls = [0] * POOL
+for c, ours in code_of.items():
+    if ours:
+        tile_cls[ours] = cclass[c]
+emit('tile_cls', tile_cls)
+emit('schemes', schemes)
+emit('deck_scheme', [12 * int(x) for x in re.search(r'^deck_scheme (.*)$', ctxt, re.M).group(1).split()])  # (as offsets)
+plan_cls = cclass[:32] + [cclass[0xA0]]     # (the player's, $A0)
 # block codes, [yy][blk*4 + x]: 4 tables of 256. The free end of each,
 # from 192 on, holds the walls: for block b, at 192 + b, a bit for each of
 # its four characters in row yy that is a wall - in the original, a
@@ -752,9 +772,9 @@ open(os.path.join(GEN, 'sfx.inc'), 'w').write(
 
 # into the title's overlay (title.c), which is a file on the disk
 c = ['; made by tools/mkdata.py - do not edit',
-     '        .rodata', '        .export _plan_font, _plan_col']
+     '        .rodata', '        .export _plan_font, _plan_cls']
 c.append(asm_bytes('plan_font', plan_font))
-c.append(asm_bytes('plan_col', plan_col))
+c.append(asm_bytes('plan_cls', plan_cls))
 c.append('        .export _icon_font, _icon_tab, _icon_lay')
 c.append(asm_bytes('icon_font', icon_font))
 c.append(asm_bytes('icon_tab', icon_tab))

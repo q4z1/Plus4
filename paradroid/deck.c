@@ -13,8 +13,6 @@ unsigned char deck_bg;                  /* the deck's colour, without a flash */
 
 /* rnd(): engine.s */
 
-/* TED colour for each of the C64 colours the deck characters use. A deck
- * character in a cell that may turn multicolour must have a hue below 8. */
 /* The C64's colours on the TED: for each, the nearest of the TED's 121, as
  * VICE draws both (measured: tests of all colours on each machine). The
  * deck's light blue is the nearest of 0-7, as deck characters turn into
@@ -31,30 +29,7 @@ const unsigned char pal_mc[16] = {
     0x42, 0x37, 0x52, 0x31, 0x51, 0x75, 0x56, 0x61
 };
 
-/* the same, with the lights out: a deck without droids */
-static const unsigned char pal_dark[16] = {
-    0x00, 0x31, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
-    0x17, 0x07, 0x12, 0x01, 0x11, 0x15, 0x26, 0x21
-};
-
-/* the ALERT console's lights, by the alert */
-static const unsigned char pal_alert[4] = { 0x55, 0x77, 0x42, 0x32 };
-
-static const unsigned char *pal = pal_deck;
-
-/* the colours of every block character, from the palette */
-void colour_blocks(void)
-{
-    static unsigned i;
-    static unsigned char p5;
-    p5 = pal == pal_deck ? pal_alert[alert] : pal[5];
-    for (i = 0; i < 1024; ++i) {
-        if (tile_col[BLKC[i]] == 5)
-            BLKA[i] = p5;
-        else
-            BLKA[i] = pal[tile_col[BLKC[i]]];
-    }
-}
+/* colour_blocks(), deck_colours(): move.s, by the original's schemes */
 
 unsigned char deck_cleared(unsigned char d)
 {
@@ -72,20 +47,6 @@ unsigned char ship_cleared(void)
         if (!deck_cleared(d))
             return 0;
     return 1;
-}
-
-/* the deck's colours: dark when its droids are gone, and the alert */
-void deck_colours(void)
-{
-    if (deck_cleared(deck)) {
-        pal = pal_dark;
-        deck_bg = 0x21;
-    } else {
-        pal = pal_deck;
-        deck_bg = 0x5D;
-    }
-    colour_blocks();                    /* (col_deck: the game's loop) */
-    eng_dirty();
 }
 
 /* a new ship, as the original fills it: the first six droids of a deck

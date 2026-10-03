@@ -251,7 +251,7 @@ static void play(void)
 /* the deck characters in multicolour, for the cells figures are in: a
  * pixel pair with anything set is %11, the cell's own colour. Made from
  * picture 0's character set, as the start-up copy is gone after a while. */
-static void mc_font(void)
+void mc_font(void)
 {
     static unsigned i;
     static unsigned char b, o;
@@ -291,6 +291,7 @@ extern const char *fl_name;
 extern void *fl_addr;
 unsigned fl_load(void);
 void fl_init(unsigned char dev);         /* fastinit.c */
+void start_up(void);
 
 unsigned load_file(const char *name, void *addr)
 {
@@ -408,21 +409,7 @@ void main(void)
         dev = 8;
     eng_stack();
     fl_init(dev);                       /* (it needs the stack) */
-    eng_init();
-
-    memcpy(FONT0, tile_font, POOL * 8);
-    memcpy(FONT1, tile_font, POOL * 8);
-    mc_font();
-    memcpy(PANELF, panel_font, 2048);
-    memcpy(BLKC, blk_code, 1024);
-    colour_blocks();
-
-    col_panel = 0x71;
-    col_border = 0x4E;                 /* the original's purple */
-    col_deck = 0x5D;
-    col_fig1 = 0x00;
-    col_fig2 = 0x71;
-    panel_init();
+    start_up();                         /* (fastinit.c) */
 
     new_game();
     draw();

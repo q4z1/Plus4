@@ -13,10 +13,9 @@ mkdir -p build
 $B/cl65 -t none --start-addr 0x0500 -o build/drive1551.bin drive1551.s
 $B/cl65 -t none --start-addr 0x0500 -o build/drive1541.bin drive1541.s
 $B/cl65 -t plus4 -g -c -o build/drivecode.o build_drive.s
-$B/cl65 -t plus4 -O -Cl -g -c -o build/fastinit.o fastinit.c
 $B/cl65 -t plus4 -g -c -o build/sfx.o sfx.s
 INIT_EXTRA=0
-for o in build/drivecode.o build/fastinit.o; do
+for o in build/drivecode.o; do
     n=$($B/od65 -S $o | awk '/INITDATA:/{print $2}')
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done
@@ -40,6 +39,10 @@ for o in build/console.o build/figs.o; do
     n=$($B/od65 -S $o | awk '/HICODE:/{print $2}')
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done
+# (and the rest of the start, fastinit.c, which needs data.h too)
+$B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/fastinit.o fastinit.c
+n=$($B/od65 -S build/fastinit.o | awk '/INITDATA:/{print $2}')
+INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
 for f in paradroid deck droids draw transfer lift title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c

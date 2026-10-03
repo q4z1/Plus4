@@ -126,30 +126,6 @@ static void deck_font(void)
     font_hi[0] = 0xC8;
 }
 
-/* the panel's frame in the border's colour: its cells, those in the
- * border's colour at first, are noted in fmask */
-static unsigned char fmask[30];
-
-static void frame_note(void)
-{
-    static unsigned char i, b;
-    for (i = 0; i < 240; ++i) {
-        b = 1 << (i & 7);
-        if (SCR0A[i] == col_border)
-            fmask[i >> 3] |= b;
-        else
-            fmask[i >> 3] &= ~b;
-    }
-}
-
-static void frame(unsigned char to)
-{
-    static unsigned char i;
-    for (i = 0; i < 240; ++i)
-        if (fmask[i >> 3] & (1 << (i & 7)))
-            SCR0A[i] = SCR1A[i] = to;
-}
-
 /* the page rolled up by y pixels, into the back picture. As for the deck,
  * the rows move down by k lines and window row 0 shows its last k lines,
  * from copies of its characters with the rest cleared. A line of text is
@@ -270,9 +246,8 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
     }
     col_deck = bg;
     win_mc = pic_on ? 0x10 : 0;         /* hires but for the picture */
-    frame_note();
     col_border = bd;
-    frame(bd);
+    panel_frame(bd);
     panel_status("Briefing");
     for (bpage = brief_pages; n--; ) {  /* page n: past the lines before */
         p = bpage + 1;
@@ -314,7 +289,7 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
     deck_font();
     win_mc = 0x10;
     col_deck = cd;
-    frame(cb);
+    panel_frame(cb);
     col_border = cb;
     col_fig2 = 0x71;
     panel_status("Press fire");

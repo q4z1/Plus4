@@ -323,6 +323,19 @@ words from a dictionary at `$C000`, and its unit lines read *Unit type 476
 - Maintenance robot*, *robot* for classes 1-4, *droid* for 5-8, *cyborg*
 for 9 and *device* for the 001.
 
+### The decks' colours
+
+Every deck has its own colours, as in the original: each character
+belongs to one of its colour classes, and each deck has one of eight
+schemes, which give the classes their colours - read from the original
+([data/colours.txt](data/colours.txt)). The scheme's first colour is the
+window's background, its fourth the border's and the panel frame's. A
+deck whose droids are gone has the dark scheme 7, and the ALERT
+console's lights take the alert's colour. On the Plus/4 the colours are
+the nearest of the TED's, the deck's characters' those of 0-7, as they
+turn multicolour where figures are. The console's deck plan, which shows
+the deck's own characters there, has the scheme too.
+
 ### The data, from the original's memory
 
 The C64 game keeps everything in memory once it has loaded. A dump of its
@@ -334,6 +347,8 @@ were found by tracing the game:
 | `$E800` | 32 blocks of 4 × 4 characters |
 | `$F100` | 16 decks, run-length coded, 64 × 16 blocks each |
 | `$7800` | the deck character set |
+| `$0800` | each character's colour: the upper half its colour class, the lower its colour in the deck's scheme |
+| `$6A44` | eight colour schemes, 12 colours each (classes 0-11; 12-15 are fixed). `$F160` gives each deck its scheme; a deck without droids has scheme 7 |
 | `$C800` | waypoints per deck. The third byte has a bit for each of eight directions a droid may leave in |
 | `$6CC8` | lift stops: deck and shaft. The position stored is where the *window* is when the player stands on the lift, five blocks left of and two above the lift itself |
 | `$EA00` | droid types: number, drive, weapon |

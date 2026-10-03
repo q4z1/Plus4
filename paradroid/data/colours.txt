@@ -1,0 +1,31 @@
+# The decks' colours, the original's (read from it in x64sc): every
+# character has a colour class, the upper half of its entry in the table
+# at $0800; a deck's scheme gives classes 0-11 their colours ($6A44, 12
+# each, copied to $0215 by $27E5 when a deck is entered), 12-15 are fixed
+# ($0221-$0224). Class 0 is also the window's background, class 3 the
+# border's and the panel frame's colour ($2844). Which scheme a deck has
+# is $F160; a deck without droids has scheme 7. The ALERT lights,
+# character $16, take the alert's colour instead ($6D45).
+
+deck_scheme 0 4 1 2 3 6 2 1 4 0 4 3 2 5 5 4
+
+scheme 0 f 6 0 c b b 8 b c 1 0 0
+scheme 1 e f 7 4 0 e b 6 7 1 6 0
+scheme 2 7 8 1 2 8 f 2 9 5 1 9 0
+scheme 3 d f 1 5 0 d 6 5 5 1 0 0
+scheme 4 a 7 8 2 9 a 7 2 4 1 9 0
+scheme 5 3 c e 6 0 b 7 b 5 1 b 0
+scheme 6 f 8 1 b 0 b e b 7 1 2 0
+scheme 7 b 0 f 7 7 b e 0 8 c c 0
+fixed 8 8 8 e
+alert 5 7 8 2
+
+# the class of each character, $00 first, 32 a line
+class 0778777777777777aaaa11e711771110
+class 01177777799888899779977997797111
+class 11099991997722227997999977799797
+class 77777779977779709977999977000097
+class 55555555555555995555555555555577
+class 99999fff557777779099970779997977
+class 77799997997799970097779997799794
+class 44444444979777777000000000000004

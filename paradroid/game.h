@@ -44,6 +44,11 @@ void blk_set(void);
 void panel_put(void);
 unsigned char eng_keys(void);
 void eng_dirty(void);
+void __fastcall__ panel_frame(unsigned char c);  /* engine.s */
+/* deck.c: the deck scheme's colour of each class, hires and for cells that
+ * may turn multicolour - in the free end of the block code tables' row 2 */
+#define CLS_HR  ((unsigned char *)0xEAA0)
+#define CLS_MC  ((unsigned char *)0xEAB0)
 void anim_deck(void);                   /* the original's animated */
 void anim_plan(void);                   /* characters (engine.s) */
 void eng_plain(void);
@@ -80,7 +85,7 @@ unsigned char rnd(void);
 void new_ship(void);
 void load_deck(unsigned char d);
 void colour_blocks(void);
-void deck_colours(void);                /* by alert, and dark if cleared */
+void deck_colours(void);                /* move.s: the deck's scheme, alert */
 unsigned char deck_cleared(unsigned char d);
 unsigned char ship_cleared(void);
 unsigned char blk_at(unsigned x, unsigned y);    /* move.s */
@@ -153,7 +158,6 @@ void pictures_fixed(void);
 void pictures_deck(void);
 void player_picture(void);
 void draw(void);
-void panel_init(void);
 void panel_status(const char *s);
 void panel_score(void);
 void win_clear(unsigned char code, unsigned char attr);

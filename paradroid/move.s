@@ -18,6 +18,7 @@
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
         .export _move_player, _solid_at, droid_look, d_lk, _console_near
+        .export _deck_colours, _colour_blocks
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
@@ -807,3 +808,82 @@ _blk_at:
         lsr a
         ldx #0
         rts
+
+; ---------------------------------------------------------------------------
+; The decks' colours, the original's (data/colours.txt): every character
+; has a colour class, every deck a scheme of colours for them ($27E5 and
+; $2844 there).
+
+        .import _deck_cleared, _deck_scheme, _schemes, _pal_deck, _pal_mc
+        .import _alert, _deck_bg, _col_border, _eng_dirty, _panel_frame
+        .import _tile_cls, _deck
+
+BLKC    = $E800
+CLS_HR  = $EAA0                 ; game.h: the scheme's TED colours, by
+CLS_MC  = $EAB0                 ; class, hires and multicolour-safe
+BLKA    = $EC00
+
+; deck_colours(): the deck's own scheme, scheme 7 when its droids are
+; gone; class 0 the window's background, class 3 the border's and the
+; panel frame's; then every block character's colour
+_deck_colours:
+        lda _deck
+        jsr _deck_cleared
+        tax
+        beq :+
+        lda #7 * 12
+        bne @s
+:       ldx _deck
+        lda _deck_scheme,x      ; (12 times the scheme)
+@s:     tay
+        ldx #0
+:       lda _schemes,y          ; classes 0-11, as the C64's colours
+        sta CLS_HR,x
+        iny
+        inx
+        cpx #12
+        bne :-
+        ldx #11
+:       ldy CLS_HR,x            ; the TED's
+        lda _pal_mc,y
+        sta CLS_MC,x
+        lda _pal_deck,y
+        sta CLS_HR,x
+        dex
+        bpl :-
+        lda #$56                ; class 15: always light blue
+        sta CLS_HR+15
+        sta CLS_MC+15
+        lda CLS_HR              ; (the background may have any colour:
+        cmp #$56                ; light blue its nearest)
+        bne :+
+        lda #$5D
+:       sta _deck_bg
+        lda CLS_HR+3
+        sta _col_border
+        jsr _panel_frame
+        jsr _colour_blocks
+        jmp _eng_dirty          ; (col_deck: the game's loop)
+
+; colour_blocks(): every block character's colour, by its class; the ALERT
+; lights (class 14) the alert's
+_colour_blocks:
+        ldx _alert
+        lda pal_alert,x
+        sta CLS_HR+14
+        sta CLS_MC+14
+        ldx #0
+@b:
+        .repeat 4, R
+        ldy BLKC + R * 256,x
+        lda _tile_cls,y
+        tay
+        lda CLS_MC,y
+        sta BLKA + R * 256,x
+        .endrepeat
+        inx
+        bne @b
+        rts
+
+pal_alert:
+        .byte $55, $77, $42, $32

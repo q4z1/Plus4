@@ -19,6 +19,7 @@
  */
 #include <cbm.h>
 #include <string.h>
+#include "game.h"
 
 #pragma code-name (push, "INITDATA")
 #pragma rodata-name (push, "INITDATA")
@@ -97,12 +98,7 @@ void fl_init(unsigned char dev)
 }
 
 /* the status panel, the original's, and the gap's rows under it blank */
-extern unsigned pp_off;
-extern unsigned char pp_code, pp_attr, col_deck;
-extern const unsigned char panel_codes[], panel_cols[];
-void panel_put(void);
-
-void panel_init(void)
+static void panel_init(void)
 {
     static unsigned i;
     for (i = 0; i < 240; ++i) {
@@ -117,4 +113,24 @@ void panel_init(void)
         pp_attr = col_deck;
         panel_put();
     }
+}
+
+/* the rest of the start (main(), after fl_init()): the engine, the
+ * character sets and block tables, the colours, the panel */
+void mc_font(void);                     /* paradroid.c */
+
+void start_up(void)
+{
+    eng_init();
+    memcpy(FONT0, tile_font, POOL * 8);
+    memcpy(FONT1, tile_font, POOL * 8);
+    mc_font();
+    memcpy(PANELF, panel_font, 2048);
+    memcpy(BLKC, blk_code, 1024);
+    col_panel = 0x71;
+    col_border = 0x4E;                  /* the original's purple */
+    col_deck = 0x5D;
+    col_fig1 = 0x00;
+    col_fig2 = 0x71;
+    panel_init();
 }

@@ -185,3 +185,38 @@ _draw_figs:
         cmp #MAXS
         bne @shot
         rts
+
+; (here, above $F000, where there is room)
+        .export _panel_frame
+SCR0A   = $C000
+SCR1A   = $D000
+
+; panel_frame(c): the status panel's frame in colour c, as the original
+; colours it with the border's: its rows 0, 1, 4 and 5, and in rows 2 and
+; 3 the two cells at each end
+        .segment "HICODE"
+_panel_frame:
+        ldx #239
+@c:     cpx #80
+        bcc @set
+        cpx #160
+        bcs @set
+        pha
+        txa
+        sbc #80 - 1             ; (carry clear: 80 less)
+        cmp #40
+        bcc :+
+        sbc #40
+:       cmp #2
+        bcc @end
+        cmp #38
+        bcs @end
+        pla
+        bcc @next               ; (always: carry clear from cmp #38)
+@end:   pla
+@set:   sta SCR0A,x
+        sta SCR1A,x
+@next:  dex
+        cpx #$FF
+        bne @c
+        rts

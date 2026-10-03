@@ -28,7 +28,7 @@
 void wait_tick(void);
 void x_letter(unsigned char c);
 extern unsigned char xmap[128];
-extern const unsigned char plan_font[], plan_col[];
+extern const unsigned char plan_font[], plan_cls[];
 extern const unsigned char icon_font[], icon_tab[], icon_lay[];
 extern const unsigned char *pic_pages;  /* transfer.c: the picture's pages */
 
@@ -206,7 +206,7 @@ static void plan(void)
             off = (9 + y) * 40 + x - 3;
             ((unsigned char *)0xC400)[off] = ((unsigned char *)0xD400)[off] = b;
             ((unsigned char *)0xC000)[off] = ((unsigned char *)0xD000)[off] =
-                pal_deck[plan_col[b]];  /* hires, as the original's */
+                CLS_HR[plan_cls[b]];    /* hires, as the original's */
         }
     panel_status("Deck plan");
 }
