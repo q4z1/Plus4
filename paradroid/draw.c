@@ -198,7 +198,7 @@ void draw(void)
     } else if (hide_player) {
         ;
     } else if ((!transfer_mode || (tick & 2))
-               && (d_energy[0] >= (emax(d_type[0]) >> 2) || (tick & 4))) {
+               && (d_energy[0] >= 64 / 4 || (tick & 4))) {
         b = (tick >> 1) & 3;            /* a turn in eight ticks, as there */
         fig_n = b ? SLOT_PANIM + b - 1 : SLOT_PLAYER;
         figure();
