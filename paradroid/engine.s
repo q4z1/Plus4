@@ -5,8 +5,9 @@
 ;
 ;   1. The raster interrupt, four stops a picture:
 ;        line 44   in the panel's last row: the border's colour
-;        line 55   the gap rows under it: the deck's character set,
-;                  multicolour, 38 columns, x fine scroll
+;        line 50   the gap rows under it, from their first line: the
+;                  deck's character set, multicolour, 38 columns, x fine
+;                  scroll
 ;        line 71   at the gap's last line the y fine scroll (see below)
 ;        line 197  below the window: a finished picture is swapped in, the
 ;                  panel's settings for the top of the next one, the
@@ -106,7 +107,7 @@ WROWS       = 16                ; gap under the panel, as high as the original's
 WCOLS       = 39
 
 LINE_GAP    = 44                ; interrupt lines, see the top
-LINE_RC     = 55
+LINE_RC     = 50                ; (the panel ends with line 51)
 LINE_SCROLL = 71                ; two lines before the gap's last, 74
 GAP_LAST    = 74
 LINE_BOTTOM = 197               ; less s, the line counter is behind then
@@ -461,6 +462,13 @@ irq_gap:
 ; The gap rows: the deck's character set and modes (nothing shows in them,
 ; their cells are blank in it); then irq_scroll.
 irq_rc:
+        ; from the gap's first line, 52. The gap's cells are blank in the
+        ; deck's characters, not in the panel's: set at line 55 as it was,
+        ; the switch came a little late now and then, and the gap showed
+        ; a line of the panel's characters in its first cells.
+        lda #51
+:       cmp TED_LINE
+        bcs :-
         ldy front
         lda font_hi,y
         sta TED_CHBASE

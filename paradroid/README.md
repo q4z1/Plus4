@@ -26,6 +26,10 @@ time-critical parts in assembly.
 
 On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
 key as fire (Yape puts the left Ctrl on `C=` and the right one on `CTRL`).
+In Yape here only the **right Ctrl** key fires: Space and the left Ctrl
+do not arrive in the game, though Yape's keyboard map has them where the
+game looks (row 7, bits 4 and 5, beside `CTRL` at bit 2) - not found out
+why yet.
 The original's briefing said "Plug your joystick into port 2" and
 "Control is by joystick only"; here both ports and the keys work, and the
 briefing says so.
@@ -141,9 +145,12 @@ above the window, and the window's edge comes from the cut characters.
 
 The gap is three rows (6 to 8) and the window 16 rows (9 to 24), as high as
 the original's and in the same place under the panel, to a pixel. The
-interrupt stops twice in the gap: at line 55 for the deck's character set
-and modes, and at line 71 for the scroll, so that it does not wait through
-the gap.
+interrupt stops twice in the gap: at its first line for the deck's
+character set and modes, and at line 71 for the scroll, so that it does
+not wait through the gap. The gap's cells are blank in the deck's
+characters but not in the panel's: switched a few lines into the gap, as
+it was, the switch came late now and then, and a short dashed line of the
+panel's characters showed in the gap (`tests/yape_gap.py` finds it).
 
 ### Figures over a hires deck
 
@@ -615,4 +622,5 @@ limit.
 | `yape_title.py` | the title's scores page in Yape, with its picture |
 | `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
 | `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
+| `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |
