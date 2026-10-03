@@ -393,10 +393,13 @@ static void intro(unsigned char i)
 
 static char text[12];
 
-/* the panel: a word and a count, as the original's "Colour? 76" */
+/* the panel: a word and a count, as the original's "Colour? 76" - always
+ * two digits, "Finish -00" at the end */
 static void count(const char *w, unsigned char n)
 {
     strcpy(text, w);
+    if (n < 10)
+        strcat(text, "0");
     strcat(text, num_text(n));
     panel_status(text);
 }
