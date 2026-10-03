@@ -43,6 +43,7 @@ void r_done(void);
 void blk_set(void);
 void panel_put(void);
 unsigned char eng_keys(void);
+unsigned char pause_keys(void);         /* CLR/HOME 1, HELP 2, F1 4, shift 128 */
 void eng_dirty(void);
 void __fastcall__ panel_frame(unsigned char c);  /* engine.s */
 /* deck.c: the deck scheme's colour of each class, hires and for cells that
@@ -88,6 +89,7 @@ void new_ship(void);
 void load_deck(unsigned char d);
 void colour_blocks(void);
 void deck_colours(void);                /* move.s: the deck's scheme, alert */
+extern unsigned char bw;                /* move.s: black and white (F2) */
 unsigned char deck_cleared(unsigned char d);
 unsigned char ship_cleared(void);
 unsigned char blk_at(unsigned x, unsigned y);    /* move.s */

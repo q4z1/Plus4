@@ -155,5 +155,6 @@ void start_up(void)
     col_deck = 0x5D;
     col_fig1 = 0x00;
     col_fig2 = 0x71;
+    bw = 0;
     panel_init();
 }

@@ -486,8 +486,11 @@ for ln in lines('briefing.txt'):
         page = []
         continue
     row, col, text = ln.split(' ', 2)
-    # the Plus/4 is the remote terminal here
-    page.append((int(row) - 2, int(col), txt_codes(text.replace('C64', 'Plus4'))))
+    # the Plus/4 is the remote terminal here; and has no F8: the C64's
+    # F7/F8 key is its HELP/F7 key
+    text = text.replace('C64', 'Plus4')
+    text = text.replace('f7        -', 'help      -').replace('f8 ', 'f7 ')
+    page.append((int(row) - 2, int(col), txt_codes(text)))
 brief.append(page)
 # an addition to the original's credits (page 4)
 brief[4].append((55 - 2, 13, txt_codes('Plus4 version 2026 in C.')))

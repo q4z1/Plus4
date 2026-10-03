@@ -28,7 +28,7 @@ the 1541.
 | Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game |
 | Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there |
 | Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
-| `Run/Stop` | pause |
+| `Run/Stop` | pause. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `Help` freezes the picture ("Cheese") till `F7`, `F1`/`F2` colours or black and white |
 
 On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
 key as fire (Yape puts the left Ctrl on `C=` and the right one on `CTRL`).
@@ -304,6 +304,21 @@ TED's registers. [music.s](music.s) plays them on the TED's two squares,
 at volume 3, from the title's overlay; the engine's interrupt calls it
 once a picture while the title runs.
 
+### The pause
+
+As the original's (`$3B7C`, read from its code): `Run/Stop` shows
+*Pause*, the sound stops, and everything stands still but the deck's
+turning characters, till fire or `Run/Stop`, which show *Continue*. In it,
+as its briefing says, `Clr/Home` quits the game, straight to the title
+(`$10D3`, no end of a game; here its score does not count), and the C64's `F7` is *Cheese*
+(`$0B8A`): not even those characters turn, till its `F8`, fire, `Run/Stop`
+or `Clr/Home`. The Plus/4 has no `F8`: the C64's `F7`/`F8` key is its
+`Help`/`F7` key, so `Help` is *Cheese* here and `F7` goes back to the
+pause, and the briefing names them so. Not in the briefing, also as in the
+original (`$32B7`): `F1` shows *Colour*, `F2` *Blk-White*, and from the
+pause's end on the decks are in scheme 0, the grey one, till `F1` again
+(a deck without droids keeps its dark scheme 7).
+
 ### The data, from the original's memory
 
 The C64 game keeps everything in memory once it has loaded. A dump of its
@@ -570,6 +585,11 @@ Loading with the KERNAL needs care in a program that uses all of memory:
 - The droids are **13 multicolour pixels wide** with their number in a dark
   band. The original's hires sprites are 24 pixels wide, and the Plus/4's
   characters have half the horizontal resolution.
+- The TED has no sprites: a cell a figure is in turns multicolour, and the
+  **deck under a figure** with it, a hires pixel pair with anything set
+  becoming a whole multicolour pixel. Around a droid, lines a pixel wide
+  (a door's, a console's) are two wide; in the original the deck shows
+  through its sprite's gaps as it is.
 - The player's **colour** is the TED's second multicolour colour, which
   the droids' numbers have too: when the player flashes (low energy, a
   game's start), so do they. For the same reason the player keeps its
@@ -598,7 +618,11 @@ Loading with the KERNAL needs care in a program that uses all of memory:
   original's several explosions around it.
 - The day's **scores** have no initials.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
-  here.
+  here, and its keys for the pause's *Cheese* are `Help` and `F7` for the
+  C64's `F7` and `F8` (see above).
+- In the **title**, the original also takes `F1`/`F2` (colours, black and
+  white) and `F5`/`F6` (the volume, 0-15, shown in the panel). Here only
+  the pause takes `F1`/`F2`, and there is no volume.
 
 ## Files
 

@@ -18,7 +18,7 @@
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
         .export _move_player, _solid_at, droid_look, d_lk, _console_near
-        .export _deck_colours, _colour_blocks
+        .export _deck_colours, _colour_blocks, _bw
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
@@ -56,8 +56,11 @@ ax:     .res 1
 di:     .res 1
 nn:     .res 1
 
-        .bss
+        .segment "LOWBSS"       ; (not cleared: start_up() clears bw)
+_bw:    .res 1                  ; F2 in the pause: black and white
 _bump_i: .res 1                 ; bump_next(): the droid last found
+
+        .bss
 nbx:    .res 13                 ; doors(): the droids by the screen
 nby:    .res 13
 d_lk:   .res 13                 ; looked ahead, free: no look till the droid
@@ -939,8 +942,9 @@ CLS_MC  = $EAB0                 ; class, hires and multicolour-safe
 BLKA    = $EC00
 
 ; deck_colours(): the deck's own scheme, scheme 7 when its droids are
-; gone; class 0 the window's background, class 3 the border's and the
-; panel frame's; then every block character's colour
+; gone, scheme 0 in black and white (as the original's $27FB); class 0
+; the window's background, class 3 the border's and the panel frame's;
+; then every block character's colour
 _deck_colours:
         lda _deck
         jsr _deck_cleared
@@ -948,7 +952,9 @@ _deck_colours:
         beq :+
         lda #7 * 12
         bne @s
-:       ldx _deck
+:       ldx _bw
+        bne @s                  ; (A is 0)
+        ldx _deck
         lda _deck_scheme,x      ; (12 times the scheme)
 @s:     tay
         ldx #0

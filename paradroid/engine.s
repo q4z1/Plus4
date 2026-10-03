@@ -52,7 +52,7 @@
         .export _col_deck, _col_panel, _col_fig1, _col_fig2, _col_border
         .export _blk_set, _bs_x, _bs_y, _bs_v
         .export _panel_put, _pp_off, _pp_code, _pp_attr
-        .export _keys_irq, _eng_keys, _dbg_keys
+        .export _keys_irq, _eng_keys, _dbg_keys, _pause_keys
         .export _pool_left, _eng_stack, _font_hi, _f_tint, _panel_hi, _win_mc
         .export _mus_hook
         .import sfx_frame               ; sfx.s
@@ -208,9 +208,6 @@ NPEND = 16
 pend_x:     .res NPEND
 pend_y:     .res NPEND
 pend_m:     .res NPEND          ; bit 0: picture 0 still to do, bit 1: 1
-_bs_x:      .res 1
-_bs_y:      .res 1
-_bs_v:      .res 1
 
 _pp_off:    .res 2
 _pp_code:   .res 1
@@ -221,8 +218,6 @@ _keys_irq:  .res 1
 keys_hit:   .res 1
 _dbg_keys:  .res 1
 kprev:      .res 1
-kj:         .res 1
-kr:         .res 1
 
 _mus_hook:  .res 2              ; music once a picture (title.c's, music.s)
 
@@ -230,6 +225,11 @@ next_code:  .res 1
 cl_n:       .res 2
 POOL_N      = 256 - POOL
         .segment "LOWBSS"
+_bs_x:      .res 1              ; (these written before they are read:
+_bs_y:      .res 1              ; LOWBSS is not cleared)
+_bs_v:      .res 1
+kj:         .res 1              ; the keys' reading
+kr:         .res 1
 CL_N = POOL_N + WCOLS           ; the cut row notes a cell per copy use
 cl_col0:    .res CL_N           ; cells handed a character, picture 0
 cl_row0:    .res CL_N
@@ -1852,6 +1852,31 @@ krd:    sta TED_KEYS
         lda TED_KEYS
         lda TED_KEYS
         eor #$FF
+        rts
+
+; pause_keys(): the keys the pause looks at, off the keyboard's rows now
+; (the interrupt sets them again for its own reading): CLR/HOME 1, HELP
+; 2, F1 4, shift 128
+_pause_keys:
+        php
+        sei
+        lda #$7F
+        jsr krow
+        and #2
+        sta kj
+        lda #$FE                ; HELP 8, F1 16
+        jsr krow
+        lsr a
+        lsr a
+        and #6
+        ora kj
+        sta kj
+        lda #$FD
+        jsr krow
+        and #$80
+        ora kj
+        plp
+        ldx #0
         rts
 
 ; eng_keys: the keys that went down since the last call

@@ -43,6 +43,15 @@ void wait_tick(void)
     ++tick;
 }
 
+/* ticks till none of the keys m is down */
+static void __fastcall__ wait_free(unsigned char m)
+{
+    static unsigned char mm;
+    mm = m;
+    while (keys_irq & mm)
+        wait_tick();
+}
+
 void enter(unsigned char d, unsigned char bx, unsigned char by)
 {
     load_deck(d);
@@ -87,8 +96,7 @@ static void transfer(unsigned char i)
         burnt_out();
     }
     transfer_mode = 0;
-    while (keys_irq & K_FIRE)
-        wait_tick();
+    wait_free(K_FIRE);
 }
 
 /* ======================================================================
@@ -135,17 +143,46 @@ static void next_ship(void)
     panel_status("Mobile");
 }
 
-/* RUN/STOP: everything stands still until it is pressed again */
-static void pause(void)
+static unsigned char over;              /* a game has been played */
+
+/* The pause, as the original's ($3B7C): RUN/STOP, and all stands still
+ * and is quiet but the deck's turning characters, till fire or RUN/STOP.
+ * In it, as its briefing says: CLR/HOME ends the game (1 back: straight
+ * to the title); the C64's F7, HELP here, is "Cheese": not even those
+ * turn, till its F8 (F7 here), fire or RUN/STOP. And, not in the
+ * briefing, F1 for colours, F2 for black and white (the deck's scheme 0,
+ * from the pause's end on). */
+extern unsigned char snd_len[2];
+#pragma zpsym ("snd_len")
+
+static unsigned char pause(void)
 {
+    static unsigned char f;
     panel_status("Pause");
-    while (keys_irq & K_STOP)
+    snd_len[0] = snd_len[1] = 1;        /* (both voices off at once) */
+    wait_free(K_STOP);
+    while (!(keys_irq & (K_STOP | K_FIRE))) {
         wait_tick();
-    while (!(keys_irq & K_STOP))
-        wait_tick();
-    while (keys_irq & K_STOP)
-        wait_tick();
-    panel_status(transfer_mode ? "Transfer" : "Mobile");
+        f = pause_keys();
+        if (f & 1)
+            return 1;
+        if ((f & 0x82) == 2) {
+            panel_status("Cheese");
+            while (!(keys_irq & (K_STOP | K_FIRE))
+                   && !((f = pause_keys()) & 1) && (f & 0x82) != 0x82)
+                ;
+            panel_status("Pause");
+        }
+        if (f & 4) {
+            bw = f & 0x80;
+            panel_status(bw ? "Blk-White" : "Colour");
+        }
+        anim_deck();
+    }
+    wait_free(K_STOP | K_FIRE);
+    deck_colours();
+    panel_status("Continue");
+    return 0;
 }
 
 static void play(void)
@@ -158,7 +195,10 @@ static void play(void)
         wait_tick();
         k = keys_irq;
         if (k & K_STOP) {
-            pause();
+            if (pause()) {
+                over = 0;               /* (no end of a game shown) */
+                return;
+            }
             continue;
         }
         /* near a console: the drive's motor started already, so that the
@@ -334,7 +374,6 @@ static void console(void)
     console_run();
 }
 
-static unsigned char over;              /* a game has been played */
 
 /* after a game, as the original: a droid picked at random between
  * "Transmission" and "Terminated"; then the title loads */
@@ -450,7 +489,6 @@ void main(void)
         panel_status("Mobile");
         play();
         panel_status("Game over");
-        while (keys_irq & K_FIRE)
-            wait_tick();
+        wait_free(K_FIRE);
     }
 }
