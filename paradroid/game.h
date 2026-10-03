@@ -163,8 +163,6 @@ void panel_score(void);
 void win_clear(unsigned char code, unsigned char attr);
 extern unsigned char wp_row, wp_col, wp_code, wp_attr;
 void win_put(void);
-void win_letters(void);
-void win_text(unsigned char line, unsigned char col, const char *s, unsigned char a);
 const char *num_text(unsigned long v);   /* up to seven digits */
 unsigned char panel_code(char ch);       /* a letter's code in the panel's set */
 unsigned load_file(const char *name, void *addr);   /* paradroid.c: bytes loaded */
