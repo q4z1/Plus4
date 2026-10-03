@@ -221,10 +221,14 @@ tick for tick as in the original.
 
 Walls are characters there, not blocks: a character code from $80 on. A
 wall block is solid only in its two middle characters, a console often
-only in its outermost row. After each move the player looks at three
-points around its character, ahead the way it drives; a wall there stops
-it at the edge of its character. So it comes up close to everything, as
-there. The walls of each block are four bits per character row, kept in
+only in its outermost row. Each tick, as there ($29C1): first the speed,
+then the walls - three points around the player's character ((x + 7) / 8
+across and down) for each way, looked at only the way it drives (left
+and up also standing still); a wall there stops it, its position set to
+1 into its character driving right or down, to the next character's start
+driving left or up - and only then the move, by the speed's whole part.
+Driven into walls from one place on the same deck, the original and this
+stop on the same pixel, straight and diagonally alike. The walls of each block are four bits per character row, kept in
 the unused end of the block code tables at `$E800`.
 
 The window follows the player across in steps of two pixels, in step with

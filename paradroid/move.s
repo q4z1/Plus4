@@ -137,11 +137,16 @@ sense:  lda #3
 @hit:   sec
         rts
 
-; the player's character: its middle's
+; the player's character, as the original's: (p + 7) / 8
 pcell:  ldx #1
-@ax:    lda ph,x
+@ax:    lda pl,x
+        clc
+        adc #7
+        pha
+        lda ph,x
+        adc #0
         sta cx,x
-        lda pl,x
+        pla
         lsr cx,x
         ror a
         lsr cx,x
@@ -181,7 +186,7 @@ axis:   stx ax
 @coast: lda vh,x
         bmi @neg
         ora vl,x
-        beq @move
+        beq @vdone
         sec                     ; on, slowing: -$B0, nought at last
         lda vl,x
         sbc #$B0
@@ -189,7 +194,7 @@ axis:   stx ax
         lda vh,x
         sbc #0
         sta vh,x
-        bpl @move
+        bpl @vdone
         bmi @stop
 @neg:   clc                     ; back, slowing: +$B0
         lda vl,x
@@ -198,27 +203,31 @@ axis:   stx ax
         lda vh,x
         adc #0
         sta vh,x
-        bmi @move
+        bmi @vdone
 @stop:  lda #0
         sta vh,x
         sta vl,x
-        beq @move
+        beq @vdone
 @clamp: lda vh,x
         bmi @cneg
         cmp vmax
-        bcc @move
+        bcc @vdone
         lda vmax
         bcs @top
 @cneg:  clc
         adc vmax
-        bpl @move
+        bpl @vdone
         lda #0
         sec
         sbc vmax
 @top:   sta vh,x
         lda #0
         sta vl,x
-@move:  ldy #0                  ; the position += vh, and one more if vl
+@vdone:  rts
+
+; the position, one axis, X: += vh, and one more if vl (the original's
+; moves by its speed's whole part, its own way round: so)
+pmove:  ldy #0
         lda vh,x
         bpl :+
         dey
@@ -230,9 +239,14 @@ axis:   stx ax
         tya
         adc ph,x
         sta ph,x
-        jsr pcell
-        ldx ax
-        lda vh,x                ; driving on: the points ahead that way
+        rts
+
+; the walls, one axis, X, as the original's ($29C1): before the move,
+; with the speed already new, the points around the player's character. Driving on (right, down) and a
+; wall that way: stopped, at 1 into its character; then, or when driving
+; back or still, a wall the other way: stopped at its character's start.
+wall:   stx ax
+        lda vh,x
         bmi @back
         ora vl,x
         beq @back
@@ -241,9 +255,13 @@ axis:   stx ax
         jsr sense
         ldx ax
         bcc @done
-        lda pl,x                ; a wall: the character's back edge
+        lda pl,x
         and #$F8
-        bcs @wall
+        ora #1
+        sta pl,x
+        lda #0
+        sta vh,x
+        sta vl,x
 @back:  lda sp_of,x
         clc
         adc #3
@@ -251,10 +269,14 @@ axis:   stx ax
         jsr sense
         ldx ax
         bcc @done
-        lda pl,x                ; the character's front edge
-        ora #7
-@wall:  sta pl,x
-        lda #0
+        lda pl,x                ; (p + 7) & $F8
+        clc
+        adc #7
+        and #$F8
+        sta pl,x
+        bcc :+
+        inc ph,x
+:       lda #0
         sta vh,x
         sta vl,x
 @done:  rts
@@ -286,10 +308,19 @@ _move_player:
         sta vh
         lda _d_vy
         sta vh+1
-        ldx #0
+        jsr pcell               ; as the original: the speed, the walls,
+        ldx #0                  ; then the move ($39F9, $29C1, $3849)
         jsr axis
         ldx #1
         jsr axis
+        ldx #0
+        jsr wall
+        ldx #1
+        jsr wall
+        ldx #0
+        jsr pmove
+        ldx #1
+        jsr pmove
         lda pl
         sta _d_x
         lda ph
