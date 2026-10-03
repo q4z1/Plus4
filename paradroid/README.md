@@ -111,6 +111,14 @@ the fetching goes on through the border, and the next picture starts with
 the row line counter wrong, the panel already. VICE did not mind, Yape
 showed garbage from the first scrolled picture on.
 
+Setting the line counter back has one more catch: set to the line the
+raster interrupt compares with, the TED raises the interrupt again at
+once. For s = 3 the counter goes to 71, the very line of the interrupt
+doing it; the rest of the picture's interrupts then came one late, and
+the next panel was drawn on the gap's colour, a flicker every eighth line
+of scrolling. So the next interrupt's line is set before the counter.
+Yape does this as the chip does; VICE does not raise it.
+
 `tests/rowcheck.py` checks the result for all eight positions in VICE,
 `tests/yape_rowcheck.py` in Yape. For each one they compare every line of
 the window on the screen with the characters in memory.
@@ -600,4 +608,5 @@ limit.
 | `yape_brief.py [n]` | the briefing in Yape, n pictures in a row: how far it moves in each |
 | `yape_title.py` | the title's scores page in Yape, with its picture |
 | `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
+| `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

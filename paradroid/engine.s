@@ -482,6 +482,19 @@ irq_rc:
 ; counter set back, and the deck's colour from that line.
 irq_scroll:
         ldy front
+        ; the next interrupt's line first: the line counter is set back
+        ; below, to 74 - s, and set to this interrupt's line (71, for s =
+        ; 3) the TED raises it again at once if it is still the one to
+        ; compare with (Yape does, as the real chip; VICE does not). That
+        ; ran the rest of the picture's interrupts one late, and the next
+        ; panel was drawn on the gap's colour: it flickered, every eighth
+        ; line of scrolling.
+        lda #3
+        sta phase
+        lda #LINE_BOTTOM
+        sec
+        sbc b_s,y
+        sta TED_RCMP
         ; the deck's colour from the gap's last line: written between it
         ; and the one before
         ldx #GAP_LAST - 1
@@ -509,12 +522,6 @@ irq_scroll:
         and #$F8
         ora b_rcv,y
         sta TED_RC
-        lda #3
-        sta phase
-        lda #LINE_BOTTOM
-        sec
-        sbc b_s,y
-        sta TED_RCMP
         jmp irq_out
 
 ; Below the window: the line counter put right again, so the picture ends
