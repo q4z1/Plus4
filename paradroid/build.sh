@@ -4,6 +4,8 @@
 # (an overlay, build/title.bin) and the droids' pictures p00-p23.
 set -e
 cd "$(dirname "$0")"
+# not while a test runs: it would go on with the new files under it
+python3 tests/onetest.py
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
 mkdir -p build
 # the fast loader's drive code for a 1551, run at $0500 there, and what

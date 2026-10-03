@@ -15,6 +15,7 @@ import shutil
 import socket
 import subprocess
 import time
+from onetest import kill_other_tests
 
 PORT = 6580
 
@@ -38,7 +39,9 @@ def kill_emulators():
     """End every emulator still running, before a new one is started: one
     left over (a test cut short) would keep the monitor port, and the next
     test would talk to it, running an old program. SIGTERM first, and what
-    is still there after two seconds gets SIGKILL."""
+    is still there after two seconds gets SIGKILL. Other tests still
+    running go first (onetest.py): one test at a time."""
+    kill_other_tests()
     for sig in ('-TERM', '-KILL'):
         pids = _emulator_pids()
         if not pids:

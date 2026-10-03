@@ -10,6 +10,7 @@ each start (Yape saves its settings on exit, warp too).
 Yape has no true 1551: a .d64 gets a true 1541 on the serial bus.
 """
 import os, re, struct, subprocess, time, zlib
+from onetest import kill_other_tests
 
 YAPE = os.path.expanduser('~/.cache/paradroid/yapesdl/yapesdl')
 HOME = os.path.expanduser('~/.cache/paradroid/yapehome')
@@ -34,7 +35,9 @@ def host(*cmd, **kw):
 
 
 def kill_emulators():
-    """every emulator gone: SIGTERM, then SIGKILL, then checked"""
+    """every emulator gone: SIGTERM, then SIGKILL, then checked; other
+    tests still running first (onetest.py): one test at a time"""
+    kill_other_tests()
     for sig in ('TERM', 'KILL'):
         for e in EMULATORS:
             host('pkill', '-' + sig, '-x', e, capture_output=True)
