@@ -100,6 +100,10 @@ second. The window scrolls a pixel at a time in any direction.
 | ![The day's scores](screenshots/scores.png) | ![After a game](screenshots/highscore.png) |
 | **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. Then the round starts again with the logo. | **After a game** its score is the day's top or worst, if it is: the number alone, without the original's initials. |
 
+Each of the title's screens is built with the picture off - only the
+border shows, in the coming screen's colour - and switched on whole: the
+logo takes some 16 pictures to build, a page about 7.
+
 ## What is new compared with the other games here
 
 ### Fine scrolling under a fixed panel

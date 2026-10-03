@@ -32,6 +32,10 @@
 #pragma bss-name (push, "OVLDATA")      /* (and the rest: zero at each load) */
 
 void wait_tick(void);
+static void picture_on(unsigned char on);
+#define TED_SCROLLY (*(volatile unsigned char *)0xFF06)
+#define TED_BORDER  (*(volatile unsigned char *)0xFF19)
+#define PICTURE_OFF (!(TED_SCROLLY & 0x10))
 void mus_start(void);                   /* music.s: the original's sound */
 void mus_stop(void);
 extern unsigned long top_score, low_score;  /* paradroid.c: the day's */
@@ -227,11 +231,10 @@ static void score_line(unsigned off, unsigned long v)
 static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, unsigned char bd)
 {
     static unsigned y, end;
-    static unsigned char cd, cb, pic_on, hit;
+    static unsigned char cd, pic_on, hit;
     static unsigned char t = 0, dt = 0; /* (in the overlay: a start value) */
     static const unsigned char *p;
     cd = col_deck;
-    cb = col_border;
     eng_plain();
     b_fg = fg;
     brief_font(fg);
@@ -270,6 +273,8 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
         page_show(y, pic_on);
         if (y == 0 || y == end) {
             r_done();
+            if (PICTURE_OFF)            /* (after the logo: now whole) */
+                picture_on(1);
             hit = fire_in(120);
             t = frames - 3;
         } else {
@@ -286,25 +291,44 @@ static unsigned char brief(unsigned char n, unsigned char bg, unsigned char fg, 
         if (y > end)
             y = end;
     }
+    picture_on(0);                      /* (the next page turns it on) */
     deck_font();
     win_mc = 0x10;
-    col_deck = cd;
-    panel_frame(cb);
-    col_border = cb;
+    col_deck = cd;                      /* (the border stays, as the
+                                         * original's start page has it) */
     col_fig2 = 0x71;
     panel_status("Press fire");
     return hit;                         /* (a short press is over by now) */
 }
 
+/* the picture off (only the border shows) or on again, from the next
+ * picture on: built while off, a screen shows whole at once. The logo
+ * leaves it off, for the page after it. */
+
+static void picture_on(unsigned char on)
+{
+    frame_start();                      /* (under the window, the border) */
+    if (on)
+        TED_SCROLLY |= 0x10;
+    else {
+        TED_SCROLLY &= ~0x10;
+        TED_BORDER = col_border;        /* (now, not at the next picture) */
+    }
+}
+
 /* the original's logo over the whole screen, the panel's rows too; 1 if
- * fire ended it */
+ * fire ended it. Built with the picture off, the border already in the
+ * logo's colour, so nothing half done shows. */
 static unsigned char logo(void)
 {
     static const unsigned char *p;
-    static unsigned char c, n, cd, cb, cp, k;
+    static unsigned char c, n, cd, cp, k;
     static unsigned off;
     eng_plain();
-    frame_start();
+    cd = col_deck;
+    cp = col_panel;
+    col_border = pal_deck[LOGO_BG];
+    picture_on(0);
     /* the panel's rows kept where the pool's characters are */
     memcpy(FONT0 + POOL * 8, SCR0C, 240);
     memcpy(FONT0 + POOL * 8 + 240, SCR0A, 240);
@@ -314,18 +338,18 @@ static unsigned char logo(void)
             SCR0C[off] = SCR1C[off] = c;
             SCR0A[off] = SCR1A[off] = pal_deck[logo_col[c]];
         }
-    cd = col_deck;
-    cb = col_border;
-    cp = col_panel;
-    col_deck = col_border = col_panel = pal_deck[LOGO_BG];
+    col_deck = col_panel = pal_deck[LOGO_BG];
     font_hi[0] = 0xD8;
     panel_hi = 0xD8;
+    frame_start();                      /* (the registers set for it) */
+    picture_on(1);
     k = fire_in(200);
-    frame_start();
+    picture_on(0);
     panel_hi = 0xE0;                    /* the panel's set again */
     col_deck = cd;
-    col_border = cb;
-    col_panel = cp;
+    col_panel = cp;                     /* (the border stays: the next
+                                         * page sets its own, the game the
+                                         * deck's) */
     memcpy(SCR0C, FONT0 + POOL * 8, 240);
     memcpy(SCR1C, FONT0 + POOL * 8, 240);
     memcpy(SCR0A, FONT0 + POOL * 8 + 240, 240);
@@ -333,7 +357,7 @@ static unsigned char logo(void)
     memset(SCR0C + 240, 0, 120);        /* the gap rows: blank again */
     memset(SCR1C + 240, 0, 120);
     deck_font();
-    return k;
+    return k;                           /* (still off: see picture_on()) */
 }
 
 /* a game's start, as the original's: for three and a half seconds (or
@@ -369,6 +393,8 @@ static void start_page(void)
     x_row = 20;
     x_col = 9;
     say("rogue robots.");
+    if (PICTURE_OFF)                    /* (fire on the logo) */
+        picture_on(1);
     fire_in(175 - 65);
     while (keys_irq & K_FIRE)
         wait_tick();
