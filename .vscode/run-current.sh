@@ -63,6 +63,24 @@ else
 fi
 echo "Fertig: $OUT/$NAME.prg"
 
+# The emulator: VICE, or Yape with PLUS4_EMU=yape (the F5 configuration
+# "... in Yape"), whose TED is closer to the real chip. A program may bring
+# its own run-yape.sh for that (Paradroid: its disk, the gamepad). Yape
+# looks for a relative file name in its own folder, so it gets the full
+# path; from VS Code's flatpak it is started on the host.
+if [ "$PLUS4_EMU" = yape ]; then
+    if [ -x "$DIR/run-yape.sh" ]; then
+        echo "Starte ueber $DIR/run-yape.sh ..."
+        exec "$DIR/run-yape.sh" "$OUT/$NAME.prg"
+    fi
+    PRG="$(cd "$OUT" && pwd)/$NAME.prg"
+    echo "Starte Yape ..."
+    if [ -f /.flatpak-info ]; then
+        exec flatpak-spawn --host yape "$PRG"
+    fi
+    exec yape "$PRG"
+fi
+
 # A program may bring its own runner. The PokerTH client needs a proxy
 # started next to the emulator and the ACIA wired to it, which is nobody
 # else's business - so if <programm>/run.sh exists, it takes over from here

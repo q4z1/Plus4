@@ -45,6 +45,22 @@
                 "cwd": "${workspaceFolder}"
             },
             "problemMatcher": []
+        },
+        {
+            // Dasselbe in Yape statt VICE.
+            "label": "Plus/4: Build & Run in Yape (aktive Datei)",
+            "type": "shell",
+            "command": "${workspaceFolder}/.vscode/run-current.sh",
+            "args": [
+                "${file}"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PLUS4_EMU": "yape"
+                }
+            },
+            "problemMatcher": []
         }
     ]
 }

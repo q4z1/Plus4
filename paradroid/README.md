@@ -532,6 +532,18 @@ sh paradroid/build.sh
 xplus4 -autostart paradroid/build/paradroid.d64
 ```
 
+The second F5 configuration, "... in Yape", starts it in **Yape** instead
+([run-yape.sh](run-yape.sh); `sh paradroid/run-yape.sh` without an
+editor). Yape gets the disk image with its full path (it looks for a
+relative one in its own folder), and the gamepad set up: Yape takes a game
+controller's right stick and A as the joystick, so for the Xbox One S
+controller over Bluetooth the script hides the Steam Deck's own
+controller from SDL, hands SDL a mapping that gives the left stick as the
+right one too, and sets Yape's "active joy for keyset" to NONE, which puts
+a single controller on both joystick ports. The controller's B button
+steps that setting on (BOTH leaves it on none); LB types RUN, RB opens
+Yape's menu.
+
 The disk is made by `tools/d64.py`. The `.prg` alone does not run: it
 needs the briefing from the disk. VICE's `xplus4` has a 1551 at device 8
 by default; with `-drive8type 1541` it has a 1541, and the game loads

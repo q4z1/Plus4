@@ -18,6 +18,18 @@
             "name": "Plus/4: Aktive .c-Datei bauen & starten",
             "command": "${workspaceFolder}/.vscode/run-current.sh '${file}'",
             "cwd": "${workspaceFolder}"
+        },
+        {
+            // Wie oben, nur in Yape statt VICE (dessen TED ist naeher am
+            // echten Chip). Bringt das Programm ein run-yape.sh mit, startet
+            // das - Paradroid: von seiner Diskette, mit dem Gamepad.
+            // Welche Konfiguration F5 nimmt, waehlt man oben in der Ansicht
+            // "Ausfuehren und Debuggen"; F5 bleibt dann bei ihr.
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Plus/4: Aktive .c-Datei bauen & in Yape starten",
+            "command": "PLUS4_EMU=yape ${workspaceFolder}/.vscode/run-current.sh '${file}'",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }
