@@ -721,6 +721,6 @@ limit.
 | `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
 | `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
 | `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
-| `yape_start.py` | a game's start in Yape, 400 pictures in a row: the start page, the beam, "Mobile" |
+| `yape_start.py [logo]` | a game's start in Yape (fire on the briefing, or on the logo), 400 pictures in a row: the start page, the beam, "Mobile" |
 | `yape_snow.py [n] [label ...]` | the window's bottom edge in Yape, n pictures in a row: stray pixels there (with labels, those routines switched off) |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

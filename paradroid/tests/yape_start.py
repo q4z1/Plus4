@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""yape_start.py - a game's start in Yape, as the original's: fire on the
-title, then 400 pictures in a row, 8 seconds
+"""yape_start.py [logo] - a game's start in Yape, as the original's: fire on
+the title (with "logo": on its logo), then 400 pictures in a row, 8 seconds
 (~/.cache/paradroid/test/yape_start_NNN.png): the start page ("Game on!",
 the unit), the deck with the player flashing as it is beamed in, then
 "Mobile". Prints where the window changes from one to the next."""
@@ -17,11 +17,12 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
 
 y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True, series=400)
 try:
-    for t in range(60):
-        y.run_for(1)
-        if y.mem(lbl['_font_hi'], 1)[0] == 0xD8:
+    for t in range(300):
+        y.run_for(0.2 if 'logo' in sys.argv else 1)
+        if y.mem(lbl['_panel_hi' if 'logo' in sys.argv else '_font_hi'], 1)[0] == 0xD8:
             break
-    y.run_for(2)
+    if 'logo' not in sys.argv:
+        y.run_for(2)
     y.poke(lbl['_dbg_keys'], [16])
     y.run_for(0.2)
     y.poke(lbl['_dbg_keys'], [0])

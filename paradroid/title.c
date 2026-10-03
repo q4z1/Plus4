@@ -356,6 +356,7 @@ static unsigned char logo(void)
     memcpy(SCR1A, FONT0 + POOL * 8 + 240, 240);
     memset(SCR0C + 240, 0, 120);        /* the gap rows: blank again */
     memset(SCR1C + 240, 0, 120);
+    panel_frame(col_border);            /* (kept from the deck before) */
     deck_font();
     return k;                           /* (still off: see picture_on()) */
 }
