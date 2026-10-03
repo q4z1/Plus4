@@ -708,7 +708,7 @@ _bump_next:
 
 ; bump_back(i): the bump of droid i, as the original's ($1A73): the droid
 ; turns round and waits 16 ticks, the player is thrown back at twice its
-; speed, at 2 up and left if still that way
+; speed (at most its top speed), at 2 up and left if still that way
 _bump_back:
         tax
         lda #16
@@ -721,7 +721,10 @@ _bump_back:
         sec
         sbc _d_vy,x
         sta _d_vy,x
-        lda _d_vx               ; the player
+        lda #0                  ; the player: whole pixels only
+        sta vl
+        sta vl+1
+        lda _d_vx
         jsr @back
         sta _d_vx
         lda _d_vy
@@ -734,6 +737,20 @@ _bump_back:
         clc
         adc #1
         asl a
+        bmi @neg                ; no faster than the host drives (vmax,
+        cmp vmax                ; move_player()'s this tick): bump on
+        bcc :+                  ; bump between droids would double it
+        lda vmax                ; each time, until the player flew
+:       rts                     ; through walls and off the deck
+@neg:   clc
+        adc vmax
+        bpl :+                  ; (-vmax or slower)
+        lda #0
+        sec
+        sbc vmax
+        rts
+:       sec
+        sbc vmax
         rts
 
 ; fig_place(d): the player's place moved by d (signed) across and down
