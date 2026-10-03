@@ -702,12 +702,38 @@ for g in DIGITS:
     dg += [v & 255, v >> 8]
 emit('digit_bits', dg)
 # lasers and explosion from the original's sprites (24 x 21), as 12
-# multicolour pixels by 16 lines: hires pixel pairs become light pixels. The
-# explosion's black stays black (%01), its yellow and orange are the cells'
-# own colour (%11), which draw.c sets: yellow, then orange as it dies down
+# multicolour pixels by 16 lines. The explosion's black stays black (%01),
+# its yellow and orange are the cells' own colour (%11), which draw.c sets:
+# yellow, then orange as it dies down. The lasers' hires pixels become
+# light ones (%10), and as their bolts are thin, not every pair with a
+# pixel set: a run of n hires pixels gets (n + 1) / 2 multicolour pixels
+# about its middle, else the bolts come out twice as thick, their one
+# pixel bulges as spikes
 sprites = {}
 for m in re.finditer(r'sprite (\w+) (mc|hires)\n((?:[.#0-3]{12,24}\n){21})', read('sprites.txt')):
     sprites[m.group(1)] = (m.group(2), m.group(3).split())
+
+
+def runs(r):
+    out, i = [], 0
+    while i < len(r):
+        if r[i] != '#':
+            i += 1
+            continue
+        j = i
+        while j < len(r) and r[j] == '#':
+            j += 1
+        out.append((i, j))
+        i = j
+    return out
+
+
+def mc_run(row, width, centre):
+    """a run width hires pixels wide about hires x centre, into row"""
+    k = max(1, int(width / 2 + 0.5))
+    p0 = max(0, min(12 - k, int(centre / 2 - k / 2 + 0.5)))
+    for p in range(p0, p0 + k):
+        row[p] = 'o'
 
 
 def sprite_pic(name, top):
@@ -715,17 +741,44 @@ def sprite_pic(name, top):
     out = []
     for r in rows[top:top + 16]:
         if kind == 'hires':
-            out.append(''.join('o' if '#' in r[2 * i:2 * i + 2] else '.' for i in range(12)))
+            row = ['.'] * 12
+            for i, j in runs(r):
+                mc_run(row, j - i, (i + j) / 2)
+            out.append(''.join(row))
         else:
             out.append(''.join({'0': '.', '1': 'x', '2': 'c', '3': 'c'}[c] for c in r))
     return out
 
 
+def laser_v():
+    """the vertical laser: two bolts, each run's width averaged over 7
+    lines and its middle over 21, so they stay straight and smooth (their
+    bulges are a hires pixel, too fine to show); then 16 of the 21 lines,
+    leaving out ones like the line before from the middle, so the bolts
+    keep their tips"""
+    rows = sprites['laser_v'][1]
+    rs = [runs(r) for r in rows]
+    out = [['.'] * 12 for r in rows]
+    for b in range(2):
+        for y in range(len(rows)):
+            def avg(n, f):
+                v = [f(*rs[k][b]) for k in range(max(0, y - n), min(len(rows), y + n + 1))]
+                return sum(v) / len(v)
+            mc_run(out[y], avg(3, lambda i, j: j - i), avg(10, lambda i, j: (i + j) / 2))
+    out = [''.join(r) for r in out]
+    while len(out) > 16:
+        n = len(out)
+        k = min(range(2, n - 2), key=lambda k: (out[k] != out[k - 1], abs(k - n / 2)))
+        del out[k]
+    return out
+
+
+assert all(len(runs(r)) == 2 for r in sprites['laser_v'][1])
 eimg = []
 for i in range(6):
     eimg += pic_bytes(sprite_pic('explo%d' % i, 2))
 emit('explo_img', eimg)
-emit('laser_v', pic_bytes(sprite_pic('laser_v', 2)))
+emit('laser_v', pic_bytes(laser_v()))
 emit('laser_h', pic_bytes(sprite_pic('laser_h', 3)))
 emit('laser_d1', pic_bytes(sprite_pic('laser_d1', 2)))
 emit('laser_d2', pic_bytes(sprite_pic('laser_d2', 2)))

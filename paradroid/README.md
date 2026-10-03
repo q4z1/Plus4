@@ -338,7 +338,7 @@ were found by tracing the game:
 | `$F180` | the side view of the ship, run-length coded. Code `c` shows as `c + $80`, from the upper half of the deck's character set |
 | `$F120`–`$F15F` | each deck's box in the side view: row, column, rows, columns. Lighting a deck turns codes `$80`.. into `$90`.. and back |
 | `$6CB0`–`$6CC7` | the lift shafts: column, top row, length. The shaft ridden gets colour `$F9`, white multicolour |
-| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures |
+| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures: a run of hires pixels gets half as many multicolour ones about its middle, so the bolts stay thin, and the vertical one is smoothed and keeps its tips in 16 of its 21 lines |
 | `$7F88`–`$7FF7` | the transfer game's characters `$F1`–`$FE` (and `$D0`, `$D1`): wires, arrows, the colour changer, boxes, the lights |
 | `$6C28` | the animated characters: the energizer's, the plan's player; and at `$7BD0` the static's |
 | `$C610` | the sound effects' records, their instruments at `$EAA0` |
