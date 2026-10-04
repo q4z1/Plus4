@@ -22,6 +22,11 @@ lbl = {}
 for l in open(os.path.join(root, 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
+if os.path.exists(out):                 # (no old trace left to compare)
+    os.remove(out)
+for n in ('new_game', 'player_fire'):   # (C's names, or assembly's own)
+    if '_' + n not in lbl:
+        lbl['_' + n] = lbl[n]
 d64 = os.path.join(WORK, 'trace.d64')
 os.makedirs(WORK, exist_ok=True)
 open(d64, 'wb').write(open(os.path.join(root, 'build', 'paradroid.d64'), 'rb').read())

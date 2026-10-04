@@ -3,6 +3,9 @@
 where they part, and what differs there."""
 import json, sys
 
+import os
+if not (os.path.exists(sys.argv[1]) and os.path.exists(sys.argv[2])):
+    sys.exit('a trace is missing')
 a = [json.loads(l) for l in open(sys.argv[1])]
 b = [json.loads(l) for l in open(sys.argv[2])]
 n = min(len(a), len(b))

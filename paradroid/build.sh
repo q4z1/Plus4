@@ -1,7 +1,6 @@
 #!/bin/sh
 # Build Paradroid: build/paradroid.prg and the disk it runs from,
-# build/paradroid.d64, with the title and briefing as a file of its own
-# (an overlay, build/title.bin) and the droids' pictures p00-p23.
+# build/paradroid.d64, with the droids' pictures p00-p23.
 set -e
 cd "$(dirname "$0")"
 # not while a test runs: it would go on with the new files under it
@@ -51,13 +50,15 @@ $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/fastinit.o fastinit.c
 n=$($B/od65 -S build/fastinit.o | awk '/INITDATA:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
-for f in paradroid picture transfer lift title; do
+for f in disk transfer lift title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
 done
 $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
 $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/droids.o droids.s
 $B/cl65 -t plus4 -g -c -o build/draw.o draw.s
 $B/cl65 -t plus4 -g -c -o build/deck.o deck.s
+$B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/paradroid.o paradroid.s
+$B/cl65 -t plus4 -g -c -o build/picture.o picture.s
 $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
 $B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/music.o music.s
@@ -75,11 +76,11 @@ $B/cl65 -t plus4 -g -c -o build/condata.o build/gen/console.s
 # segment, so nothing else moves) are packed from the first link's, then
 # go into the second. They must not refer to BLOBS themselves: the two
 # links' overlays are compared.
-OVLS="con xfer"
+OVLS="con xfer title"
 link() {
     $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
         -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-        build/draw.o build/picture.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
+        build/draw.o build/picture.o build/disk.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
         build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
         build/sfx.o build/unpack.o build/blobs.o
 }
@@ -121,7 +122,7 @@ done
 # little faster with 8 (5.2 s for the title instead of 6.0; the 1541
 # 10.9 s instead of 4.3).
 IL=${IL:-10}
-set -- build/paradroid.d64 "paradroid,pd" build/title.bin:title:$IL
+set -- build/paradroid.d64 "paradroid,pd"
 for f in build/pics/p*; do
     set -- "$@" "$f:$(basename "$f"):$IL"
 done

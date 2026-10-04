@@ -3,11 +3,9 @@
  *
  * An overlay: this code, the briefing's text and the logo (build/gen/
  * brief.s) are linked to run in the slots of the pre-shifted pictures,
- * all of them, as the title needs none (paradroid.cfg), and are a file of
- * their own on the disk, "title", which paradroid.c loads for each title.
- * Its variables are in the program's memory, so they stay from one title
- * to the next. After a game, the original's "Transmission terminated" is
- * on the screen while it loads (paradroid.c).
+ * all of them, as the title needs none (paradroid.cfg), kept packed in
+ * the program and unpacked for each title (paradroid.c). Its variables
+ * are in the program's memory, so they stay from one title to the next.
  *
  * The original's title has its own sound throughout, a falling sweep and
  * a wavering low tone (music.s).

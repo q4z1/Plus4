@@ -863,14 +863,13 @@ c.append(asm_bytes('icon_lay', icon_lay))
 open(os.path.join(GEN, 'console.s'), 'w').write('\n'.join(c) + '\n')
 
 b = ['; made by tools/mkdata.py - do not edit',
-     '        .segment "OVLHDR"', '        .word 0         ; where a load address goes',
      '        .segment "OVLDATA"',
      '        .export _brief_srcs, _brief_top, _brief_bot, _brief_pages']
 for name, data in (('brief_srcs', srcs), ('brief_top', [t for t, u in letters]),
                    ('brief_bot', [u for t, u in letters]), ('brief_pages', pages_bin),
                    ('brief_dig', brief_dig), ('brief_cap', brief_cap), ('brief_misc', brief_misc)):
     b.append(asm_bytes(name, data))
-b[4] = b[4] + ', _brief_dig, _brief_cap, _brief_misc, _logo_font, _logo_col, _logo_rle'
+b[2] = b[2] + ', _brief_dig, _brief_cap, _brief_misc, _logo_font, _logo_col, _logo_rle'
 b.append(asm_bytes('logo_font', logo_font))
 b.append(asm_bytes('logo_col', logo_col))
 b.append(asm_bytes('logo_rle', logo_rle))
