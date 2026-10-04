@@ -310,6 +310,7 @@ and a linker configuration, so the root's run script hands the build to
 ./build.sh
 ~/.local/share/cc65-vs64/bin/xplus4 -autostartprgmode 1 build/demonattack.prg
 ~/.local/share/cc65-vs64/bin/xplus4 -model c16 -cartcrt build/demonattack.crt
+./run-yape.sh       # Yape: the cartridge on a C16, see below
 ```
 
 `build.sh` makes everything every time: the PRG, and the cartridge in two
@@ -328,23 +329,29 @@ has C1 low (`$8000`) in its first 16 KB and C1 high (`$C000`) in the
 second, so it fits a single 27256 on a board that puts both halves on one
 chip.
 
-- **Yape**: from the repository root, the F5 configuration *in Yape*
-  builds and starts [run-yape.sh](run-yape.sh). It gives Yape a
-  configuration of its own, with the cartridge in bank 2 and 16 KB of RAM,
-  so Yape comes up as a C16 running the game. Your own `yape.conf` stays as
-  it is. The gamepad is set up as for Paradroid, so a stick that SDL maps
-  wrongly no longer holds a joystick direction down. On a Plus/4 that
-  shows up as a key typing itself. The patched Yape from
-  [../paradroid/tools/yape.patch](../paradroid/tools/yape.patch) starts the
-  cartridge at once. Yape as it comes loads configured ROMs only at a hard
-  reset, so there `Shift`+`F11` starts it.
+- **Yape** cannot load a ROM from its command line. It takes one file
+  there, and only a program, disk or tape to load. A cartridge and the RAM
+  size are settings in its `yape.conf`. So [run-yape.sh](run-yape.sh)
+  writes Yape a configuration of its own, with the cartridge in bank 2
+  (C1, `ROMC2LOW`) and 16 KB of RAM (`RamMask = 3fff`), and starts Yape
+  with it: Yape comes up as a C16 running the game. Your own `yape.conf`
+  stays as it is. From the repository root, the F5 configuration *in Yape*
+  builds and runs the script. It also sets up the gamepad as for Paradroid,
+  so a stick that SDL maps wrongly no longer holds a joystick direction
+  down. On the machine that shows up as a key typing itself.
 
-  By hand: Yape (and YapeSDL, which also runs in the browser) has no
-  cartridge option on its command line. Open its menu with `F8`, `Esc` or the right
-  mouse button, choose *Attach rom...* and then `demonattack.bin`. Where it
-  offers banks, `BANK#1 LO` and `BANK#2 LO` both work: a 32 KB file fills
-  the low and the high half. If the machine does not restart by itself,
-  `F11` resets it. For a C16, set the RAM to 16 KB in its options.
+  The patched Yape from
+  [../paradroid/tools/yape.patch](../paradroid/tools/yape.patch) starts the
+  cartridge at once. Yape as it comes loads the ROMs in its settings only at
+  a hard reset, so there `Shift`+`F11` starts it.
+
+  Without the script, the cartridge goes in through Yape's menu (YapeSDL,
+  which also runs in the browser, has the same one). Open it with `F8`,
+  `Esc` or the right mouse button, choose *Attach rom...* and then
+  `demonattack.bin`. Where it offers banks, `BANK#1 LO` and `BANK#2 LO` both
+  work: a 32 KB file fills the low and the high half. If the machine does
+  not restart by itself, `F11` resets it. For a C16, the RAM is set to
+  16 KB in its options (*C264 RAM mask*, `3FFF`).
 - **plus4emu** takes ROM files with an offset into the file. Cartridge 1 is
   segments 04 (low) and 05 (high): `demonattack.bin` at offset 0 for 04 and
   at offset 16384 for 05 (`memory.rom.04.file`, `memory.rom.04.offset` and
