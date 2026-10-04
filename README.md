@@ -267,6 +267,8 @@ Each program lists its own; see the README in its folder.
 
 | | |
 | --- | --- |
+| [Demon Attack](demonattack/README.md) | joystick in port 1 or 2, or cursor keys and space; fire, space or `F1` starts, `F2` picks one of the ten games, `F3` / `Help` the difficulty |
 | [Pac-Man](pacman/README.md) | joystick in port 1, or `W` `A` `S` `D`, or the cursor keys; `Q` quits, fire or space starts |
+| [Paradroid](paradroid/README.md) | joystick in either port, or cursor keys; fire (or space, `CTRL`, `C=`) with a direction shoots, held without one transfers; `Run/Stop` pauses |
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
 | [Stardew Pond](stardew/README.md) | joystick in either port, or cursor keys; fire or space uses what is in your hand; `,` `.` pick an item; `I` the backpack |
