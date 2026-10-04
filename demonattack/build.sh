@@ -4,7 +4,9 @@
 #   build/demonattack.prg   for the Plus/4, loaded from disk
 #   build/demonattack.bin   a 32 KB cartridge image for the C16 and the
 #                           Plus/4: C1 low ($8000) in the first 16 KB, C1
-#                           high ($C000) in the second
+#                           high ($C000) in the second - for EPROMs, Yape
+#                           and plus4emu
+#   build/demonattack.crt   the same as a CRT file, for VICE
 #
 # With DEBUG=1 also the test version build/dbg.prg that the comparison
 # scripts drive.
@@ -36,6 +38,7 @@ if [ "$size" -ne 32768 ]; then
     echo "cartridge image is $size bytes, not 32768" >&2
     exit 1
 fi
+python3 mkcrt.py build/demonattack.bin build/demonattack.crt
 
 if [ -n "$DEBUG" ]; then
     $B/cl65 -t plus4 -O -Cl -DDEBUG -g -c -o build/dbg.o demonattack.c

@@ -1343,7 +1343,7 @@ static unsigned char shown_text[2];
 #define MSG_TIME    150                  /* pictures each: three seconds  */
 #define MSGS        4
 static const char *const msg_text[MSGS] = {
-    "DEMON ATTACK CLONE",
+    "DEMON ATTACK",
     "ATARI 2600 ORIGINAL BY IMAGIC, 1982",
     "CONVERTED TO C16 / PLUS/4 BY Q4Z1 2026",
     "PRESS FIRE OR F1 TO START",
@@ -1771,7 +1771,7 @@ static void game_over_page(void)
     page_att = r_att_ptr(back);
     memset(page_scr, ' ', 1000);
     memset(page_att, 0, 1000);
-    strcpy(line_buf, "DEMON ATTACK CLONE");
+    strcpy(line_buf, "DEMON ATTACK");
     page_line(3, 0x77);
     strcpy(line_buf, "CONVERTED TO C16 / PLUS/4 BY Q4Z1 2026");
     page_line(5, 0x51);

@@ -1,6 +1,6 @@
-# Demon Attack Clone for the Commodore Plus/4 and C16
+# Demon Attack for the Commodore Plus/4 and C16
 
-A clone of **Demon Attack** for the Atari 2600 (Imagic, 1982). All ten game
+A conversion of **Demon Attack** for the Atari 2600 (Imagic, 1982). All ten game
 variants, one or two players, the splitting demons, the small ones that
 dive at the cannon, both difficulty switches, and the original's sounds.
 
@@ -10,7 +10,7 @@ Plus/4, and a **32 KB cartridge** that also runs on the C16 with its
 
 This repository also has a [Phoenix clone](../phoenix/README.md): the
 Atari 2600 Phoenix on the Plus/4, built from measurements of the original,
-with some parts still reconstructed. This clone behaves like the original frame for
+with some parts still reconstructed. This conversion behaves like the original frame for
 frame: the same rules, speeds, patterns and sounds. That is checked
 automatically against the original running in an emulator. Getting there
 meant solving problems the Phoenix clone could avoid, and those solutions are what
@@ -182,13 +182,13 @@ make it.
 
 ### Checked frame for frame
 
-Because the timing is exact, the clone can be compared with the original
+Because the timing is exact, the conversion can be compared with the original
 directly:
 
 1. The original runs in Stella (driven headless as described in
    [the Phoenix clone's README](../phoenix/README.md#measuring-the-original)) and is
    stopped somewhere in a game.
-2. Its 128 bytes of RAM are poked into a debug build of this clone running
+2. Its 128 bytes of RAM are poked into a debug build of this conversion running
    in VICE (`DEBUG=1 ./build.sh`).
 3. Both run on for the same number of frames, and the two RAM images are
    compared.
@@ -294,8 +294,9 @@ characters at `$0400`, cc65's stack at `$0200`, and everything else in
 | [demonattack.cfg](demonattack.cfg) | the PRG's memory layout: the 2600's RAM in zero page at `$80`–`$FF`, program to `$B7FF`, the two screens at `$C000`–`$DFFF` |
 | [mktables.py](mktables.py) | makes `build/tables.s`: everything the game only reads, at build time |
 | [crt0_cart.s](crt0_cart.s) | the cartridge's header and start-up |
+| [mkcrt.py](mkcrt.py) | wraps the raw cartridge image into a CRT file for VICE |
 | [demonattack_cart.cfg](demonattack_cart.cfg) | the cartridge's memory layout: 32 KB ROM at `$8000`, everything in RAM below `$4000` |
-| [build.sh](build.sh) | builds `build/demonattack.prg` and `build/demonattack.bin`; with `DEBUG=1` also the test build `build/dbg.prg` |
+| [build.sh](build.sh) | builds `build/demonattack.prg`, `build/demonattack.bin` and `build/demonattack.crt`; with `DEBUG=1` also the test build `build/dbg.prg` |
 
 ## Building and running
 
@@ -307,24 +308,43 @@ and a linker configuration, so the root's run script hands the build to
 ```sh
 ./build.sh
 ~/.local/share/cc65-vs64/bin/xplus4 -autostartprgmode 1 build/demonattack.prg
-~/.local/share/cc65-vs64/bin/xplus4 -model c16 -cart build/demonattack.bin
+~/.local/share/cc65-vs64/bin/xplus4 -model c16 -cartcrt build/demonattack.crt
 ```
 
-`build.sh` makes both forms every time. `build/demonattack.bin` is the
-whole 32 KB cartridge. Its first 16 KB are C1 low (`$8000`), the second
-16 KB are C1 high (`$C000`), so it fits a single 27256 EPROM on a board that
-puts both halves on one chip. VICE takes the image as it is with `-cart`.
-`-c1lo` and `-c1hi` with the two halves did not work: VICE attached the low
-half with an empty file name.
+`build.sh` makes everything every time: the PRG, and the cartridge in two
+files with the same 32 KB of ROM in them.
 
-Yape (and YapeSDL, which also runs in the browser) has no cartridge option
-on its command line. Open its menu with `F8`, `Esc` or the right mouse
-button, choose *Attach rom...* and then the image. Where it offers banks,
-`BANK#1 LO` and `BANK#2 LO` both work: a 32 KB image fills the low and the
-high half. Yape's quick attach puts a ROM into bank 1, where the Plus/4 has
-its built-in 3-plus-1 software, and not into bank 2 like a real cartridge.
-So the cartridge does not assume a bank: at start-up it searches banks 1 to
-3 for its own signature, from RAM, and selects the one it finds.
+| File | For |
+| --- | --- |
+| `build/demonattack.crt` | **VICE**: *File → Attach cartridge image* with the default *Smart-attach*, or `-cartcrt` |
+| `build/demonattack.bin` | **Yape**, **plus4emu**, an **EPROM**; VICE only with `-cart` on the command line |
+
+There is no one file every emulator takes. VICE's dialog expects a CRT
+file: a header and the ROM in packets, here two of 16 KB for C1 low and C1
+high ([mkcrt.py](mkcrt.py) makes it). Yape and plus4emu, on the other hand,
+load ROM files as raw bytes, and so does an EPROM programmer. The raw image
+has C1 low (`$8000`) in its first 16 KB and C1 high (`$C000`) in the
+second, so it fits a single 27256 on a board that puts both halves on one
+chip.
+
+- **Yape** (and YapeSDL, which also runs in the browser) has no cartridge
+  option on its command line. Open its menu with `F8`, `Esc` or the right
+  mouse button, choose *Attach rom...* and then `demonattack.bin`. Where it
+  offers banks, `BANK#1 LO` and `BANK#2 LO` both work: a 32 KB file fills
+  the low and the high half. If the machine does not restart by itself,
+  `F11` resets it. For a C16, set the RAM to 16 KB in its options.
+- **plus4emu** takes ROM files with an offset into the file. Cartridge 1 is
+  segments 04 (low) and 05 (high): `demonattack.bin` at offset 0 for 04 and
+  at offset 16384 for 05 (`memory.rom.04.file`, `memory.rom.04.offset` and
+  the same for 05 in its configuration).
+
+Yape's quick attach puts a ROM into bank 1, where the Plus/4 has its
+built-in 3-plus-1 software, and not into bank 2 like a real cartridge. So
+the cartridge does not assume a bank: at start-up it searches banks 1 to 3
+for its own signature, from RAM, and selects the one it finds. In VICE it
+has run from all three (C1, C2 and the function ROM's place). VICE's
+`-c1lo` and `-c1hi` with two 16 KB halves did not work: VICE attached the
+low half with an empty file name.
 
 `build.sh` looks for cc65 in `~/.local/share/cc65-vs64/bin`, or in
 `CC65_BIN` if that is set, and needs Python 3 for the tables. As for the Phoenix clone, `-Cl` is on.
