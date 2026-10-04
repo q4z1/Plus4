@@ -25,7 +25,7 @@ and all the droids' pictures are kept in it, packed.
 | --- | --- |
 | Joystick in either port, or the cursor keys | drive. The droid has inertia, as in the original |
 | Fire (or `Space`, `CTRL` or `C=`) with a direction | lasers in that direction |
-| Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game |
+| Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game. While fire stays held, it moves without shooting; letting go ends it |
 | Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there |
 | Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
 | `Run/Stop` | pause. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `Help` freezes the picture ("Cheese") till `F7`, `F1`/`F2` colours or black and white |
@@ -83,10 +83,12 @@ still.
 
 **A game ends** as the original's: the window full of static - its four
 noise characters at random, black on white, going round and rolling down
-the lines, with its noise - for 1.2 seconds, here for as long as the 999's
-picture takes to load (the rolling is the interrupt's, so it goes on
-meanwhile); then the 999 with "Transmission terminated" and its rising
-tune, for 4.2 seconds.
+the lines, with its noise - for 1.2 seconds; then the 999 with
+"Transmission terminated" and its rising tune, for 4.2 seconds. A score
+that is the day's top or worst then says so over it ("Great Score!",
+"Lowest Score of the Day!"), and asks for initials, as the original:
+three letters, each from A on; the joystick steps through A-Z and a
+space (up or left back, down or right on), fire takes it.
 
 The game runs in ticks of three pictures, as the original does: 16.7 a
 second. The window scrolls a pixel at a time in any direction.
@@ -108,8 +110,10 @@ second. The window scrolls a pixel at a time in any direction.
 | --- | --- |
 | ![The logo](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
 | **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it. In its empty box at the bottom right, the port's credit, in the letters of the original's plates (those missing drawn in their style). | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
-| ![The day's scores](screenshots/scores.png) | ![After a game](screenshots/highscore.png) |
-| **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502. Then the round starts again with the logo. | **After a game** its score is the day's top or worst, if it is: the number alone, without the original's initials. |
+| ![The day's scores](screenshots/scores.png) | ![A game's end](screenshots/terminated.png) |
+| **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502, by AEB and TSO. Then the round starts again with the logo. | **A game's end**, after the static: the 999 and the original's words. |
+| ![Initials](screenshots/initials.png) | ![After a game](screenshots/highscore.png) |
+| **Initials**, for the day's top or worst score, over the end's words, as in the original: the stick steps through the letters, fire takes one. | **After a game** its score is the day's top or worst, if it is, with the initials given. |
 
 Each of the title's screens is built with the picture off - only the
 border shows, in the coming screen's colour - and switched on whole: the
@@ -293,23 +297,24 @@ deck's hum's periods in the free end of the block code tables.
 
 ### The title's sound
 
-The original has no music, but its title has a sound of its own: a sweep
-falling from 3.7 kHz to 120 Hz, a new pitch every picture, over and over,
-and a low tone that wavers down from F3 to A2 and up again, then rests.
-Both are triangles, at a third of the SID's volume. Its third voice plays
-noise, which the original switches off and only uses for random numbers.
+The original has no music, but its title has a sound of its own, made by
+its sound driver from the game's effects (`$054A`): a counter goes down
+once a picture; every 128 pictures the first voice gets one of three
+falling sweeps, picked at random - from 481, 240 or 180 Hz down, a new
+pitch every picture, wrapping round, a triangle, a saw and a pulse - and
+twice in every 64 pictures the second voice gets the lift's ride, a low
+tone wavering down and up. All at a third of the SID's volume. So it
+never quite repeats.
 
-The tune as ripped (`Paradroid.sid`) is the game's own sound driver, set
-the way the title leaves it; in x64sc the original's title shows the same
-SID registers. [tools/sid.py](tools/sid.py), a small 6502 emulator, runs
-that driver picture by picture and records what it writes to the SID;
-[tools/sidmusic.py](tools/sidmusic.py) turns one round of its loop, 2.56
-seconds, into [data/music.txt](data/music.txt): two voices, as the TED
-has, as text, a pitch and a length per entry. The pitches are not notes
-of a scale, so they stay hertz there, and `mkdata.py` turns them into the
-TED's registers. [music.s](music.s) plays them on the TED's two squares,
-at volume 3, from the title's overlay; the engine's interrupt calls it
-once a picture while the title runs.
+[music.s](music.s) does the same, from the title's overlay, once a
+picture from the engine's interrupt: it starts the effects and `sfx.s`
+plays them as it plays the game's, at volume 3. The three sweeps are
+`title1`-`title3` in `data/sfx.txt`; on the TED all three are squares, so
+they differ in their pitches only. (The tune as ripped, `Paradroid.sid`,
+is this driver in a 6502 emulator, [tools/sid.py](tools/sid.py): there
+its random numbers - the SID's third voice, noise - never change, and it
+plays the same sweep every time. The port's first title sound was that
+rip, 2.56 seconds over and over.)
 
 ### The pause
 
@@ -592,7 +597,6 @@ files at all: one file loaded by the KERNAL avoids all of that.
   unpacked into them).
 - The player's **explosion** at a game's end is ours, shorter than the
   original's several explosions around it.
-- The day's **scores** have no initials.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
   here, and its keys for the pause's *Cheese* are `Help` and `F7` for the
   C64's `F7` and `F8` (see above).
@@ -625,7 +629,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
 | [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`: the tables, the briefing into the title's data, the decks, pictures and fixed figures packed |
 | [tools/sfx.py](tools/sfx.py) | the original's sound effects out of a memory dump |
-| [tools/sid.py](tools/sid.py), [tools/sidmusic.py](tools/sidmusic.py) | the original's sound driver run in a 6502 emulator; its title sound into `data/music.txt` |
+| [tools/sid.py](tools/sid.py) | a PSID's player run in a 6502 emulator, what it writes to the SID recorded: how the original's sound driver was looked at |
 | [tools/yape.patch](tools/yape.patch) | Yape's changes for the gamepad and the tests |
 | [data/](data/) | decks, blocks, characters, colours, animated characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, sound, as text |
 | [tests/](tests/) | headless VICE and Yape: screenshots, traces against an older build, speed, profile, edges and rows, stress, the title and a game's start |
@@ -670,9 +674,7 @@ types RUN, RB opens its menu. The patch also has the tests' hooks.
 `tools/extract.py` is only needed to take the data out of the original
 again: `python3 tools/extract.py ram.bin io.bin`, with the two dumps made in
 VICE's monitor (`bank ram`, `save "ram.bin" 0 0000 ffff`, and `bank io`,
-`save "io.bin" 0 d000 dfff`) during a game. Likewise `tools/sidmusic.py`
-only makes `data/music.txt` again, from the ripped tune
-(`python3 tools/sidmusic.py Paradroid.sid`), and `tools/sfx.py` makes
+`save "io.bin" 0 d000 dfff`) during a game. Likewise `tools/sfx.py` makes
 `data/sfx.txt` again from the same memory dump
 (`python3 tools/sfx.py ram.bin`).
 

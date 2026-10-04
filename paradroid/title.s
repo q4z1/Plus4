@@ -128,11 +128,11 @@ s_lowest:   .byte "Lowest Score of the Day!", 0
 s_enter:    .byte "Please enter your initials -", 0
 s_dots:     .byte "...", 0
 ib:         .byte 0             ; the initials': 0 the top score's, 3 the worst's
-in_n:       .byte 0             ; how many taken
-in_l:       .byte 0             ; the one shown: A-Z 0-25, 26 a space
-in_mark:    .byte 0             ; x_code before it
-in_t:       .byte 0
-in_buf:     .res 5
+hs_n:       .byte 0             ; how many taken
+hs_l:       .byte 0             ; the one shown: A-Z 0-25, 26 a space
+hs_mark:    .byte 0             ; x_code before it
+hs_t:       .byte 0
+hs_buf:     .res 5
 sc:         .byte 0
 sd:         .byte 0
 
@@ -680,26 +680,26 @@ _title_scores:
         ldx #>s_dots
         jsr _say
         lda #0
-        sta in_n
+        sta hs_n
 :       lda _keys_irq           ; (fire still held from the game: let go)
         and #K_FIRE
         bne :-
 @next:  lda _x_code
-        sta in_mark
+        sta hs_mark
         lda #0
-        sta in_l
+        sta hs_l
 @show:  ldx #0                  ; the characters the last one shown took
 :       lda _xmap,x             ; made free again
-        cmp in_mark
+        cmp hs_mark
         bcc :+
         lda #0
         sta _xmap,x
 :       inx
         bne :--
-        lda in_mark
+        lda hs_mark
         sta _x_code
         ldy #0                  ; the line: those taken, this one, dots,
-@ch:    cpy in_n                ; and a space after them for what a wider
+@ch:    cpy hs_n                ; and a space after them for what a wider
         beq @cur                ; one left
         bcs @dot
         tya
@@ -708,7 +708,7 @@ _title_scores:
         tax
         lda _initials,x
         jmp @lt
-@cur:   lda in_l
+@cur:   lda hs_l
 @lt:    cmp #26
         bcc :+
         lda #$20
@@ -716,27 +716,27 @@ _title_scores:
 :       adc #$C1                ; (carry clear): A-Z
         bne @put
 @dot:   lda #$2E
-@put:   sta in_buf,y
+@put:   sta hs_buf,y
         iny
         cpy #3
         bne @ch
         lda #$20
-        sta in_buf+3
+        sta hs_buf+3
         lda #0
-        sta in_buf+4
+        sta hs_buf+4
         lda #22
         sta _x_row
         lda #31
         sta _x_col
-        lda #<in_buf
-        ldx #>in_buf
+        lda #<hs_buf
+        ldx #>hs_buf
         jsr _say
         lda _frames             ; 8 pictures, as the original's wait
         clc
         adc #8
-        sta in_t
+        sta hs_t
 :       lda _frames
-        cmp in_t
+        cmp hs_t
         bne :-
         lda _keys_irq
         tay
@@ -745,32 +745,32 @@ _title_scores:
         tya
         and #K_UP | K_LEFT
         beq :+
-        dec in_l
+        dec hs_l
         bpl @agn
         lda #26
-        sta in_l
+        sta hs_l
         bne @agn
 :       tya
         and #K_DOWN | K_RIGHT
         beq @agn
-        inc in_l
-        lda in_l
+        inc hs_l
+        lda hs_l
         cmp #27
         bcc @agn
         lda #0
-        sta in_l
+        sta hs_l
 @agn:   jmp @show
-@fire:  lda in_n
+@fire:  lda hs_n
         clc
         adc ib
         tax
-        lda in_l
+        lda hs_l
         sta _initials,x
 :       lda _keys_irq
         and #K_FIRE
         bne :-
-        inc in_n
-        lda in_n
+        inc hs_n
+        lda hs_n
         cmp #3
         beq :+
         jmp @next

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """sfx.py ram.bin - the original's sound effects into data/sfx.txt.
 
-The original's sound driver ($0500, see tools/sid.py and tools/sidmusic.py)
+The original's sound driver ($0500, see tools/sid.py and music.s)
 plays an effect from a record of 16 bytes at $C610 + 16 * (number - 1): an
 instrument (8 bytes at $EAA0: waveform, envelope, the frames until the gate
 is let go), a start frequency and what is added to it each picture, a

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """screens.py - the README's screenshots, made in a headless VICE:
 title, briefing, a deck with droids, the transfer game, a lift, the deck plan and
-the droid enquiry, the transfer's introduction, the day's top score after a
-game. Written to screenshots/."""
+the droid enquiry, the transfer's introduction, a game's end, the initials asked for and the
+day's top score with them. Written to screenshots/."""
 import os, sys, shutil
 sys.path.insert(0, os.path.dirname(__file__))
 from game import Game, ROOT
@@ -137,6 +137,27 @@ try:
     g.poke('_dbg_god', 0)
     g.poke('_d_energy', 0)
     g.poke('_player_dead', 1); g.poke('_d_boom', 1)
+    # the initials asked for, as the original: "KAI", the stick held down
+    # till the letter is there, then fire
+    g.v.cmd('warp off')                 # (VICE draws no pictures in warp)
+    g.v.cmd('break %04x' % g.lbl['_title_scores'])
+    g.v.settle = 0.05
+    g.v.cmd('x')
+    g.v.cmd('delete')
+    g.v.run_for(0.5)
+    for n, letter in enumerate('KAI'):
+        target = ord(letter) - ord('A')
+        if target:
+            g.poke('_dbg_keys', 2)
+            for i in range(400):
+                g.v.run_for(0.02)
+                if g.byte('hs_l') == target:
+                    break
+        g.keys(0, 0.3)
+        if n == 1:
+            save(g, 'initials.png')
+        g.keys(16, 0.15); g.keys(0, 0.3)
+    g.v.cmd('warp on')
     for key in ('title', 'scores'):         # the logo, then on to the scores
         for i in range(3000):
             g.v.run_for(0.05)
@@ -145,5 +166,16 @@ try:
     g.v.cmd('warp off')
     g.v.run_for(0.4)
     save(g, 'highscore.png')
+    # a game's end itself: another game, over at once (its 0 the day's
+    # worst: the initials asked for after this picture, at title_scores)
+    g.start_play()
+    g.poke('_dbg_god', 0)
+    g.poke('_d_energy', 0)
+    g.poke('_player_dead', 1); g.poke('_d_boom', 1)
+    g.v.cmd('warp off')
+    g.v.cmd('break %04x' % g.lbl['_title_scores'])
+    g.v.cmd('x')
+    g.v.cmd('delete')
+    save(g, 'terminated.png')
 finally:
     g.stop()
