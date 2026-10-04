@@ -84,8 +84,8 @@ _start_up:
         move _blk_code, BLKC, 1024
         lda #$71
         sta _col_panel
-        lda #$4E                ; the original's purple
-        sta _col_border
+        lda #0                  ; black till the title's first screen
+        sta _col_border         ; (the picture is off, paradroid.s)
         lda #$5D
         sta _col_deck
         lda #0

@@ -26,9 +26,9 @@ and all the droids' pictures are kept in it, packed.
 | Joystick in either port, or the cursor keys | drive. The droid has inertia, as in the original |
 | Fire (or `Space`, `CTRL` or `C=`) with a direction | lasers in that direction |
 | Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game. While fire stays held, it moves without shooting; letting go ends it |
-| Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there |
+| Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there. Anywhere on the lift's block, as in the original |
 | Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
-| `Run/Stop` | pause. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `Help` freezes the picture ("Cheese") till `F7`, `F1`/`F2` colours or black and white |
+| `Run/Stop` | pause. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `F3` freezes the picture ("Cheese") till `Help`, `F1`/`F2` colours or black and white - no key with shift |
 
 On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
 key as fire (Yape puts the left Ctrl on `C=` and the right one on `CTRL`).
@@ -98,7 +98,7 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Game on](screenshots/start.png) | ![Beamed aboard](screenshots/beam.png) |
 | **A game's start.** The original's page, with its words and the 001's picture, in its purple. | **Beamed aboard.** The 001 flashing at the top left of the deck, as in the original, before the panel says *Mobile*. |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
-| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*), then have ten seconds (*Finish -52*). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
+| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*, counting down from 99 for 12 seconds), then have ten seconds (*Finish -52*, from 99 too), each a number at a time, as in the original (measured there: a step every 5.9 and 5.3 pictures). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
 | **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and kept packed in the program. |
 | ![Console](screenshots/console.png) | ![Deck plan](screenshots/plan.png) |
@@ -117,7 +117,10 @@ second. The window scrolls a pixel at a time in any direction.
 
 Each of the title's screens is built with the picture off - only the
 border shows, in the coming screen's colour - and switched on whole: the
-logo takes some 16 pictures to build, a page about 7.
+logo takes some 16 pictures to build, a page about 7. So does the program's
+start: from `RUN` on the picture is off and the border black - while it
+unpacks itself (exomizer's own flashing turned off) and puts everything
+in its place - till the logo is whole.
 
 ## As the original, measured
 
@@ -324,12 +327,17 @@ turning characters, till fire or `Run/Stop`, which show *Continue*. In it,
 as its briefing says, `Clr/Home` quits the game, straight to the title
 (`$10D3`, no end of a game; here its score does not count), and the C64's `F7` is *Cheese*
 (`$0B8A`): not even those characters turn, till its `F8`, fire, `Run/Stop`
-or `Clr/Home`. The Plus/4 has no `F8`: the C64's `F7`/`F8` key is its
-`Help`/`F7` key, so `Help` is *Cheese* here and `F7` goes back to the
-pause, and the briefing names them so. Not in the briefing, also as in the
-original (`$32B7`): `F1` shows *Colour*, `F2` *Blk-White*, and from the
-pause's end on the decks are in scheme 0, the grey one, till `F1` again
-(a deck without droids keeps its dark scheme 7).
+or `Clr/Home`. Not in the briefing, also as in the original (`$32B7`):
+`F1` shows *Colour*, `F2` *Blk-White*, and from the pause's end on the
+decks are in scheme 0, the grey one, till `F1` again (a deck without
+droids keeps its dark scheme 7). On the C64, `F2` and `F8` are `F1` and
+`F7` with shift. The Plus/4 has keys of its own for `F1`, `F2`, `F3` and
+`Help`, so here those four are the pause's, none with shift: `F1`
+colours, `F2` black and white, `F3` *Cheese*, `Help` back to the pause.
+The briefing's page with the keys names them so, `F1` and `F2` as well.
+The keys are read once a tick, in *Cheese* too: read all the time, with
+the interrupt held off while they were, the window's first line came late
+and flickered.
 
 ### The data, from the original's memory
 
@@ -437,6 +445,15 @@ columns, its colours) are set in the vertical blank, at line 252, by an
 interrupt of their own. Set right under the window, as they first were,
 VICE drew a pixel of the window's colour into the border where each was
 written - a dot of "snow" under the window in every picture.
+
+The real TED does something like it too, and plus4emu with it: where one
+of its colour registers (`$FF15`-`$FF19`) is written, the TED draws a
+pixel of colour `$7F` - pale green - wherever that register's colour is
+shown at that moment. Under the panel the gap's colour is set in its last
+line; in the game nothing there shows the background, but the title's
+logo covers the whole screen in grey, and on Luca's Plus/4 a dot of snow
+danced at its top left. The colour is only written now when it changes
+(`tests/p4emu_snow.py`: no such pixel in 1500 pictures of the title).
 
 `tests/rowcheck.py` checks the result for all eight positions in VICE,
 `tests/yape_rowcheck.py` in Yape. For each one they compare every line of
@@ -651,12 +668,16 @@ files at all: one file loaded by the KERNAL avoids all of that.
   four pictures, while the deck is drawn the first time.
 - After a console, a lift or a transfer the game stands still for about a
   second while the pictures' slots are made again (the overlay was
-  unpacked into them).
+  unpacked into them). The lift's side view stays up meanwhile, in its
+  colours; the new deck's border and panel frame come with its first
+  picture.
 - The player's **explosion** at a game's end is ours, shorter than the
   original's several explosions around it.
 - The **briefing**'s "C64 remote terminal" is a "Plus4 remote terminal"
-  here, and its keys for the pause's *Cheese* are `Help` and `F7` for the
-  C64's `F7` and `F8` (see above).
+  here, and its keys for the pause's *Cheese* are `F3` and `Help` for the
+  C64's `F7` and `F8` (see above); it names `F1` and `F2` too.
+- The droids' **pictures** in the original's yellow (the 001, the 999)
+  are a level darker, on the white pages, as the yellow decks are.
 - In the **title**, the original also takes `F1`/`F2` (colours, black and
   white) and `F5`/`F6` (the volume, 0-15, shown in the panel). Here only
   the pause takes `F1`/`F2`, and there is no volume.
@@ -788,6 +809,7 @@ tests run Yape without its speed limit.
 | `yape_panel.py [n] [title\|down]` | the status panel in Yape, n pictures in a row: the ones it differs in (a flicker) |
 | `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
 | `yape_snow.py [n] [label ...]` | the window's bottom edge in Yape, n pictures in a row: stray pixels there (with labels, those routines switched off) |
+| `yape_cheese.py [n]` | the pause's *Cheese* in Yape (patched in, Yape cannot press `F3`): n pictures, all must be the first |
 | `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
 
 The `p4emu*.py` tests run **plus4emu** inside the test, through its library
@@ -799,4 +821,9 @@ sources (`~/.cache/plus4emu/buildlib.sh`, see `p4emu.py`).
 | | |
 | --- | --- |
 | `p4emu_vscroll.py [n]` | in a game in plus4emu, driving up and down: the border beside the window and the window's colour in every picture, by fine position (the PAL phase) |
+| `p4emu_snow.py [n]` | the title in plus4emu, n pictures: pixels of colour `$7F`, which the TED draws where a colour register is written |
+| `p4emu_pause.py [keys]` | the pause's keys pressed on plus4emu's keyboard (VICE and Yape cannot): `Run/Stop`, `F1`, `F2`, `F3`, `Help`, `Clr/Home`; a picture after each |
+| `p4emu_lift.py` | where on a lift's block fire held starts it, and a ride to another deck picture by picture: the border must change with the window |
+| `p4emu_tmode.py` | transfer mode: fire held with a direction drives and does not shoot |
+| `p4emu_xcount.py` | the transfer game's counts, picture by picture: every number from 99 down, and how often |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

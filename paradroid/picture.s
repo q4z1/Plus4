@@ -199,7 +199,10 @@ _picture:
         lda (ptr1),y
         tax
         lda _pal_deck,x
-        sta _col_fig2
+        cmp #$77                ; the yellow (the 001's, the 999's) a
+        bne :+                  ; level darker: the pages are white, as
+        lda #$57                ; the original's (move.s does the same
+:       sta _col_fig2           ; for the yellow decks)
         dey
         lda (ptr1),y
         tax

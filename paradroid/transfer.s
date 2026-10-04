@@ -75,6 +75,7 @@ ti:     .res 1                  ; the droid played against
 tcd:    .res 1
 tprev:  .res 1
 tn:     .res 1
+tlast:  .res 1                  ; the count the panel shows
 ta:     .res 1                  ; unit()'s colour and lines
 tl1:    .res 2
 tl2:    .res 2
@@ -814,22 +815,25 @@ _transfer_game:
         sta cursor
         sta cursor+1
         jsr board
-        ; the player chooses a side, left yellow or right purple
+        ; the player chooses a side, left yellow or right purple: "Colour?"
+        ; from 99 down, a step every two ticks (the original's every 5.9
+        ; pictures, measured in x64sc: 11.6 seconds)
 :       lda _keys_irq
         and #K_FIRE
         beq :+
         jsr wait3
         jmp :-
-:       lda #99
+:       lda #199
         sta tt
 @side:  lda tt
-        and #1
-        bne :+
+        lsr a
+        bcc :+
+        pha
         lda #<s_colour
         sta ptr1
         lda #>s_colour
         sta ptr1+1
-        lda tt
+        pla
         jsr count
 :       jsr wait3
         lda _keys_irq
@@ -887,6 +891,8 @@ _transfer_game:
         sta tprev
         lda #0
         sta tt
+        lda #$FF
+        sta tlast
 @tick:  jsr wait3
         lda tt
         bne :+
@@ -896,20 +902,10 @@ _transfer_game:
         cmp #167
         bcc :+
         jmp @flow
-:                               ; t % 3 == 0: "Finish" and the seconds
-:       sec
-        sbc #3
-        bcs :-
-        adc #3
-        bne @keys
-        lda #<s_finish
-        sta ptr1
-        lda #>s_finish
-        sta ptr1+1
-        lda #166                ; (166 - t) * 3 / 5
-        sec
-        sbc tt
-        sta tn
+:       lda #166                ; "Finish -" (166 - t) * 3 / 5: from 99
+        sec                     ; down a step at a time, every 1.7 ticks
+        sbc tt                  ; (the original's every 5.3 pictures,
+        sta tn                  ; measured in x64sc: 10.5 seconds)
         lda #0
         sta tr
         lda tn
@@ -934,6 +930,14 @@ _transfer_game:
         inx
         bne :-
 :       txa
+        cmp tlast               ; (the panel only when it changes)
+        beq @keys
+        sta tlast
+        lda #<s_finish
+        sta ptr1
+        lda #>s_finish
+        sta ptr1+1
+        lda tlast
         jsr count
 @keys:  lda _keys_irq
         sta tk

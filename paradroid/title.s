@@ -1072,10 +1072,9 @@ picture_on:
 :       lda TED_SCROLLY
         and #$EF
         sta TED_SCROLLY
-        plp
-        lda _col_border         ; (now, not at the next picture)
-        sta TED_BORDER
-        rts
+        plp                     ; (the border: the interrupt in the blank,
+        rts                     ; line 252 - written here, under the
+                                ; window, it showed a pixel of snow)
 
 ; ptr1 to ptr2, 240 bytes
 copy240:

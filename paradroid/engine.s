@@ -363,7 +363,9 @@ _eng_init:
 
 nmi:    rti
 
-; eng_show: the TED set up for the game and the interrupt running.
+; eng_show: the TED set up for the game and the interrupt running; the
+; picture still off (only the border shows, as from the program's start):
+; the title switches it on when its first screen is whole.
 _eng_show:
         sei
         lda TED_BMBASE
@@ -381,7 +383,7 @@ _eng_show:
         sta TED_IRQEN
         lda TED_IRQ
         sta TED_IRQ
-        lda #$1B                ; text, display on, 25 rows, y scroll 3
+        lda #$0B                ; text, display off, 25 rows, y scroll 3
         sta TED_SCROLLY
         cli
         rts
@@ -445,8 +447,10 @@ irq_gap:
 :       cmp TED_LINE
         bcs :-
         lda _col_border
-        sta TED_BG
-        lda #1
+        cmp _col_panel          ; only if it changes: the TED shows a pixel
+        beq :+                  ; of colour $7F where a colour register is
+        sta TED_BG              ; written (the real one, and plus4emu) -
+:       lda #1                  ; "snow" at the logo's top left, all grey
         sta phase
         lda #LINE_RC
         sta TED_RCMP
@@ -1826,24 +1830,21 @@ krd:    sta TED_KEYS
 
 ; pause_keys(): the keys the pause looks at, off the keyboard's rows now
 ; (the interrupt sets them again for its own reading): CLR/HOME 1, HELP
-; 2, F1 4, shift 128
+; 2, F1 4, F2 8, F3 16 - none with shift (the Plus/4 has F2 and F3 keys
+; of their own)
 _pause_keys:
         php
         sei
-        lda #$7F
+        lda #$7F                ; CLR/HOME: bit 1
         jsr krow
         and #2
+        lsr a
         sta kj
-        lda #$FE                ; HELP 8, F1 16
+        lda #$FE                ; HELP, F1, F2, F3: bits 3-6
         jsr krow
         lsr a
         lsr a
-        and #6
-        ora kj
-        sta kj
-        lda #$FD
-        jsr krow
-        and #$80
+        and #$1E
         ora kj
         plp
         ldx #0

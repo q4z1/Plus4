@@ -481,12 +481,17 @@ for ln in lines('briefing.txt'):
         page = []
         continue
     row, col, text = ln.split(' ', 2)
-    # the Plus/4 is the remote terminal here; and has no F8: the C64's
-    # F7/F8 key is its HELP/F7 key
+    # the Plus/4 is the remote terminal here; and its pause's keys are its
+    # own four without shift (paradroid.s, pause): the C64's F7 is F3
+    # here, its F8 HELP; and F1 and F2 are named as well (below)
     text = text.replace('C64', 'Plus4')
-    text = text.replace('f7        -', 'help      -').replace('f8 ', 'f7 ')
+    text = text.replace('f7        -', 'f3        -')
+    text = text.replace('f8        - pause.', 'help      - pause,')
     page.append((int(row) - 2, int(col), txt_codes(text)))
 brief.append(page)
+# the keys for colours, not in the original's briefing (page 4)
+brief[4] += [(40 - 2, 14, txt_codes('f1        - colour,')),
+             (42 - 2, 14, txt_codes('f2        - blk-white.'))]
 # an addition to the original's credits (page 4)
 credit = txt_codes('Plus4 version 2026 in assembly.')
 brief[4].append((55 - 2, 1 + (38 - len(credit)) // 2, credit))   # (centred)

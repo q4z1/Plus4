@@ -282,21 +282,10 @@ _load_deck:
         cmp #>(DMAP + 1024)
 :       rts
 
-; lift_here(): the lift stop the player stands on, near enough its
-; middle, or 255
+; lift_here(): the lift stop the player stands on, anywhere on its block
+; (as the original's $272F, which compares the window's column and row
+; with their lowest two bits off: four characters either way), or 255
 _lift_here:
-        lda _d_x
-        and #31
-        sec
-        sbc #8
-        cmp #17
-        bcs @none
-        lda _d_y
-        and #31
-        sec
-        sbc #8
-        cmp #17
-        bcs @none
         lda _d_x+1              ; its block
         sta dt
         lda _d_x
@@ -331,7 +320,7 @@ _lift_here:
 @next:  inx
         cpx #NLIFTS
         bne :-
-@none:  lda #255
+        lda #255
         ldx #0
         rts
 

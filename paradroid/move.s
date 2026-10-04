@@ -18,7 +18,7 @@
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
         .export _move_player, _solid_at, droid_look, d_lk
-        .export _deck_colours, _colour_blocks, _bw
+        .export _deck_colours, _colour_blocks, _bw, _keep_border
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
@@ -53,6 +53,7 @@ _bw:    .res 1                  ; F2 in the pause: black and white
 _bump_i: .res 1                 ; bump_next(): the droid last found
 
         .bss
+_keep_border: .res 1            ; deck_colours() leaves the border alone
 nbx:    .res 13                 ; doors(): the droids by the screen
 nby:    .res 13
 d_lk:   .res 13                 ; looked ahead, free: no look till the droid
@@ -899,10 +900,12 @@ _deck_colours:
         bne :+                  ; light blue its nearest)
         lda #$5D
 :       sta _deck_bg
+        lda _keep_border        ; (a lift, the start: till it shows)
+        bne :+
         lda CLS_HR+3
         sta _col_border
         jsr _panel_frame
-        jsr _colour_blocks
+:       jsr _colour_blocks
         jmp _eng_dirty          ; (col_deck: the game's loop)
 
 ; colour_blocks(): every block character's colour, by its class; the ALERT

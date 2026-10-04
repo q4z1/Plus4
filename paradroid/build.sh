@@ -74,6 +74,9 @@ for o in $OVLS; do
     echo "overlay $o: $(stat -c%s build/$o.bin) bytes, packed $(stat -c%s build/$o.exo)"
 done
 # The program packed as a whole (it starts with SYS from BASIC: exomizer
-# keeps that, unpacks it into its place and starts it).
-$EXOMIZER sfx sys -t 4 -q -o build/paradroid.prg build/paradroid.raw
+# keeps that, unpacks it into its place and starts it). The picture off
+# from the start, the border black, no flashing while it unpacks: nothing
+# shows till the title's first screen is whole (engine.s, eng_show).
+$EXOMIZER sfx sys -t 4 -q -n -s 'lda #$0b sta $ff06 lda #0 sta $ff19' \
+    -o build/paradroid.prg build/paradroid.raw
 echo "build/paradroid.prg: $(stat -c%s build/paradroid.raw) bytes, packed $(stat -c%s build/paradroid.prg)"

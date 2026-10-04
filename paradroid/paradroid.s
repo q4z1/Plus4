@@ -43,7 +43,8 @@
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
         .import _player_fire, _droids_fire, _move_shots, _collide, _energy_tick
-        .import _anim_deck, _draw, _pause_keys, _bw
+        .import _anim_deck, _draw, _pause_keys, _bw, _col_border, _panel_frame
+        .import _keep_border
         .import _unpack, _unp_dst, _blob_title, _blob_con, _blob_xfer
         .import __OVL_START__, __CONOVL_START__, __XFEROVL_START__
         .import _d_x, _d_y, _d_vx, _d_vy, _d_type, _d_energy, _d_boom
@@ -234,15 +235,26 @@ lift:   sta li
         tax
         lda _lift_deck,x
         cmp _deck
-        beq :+
+        beq @same
         sta en_d
         lda _lift_bx,x
         sta en_bx
         lda _lift_by,x
         sta en_by
-        jsr enter
-:       jsr slots_again
-        lda #<s_mobile
+        inc _keep_border        ; the new deck's border and panel frame
+        jsr enter               ; only as the deck shows: the side view
+        dec _keep_border        ; stays up while the slots are made, a
+        jsr slots_again         ; second
+        jsr _draw
+        jsr wait_ready
+        lda _deck_bg            ; (the next picture's colours: the
+        sta _col_deck           ; interrupt has just swapped)
+        lda CLS_HR+3            ; (deck_colours()'s border)
+        sta _col_border
+        jsr _panel_frame
+        jmp :+
+@same:  jsr slots_again
+:       lda #<s_mobile
         ldx #>s_mobile
         jmp status
 
@@ -370,10 +382,12 @@ next_ship:
 ; pause(): the pause, as the original's ($3B7C): RUN/STOP, and all stands
 ; still and is quiet but the deck's turning characters, till fire or
 ; RUN/STOP. In it, as its briefing says: CLR/HOME ends the game (A 1:
-; straight to the title); the C64's F7, HELP here, is "Cheese": not even
-; those turn, till its F8 (F7 here), fire or RUN/STOP. And, not in the
-; briefing, F1 for colours, F2 for black and white (the deck's scheme 0,
-; from the pause's end on).
+; straight to the title); "Cheese": not even those turn, till fire,
+; RUN/STOP, CLR/HOME or the key back to the pause. And, not in the
+; original's briefing, colours or black and white (the deck's scheme 0,
+; from the pause's end on). The original has them on the C64's F1/F2 and
+; F7/F8, two of them with shift; here they are the Plus/4's four keys
+; without it: F1 colours, F2 black and white, F3 Cheese, HELP the pause.
 pause:  lda #<s_pause
         ldx #>s_pause
         jsr status
@@ -388,36 +402,31 @@ pause:  lda #<s_pause
         jsr _wait_tick
         jsr _pause_keys
         sta pf
-        and #1
-        beq :+
+        lsr a
+        bcc :+
         lda #1                  ; CLR/HOME
         rts
 :       lda pf
-        and #$82
-        cmp #2
-        bne @f1
-        lda #<s_cheese          ; HELP without shift
+        and #16
+        beq @f1
+        lda #<s_cheese          ; F3
         ldx #>s_cheese
         jsr status
-@ch:    lda _keys_irq
-        and #K_STOP | K_FIRE
-        bne @chend
+@ch:    jsr _wait_tick          ; (the keys once a tick, as the pause: read
+        lda _keys_irq           ; all the time, their reading held off the
+        and #K_STOP | K_FIRE    ; interrupt, and the window's top line
+        bne @chend              ; flickered)
         jsr _pause_keys
         sta pf
-        and #1
-        bne @chend
-        lda pf
-        and #$82
-        cmp #$82
-        bne @ch
+        and #1 | 2              ; CLR/HOME, HELP
+        beq @ch
 @chend: lda #<s_pause
         ldx #>s_pause
         jsr status
 @f1:    lda pf
-        and #4
+        and #4 | 8
         beq @anim
-        lda pf                  ; F1, F2
-        and #$80
+        and #8                  ; F1, F2
         sta _bw
         bne :+
         lda #<s_colour
@@ -515,17 +524,18 @@ play:   lda #0
         ldx #>s_mobile
         jsr status
 @move:  jsr _sfx_tick           ; the original's own: hum, warning
-        lda keys
-        jsr _move_player
+        lda keys                ; in transfer mode fire held drives (fire
+        ldx _transfer_mode      ; takes the stick otherwise: it shoots)
+        beq :+                  ; and does not shoot, till it is let go
+        and #<~K_FIRE
+        sta keys
+:       jsr _move_player
         jsr _move_droids
         jsr _doors
         lda #8                  ; figures against figures: the player where
         jsr _fig_place          ; its figure is, a character right of and
         lda keys                ; below its place (draw.s), as the
-        ldx _transfer_mode      ; original's sprites meet; in transfer
-        beq :+                  ; mode fire held moves without shooting,
-        and #<~K_FIRE           ; till it is let go
-:       jsr _player_fire
+        jsr _player_fire        ; original's sprites meet
         jsr _droids_fire
         jsr _move_shots
         jsr _collide
@@ -833,7 +843,9 @@ title:  lda #1
 
 _main:  jsr _eng_stack
         jsr _start_up           ; (startup.s)
-        jsr new_game
+        inc _keep_border        ; nothing shows till the title's first
+        jsr new_game            ; screen is whole: the picture off, the
+        dec _keep_border        ; border black (startup.s), not the deck's
         jsr _draw
         jsr _eng_show
         lda _frames
