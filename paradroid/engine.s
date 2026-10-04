@@ -8,12 +8,13 @@
 ;        line 50   the gap rows under it, from their first line: the
 ;                  deck's character set, multicolour, 38 columns, x fine
 ;                  scroll
-;        line 71   at the gap's last line the y fine scroll (see below)
+;        line 71   at the gap's last line the y fine scroll (see below),
+;                  then the window's colour and character set
 ;        line 197  below the window: a finished picture is swapped in, the
 ;                  panel's settings for the top of the next one, the
 ;                  keyboard, the clock
 ;
-;   2. The deck window. 39 x 16 cells, built from the deck's block map
+;   2. The deck window. 39 x 17 cells, built from the deck's block map
 ;      (64 x 16 blocks of 4 x 4 characters) whenever the window has moved
 ;      by a whole character; otherwise only the cells figures used are put
 ;      back.
@@ -33,9 +34,14 @@
 ; lines when the line counter goes back by s and the row line counter is
 ; set to 7-s (found by trying, see the README). Below the window the line
 ; counter is put right again, so the picture ends where it always does.
-; A row cut at the top of the window hides what would show above it: the
-; cells of that row get copies of their characters with the top lines
-; cleared.
+; The window's rows start a row above it, in the gap's last row (screen
+; row 8, window row 0). The TED shows that row twice: first in the gap,
+; where the gap's character set is the other picture's, in which its
+; characters are blank (they are copies in codes of their own, kept blank
+; there: CUT_R0); then, after the counters were set back, its last s+1
+; lines again, now in the window's colour and set: the window's first
+; lines, cut by its top as the original's. Both the colour and the set
+; change in the line the counters are set back in, after its visible part.
 ; ---------------------------------------------------------------------------
 
         .setcpu "6502"
@@ -86,13 +92,10 @@ KEY_ROW     = $FD30
 ; ---- memory ---------------------------------------------------------------
 ;
 ; Each picture is a colour matrix and a code matrix (2 KB), followed by its
-; character set. The TED shows a 26th row when the window is scrolled one
-; line up; it reads that from the 40 bytes after the code matrix, which are
-; the matrix's own unused tail and the first two characters of the
-; character set behind it - all blank.
+; character set.
 
-WROW0       = 9                 ; first window row on screen (rows 6-8 the
-WROWS       = 16                ; gap under the panel, as high as the original's)
+WROW0       = 8                 ; first window row on screen (rows 6-8 the
+WROWS       = 17                ; gap; the window's from the gap's last row on)
 WCOLS       = 39
 
 LINE_GAP    = 44                ; interrupt lines, see the top
@@ -392,6 +395,12 @@ _eng_plain:
         sta b_rcv,x
         dex
         bpl :-
+        ldx #WCOLS              ; the window's top row blank: unscrolled,
+        lda #0                  ; its last line is the window's first
+:       sta SCR0C + WROW0 * 40,x
+        sta SCR1C + WROW0 * 40,x
+        dex
+        bpl :-
         rts
 
 ; eng_dirty: both pictures to be built afresh, for new colours
@@ -449,7 +458,8 @@ irq_rc:
 :       cmp TED_LINE
         bcs :-
         ldy front
-        lda font_hi,y
+        lda font_hi,y           ; the other picture's set ($C8 <-> $D8):
+        eor #>(FONT0 ^ FONT1)   ; the top row's copies are blank in it
         sta TED_CHBASE
         lda b_sx,y
         ora #$80                ; 256 characters, 38 columns,
@@ -466,24 +476,26 @@ irq_rc:
         jmp irq_out
 
 ; At the start of line GAP_LAST, the gap's last: line counter and row line
-; counter set back, and the deck's colour from that line.
+; counter set back; then, in the rest of that line, the window's colour and
+; character set, from the next line on.
 irq_scroll:
         ldy front
         ; the next interrupt's line first: the line counter is set back
         ; below, to 74 - s, and set to this interrupt's line (71, for s =
-        ; 3) the TED raises it again at once if it is still the one to
-        ; compare with (Yape does, as the real chip; VICE does not). That
-        ; ran the rest of the picture's interrupts one late, and the next
-        ; panel was drawn on the gap's colour: it flickered, every eighth
-        ; line of scrolling.
+        ; 3) the TED raises it again at once (Yape does, as the real chip;
+        ; VICE does not). That ran the rest of the picture's interrupts
+        ; one late, and the next panel was drawn on the gap's colour: it
+        ; flickered, every eighth line of scrolling.
         lda #3
         sta phase
         lda #LINE_BOTTOM
         sec
         sbc b_s,y
         sta TED_RCMP
-        ; the deck's colour from the gap's last line: written between it
-        ; and the one before
+        ; in step with the line before, written in its right part (the
+        ; gap's colour again: the counters below are set at the same point
+        ; of the next line each time, as they were when the window's colour
+        ; was written here)
         ldx #GAP_LAST - 1
 :       cpx TED_LINE
         beq @l57
@@ -496,7 +508,7 @@ irq_scroll:
         bcc @bg
 :       cpx TED_LINE
         beq @l57
-@bg:    lda _col_deck
+@bg:    lda _col_border
         sta TED_BG
         lda #GAP_LAST - 1
 :       cmp TED_LINE
@@ -509,6 +521,20 @@ irq_scroll:
         and #$F8
         ora b_rcv,y
         sta TED_RC
+        ; then the window's colour and set, in this line's right part: in
+        ; Yape written from $FF1E 108 to 174 it shows from the next line's
+        ; start. The counters were set at $FF1E 106 to 122 (measured): the
+        ; same line, so on at once, from 136 (from 108, the last pixels of
+        ; this line came in the colour now and then). The TED does not stop the
+        ; processor in this line, whatever s is: it decided that at the
+        ; line's start, before the counters changed.
+        ldx _col_deck
+:       lda TED_HPOS
+        cmp #136
+        bcc :-
+        stx TED_BG
+        lda font_hi,y
+        sta TED_CHBASE
         jmp irq_out
 
 ; Below the window: the line counter put right again, so the picture ends
@@ -729,9 +755,9 @@ _r_begin:
         sta cl_n,x
         lda #POOL
         sta next_code
-        jsr tag_next
-        jsr cut_reserve
-        rts
+        lda #CUT_R0             ; (the top row's copies above)
+        sta z_lim
+        jmp tag_next
 
 ; tag_next: a new tag; when they run out the table starts afresh
 tag_next:
@@ -1071,40 +1097,6 @@ pend_block:
         rts
 
 ; ---------------------------------------------------------------------------
-; The cut row. Its deck characters are needed as copies, each with its top
-; lines cleared, once per picture; room for them is kept back from the
-; figures before any is drawn.
-
-cut_reserve:
-        lda #0
-        sta z_cnt
-        ldx _e_cutrow
-        beq @done
-        dex
-        lda rowc_lo,x
-        sta p_scr
-        lda rowc_hi,x
-        ora z_scrhi
-        sta p_scr+1
-        ldy #WCOLS-1
-@c:     lda (p_scr),y
-        cmp #2                  ; codes 0 and 1 are blank
-        bcc @n
-        tax
-        lda cut_tag,x
-        cmp z_tag
-        beq @n
-        lda z_tag
-        sta cut_tag,x
-        inc z_cnt
-@n:     dey
-        bpl @c
-@done:  lda #0
-        sec
-        sbc z_cnt
-        sta z_lim               ; 256 - copies needed (0 = all 256)
-        jmp tag_next            ; the tags again, for handing out
-
 ; r_done: the cut row, then the picture is complete - shown at the bottom
 ; of the next one.
 _r_done:
@@ -1131,6 +1123,10 @@ _r_done:
         sta _ready
         rts
 
+; cut_row: the window's top row, its characters as copies in this
+; picture's codes from CUT_R0 (picture 1's CUT_N on), the same character
+; one copy: in the other picture's set, the gap's, these are blank. A
+; character for which no code is left shows blank.
 cut_row:
         ldx _e_cutrow
         bne :+
@@ -1142,49 +1138,44 @@ cut_row:
         lda rowc_hi,x
         ora z_scrhi
         sta p_scr+1
+        lda #CUT_R0
+        ldx _back
+        beq :+
+        lda #CUT_R0 + CUT_N
+:       sta z_pc                ; the next copy's code
+        clc
+        adc #CUT_N
+        sta z_k                 ; and the first past them
         lda #WCOLS-1
         sta z_col
 @c:     ldy z_col
         lda (p_scr),y
-        cmp #2
+        cmp #2                  ; codes 0 and 1 are blank everywhere
         bcc @n
-        cmp #POOL
-        bcs @fig
-        ; a deck character: its copy, made the first time it is met
         tax
         lda cut_tag,x
         cmp z_tag
         beq @have
         lda z_tag
         sta cut_tag,x
-        lda next_code
-        beq @n                  ; nothing left (cannot happen)
+        lda z_pc
+        cmp z_k
+        bcc :+
+        lda #0                  ; none left: blank
         sta cut_code,x
-        inc next_code
+        beq @have
+:       sta cut_code,x
+        inc z_pc
         jsr cut_copy
         ldy z_col
-        ldx z_t                 ; the deck code
+        ldx z_t                 ; the character's code
 @have:  lda cut_code,x
         sta (p_scr),y
-        jmp @n
-@fig:   ; a figure's character: cleared in place
-        tax
-        lda code_lo,x
-        sta p_dst
-        lda code_hi,x
-        ora z_fonthi
-        sta p_dst+1
-        ldy _e_cutn
-        dey
-        lda #0
-:       sta (p_dst),y
-        dey
-        bpl :-
 @n:     dec z_col
         bpl @c
         rts
 
-; cut_copy: code X copied to cut_code,X with its top e_cutn lines cleared
+; cut_copy: character X copied to code cut_code,X
 cut_copy:
         stx z_t
         lda code_lo,x
@@ -1202,12 +1193,6 @@ cut_copy:
         ldy #7
 :       lda (p_src),y
         sta (p_dst),y
-        dey
-        bpl :-
-        ldy _e_cutn
-        dey
-        lda #0
-:       sta (p_dst),y
         dey
         bpl :-
         rts

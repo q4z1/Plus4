@@ -392,8 +392,8 @@ window:
         sbc #0
         sta _org_x+1
         lda #0                  ; rows under the gap move down by k: window
-        sec                     ; row 0 (screen row 7) shows its last k
-        sbc wt                  ; lines at the window's top, or nothing
+        sec                     ; row 0 (screen row 8) shows its last k+1
+        sbc wt                  ; lines at the window's top
         and #7
         sta _e_s
         tay
@@ -402,8 +402,8 @@ window:
         sta wt
         bcc :+
         inc wt+1
-:       lsr a                   ; r0: the row, less one
-        lsr a
+:       lsr a                   ; r0: the row; window row 0 two above
+        lsr a                   ; it
         lsr a
         sta dk
         lda wt+1
@@ -414,9 +414,9 @@ window:
         asl a
         ora dk
         sec
-        sbc #1
+        sbc #2
         sta _e_r
-        ldx #0                  ; org_y = r0 * 8 - 64, r0 signed
+        ldx #0                  ; org_y = e_r * 8 - 64, e_r signed
         cmp #$80
         bcc :+
         dex
@@ -432,18 +432,10 @@ window:
         sta _org_y
         bcs :+
         dec _org_y+1
-:       lda #0                  ; e_blank7: k == 0; e_cutrow: k != 0;
-        cpy #0                  ; e_cutn: 8 - k
-        bne :+
+:       lda #0                  ; window row 0 always shows, if only
+        sta _e_blank7           ; its last line: the copied row
         lda #1
-:       sta _e_blank7
-        eor #1
         sta _e_cutrow
-        tya
-        eor #$FF
-        sec
-        adc #8
-        sta _e_cutn
         rts
 
 ; draw(): the window, the droids, their explosions and the shots

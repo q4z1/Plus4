@@ -28,6 +28,12 @@ def pixels(scr, att, font, r, c, y):
     return [1 if b & (0x80 >> i) else 0 for i in range(8)]
 
 
+def window_bg(pix, ox, oy):
+    """the window's background: the commonest colour of a line in it"""
+    line = pix[oy + 8 * 12 + 3][ox + 24:ox + 300]
+    return max(set(map(tuple, line)), key=lambda c: sum(1 for p in line if tuple(p) == c))
+
+
 y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True)
 def word(n):
     a = y.mem(lbl[n], 2)
@@ -70,7 +76,7 @@ try:
             best = (0, None)
             for ox in range(16, 49):
                 for oy in range(16, 65):
-                    bg = pix[oy + 8 * 9 - 1][ox + 160]
+                    bg = window_bg(pix, ox, oy)
                     n = 0
                     for (r, yy), line in list(lines.items())[::7]:
                         sy = oy + k + 8 * r + yy
@@ -82,7 +88,7 @@ try:
             origin = best[1]
             print('screen at', origin, 'in the shot,', best[0], 'lines found')
         ox, oy = origin
-        bg = pix[oy + 8 * 9 - 1][ox + 160]
+        bg = window_bg(pix, ox, oy)
         shot = [[0 if pix[yy][x] == bg else 1 for x in range(ox + 16 + sx, ox + 304 + sx)]
                 for yy in range(h)]
         offs = {}
@@ -93,7 +99,17 @@ try:
             found = [s - want for s in range(want - 20, min(h, want + 21)) if shot[s] == line]
             key = 'ok' if 0 in found else ('%+d' % found[0] if found else 'none')
             offs.setdefault(key, []).append('%d.%d' % (r, yy))
-        print('t=%d s=%d k=%d: %s' % (t, bs, k, ' '.join(
+        # the window's top: the first line under the gap row 7 that is
+        # not all the gap's colour, in this and two more pictures
+        tops = []
+        for n in range(3):
+            if n:
+                y.run_for(0.07)
+                w, h, pix = read_png(y.png(os.path.join(OUT, 'yrc%d_%d.png' % (t, n))))
+            gap = pix[oy + 8 * 7 + 4][ox + 160]
+            tops.append(next(yy for yy in range(oy + 8 * 7 + 5, oy + 8 * 12)
+                             if any(pix[yy][x] != gap for x in range(ox + 24, ox + 300))) - oy)
+        print('t=%d s=%d k=%d top=%s: %s' % (t, bs, k, tops, ' '.join(
             '%s:%d' % (kk, len(v)) + ('' if kk == 'ok' else str(v[:6])) for kk, v in offs.items())),
             flush=True)
 finally:

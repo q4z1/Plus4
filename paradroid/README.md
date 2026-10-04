@@ -416,19 +416,40 @@ written - a dot of "snow" under the window in every picture.
 `tests/yape_rowcheck.py` in Yape. For each one they compare every line of
 the window on the screen with the characters in memory.
 
-Moving rows down makes the top edge of the window move as well. The top
-character row of the window is therefore cut: its cells get copies of their
-characters with the top lines cleared, from the same pool the figures use. A
-change of background colour exactly at that edge would have been simpler,
-but on the TED it cannot be timed reliably. In the visible part of a line
-the processor runs single-clocked, a timing loop overshoots the few usable
-`$FF1E` positions, and the TED stops the processor before a row's first
-line. So the deck's colour starts with the gap's last line, a line or two
-above the window, and the window's edge comes from the cut characters.
+Moving rows down leaves lines between the gap and the first row moved:
+the TED shows the row before again there, its last lines. At first that
+was the gap's last row, blank, and the first row was cut with copies whose
+top lines were cleared - so the window's top eight lines never showed
+anything, while the original's text and deck go right up to its edge.
 
-The gap is three rows (6 to 8) and the window 16 rows (9 to 24), as high as
-the original's and in the same place under the panel, to a pixel. The
-interrupt stops twice in the gap: at its first line for the deck's
+Now the window's rows start in the gap's last row (screen row 8), and that
+row is what shows twice: first in the gap, then its last s+1 lines at the
+window's top, as the original's are cut there. In the gap it must not
+show. Its cells get copies of their characters in codes of their own
+(picture 0's in 216-235, picture 1's in 236-255), and the gap is shown in
+the other picture's character set, where those codes are blank; at the
+window's top the set switches to the window's own, together with the
+window's colour. Both are written in the line the counters are set back
+in, after its visible part. That line is the one place where it can be
+timed: the counters are set at `$FF1E` 106 to 122 there, always, after
+the colour was written in the line before (as it once was), and the TED
+never stops the processor in that line, whatever s is - it decided that
+at the line's start, before the counters changed. Written at `$FF1E` 136
+on, the colour and set show from the next line's start. A first try put
+the colour's change a line later, after the moved rows had begun: there,
+for s = 0 and 7, the TED stops the processor to fetch a row through the
+whole visible part, and the colour came a line or two late in one picture
+in five to twenty. Measured in Yape with `tests/yape_top.py`, which needs
+the briefing rolling to show it; `tests/yape_gamegap.py` checks the game,
+`tests/yape_gap.py` the title.
+
+The figures lose the 40 codes to the copies: they have 75 (the most seen
+in a crowd of droids). In the title, where both pictures show picture 1's
+set, the gap's is picture 0's, cleared from POOL on for it.
+
+The gap is the rows 6 and 7 and row 8's first showing; the window is 128
+lines high, as the original's, a line lower under the panel than there. The
+interrupt stops twice in the gap: at its first line for the gap's
 character set and modes, and at line 71 for the scroll, so that it does
 not wait through the gap. The gap's cells are blank in the deck's
 characters but not in the panel's: switched a few lines into the gap, as
@@ -713,7 +734,11 @@ tests run Yape without its speed limit.
 | --- | --- |
 | `yape_boot.py [s] [warp]` | the start: registers and a screenshot every five seconds |
 | `yape_play.py [s] [seed]` | the title, fire, a random joystick; fails if the game stops ticking |
-| `yape_rowcheck.py` | `rowcheck.py` in Yape |
+| `yape_rowcheck.py` | `rowcheck.py` in Yape, with the window's top line |
+| `yape_top.py [n]` | the window's top line in Yape while the briefing rolls, for each fine position (`YTOP_FILL=1`: line by line) |
+| `yape_gamegap.py [n]` | in a game in Yape, driving: the gap clean and the window's top in place in every picture |
+| `yape_still.py [n]` | in a game standing still, n pictures: each one's content fitted to the first's |
+| `yape_rollcheck.py [n]` | the briefing rolling in Yape: its rows against where they are meant to be |
 | `yape_xfer.py [n]` | transfers in Yape |
 | `yape_brief.py [n]` | the briefing in Yape, n pictures in a row: how far it moves in each |
 | `yape_title.py` | the title's scores page in Yape, with its picture |

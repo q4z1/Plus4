@@ -3,11 +3,11 @@
 ;
 ; A page is lines of text: a line's row, column, length and letters, the
 ; page ending in $FF. Letter k is character brief_top[k] over
-; brief_bot[k]: a line takes two rows. Window row w (from 0) shows the
-; page's row rr - 1 + w; rows 0 to br_rows - 1 are made, into the screen
-; codes at br_d. Row 0 is the cut one: of its characters only the last
-; br_k lines show, from copies of them (br_code on, br_cutend of them
-; left; none when br_k is 0).
+; brief_bot[k]: a line takes two rows. Window row w (from 0, screen row 8)
+; shows the page's row rr - 2 + w; rows 0 to br_rows - 1 are made, into the
+; screen codes at br_d. Row 0 is the window's top one: its characters are
+; copies (br_code on, br_cutend of them left), in codes blank in the gap's
+; set; the TED shows their last br_k + 1 lines at the window's top.
 ;
 ; In assembly because it has to be fast: written in C, this took a few
 ; pictures for the window's 16 rows, twice as each picture needs them, and
@@ -53,24 +53,22 @@ _brief_rows:
         sta br_n
         lda #0
         sta br_h
-@half:  ldy #0                  ; its window row: r + h + 1 - rr
+@half:  ldy #0                  ; its window row: r + h + 2 - rr
         lda (_br_p),y
         sec
         adc br_h
         sec
         sbc _br_rr
+        clc
+        adc #1
         sta br_w
         cmp _br_rows
         bcc :+
 @skip:  jmp @next
-:       tax
-        bne :+
-        lda _br_k               ; row 0, and nothing of it showing
-        beq @skip
 :       lda br_w                ; bq: br_d + 40 * w + column - 3
         asl a
         asl a
-        asl a                   ; 8 w (w < 16: no carry)
+        asl a                   ; 8 w (w < 17: no carry)
         sta bq
         lda #0
         sta bq+1
@@ -187,10 +185,8 @@ cutc:   ldx _br_cutend
         sta bo+1
         tya
         pha
-        lda #8                  ; lines 8 - k on copied, the others cleared
-        sec
-        sbc _br_k
-        sta br_lim
+        lda #0                  ; all its lines (the TED shows the last k+1
+        sta br_lim              ; at the window's top)
         ldy #7
 @l:     cpy br_lim
         bcc @clr

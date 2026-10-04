@@ -659,9 +659,9 @@ terminated:
         bpl :-
         lda #$D8                ; (the deck shows the same in it)
         sta _font_hi
-        lda #<(9 * 40)
-        sta ptr1
-        lda #>(9 * 40)
+        lda #<(8 * 40)          ; (from the window's top row on: rolled
+        sta ptr1                ; down, its last lines show at the top)
+        lda #>(8 * 40)
         sta ptr1+1
 @cell:  jsr _rnd
         and #3
@@ -776,6 +776,15 @@ _page_end:
         sta FONT1 + $400,x
         inx
         cpx #<(POOL * 8)
+        bne :-
+        ldx #(256 - CUT_R0) * 4 - 1 ; the window's top row's codes blank in
+        lda #0                  ; both sets (the gap shows the other's)
+:       sta FONT0 + CUT_R0 * 8,x
+        sta FONT0 + CUT_R0 * 8 + (256 - CUT_R0) * 4,x
+        sta FONT1 + CUT_R0 * 8,x
+        sta FONT1 + CUT_R0 * 8 + (256 - CUT_R0) * 4,x
+        dex
+        cpx #$FF
         bne :-
         lda #$C8
         sta _font_hi

@@ -39,3 +39,9 @@ BLKC        = $E800             ; [4][256]: each block's characters
 BLKA        = $EC00             ; [4][256]: their colours
 CLS_HR      = $EAA0             ; the deck scheme's colour of each class,
 CLS_MC      = $EAB0             ; hires and multicolour-safe (move.s)
+
+; the window's top row (screen row 8, the gap's last): its characters as
+; copies in codes of their own, picture 0's in 216-235, picture 1's in
+; 236-255; each picture's set keeps the other's blank (engine.s)
+CUT_R0      = 216
+CUT_N       = 20

@@ -58,6 +58,8 @@ def page(name):
           'font': h(0xD800, 0x800), 'panel': h(0xC400 + 80, 13)}
     if os.environ.get('CONTRACE_DUMP'):    # (to look into)
         open(out + '.' + name.replace(' ', '_'), 'wb').write(bytes(v.mem(0xD800, 0x800)))
+        open(out + '.' + name.replace(' ', '_') + '.scr', 'wb').write(
+            bytes(v.mem(0xC000 + 9 * 40, 640)) + bytes(v.mem(0xC400 + 9 * 40, 640)))
     f.write(json.dumps(st) + '\n')
     f.flush()
 try:

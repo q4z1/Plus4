@@ -48,7 +48,7 @@ TED_BORDER  = $FF19
         .segment "OVLDATA"
 ; (in the overlay: these start from these values each title)
 shown:      .byte $FF, $FF      ; each picture's row as last made
-rows:       .byte 16
+rows:       .byte 17
 tt:         .byte 0             ; brief()'s picture to be ready by
 bpage:      .word 0             ; the page shown
 b_h:        .byte 0             ; its rows
@@ -246,8 +246,8 @@ deck_font:
         sta _font_hi
         rts
 
-; A := a copy of character A whose top 8 - kk lines are cleared, the
-; next of the cut copies (or 0 when there are none left)
+; A := a copy of character A, the next of the copies for the window's top
+; row (or 0 when there are none left)
 cut_copy:
         ldx cut_end
         bne :+
@@ -278,10 +278,8 @@ cut_copy:
         lda sreg+1
         adc #>FONT1
         sta sreg+1
-        lda #8                  ; lines 0 .. 7 - k cleared, the rest copied
-        sec
-        sbc kk
-        sta ff
+        lda #0                  ; all its lines (the TED shows the last k+1
+        sta ff                  ; at the window's top)
         ldy #0
 @l:     lda #0
         cpy ff
@@ -297,12 +295,13 @@ cut_copy:
         rts
 
 ; page_show(): the page rolled up by yy pixels, into the back picture. As
-; for the deck, the rows move down by k lines and window row 0 shows its
-; last k lines, from copies of its characters with the rest cleared. A
-; line of text is its row, column, length and letters. The scores page
-; has its picture too (pic_on), in the rows from PIC_ROW. Rows 1 to 15
-; only change when the page has moved by a row: the lines between, the
-; fine scroll moves them, and only row 0, the cut one, is made again.
+; for the deck, the rows move down by k lines, from screen row 8 on; window
+; row 0, the gap's last row, shows its last k+1 lines at the window's top,
+; its characters copies in codes blank in picture 0's set, the gap's here
+; (engine.s). A line of text is its row, column, length and letters. The
+; scores page has its picture too (pic_on), in the rows from PIC_ROW. Rows
+; 1 to 16 only change when the page has moved by a row: the lines between,
+; the fine scroll moves them, and only row 0 is made again.
 page_show:
         lda #0                  ; k = -y & 7
         sec
@@ -325,20 +324,20 @@ page_show:
         ldy #1
         cmp rr
         beq :+
-        ldy #16
+        ldy #17
 :       sty rows
         lda rr
         sta shown,x
-        lda #<(SCR0C + 9 * 40)  ; the back picture's codes and colours
-        ldy #<(SCR0A + 9 * 40)
+        lda #<(SCR0C + 8 * 40)  ; the back picture's codes and colours
+        ldy #<(SCR0A + 8 * 40)
         sta pd
         sty pa
-        lda #>(SCR0C + 9 * 40)
-        ldy #>(SCR0A + 9 * 40)
+        lda #>(SCR0C + 8 * 40)
+        ldy #>(SCR0A + 8 * 40)
         cpx #0
         beq :+
-        lda #>(SCR1C + 9 * 40)
-        ldy #>(SCR1A + 9 * 40)
+        lda #>(SCR1C + 8 * 40)
+        ldy #>(SCR1A + 8 * 40)
 :       sta pd+1
         sty pa+1
         lda pd                  ; its rows cleared
@@ -359,12 +358,17 @@ page_show:
         inc ptr1+1
 :       dex
         bne @clr
-        lda #0                  ; each picture copies of its own: the free
-        sec                     ; characters halved
-        sbc free_code
+        lda free_code           ; each picture copies of its own: the free
+        cmp #POOL               ; characters halved - from POOL on, where
+        bcs :+                  ; picture 0's set (the gap's) is blank
+        lda #POOL               ; in the title (title_run())
+:       sta ff
+        lda #0
+        sec
+        sbc ff
         lsr a
         sta half
-        lda free_code
+        lda ff
         ldx _back
         beq :+
         clc
@@ -436,7 +440,7 @@ page_show:
         lda (ptr2),y
         beq @nx
         sta cc
-        lda #PIC_ROW + 1        ; w = PIC_ROW + r + 1 - rr
+        lda #PIC_ROW + 2        ; w = PIC_ROW + r + 2 - rr
         clc
         adc rr2
         sec
@@ -444,11 +448,7 @@ page_show:
         sta ww
         cmp rows
         bcs @nx
-        cmp #0
-        bne :+
-        lda kk
-        beq @nx
-:       lda ww                  ; the cell: w * 40 + 2 + i
+        lda ww                  ; the cell: w * 40 + 2 + i
         jsr times40
         lda off
         clc
@@ -621,6 +621,8 @@ _title_scores:
         sta _top_score,x
         dex
         bpl :-
+        lda #>s_great
+        sta sd
         lda #0
         ldx #13
         ldy #<s_great
@@ -639,6 +641,8 @@ _title_scores:
         sta _low_score,x
         dex
         bpl :-
+        lda #>s_lowest
+        sta sd
         lda #3
         ldx #5
         ldy #<s_lowest
@@ -647,7 +651,7 @@ _title_scores:
         lda #10
         sta _x_row
         tya
-        ldx #>s_great           ; (both in one page: see the assert)
+        ldx sd
         jsr _say
         lda #22
         sta _x_row
@@ -757,11 +761,20 @@ _title_scores:
         beq :+
         jmp @next
 :       rts
-        .assert >s_great = >s_lowest, error, "s_great and s_lowest in two pages"
 
 ; brief(): page bn of the briefing, rolled up, on bg_ in letters b_fg,
 ; the border bd_; page 4 has the picture; A 1 if fire ended it
-brief:  lda _col_deck
+brief:  ldx #<(POOL * 8)         ; picture 0's set blank from POOL on: it
+        lda #0                  ; is the gap's here, the window's top row's
+:       sta FONT0 + $400,x      ; copies are in those codes (and the logo
+        inx                     ; keeps the panel's rows there for a while)
+        bne :-
+:       sta FONT0 + $500,x
+        sta FONT0 + $600,x
+        sta FONT0 + $700,x
+        inx
+        bne :-
+        lda _col_deck
         sta cd
         jsr _eng_plain
         lda b_fg
