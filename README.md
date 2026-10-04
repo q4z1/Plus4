@@ -12,7 +12,7 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 
 | Folder | What it is |
 | --- | --- |
-| [demonattack/](demonattack/README.md) | A clone of the Atari 2600 **Demon Attack** that behaves like the original frame for frame, checked automatically against it. A colour on every line through a raster interrupt, collisions worked out pixel by pixel as the 2600's video chip sees them, and a page at the end of each game for hall of fame screenshots. |
+| [demonattack/](demonattack/README.md) | A clone of the Atari 2600 **Demon Attack** that behaves like the original frame for frame, checked automatically against it. A colour on every line through a raster interrupt, collisions worked out pixel by pixel as the 2600's video chip sees them, and a page at the end of each game for hall of fame screenshots. Also as a 32 KB cartridge that runs on the C16. |
 | [main/](main/README.md) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
 | [paradroid/](paradroid/README.md) | **Paradroid** (Andrew Braybrook, 1985) after the C64 original, with its decks, droids, waypoints and lifts taken out of its memory: an eight-way scrolling deck under a fixed status panel, shooting, the transfer game, lifts with the side view of the ship, the deck plan at consoles, the original's briefing. Runs from a `.d64`. |
 | [pacman/](pacman/README.md) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |

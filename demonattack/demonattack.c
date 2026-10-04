@@ -293,23 +293,10 @@ static unsigned char tmp;
  * fine adjustment left or right. $1CCF moves such a position one pixel to
  * the right, $1CDE one pixel to the left.
  */
-static unsigned char right_of[256];     /* $1CCF for every position */
-static unsigned char left_of[256];      /* $1CDE                    */
+extern const unsigned char right_of[256];   /* $1CCF for every position */
+extern const unsigned char left_of[256];    /* $1CDE, both in tables.s */
 #define step_right(a) right_of[a]
 #define step_left(a) left_of[a]
-
-static void build_steps(void)
-{
-    unsigned char a = 0, b;
-    do {
-        b = a - 0x10;
-        if (!(b & 0x80) && b >= 0x70) b += 0xF1;
-        right_of[a] = b;
-        b = a + 0x10;
-        if ((b & 0x80) && b < 0x90) b -= 0xF1;
-        left_of[a] = b;
-    } while (++a);
-}
 
 static unsigned char steps;
 
@@ -1318,89 +1305,18 @@ halves: if (split[x] == 0) {
 
 void kernel_asm(void);
 
-unsigned char pixtab[256];               /* pixel of a position byte     */
+extern const unsigned char pixtab[256];  /* pixel of a position byte     */
 unsigned char colupf;                    /* the shot's colour            */
 unsigned char cx_p0bl, cx_p1bl, cx_pp;   /* collisions of a picture      */
 unsigned char yreg;                      /* the Y register, see overscan() */
 
 /* Every demon picture, both halves side by side, at each of the four
-   pixels inside a character: five columns of eight lines, each after eight
-   zero bytes, and eight more at the end - r_demon reads a character's worth
-   from any line of it. demon_rows says which lines of a column have
-   pixels, bit 7 the top one. */
-#define DEMON_FRAMES 28
-#define DEMON_IMG    88
-unsigned char demon_img[DEMON_FRAMES * 4 * DEMON_IMG];
-unsigned char demon_rows[DEMON_FRAMES * 4 * 5];
-unsigned char img_lo[DEMON_FRAMES * 4], img_hi[DEMON_FRAMES * 4];
-unsigned char rows_lo[DEMON_FRAMES * 4], rows_hi[DEMON_FRAMES * 4];
-unsigned char band_tab[64];              /* rows of a frame with pixels  */
-extern unsigned char sh_tab[12 * 256];   /* engine.s: [sub*3+k][byte]    */
-
-static void build_demons(void)
-{
-    unsigned char f, sub, i, g, r, c, n;
-    unsigned char *img = demon_img;
-    unsigned char *rows = demon_rows;
-    const unsigned char *t0, *t1, *t2;
-
-    memset(demon_img, 0, sizeof demon_img);
-    memset(demon_rows, 0, sizeof demon_rows);
-    for (f = 0; f < DEMON_FRAMES; ++f) {
-        for (sub = 0; sub < 4; ++sub) {
-            t0 = sh_tab + (sub * 3) * 256;
-            t1 = t0 + 256;
-            t2 = t1 + 256;
-            for (i = 0; i < 8; ++i) {
-                g = ROM(0x1E00 + (f << 3) + 7 - i);
-                r = rev[g];
-                img[8 + i] = t0[g];
-                img[24 + i] = t1[g];
-                img[40 + i] = t2[g] | t0[r];
-                img[56 + i] = t1[r];
-                img[72 + i] = t2[r];
-                for (c = 0; c < 5; ++c)
-                    if (img[8 + 16 * c + i]) rows[c] = rows[c] | 0x80 >> i;
-            }
-            n = f * 4 + sub;
-            img_lo[n] = (unsigned char)(unsigned)img;
-            img_hi[n] = (unsigned char)((unsigned)img >> 8);
-            rows_lo[n] = (unsigned char)(unsigned)rows;
-            rows_hi[n] = (unsigned char)((unsigned)rows >> 8);
-            img += DEMON_IMG;
-            rows += 5;
-        }
-    }
-    for (f = 0; f < 64; ++f) {
-        band_tab[f] = 0;
-        for (i = 0; i < 8; ++i)
-            if (ROM(0x1E00 + (f << 3) + 7 - i)) band_tab[f] = band_tab[f] | 0x80 >> i;
-    }
-}
-
-/* The cannon at each of the four pixels in a character: six characters,
-   column by column, row 21 then row 22 - it always stands on the same
-   lines, 172 to 183, the lower half of row 21 and all of row 22. */
-unsigned char cannon_img[4 * 48];
-
-static void build_cannon(void)
-{
-    unsigned char sub, c, i, g;
-    const unsigned char *t;
-    unsigned char *p = cannon_img;
-
-    memset(cannon_img, 0, sizeof cannon_img);
-    for (sub = 0; sub < 4; ++sub) {
-        for (c = 0; c < 3; ++c) {
-            t = sh_tab + (sub * 3 + c) * 256;
-            for (i = 0; i < 12; ++i) {
-                g = ROM(0x1D88 + 11 - i);
-                p[c * 16 + 4 + i] = t[g];       /* lines 4..15 of 16 */
-            }
-        }
-        p += 48;
-    }
-}
+   pixels inside a character, and the cannon likewise: made at build time
+   by mktables.py (tables.s), see r_demon and r_cannon in engine.s. */
+extern const unsigned char demon_rows[];
+extern const unsigned char img_lo[], img_hi[], rows_lo[], rows_hi[];
+extern const unsigned char band_tab[64]; /* rows of a frame with pixels  */
+extern const unsigned char cannon_img[4 * 48];
 
 /* ---- the fixed parts ------------------------------------------------------- */
 
@@ -1429,7 +1345,7 @@ static unsigned char shown_text[2];
 static const char *const msg_text[MSGS] = {
     "DEMON ATTACK CLONE",
     "ATARI 2600 ORIGINAL BY IMAGIC, 1982",
-    "A PROOF OF CONCEPT IN C FOR THE PLUS/4",
+    "CONVERTED TO C16 / PLUS/4 BY Q4Z1 2026",
     "PRESS FIRE OR F1 TO START",
 };
 /* colour < 8 in a colour cell: a one-colour (hires) character */
@@ -1581,29 +1497,12 @@ static void kernel_nodraw(void)
  * two sets the volume. Everything the game plays fits.
  * ==================================================================== */
 
-/* TED register values for each kind of voice and each AUDF, made at start:
-   1024 - 111861 / frequency, which comes out as 1024 - k * (AUDF + 1). */
-static unsigned char tone_lo[4 * 32], tone_hi[4 * 32];
-
-static void build_tones(void)
-{
-    static const unsigned char k[4] = {
-        7,          /* AUDC 4, 5: 15720 / (F+1) Hz            */
-        21,         /* AUDC 12, 13: 5240 / (F+1) Hz            */
-        28,         /* AUDC 8: noise                            */
-        43          /* the rest, the buzz: about 2620 / (F+1)   */
-    };
-    unsigned char t, f;
-    unsigned r;
-    for (t = 0; t < 4; ++t) {
-        for (f = 0; f < 32; ++f) {
-            r = k[t] * (unsigned)(f + 1);
-            r = r >= 1024 ? 0 : 1024 - r;
-            tone_lo[t * 32 + f] = (unsigned char)r;
-            tone_hi[t * 32 + f] = (unsigned char)(r >> 8);
-        }
-    }
-}
+/* TED register values for each kind of voice and each AUDF, made by
+   mktables.py: 1024 - 111861 / frequency, which comes out as
+   1024 - k * (AUDF + 1), with k 7 for AUDC 4 and 5 (15720 / (F+1) Hz), 21
+   for 12 and 13 (5240), 28 for 8 (noise) and 43 for the rest, the buzz
+   (about 2620). */
+extern const unsigned char tone_lo[4 * 32], tone_hi[4 * 32];
 
 /* which of the four each AUDC value is */
 static const unsigned char tone_kind[16] = {
@@ -1718,20 +1617,34 @@ static void read_input(void)
 extern const unsigned char bar_val[7];   /* engine.s */
 static const unsigned char mask_line[8] = { 0xFF, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55 };
 
+/* Buffer b's matrix as a picture starts out: the score's cells, the ground,
+   one colour everywhere - and every fixed part to be drawn again. */
+static void __fastcall__ init_matrix(unsigned char b)
+{
+    unsigned char i, *p = r_scr_ptr(b);
+
+    memset(p, 0, 1000);
+    for (i = 0; i < 13; ++i) {
+        p[13 + i] = SCORE_CODE + i;
+        p[40 + 13 + i] = SCORE_CODE + 13 + i;
+    }
+    memset(p + 23 * 40, CODE_GROUND, 40);
+    memset(p + 24 * 40, CODE_SOLID, 40);
+    memset(r_att_ptr(b), laser_attr, 1000);
+    shown_lives[b] = 0xFF;
+    shown_cannon[b] = 0xFF;
+    shown_bunker[b] = 0xFF;
+    shown_ground[b] = 0xFF;
+    shown_text[b] = 0;                          /* the score's layout */
+    memset(shown_off + (b ? 6 : 0), 0xFF, 6);
+}
+
 static void setup(void)
 {
     unsigned i, b;
     unsigned char *p, s, h;
 
     laser_attr = ted_attr[0x6E >> 1];
-
-    /* position byte -> pixel: 12 + 15 * coarse - fine, fine signed */
-    i = 0;
-    do {
-        h = (unsigned char)i >> 4;
-        s = (h < 8) ? h : (unsigned char)(h - 16);
-        pixtab[i] = (unsigned char)((12 + 15 * (i & 15) - (signed char)s + 160) % 160);
-    } while (++i < 256);
 
     for (b = 0; b < 2; ++b) {
         /* fixed characters: ground and bunker; the row in the middle of
@@ -1758,26 +1671,9 @@ static void setup(void)
                 p[(BAR_CODE + 7 * i + h) * 8 + i] = bar_val[h] & s;
         }
 
-        p = r_scr_ptr(b);
-        for (i = 0; i < 13; ++i) {
-            p[13 + i] = SCORE_CODE + i;
-            p[40 + 13 + i] = SCORE_CODE + 13 + i;
-        }
-        memset(p + 23 * 40, CODE_GROUND, 40);
-        memset(p + 24 * 40, CODE_SOLID, 40);
-        p = r_att_ptr(b);
-        memset(p, laser_attr, 1000);
-        shown_lives[b] = 0xFF;
-        shown_cannon[b] = 0xFF;
-        shown_bunker[b] = 0xFF;
-        shown_ground[b] = 0xFF;
-        memset(shown_off + (b ? 6 : 0), 0xFF, 6);
+        init_matrix(b);
     }
     for (i = 0; i < 25; ++i) r_row_attr[i] = laser_attr;
-    build_demons();
-    build_cannon();
-    build_tones();
-    build_steps();
     eng_chargen();
 }
 
@@ -1806,10 +1702,12 @@ static void power_on(void)                                      /* $124A */
  * demo, just where the original would be.
  * ==================================================================== */
 
+/* The page goes into the picture not on screen, which is built up again
+   afterwards: on a C16 there is no room for a page of its own. */
 void eng_page_on(void);
 void eng_page_off(void);
-#define PAGE_ATT    ((unsigned char *)0xB800)
-#define PAGE_SCR    ((unsigned char *)0xBC00)
+void eng_buf_reset(void);
+static unsigned char *page_scr, *page_att;
 
 static unsigned char best[3];            /* best score since power-on, BCD */
 static unsigned char game_ended;         /* set by the frame a game ends in */
@@ -1819,8 +1717,8 @@ static char line_buf[41];
 static void __fastcall__ page_line(unsigned char row, unsigned char attr)
 {
     unsigned char i, c, n = strlen(line_buf);
-    unsigned char *p = PAGE_SCR + row * 40 + (40 - n) / 2;
-    memset(PAGE_ATT + row * 40, attr, 40);
+    unsigned char *p = page_scr + row * 40 + (40 - n) / 2;
+    memset(page_att + row * 40, attr, 40);
     for (i = 0; i < n; ++i) {
         c = line_buf[i];
         if (c >= 'A' && c <= 'Z') c = c - 'A' + 1;     /* screen code */
@@ -1849,9 +1747,16 @@ static void __fastcall__ note_best(unsigned char y)
     }
 }
 
+#ifdef TEST_PRESS
+volatile unsigned char test_press;      /* tests set it: a button is down */
+#endif
+
 static unsigned char any_button(void)
 {
     read_input();
+#ifdef TEST_PRESS
+    if (test_press) return 1;
+#endif
     return !(inpt4 & 0x80) || !(inpt5 & 0x80) || !(swchb & 1);
 }
 
@@ -1862,11 +1767,13 @@ static void game_over_page(void)
     note_best(0);
     if (two) note_best(1);
 
-    memset(PAGE_SCR, ' ', 1000);
-    memset(PAGE_ATT, 0, 1000);
+    page_scr = r_scr_ptr(back);
+    page_att = r_att_ptr(back);
+    memset(page_scr, ' ', 1000);
+    memset(page_att, 0, 1000);
     strcpy(line_buf, "DEMON ATTACK CLONE");
     page_line(3, 0x77);
-    strcpy(line_buf, "A PROOF OF CONCEPT IN C FOR THE PLUS/4");
+    strcpy(line_buf, "CONVERTED TO C16 / PLUS/4 BY Q4Z1 2026");
     page_line(5, 0x51);
     strcpy(line_buf, "ATARI 2600 ORIGINAL BY IMAGIC, 1982");
     page_line(6, 0x51);
@@ -1909,6 +1816,8 @@ static void game_over_page(void)
     while (any_button()) ;                      /* let go of the last shot */
     while (!any_button()) ;
     eng_page_off();
+    eng_buf_reset();                            /* the page's buffer: anew */
+    init_matrix(back);
 }
 
 #ifdef DEBUG

@@ -1,8 +1,12 @@
-# Demon Attack Clone for the Commodore Plus/4
+# Demon Attack Clone for the Commodore Plus/4 and C16
 
 A clone of **Demon Attack** for the Atari 2600 (Imagic, 1982). All ten game
 variants, one or two players, the splitting demons, the small ones that
 dive at the cannon, both difficulty switches, and the original's sounds.
+
+It comes in two forms built from the same source: a **PRG** for the
+Plus/4, and a **32 KB cartridge** that also runs on the C16 with its
+16 KB of RAM.
 
 This repository also has a [Phoenix clone](../phoenix/README.md): the
 Atari 2600 Phoenix on the Plus/4, built from measurements of the original,
@@ -23,7 +27,7 @@ this README is mostly about.
 | `F1` | the 2600's *Game Reset* switch: start a game |
 | `F2` | *Game Select*: step through the ten variants |
 | `F3` / `Help` | the left / right *difficulty* switch, A or B |
-| `Run/Stop` | leave (cold start) |
+| `Run/Stop` | the PRG: leave (cold start); the cartridge: start over |
 
 In the demo, pressing fire starts a game too.
 
@@ -68,10 +72,11 @@ The original's demo shows the IMAGIC logo at the top. The logo is not a
 picture of its own: at power-on the game sets player 1's score to the
 "digits" AB CD EA, whose shapes spell IMAGIC. That score is left alone in
 memory here, and only the drawing shows something else in its place. Four
-lines take turns there: the name, the original's maker, what this is, and
+lines take turns there: the name, the original's maker, who converted it, and
 how to start. After a game, the last score takes a turn as well. All text
-uses the Plus/4's own character ROM. The demo lines copy their letters out
-of it once at start-up, and the page shows the ROM character set directly.
+uses the machine's own character ROM: 64 characters are copied out of it
+once at start-up, and both the demo lines and the page take their letters
+from that copy.
 
 ![The start hint in the demo](screenshots/start.png)
 
@@ -116,7 +121,8 @@ waits from one write to the next.
 
 ### Two complete screens
 
-There are two character sets and two screens, at `$C000`–`$DFFF`. The game
+There are two character sets and two screens: on the Plus/4 at
+`$C000`–`$DFFF`, on the cartridge at `$0800`–`$27FF`. The game
 draws into the hidden one, and the interrupt swaps them at the bottom of the
 picture once it is finished, so nothing is ever seen half-drawn. Every
 list below exists once per screen.
@@ -223,6 +229,50 @@ The numbers as they stand:
 
 That makes about two pictures in five drawn.
 
+### A cartridge for 16 KB of RAM
+
+The PRG uses the Plus/4's memory freely: when it starts, it works out some
+15 KB of tables, including every demon picture at every pixel position. A
+C16 has 16 KB of RAM in all, and the two screens need half of that. So the
+cartridge puts everything that never changes into its ROM, and the RAM
+holds only what the game writes to:
+
+- **Tables made at build time.** [mktables.py](mktables.py) works out the
+  tables the game only ever reads: the pixel shifts, the demon and cannon
+  pictures, the positions, the tones. It writes them into a source file
+  that goes into the ROM. The PRG uses the same file, so the two cannot
+  differ. The generator was checked against the tables the earlier version
+  built in memory, and they matched byte for byte.
+- **Demon pictures without padding.** Each picture used to carry eight empty
+  lines above and below every column, so a character could be copied out of
+  it at any height. Now a picture is just its 40 bytes, and the drawing
+  routine clears the lines a demon has left behind itself. That halves the
+  pictures to 4.4 KB.
+- **Code that changes itself runs from RAM.** Two drawing routines patch
+  their own instructions while they run (the masks of a demon's lines, the
+  shift table a laser column uses). The cartridge copies those two, about
+  800 bytes, into RAM at start-up.
+- **No room for a page of its own.** The end-of-game page used to have 2 KB
+  for itself. Now it is written into the screen that is not being shown.
+  Afterwards that screen is rebuilt: its cells, its colours, the cannon, the
+  ground and the score are all drawn again.
+- **Starting without the KERNAL.** At reset, before it has set up anything
+  else, the KERNAL looks at each ROM bank for `CBM` at `$8007`. Where the
+  byte before it is 1, it calls `$8000` with both halves of the cartridge
+  switched in. The game takes over from there, sets up the TED itself and
+  never hands back. For a moment it switches the KERNAL's half back in, to
+  copy the 64 characters out of the character ROM. The code doing that sits
+  in the cartridge's low half, which stays where it is.
+
+A trap on the C16: it decodes only 16 KB, so a write to `$FFFE` lands in
+RAM at `$3FFE`. The PRG sets its interrupt vectors by writing them into
+RAM under the ROM. The cartridge must not do that, and has its vectors in
+its own ROM instead.
+
+On the cartridge the RAM holds the two screens at `$0800`–`$27FF`, the
+characters at `$0400`, cc65's stack at `$0200`, and everything else in
+3.5 KB at `$2800`. About 1 KB of the ROM is still free.
+
 ## What is not 1:1
 
 - **Not every frame is drawn**, only about two in five. Movement is coarser
@@ -241,8 +291,11 @@ That makes about two pictures in five drawn.
 | [demonattack.c](demonattack.c) | the game logic, sound, input, the demo's lines and the end-of-game page, start-up and the main loop |
 | [kernel.s](kernel.s) | the 2600 kernel replayed: what each line shows, the collisions, the drawing calls |
 | [engine.s](engine.s) | the Plus/4 side: raster interrupt, the two screens, the character pool and the drawing routines |
-| [demonattack.cfg](demonattack.cfg) | memory layout: the 2600's RAM in zero page at `$80`–`$FF`, program to `$B7FF`, the end-of-game page at `$B800`, the two screens at `$C000`–`$DFFF` |
-| [build.sh](build.sh) | builds `build/demonattack.prg`; with `DEBUG=1` also the test build `build/dbg.prg` |
+| [demonattack.cfg](demonattack.cfg) | the PRG's memory layout: the 2600's RAM in zero page at `$80`–`$FF`, program to `$B7FF`, the two screens at `$C000`–`$DFFF` |
+| [mktables.py](mktables.py) | makes `build/tables.s`: everything the game only reads, at build time |
+| [crt0_cart.s](crt0_cart.s) | the cartridge's header and start-up |
+| [demonattack_cart.cfg](demonattack_cart.cfg) | the cartridge's memory layout: 32 KB ROM at `$8000`, everything in RAM below `$4000` |
+| [build.sh](build.sh) | builds `build/demonattack.prg` and `build/demonattack.bin`; with `DEBUG=1` also the test build `build/dbg.prg` |
 
 ## Building and running
 
@@ -254,7 +307,24 @@ and a linker configuration, so the root's run script hands the build to
 ```sh
 ./build.sh
 ~/.local/share/cc65-vs64/bin/xplus4 -autostartprgmode 1 build/demonattack.prg
+~/.local/share/cc65-vs64/bin/xplus4 -model c16 -cart build/demonattack.bin
 ```
 
+`build.sh` makes both forms every time. `build/demonattack.bin` is the
+whole 32 KB cartridge. Its first 16 KB are C1 low (`$8000`), the second
+16 KB are C1 high (`$C000`), so it fits a single 27256 EPROM on a board that
+puts both halves on one chip. VICE takes the image as it is with `-cart`.
+`-c1lo` and `-c1hi` with the two halves did not work: VICE attached the low
+half with an empty file name.
+
+Yape (and YapeSDL, which also runs in the browser) has no cartridge option
+on its command line. Open its menu with `F8`, `Esc` or the right mouse
+button, choose *Attach rom...* and then the image. Where it offers banks,
+`BANK#1 LO` and `BANK#2 LO` both work: a 32 KB image fills the low and the
+high half. Yape's quick attach puts a ROM into bank 1, where the Plus/4 has
+its built-in 3-plus-1 software, and not into bank 2 like a real cartridge.
+So the cartridge does not assume a bank: at start-up it searches banks 1 to
+3 for its own signature, from RAM, and selects the one it finds.
+
 `build.sh` looks for cc65 in `~/.local/share/cc65-vs64/bin`, or in
-`CC65_BIN` if that is set. As for the Phoenix clone, `-Cl` is on.
+`CC65_BIN` if that is set, and needs Python 3 for the tables. As for the Phoenix clone, `-Cl` is on.

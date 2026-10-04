@@ -21,6 +21,7 @@
         .macpack longbranch
 
         .export _eng_init, _eng_reset, _eng_chargen, _chargen
+_chargen    = CHARGEN
         .export _eng_page_on, _eng_page_off, _eng_buf_reset, _eng_irq, _eng_nmi
         .export _frames, _back, _ready
         .export _ev_line, _ev_reg, _ev_val, _ev_n
@@ -65,6 +66,7 @@ MAT0        = $0800             ; colours at $0800, codes at $0C00
 MAT1        = $1000
 FONT0       = $1800             ; character set of picture 0, 256 * 8 bytes
 FONT1       = $2000
+DISP_START  = $0800
 DISP_END    = $2800
 CHARGEN     = $0400             ; 64 characters of the ROM's (crt0_cart.s)
 .else
@@ -72,10 +74,10 @@ FONT0       = $C000             ; character set of picture 0, 256 * 8 bytes
 FONT1       = $C800
 MAT0        = $D000             ; colours at $D000, codes at $D400
 MAT1        = $D800
+DISP_START  = $C000
 DISP_END    = $E000
 CHARGEN     = $E000             ; 64 characters of the ROM's (eng_chargen)
 .endif
-DISP_START  = FONT0 < MAT0 ? FONT0 : MAT0
 
 ; The character codes:
 ;     0          blank
@@ -1081,6 +1083,12 @@ _r_vline:
         bcc @piece
 @done:  rts
 
+; ---------------------------------------------------------------------------
+; RAMCODE: the two routines that change their own code as they go. In the
+; PRG it is just more code; the cartridge copies it from its ROM into RAM
+; at start-up (crt0_cart.s).
+        .segment "RAMCODE"
+
 ; r_column: a column of 8-pixel lines in colour %01 - the demons' laser,
 ; which is a long thin figure. It goes straight from the lines to the
 ; characters, piece of a character row by piece, without columns in
@@ -1227,6 +1235,8 @@ _r_column:
         cmp _o_n
         jcc @piece
         rts
+
+        .code
 
 ; r_quad: a sprite four times as wide - the halves of a demon being made,
 ; whose pictures are a few scattered points. Instead of building nine
@@ -1473,6 +1483,8 @@ code_ptr:
         adc font_hi,x
         sta p_dst+1
         rts
+
+        .segment "RAMCODE"
 
 ; r_demon: a whole demon - both halves side by side, the same picture - from
 ; a picture made at build time (demon_img in tables.s): five columns of
@@ -1774,6 +1786,8 @@ _r_demon:
         cmp z_nc
         bcc @sc
         rts
+
+        .code
 
 ; the character in cell (row A, column z_col): p_dst
 shared_cell:
@@ -2217,7 +2231,6 @@ score_or:
         rts
 
         .bss
-_chargen:   .res 64*8           ; eng_chargen
 _r_row_attr: .res 25            ; the colour each row goes back to
 _a_val:     .res 1
 _a_col:     .res 1

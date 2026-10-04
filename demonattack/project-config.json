@@ -5,8 +5,18 @@
     "machine": "plus4",
     "format": "prg",
     "main": "demonattack.c",
-    "sources": ["demonattack.c", "engine.s", "kernel.s"],
-    "compilerFlags": ["-Cl"],
-    "linkerFlags": ["-C", "demonattack.cfg"],
+    "sources": [
+        "demonattack.c",
+        "engine.s",
+        "kernel.s",
+        "build/tables.s"
+    ],
+    "compilerFlags": [
+        "-Cl"
+    ],
+    "linkerFlags": [
+        "-C",
+        "demonattack.cfg"
+    ],
     "build": "debug"
 }
