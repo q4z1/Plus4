@@ -1,4 +1,4 @@
-; briefrows.s - the briefing's text into the window rows, for title.c's
+; briefrows.s - the briefing's text into the window rows, for title.s's
 ; page_show(), in the title's overlay
 ;
 ; A page is lines of text: a line's row, column, length and letters, the
@@ -9,15 +9,16 @@
 ; br_k lines show, from copies of them (br_code on, br_cutend of them
 ; left; none when br_k is 0).
 ;
-; In C this took a few pictures for the window's 16 rows, twice as each
-; picture needs them, and the briefing stood still meanwhile, then caught
-; up with steps of two lines.
+; In assembly because it has to be fast: written in C, this took a few
+; pictures for the window's 16 rows, twice as each picture needs them, and
+; the briefing stood still meanwhile, then caught up with steps of two
+; lines.
 
         .export _brief_rows
         .export _br_d, _br_rr, _br_rows, _br_k, _br_code, _br_cutend, _br_p
         .import _brief_top, _brief_bot
 
-FONT1   = $D800
+        .include "game.inc"
 
         .segment "ENGZP": zeropage
 _br_p:  .res 2                  ; the page's line; at the end its $FF

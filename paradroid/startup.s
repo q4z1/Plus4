@@ -6,9 +6,7 @@
 ; KERNAL's interrupt, whose vector is at $0314, is off), the character
 ; sets and block tables, the colours, and the status panel.
 ;
-; In INITDATA: used once, then overwritten by the pictures' slots. (It was
-; fastinit.c, which also put a fast loader into the drive: there is no
-; more loading.)
+; In INITDATA: used once, then overwritten by the pictures' slots.
 
         .export _start_up
 
@@ -25,12 +23,8 @@
         .import __XT5_LOAD__, __XT5_RUN__, __XT5_SIZE__
         .importzp _snd_len, ptr1, ptr2
 
-        .include "build/gen/tiles.inc"   ; POOL
-
-FONT0   = $C800
-FONT1   = $D800
-PANELF  = $E000
-BLKC    = $E800
+        .include "game.inc"
+        .include "data.inc"
 
         .segment "INITDATA"
 

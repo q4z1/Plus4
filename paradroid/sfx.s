@@ -14,9 +14,9 @@
 ; Where it lives: this code at $FC00, below cc65's stack (which uses a few
 ; dozen bytes of $FCxx), the effects' table at $FF40, above the TED's
 ; registers: the program's memory is full. Both are copied there at the
-; start (fastinit.c) from INITDATA. sfxcall.s starts the effects.
+; start (startup.s) from INITDATA. sfxcall.s starts the effects.
 
-        .export sfx_frame, _snd_len, _snd_time
+        .export sfx_frame, _snd_len
         .exportzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h, s_vol
         .exportzp q0, q1, r0, r1, tr0, tr1
         .import ted                     ; (sfxcall.s: the program has room)
@@ -50,7 +50,6 @@ r1:     .res 1
 tr0:    .res 1                  ; the TED's register
 tr1:    .res 1
 
-_snd_time = s_ln + 1            ; voice 2 busy (music.s leaves it alone)
 
         .segment "SFXCODE"
 

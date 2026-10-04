@@ -22,7 +22,7 @@
 ; The transfer's overlay (with xfer.s's board): kept packed, unpacked into
 ; the pictures' slots by paradroid.s, which makes them again afterwards.
 ; The droids' pictures and the panel's letters are always there
-; (picture.s). In assembly (it was transfer.c) to make room.
+; (picture.s).
 
         .export _transfer_game
 
@@ -38,12 +38,11 @@
         .import pusha
         .importzp ptr1
 
-        .include "build/gen/tiles.inc"   ; POOL
-        .include "build/gen/sfx.inc"
+        .include "game.inc"
+        .include "data.inc"
 
 NL      = 12                    ; lines a side
 ROW0    = 12                    ; screen row of the first line
-NBOARD  = 16                    ; data.h
 FIG     = POOL + NBOARD         ; the two droids' characters
 G_D0    = POOL + 14             ; the original's $D0 and $D1
 G_D1    = POOL + 15
@@ -54,14 +53,6 @@ AMP     = 2
 SWAP    = 3
 L2      = 2 * NL
 L3      = 3 * NL
-SLOT_PANIM = 20                 ; game.h
-K_UP    = 1
-K_DOWN  = 2
-K_LEFT  = 4
-K_RIGHT = 8
-K_FIRE  = 16
-FONT0   = $C800
-FONT1   = $D800
 
         .bss
 light:  .res NL                 ; 0 yellow, 1 purple

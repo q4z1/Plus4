@@ -1,8 +1,8 @@
 ; draw.s - the picture: the window onto the deck, the figures in it, and
 ; the status panel above
 ;
-; In assembly (it was draw.c) to make room: everything the game keeps is
-; in the program. Its code and tables run at $F400 on (HICODE, with
+; In assembly, as all of the game, to make room: everything the game
+; keeps is in the program. Its code and tables run at $F400 on (HICODE, with
 ; figs.s), copied there at the start.
 
         .export _pictures_fixed, _player_picture, _board_droid, _pictures_deck
@@ -22,22 +22,10 @@
         .importzp _f_src, _p_pre, _org_x, _org_y, _fig_x, _fig_y, _fig_n
         .importzp sreg, ptr1
 
-DROID_H     = 16                ; data.h
-EXPLO_H     = 16
-NEXPLO      = 6
-NDROIDS     = 24
-SLOT_PLAYER = 0                 ; game.h
-SLOT_DROID  = 1
-NSLOT_DROID = 9
-SLOT_EXPLO  = 10
-SLOT_LASER  = 16
-SLOT_PANIM  = 20
-BOOM_GONE   = 13
+        .include "game.inc"
+        .include "data.inc"
+
 PANEL_TEXT  = $3B               ; the panel's red
-SCR0A       = $C000
-SCR0C       = $C400
-SCR1A       = $D000
-SCR1C       = $D400
 
         .bss
 _slot_of:       .res NDROIDS    ; each type's slot on this deck, 255 none

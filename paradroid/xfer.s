@@ -1,17 +1,18 @@
 ; xfer.s - the transfer game's board: how pulses pass and how a line is
-; drawn. transfer.c lays the board out and runs the game; this is what it
-; does for every line every tick, and is shorter and faster here.
+; drawn. transfer.s lays the board out and runs the game; this is what it
+; does for every line every tick.
 ;
 ; A side has 4 layers of 12 lines, a layer after the other: part[] holds
-; the parts (transfer.c), live[] whether each carries a pulse (0 or 1).
+; the parts (transfer.s), live[] whether each carries a pulse (0 or 1).
 ; Side 0 is the left, yellow; side 1 the right, purple, drawn mirrored.
 ;
 ; The board's part is in the transfer's overlay (XFERCODE, XFERDATA: kept
-; packed, unpacked into the pictures' slots by paradroid.c); the letters
+; packed, unpacked into the pictures' slots by paradroid.s); the letters
 ; and the droids' pictures (x_letter, x_picture) are always there, for
 ; the console, the title and a game's end too.
 
-        .include "build/gen/tiles.inc"
+        .include "game.inc"
+        .include "data.inc"
 
         .export _part, _live, _life, _drawn, _xmap
         .export _xs, _xr, _tcol, _blk
@@ -24,7 +25,7 @@
 NL      = 12
 ROW0    = 12                    ; screen row of the first line
 
-; the parts, as in transfer.c
+; the parts, as in transfer.s
 WIRE    = 0
 DEAD    = 1
 AMP     = 2
@@ -39,9 +40,6 @@ G_F1    = POOL + 0              ; the original's characters $F1 on:
 G_F2    = POOL + 1              ;   wires left and right,
 G_F3    = POOL + 2              ;   arrows pointing left
 G_FD    = POOL + 12             ;   and right
-
-FONT0   = $C800
-FONT1   = $D800
 
         .segment "ENGZP": zeropage
 pa0:    .res 2                  ; the line's row in both pictures:
@@ -64,7 +62,7 @@ p_to:   .res 2
 p_to2:  .res 2
 
         .segment "LOWBSS"
-; before the board is laid out, transfer.c's introduction uses the same
+; before the board is laid out, transfer.s's introduction uses the same
 ; bytes as a map of the panel's letters to characters (128 of them)
 _xmap:
 _part:  .res 2 * 4 * NL
@@ -560,10 +558,8 @@ _x_layout:
 :       rts
 
 ; ---------------------------------------------------------------------------
-; The introduction and the droids on the board (transfer.c): cells written
+; The introduction and the droids on the board (transfer.s): cells written
 ; into both pictures, characters into picture 1's set or both.
-
-PANELF  = $E000
 
         .code                   ; (always there: x_letter, x_picture)
 

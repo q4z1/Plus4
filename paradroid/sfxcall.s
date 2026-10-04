@@ -1,6 +1,6 @@
 ; sfxcall.s - starting the original's sound effects (sfx.s plays them)
 ;
-; sound(n): effect n (SFX_... in data.h) on its voice: the TED's voice 2
+; sound(n): effect n (SFX_... in data.inc) on its voice: the TED's voice 2
 ; for those on the original's channel 2 and for noise, else voice 1. A new
 ; effect on a voice takes over from the one there, as in the original.
 ;
@@ -21,11 +21,13 @@
         .import _sfx_tab
         .import _ticks, _d_energy, _transfer_mode, _player_dead, _deck
         .import _col_fig2, _frames, _draw
-        .include "sfx.inc"
+        .include "game.inc"
+        .include "data.inc"
 
-BLKC    = $E800                 ; the hum's periods in its free end
 VOL     = 6                     ; the effects' volume (sfx.s), the hum's
 HUMVOL  = 2
+HUMS    = BLKC + 160            ; the hum's periods: the block code tables'
+                                ; free end
 
         .code
 
@@ -77,13 +79,13 @@ _sfx_tick:
         ldy _deck
         php
         sei
-        lda BLKC+160,y
+        lda HUMS,y
         sta s_cn+1
-        lda BLKC+176,y
+        lda HUMS+16,y
         sta s_pe+1
         lda s_fg+1
         and #$E0
-        ora BLKC+256+160,y
+        ora HUMS+256,y
         sta s_fg+1
         lda #255                ; (the periods end it)
         sta _snd_len+1

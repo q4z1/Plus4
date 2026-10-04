@@ -622,6 +622,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
 | [startup.s](startup.s) | the start, once: everything into its place |
+| [game.inc](game.inc) | what the parts share: the keys, droids and shots, the pictures' slots, where things are in memory (the numbers from the data are in `build/gen/data.inc`, by `mkdata.py`) |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
 | [build.sh](build.sh), [run.sh](run.sh), [run-yape.sh](run-yape.sh) | building the program; starting VICE or Yape with it |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |

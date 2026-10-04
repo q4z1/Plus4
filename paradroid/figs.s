@@ -1,10 +1,10 @@
 ; figs.s - the figures into the window: figure() for one, draw_figs() for
-; the droids, their explosions and the shots (draw.c does the window and
+; the droids, their explosions and the shots (draw.s does the window and
 ; the player)
 ;
 ; A figure is at world pixel (fig_x, fig_y), its top left corner, from
 ; pre-shifted slot fig_n. Against the window (org_x, org_y: its column 0
-; and row 0, less 64, from draw.c's window()) it gives the engine's r_fig
+; and row 0, less 64, from draw.s's window()) it gives the engine's r_fig
 ; its cell, line and the slot's copy for the pixel it starts at.
 
         .export _figure, _draw_figs, _explo_col
@@ -14,10 +14,7 @@
         .import _nd, _d_boom, _d_x, _d_y, _d_type, _slot_of
         .import _s_life, _s_img, _s_x, _s_y
 
-SLOT_EXPLO  = 10                ; game.h
-SLOT_LASER  = 16
-BOOM_GONE   = 13
-MAXS        = 8
+        .include "game.inc"
 
         .segment "ENGZP": zeropage
 _fig_x: .res 2
@@ -188,8 +185,6 @@ _draw_figs:
 
 ; (here, above $F000, where there is room)
         .export _panel_frame
-SCR0A   = $C000
-SCR1A   = $D000
 
 ; panel_frame(c): the status panel's frame in colour c, as the original
 ; colours it with the border's: its rows 0, 1, 4 and 5, and in rows 2 and

@@ -1,7 +1,7 @@
 ; deck.s - the ship, its decks, doors and lifts
 ;
-; In assembly (it was deck.c) to make room: everything the game keeps is
-; in the program. The decks' colours are move.s's (deck_colours()).
+; In assembly, as all of the game, to make room: everything the game
+; keeps is in the program. The decks' colours are move.s's (deck_colours()).
 
         .export _deck, _ship, _level, _ndoor, _alert, _deck_bg
         .export _pal_deck, _pal_mc
@@ -14,13 +14,10 @@
         .import _lift_deck, _lift_bx, _lift_by, _blk_flag, _d_x, _d_y
         .importzp ptr1, ptr2
 
-NDECKS    = 16                  ; data.h
-NLIFTS    = 30
-BLK_VDOOR = 1
-BLK_HDOOR = 2
-B_CONSOLE = 8
+        .include "game.inc"
+        .include "data.inc"
+
 MAXDOOR   = 32
-DMAP      = $0400               ; the deck: 64 x 16 blocks, times 4
 
         .bss
 _deck:      .res 1              ; the deck we are on

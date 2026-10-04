@@ -41,9 +41,10 @@
         .setcpu "6502"
         .macpack longbranch
 
-        .include "build/gen/tiles.inc"   ; POOL: the first code figures get
+        .include "game.inc"
+        .include "data.inc"
 
-        .export _eng_init, _eng_show, _eng_hide, _eng_plain, _eng_dirty
+        .export _eng_init, _eng_show, _eng_plain, _eng_dirty
         .export _r_begin, _r_fig, _r_done
         .export _frames, _ready, _back
         .export _e_m0, _e_sx, _e_r, _e_blank7, _e_cutrow, _e_cutn, _e_s
@@ -89,18 +90,6 @@ KEY_ROW     = $FD30
 ; line up; it reads that from the 40 bytes after the code matrix, which are
 ; the matrix's own unused tail and the first two characters of the
 ; character set behind it - all blank.
-
-SCR0A       = $C000
-SCR0C       = $C400
-FONT0       = $C800
-SCR1A       = $D000
-SCR1C       = $D400
-FONT1       = $D800
-PANELF      = $E000
-BLKC        = $E800             ; [4][256]: codes of block row yy, at blk*4+x
-BLKA        = $EC00             ; [4][256]: their colours
-DMAP        = $0400             ; the deck: 64 x 16 blocks, each blk*4
-MCFONT      = $0800             ; the deck characters in multicolour
 
 WROW0       = 9                 ; first window row on screen (rows 6-8 the
 WROWS       = 16                ; gap under the panel, as high as the original's)
@@ -219,7 +208,7 @@ keys_hit:   .res 1
 _dbg_keys:  .res 1
 kprev:      .res 1
 
-_mus_hook:  .res 2              ; music once a picture (title.c's, music.s)
+_mus_hook:  .res 2              ; music once a picture (the title's: music.s)
 
 next_code:  .res 1
 cl_n:       .res 2
@@ -236,7 +225,6 @@ cl_row0:    .res CL_N
 cl_col1:    .res CL_N
 cl_row1:    .res CL_N
         .bss
-
 
 ; the cut row: which codes have a cut copy in this picture
 cut_tag:    .res 256
@@ -411,19 +399,6 @@ _eng_dirty:
         lda #0
         sta b_valid
         sta b_valid+1
-        rts
-
-; eng_hide: no picture, no interrupt
-_eng_hide:
-        sei
-        lda #0
-        sta TED_IRQEN
-        lda TED_IRQ
-        sta TED_IRQ
-        lda TED_SCROLLY
-        and #$EF
-        sta TED_SCROLLY
-        cli
         rts
 
 ; ===========================================================================
@@ -1550,7 +1525,7 @@ _move_droids:
         bcs @done
         lda _d_boom,x
         beq @alive
-        cmp #13                 ; BOOM_GONE in game.h
+        cmp #BOOM_GONE
         bcs @next
         inc _d_boom,x
         bne @next
@@ -1937,7 +1912,7 @@ _anim_deck:
         bpl :-
 @out:   rts
 
-; anim_plan(): once a tick on the console's deck plan (console.c), where
+; anim_plan(): once a tick on the console's deck plan (screens.s), where
 ; the original calls it about every 2.3 pictures: the energizer's symbol
 ; (block 20's) a phase every two ticks, the player's (32) every three
 PLAN_E  = 20
@@ -1975,7 +1950,7 @@ _anim_plan:
 @out:   rts
 
 ; anim_static(): the static's four characters (250-253 of picture 1's
-; set, above a picture's and the letters', terminated() in paradroid.c)
+; set, above a picture's and the letters', terminated() in paradroid.s)
 ; go round a character on, as the dots
 STATIC  = FONT1 + 250 * 8
 _anim_static:

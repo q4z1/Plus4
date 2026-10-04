@@ -4,7 +4,7 @@
 ;
 ; unpack(src): the packed bytes at src to unp_dst on. Run at $0200, where
 ; only the KERNAL's loading kept anything (copied there at the start,
-; fastinit.c). The interrupt goes on meanwhile: its zero page is its own.
+; startup.s). The interrupt goes on meanwhile: its zero page is its own.
 
         .export _unpack, _unp_dst
         .exportzp zp_bitbuf

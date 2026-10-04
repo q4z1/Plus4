@@ -8,17 +8,26 @@
 ; The game runs in ticks of three pictures, as the original does: 16.7 a
 ; second. Everything moves once a tick and a new picture is drawn.
 ;
-; In assembly (it was paradroid.c) to make room: everything the game
-; keeps is in the program.
+; All of it is assembly, to make room: everything the game keeps is in
+; the program.
 ;
 ; Files:
-;   paradroid.s  (this file) start, the main loop
+;   paradroid.s  (this file) start, the main loop, a game's end
 ;   deck.s       the ship, decks, doors
 ;   droids.s     the player, droids, shots, energy
-;   draw.s       the picture and the status panel
 ;   move.s       driving, walls, doors, the decks' colours
-;   engine.s     what has to be fast or on time
-;   lift.c, console.c, transfer.c, title.c: overlays, kept packed
+;   draw.s       the picture and the status panel (at $F400)
+;   figs.s       the figures in the window (at $F400)
+;   picture.s    the droids' pictures and the panel's letters
+;   engine.s     what has to be fast or on time: the interrupt, the window
+;   sfx.s        the sound effects' player (at $FC00); sfxcall.s starts them
+;   startup.s    the start: everything into its place, once
+;   unpack.s     unpacking what is kept packed (exodecrunch.s)
+;   game.inc     what they share; build/gen/data.inc what the data says
+; The overlays, kept packed and unpacked into the pictures' slots:
+;   screens.s    the console and the lift
+;   transfer.s   the transfer game, with xfer.s (its board)
+;   title.s      the title, with briefrows.s and music.s; the day's scores
 
         .export _main, _wait_tick, _page_end, _mc_font
         .export _ticks, _late, _top_score, _low_score, _initials
@@ -45,24 +54,8 @@
         .import pusha
         .importzp _snd_len, ptr1, ptr2
 
-        .include "build/gen/sfx.inc"
-
-K_UP      = 1                   ; game.h
-K_DOWN    = 2
-K_LEFT    = 4
-K_RIGHT   = 8
-K_FIRE    = 16
-K_STOP    = 64
-K_DIRS    = 15
-BOOM_GONE = 13
-POOL      = 141                 ; data.h
-SCR0A     = $C000               ; the pictures' colours, codes
-SCR0C     = $C400
-SCR1A     = $D000
-SCR1C     = $D400
-FONT0     = $C800
-FONT1     = $D800
-MCFONT    = $0800
+        .include "game.inc"
+        .include "data.inc"
 
         .data
 ; the day's top and worst scores and their initials (title.s takes and
@@ -209,7 +202,7 @@ add_score:
 :       rts
 
 ; ======================================================================
-; The overlays (lift.c, console.c, transfer.c, title.c): kept packed,
+; The overlays (screens.s, transfer.s, title.s): kept packed,
 ; unpacked into the pictures' slots, which are made again afterwards
 ; ======================================================================
 
@@ -758,8 +751,8 @@ s_term:     .byte "Terminated", 0
 
         .code
 
-; page_end(cd): a page in the window done with (here, title.c,
-; transfer.c, console.c): the window cleared, the deck's characters and
+; page_end(cd): a page in the window done with (here, title.s,
+; transfer.s, screens.s): the window cleared, the deck's characters and
 ; colours back, the window's colour cd
 _page_end:
         sta cd

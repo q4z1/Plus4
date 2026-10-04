@@ -17,7 +17,7 @@
 ; The walls of each block are four bits per character row, in the free end
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
-        .export _move_player, _solid_at, droid_look, d_lk, _console_near
+        .export _move_player, _solid_at, droid_look, d_lk
         .export _deck_colours, _colour_blocks, _bw
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
@@ -25,18 +25,10 @@
         .import _ndoor, _door_x, _door_y, _door_v, _door_s
         .import _blk_set, _bs_x, _bs_y, _bs_v
 
-DMAP    = $0400
-BLK_VDOOR = 1                   ; data.h: a door shut, up and down / across
-BLK_HDOOR = 2
-BLK_VOPEN = 32                  ; .. its four stages of opening
-BLK_HOPEN = 36
-BLKS    = $E800 + 192           ; [4][256] at block: its row's wall bits
+        .include "game.inc"
+        .include "data.inc"
 
-K_UP    = 1
-K_DOWN  = 2
-K_LEFT  = 4
-K_RIGHT = 8
-K_FIRE  = 16
+BLKS    = $E800 + 192           ; [4][256] at block: its row's wall bits
 
         .segment "ENGZP": zeropage
 c_p:    .res 2                  ; the block's place in DMAP
@@ -355,7 +347,7 @@ droid_look:
         asl a
         tay
         lda cx                  ; only on the screen or about to be, where
-        lsr a                   ; the doors open (deck.c, doors()): its
+        lsr a                   ; the doors open (doors(), here): its
         lsr a                   ; block against the player's (cx, cy, as
         sta n3                  ; move_player left them) - looked at first,
         lda _d_x+1,y            ; as most droids are farther
@@ -443,79 +435,6 @@ droid_look:
 @wall:  lda #2
         sta _d_wait,x
         sec
-        rts
-
-; console_near(): a console within five blocks across and three up or down
-; of the player: one may be used soon (paradroid.c starts the drive's motor
-; for it, which takes two seconds; the player walks three blocks a second)
-_console_near:
-        lda _d_x+1              ; the player's block, less 5 and 3
-        asl a
-        asl a
-        asl a
-        sta tx
-        lda _d_x
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        ora tx
-        sec
-        sbc #5
-        sta tx
-        lda _d_y+1
-        asl a
-        asl a
-        asl a
-        sta ty
-        lda _d_y
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        ora ty
-        sec
-        sbc #3
-        sta ty
-        lda #7
-        sta n3
-@row:   lda #0                  ; the row in DMAP
-        sta c_p
-        lda ty
-        and #15
-        lsr a
-        ror c_p
-        lsr a
-        ror c_p
-        clc
-        adc #>DMAP
-        sta c_p+1
-        lda tx
-        sta c_q
-        ldx #11
-@col:   lda c_q
-        and #63
-        tay
-        lda (c_p),y
-        lsr a
-        lsr a
-        tay
-        lda _blk_flag,y
-        and #8                  ; B_CONSOLE
-        bne @yes
-        inc c_q
-        dex
-        bne @col
-        inc ty
-        dec n3
-        bne @row
-        lda #0
-        tax
-        rts
-@yes:   lda #1
-        ldx #0
         rts
 
 ; solid_at(x, y): a wall at world pixel (x, y)
@@ -936,11 +855,6 @@ _blk_at:
         .import _alert, _deck_bg, _col_border, _eng_dirty, _panel_frame
         .import _tile_cls, _deck
 
-BLKC    = $E800
-CLS_HR  = $EAA0                 ; game.h: the scheme's TED colours, by
-CLS_MC  = $EAB0                 ; class, hires and multicolour-safe
-BLKA    = $EC00
-
 ; deck_colours(): the deck's own scheme, scheme 7 when its droids are
 ; gone, scheme 0 in black and white (as the original's $27FB); class 0
 ; the window's background, class 3 the border's and the panel frame's;
@@ -1008,7 +922,7 @@ _colour_blocks:
         sta BLKA + R * 256,x
         .endrepeat
         inx
-        cpx #40 * 4             ; the blocks' (NBLK): from 160 on are
+        cpx #NBLK * 4           ; the blocks': from 160 on are
         bne @b                  ; tables (startup.s, mkdata.py's XT1-XT4)
         rts
 

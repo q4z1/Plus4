@@ -211,7 +211,7 @@ rows = [codes[y * 64 + 3:y * 64 + 43] for y in range(13)]
 t = ['# The side view of the ship the lifts show: 13 rows of 40 screen codes',
      '# from screen row 9 down (00: outside the ship). Then for each deck its',
      '# box: screen row, column, rows, columns; its codes are lit as the',
-     '# original does (lift.c). Then the shafts: column, first screen row,',
+     '# original does (screens.s). Then the shafts: column, first screen row,',
      '# rows. Then the characters $80-$AF with their C64 colour; 8 or more',
      '# means multicolour.', '']
 for r in rows:

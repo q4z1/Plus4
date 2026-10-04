@@ -3,7 +3,7 @@
 ; For the transfer's introduction, the console's droid enquiry, the
 ; title's start page and a game's end (xfer.s draws them: x_letter,
 ; x_picture). The pictures are kept packed in the program
-; (tools/mkdata.py). In assembly (it was picture.c) to make room.
+; (tools/mkdata.py).
 
         .export _unit_name, _say, _picture, _pic_pages, _pic_late, _pic_until
         .export _pic_text
@@ -15,12 +15,12 @@
         .import pusha, popa
         .importzp ptr1, ptr2
 
-FONT1   = $D800
-        .include "build/gen/tiles.inc"   ; PIC_GFX_RAW, PIC_TXT_RAW
+        .include "game.inc"
+        .include "data.inc"
+
 ; the streams unpacked into the end of the pictures' slots (23 of 512)
 PICBUF_G = _pre + 23 * 512 - PIC_GFX_RAW
 PICBUF_T = _pre + 23 * 512 - PIC_TXT_RAW
-
 
         .bss
 _pic_pages: .res 2              ; the console's pages about the droid

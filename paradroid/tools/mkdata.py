@@ -3,11 +3,14 @@
 mkdata.py - the text files in data/ as tables for the program
 
 Writes build/gen/:
-  tiles.inc   POOL, the first character code figures may use, and the
-              sizes the code needs (picture streams, the title's picture)
-  data.h      the same as C definitions (a summary: no C is left)
+  data.inc    the numbers the code needs from the data: POOL, the first
+              character code figures may use, counts and sizes, the sound
+              effects' numbers (SFX_...), where page 4's scores go
   data.s      the tables, some packed by exomizer (decks, pictures, the
               explosion's and lasers' figures)
+  brief.s     the title's: the briefing, the logo, the scores page's
+              picture, the title's sound effects
+  console.s   the console's and lift's: their pages and pictures
 
 The deck characters are numbered afresh: 0 and 1 are blank (engine.s needs
 the first 16 bytes of each character set empty), the others follow in the
@@ -230,16 +233,6 @@ def droid_rows(num):
     return [''.join(r) for r in pic]
 
 
-# the deck plan's characters (console.c), hires, '#' set
-XFER = {
-    'blank':  ['........'] * 8,
-    'wire':   ['........', '........', '........', '########', '########', '........', '........', '........'],
-    'socket': ['........', '..####..', '.#....#.', '.#.####.', '.#.####.', '.#....#.', '..####..', '........'],
-    'light':  ['.######.', '########', '########', '########', '########', '########', '########', '.######.'],
-    'lift':   ['..####..', '.#.##.#.', '#..##..#', '########', '########', '#..##..#', '.#.##.#.', '..####..'],
-}
-XFER_ORDER = ['blank', 'wire', 'socket', 'light', 'lift']
-
 # the transfer game's, the original's: $F1-$FE, $D0, $D1 (transfer.txt);
 # black is %01 on the Plus/4, where the C64 has it at %10
 board = []
@@ -268,7 +261,8 @@ for l in stxt.split('\n'):
 for m in re.finditer(r'char ([0-9a-f]{2}) col=(\d+)\n((?:[.#]{8}\n){8})', stxt):
     side_chars[int(m.group(1), 16)] = (int(m.group(2)),
         [int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(3).split()])
-SIDE_BASE = len(XFER_ORDER)             # after the transfer game's, in the pool
+SIDE_BASE = 5                           # its first code in the pool (from 5,
+                                        # where an older board's five were)
 NSIDE = 0x30                            # codes $80-$AF
 assert POOL + SIDE_BASE + NSIDE <= 256
 # the map from its second row (the first is empty), as runs: code, count
@@ -299,7 +293,7 @@ def swap_mc(b):
 # sprites' pixels stays hires. A file: the characters, then rows x 6 cells
 # (0 none, else the character's number from 1, +$80 hires), then the number
 # of characters, rows, and the two C64 colours. It is loaded to character 1
-# of picture 1's set (transfer.c), its end found from its length.
+# of picture 1's set (transfer.s), its end found from its length.
 # The original's sprite starts 6 lines into the row under the heading;
 # here a picture starts at the next row's top (2 lines lower): the
 # heading's letters are two rows tall, their lower halves in that row, and
@@ -345,7 +339,7 @@ for n, pic in enumerate(pics):
     pic['head'] = len(pic['data']) - 4
     assert len(chars) < 90 and nrow <= 12, (n, len(chars), nrow)
 
-# --- the deck plan (console.c, an overlay) ---------------------------------------
+# --- the deck plan (screens.s, an overlay) ---------------------------------------
 # The original's plan characters: code = block number, $A0 the player, all
 # hires. Their C64 colours alongside.
 plan_font, plan_col = [], []
@@ -354,7 +348,7 @@ for m in re.finditer(r'char ([0-9a-f]{2}) col=(\d+)\n((?:[.#]{8}\n){8})', read('
     plan_col.append(int(m.group(2)))
 assert len(plan_col) == 33
 
-# --- the console's menu (console.c) ------------------------------------------------
+# --- the console's menu (screens.s) ------------------------------------------------
 # Its four symbols, the original's hires sprites (icons.txt), as hires
 # characters: per symbol its column, row, width and height in cells, then
 # its cells (0 none, else the character's number from 1).
@@ -389,7 +383,7 @@ decknames = ['deck %d' % d for d in range(16)]
 if os.path.exists(os.path.join(DATA, 'decknames.txt')):
     decknames = lines('decknames.txt')
 
-# --- the title's logo (title.c) ------------------------------------------------------
+# --- the title's logo (title.s) ------------------------------------------------------
 # The original's PARADROID over the whole screen (logo.txt): its characters
 # numbered from 0 (the blank one) in the order met, each with its C64
 # colour (a character always has the same one), and the 1000 cells as
@@ -515,7 +509,7 @@ for page in brief:
         for pc in t:
             letter_of.setdefault((bglyph(pc), bglyph(pc | 0x80)), len(letter_of))
 # all digits and capitals too, for the day's scores and their initials,
-# which title.c writes into page 4
+# which title.s writes into page 4
 def letters_of(text):
     return [letter_of.setdefault((bglyph(pc), bglyph(pc | 0x80)), len(letter_of))
             for pc in txt_codes(text)]
@@ -621,8 +615,8 @@ def pack(data):
 
 
 # the decks' colours (colours.txt): each character's colour class, and
-# per scheme the colour of classes 0-11, 12 a scheme (deck.c sets 14 and
-# 15; 12 and 13 no character has), and each deck's scheme (deck.c,
+# per scheme the colour of classes 0-11, 12 a scheme (move.s sets 14 and
+# 15; 12 and 13 no character has), and each deck's scheme (move.s,
 # deck_colours())
 ctxt = read('colours.txt')
 cclass = [int(ch, 16) for l in ctxt.split('\n') if l.startswith('class ') for ch in l[6:]]
@@ -632,7 +626,7 @@ schemes = []
 for m in re.finditer(r'^scheme \d+ (.*)$', ctxt, re.M):
     schemes += [int(x, 16) for x in m.group(1).split()]
 assert len(schemes) == 8 * 12
-assert cfixed[3] == 14 and not {12, 13} & set(cclass)    # (deck.c)
+assert cfixed[3] == 14 and not {12, 13} & set(cclass)    # (move.s)
 tile_cls = [0] * POOL
 for c, ours in code_of.items():
     if ours:
@@ -715,7 +709,7 @@ offs = []
 for r in deck_rle:
     offs.append(len(allrle))
     allrle += r
-# packed: deck.c unpacks them all when a deck is entered (into the droid
+# packed: deck.s unpacks them all when a deck is entered (into the droid
 # types' slots, which are made again then), and takes its own
 emit('deck_pk', pack(allrle))
 emit_at('XT4', 'deck_off', [b for o in offs for b in (o & 255, o >> 8)])
@@ -757,7 +751,7 @@ for g in DIGITS:
 emit('digit_bits', dg)
 # lasers and explosion from the original's sprites (24 x 21), as 12
 # multicolour pixels by 16 lines. The explosion's black stays black (%01),
-# its yellow and orange are the cells' own colour (%11), which draw.c sets:
+# its yellow and orange are the cells' own colour (%11), which draw.s sets:
 # yellow, then orange as it dies down. The lasers' hires pixels become
 # light ones (%10), and as their bolts are thin, not every pair with a
 # pixel set: a run of n hires pixels gets (n + 1) / 2 multicolour pixels
@@ -846,7 +840,7 @@ for c in range(0x80, 0x80 + NSIDE):
         g = [swap_mc(b) for b in g]
     sf += g
     scol.append(col)
-# (in the console's and lift's overlay, kept packed: console.c, lift.c)
+# (in the console's and lift's overlay, kept packed: screens.s)
 s.append('        .segment "CONDATA"')
 emit('side_font', sf)
 emit('side_col', scol)
@@ -857,17 +851,13 @@ emit('shaft_top', [x[1] for x in shafts])
 emit('shaft_len', [x[2] for x in shafts])
 s.append('        .rodata')
 
-xf = []
-for name in XFER_ORDER:
-    xf += [int(r.replace('.', '0').replace('#', '1'), 2) for r in XFER[name]]
-# (in the transfer's overlay, kept packed: transfer.c, xfer.s)
+# (in the transfer's overlay, kept packed: transfer.s, xfer.s)
 s.append('        .segment "XFERDATA"')
-emit('xfer_font', xf)
 emit('board_font', board)
 s.append('        .rodata')
 
 # Used once at the start, then overwritten: the pre-shifted pictures
-# (draw.c) start where these are, 23 slots of 512 bytes. The start makes
+# (draw.s) start where these are, 23 slots of 512 bytes. The start makes
 # the explosions' and lasers' slots (10 on) before it is done with these.
 PRE_SLOTS = 23
 s.append('        .segment "INITDATA"')
@@ -877,7 +867,8 @@ init = (('tile_font', sum(glyphs, [])), ('blk_code', bc), ('panel_font', pfont),
 for name, data in init:
     exports.append(name)
     s.append(asm_bytes(name, data))
-# fastinit.c and the drive code are in INITDATA too (build.sh says how much)
+# the code used once at the start is in INITDATA too, and the code copied
+# elsewhere then (build.sh says how much)
 init_size = (sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0)) + xt_size
              )
 assert init_size <= PRE_SLOTS * 512, init_size
@@ -890,10 +881,8 @@ exports.append('pre')
 
 s.insert(2, '\n'.join('        .export _%s' % e for e in exports) + '\n')
 open(os.path.join(GEN, 'data.s'), 'w').write('\n'.join(s))
-open(os.path.join(GEN, 'sfx.inc'), 'w').write(
-    ''.join('SFX_%s = %d\n' % (n.upper(), i) for i, n in enumerate(sfx_names)))
 
-# into the console's and lift's overlay (console.c), kept packed
+# into the console's and lift's overlay (screens.s), kept packed
 c = ['; made by tools/mkdata.py - do not edit',
      '        .segment "CONDATA"', '        .export _plan_font, _plan_cls']
 c.append(asm_bytes('plan_font', plan_font))
@@ -925,43 +914,30 @@ b.append(asm_bytes('mus_tab', mus_tab))
 open(os.path.join(GEN, 'brief.s'), 'w').write('\n'.join(b) + '\n')
 
 
-h = ['/* made by tools/mkdata.py - do not edit */',
-     '#define POOL %d' % POOL,
-     '#define NBLK %d' % NBLK,
-     '#define NDECKS %d' % len(decks),
-     '#define NLIFTS %d' % len(lifts),
-     '#define NDROIDS %d' % len(droids),
-     '#define DROID_H %d' % len(DROID),
-     '#define EXPLO_H 16', '#define NEXPLO 6',
-     '#define B_SOLID 1', '#define B_DOOR 2', '#define B_LIFT 4',
-     '#define B_CONSOLE 8', '#define B_ENERGY 16',
-     '#define BLK_VDOOR 1', '#define BLK_HDOOR 2',
-     '#define BLK_VOPEN 32', '#define BLK_HOPEN 36',
-     '#define NXFER %d' % len(XFER_ORDER), '#define NBOARD %d' % NBOARD, '#define PRE_SLOTS 23',
-     '#define BRIEF_SIZE %d' % BRIEF_SIZE, '#define NBRIEF %d' % NBRIEF] + \
-    ['#define X_%s %d' % (n.upper(), i) for i, n in enumerate(XFER_ORDER)] + \
-    ['#define NSIDE %d' % NSIDE, '#define SIDE_BASE %d' % SIDE_BASE] + \
-    ['#define SFX_%s %d' % (n.upper(), i) for i, n in enumerate(sfx_names)] + \
-    ['']
-for e in exports:
-    if e == 'deck_off':
-        h.append('extern const unsigned deck_off[];')
-    elif e == 'pre':
-        h.append('extern unsigned char pre[];')
-    else:
-        h.append('extern const unsigned char %s[];' % e)
-h.append('/* in the console\'s overlay (console.s) */')
-h += ['#define ICON_N %d' % ICON_N, '#define ICON_CODE 1',
-      '#define DECK_NAMES ' + ', '.join('"%s"' % n for n in decknames)]
-h.append('/* in the title\'s overlay (brief.s) */')
-h.append('extern const unsigned char brief_srcs[], brief_top[], brief_bot[], brief_pages[];')
-h.append('extern const unsigned char brief_dig[], brief_cap[], brief_misc[];')
-h.append('extern const unsigned char logo_font[], logo_col[], logo_rle[];')
-h += ['#define SCORE_TOP_AT %d' % score_at[0], '#define SCORE_LOW_AT %d' % score_at[1],
-      '#define NLOGO %d' % len(lorder), '#define LOGO_BG %d' % LOGO_BG]
-open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
-open(os.path.join(GEN, 'tiles.inc'), 'w').write(
-    'POOL = %d\nENERGY_CHAR = %d\nDOT_CHAR = %d\n' % (POOL, code_of[0x14], code_of[0x4C])
-    + 'PIC_GFX_RAW = %d\nPIC_TXT_RAW = %d\nTITLE_PIC_HEAD = %d\n'
-    % (PIC_GFX_RAW, PIC_TXT_RAW, len(title_pic) - 4))
+inc = ['; made by tools/mkdata.py - do not edit',
+       'POOL = %d' % POOL,
+       'ENERGY_CHAR = %d' % code_of[0x14],
+       'DOT_CHAR = %d' % code_of[0x4C],
+       'NBLK = %d' % NBLK,
+       'NDECKS = %d' % len(decks),
+       'NLIFTS = %d' % len(lifts),
+       'NDROIDS = %d' % len(droids),
+       'DROID_H = %d' % len(DROID),
+       'EXPLO_H = 16', 'NEXPLO = 6',
+       'B_SOLID = 1', 'B_DOOR = 2', 'B_LIFT = 4', 'B_CONSOLE = 8', 'B_ENERGY = 16',
+       'BLK_VDOOR = 1', 'BLK_HDOOR = 2',     # a door shut, up and down / across,
+       'BLK_VOPEN = 32', 'BLK_HOPEN = 36',   # and its four stages of opening
+       'NBOARD = %d' % NBOARD, 'PRE_SLOTS = %d' % PRE_SLOTS,
+       'PIC_GFX_RAW = %d' % PIC_GFX_RAW, 'PIC_TXT_RAW = %d' % PIC_TXT_RAW,
+       'TITLE_PIC_HEAD = %d' % (len(title_pic) - 4),
+       'BRIEF_SIZE = %d' % BRIEF_SIZE, 'NBRIEF = %d' % NBRIEF] + \
+    ['NSIDE = %d' % NSIDE, 'SIDE_BASE = %d' % SIDE_BASE,
+     'ICON_N = %d' % ICON_N, 'ICON_CODE = 1',
+     'SCORE_TOP_AT = %d' % score_at[0], 'SCORE_LOW_AT = %d' % score_at[1],
+     'NLOGO = %d' % len(lorder), 'LOGO_BG = %d' % LOGO_BG] + \
+    ['SFX_%s = %d' % (n.upper(), i) for i, n in enumerate(sfx_names)]
+open(os.path.join(GEN, 'data.inc'), 'w').write('\n'.join(inc) + '\n')
+for old in ('data.h', 'tiles.inc', 'sfx.inc'):          # (made before)
+    if os.path.exists(os.path.join(GEN, old)):
+        os.remove(os.path.join(GEN, old))
 print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes, pictures up to %d' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE, pic_max))

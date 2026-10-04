@@ -30,7 +30,7 @@ for pages in grab.values():
 t = ['# The console\'s pages about each droid type, as the original shows them',
      '# (tools/console.py): per type its pages, each line as screen row,',
      '# column and text. The first page has the picture and the unit line',
-     '# only, which console.c writes itself.', '']
+     '# only, which screens.s writes itself.', '']
 for n in sorted(out):
     t.append('type %d' % n)
     for pg in out[n]:

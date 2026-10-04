@@ -19,7 +19,7 @@
         .import _mus_tab, _mus_hook, _sound
         .importzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h, s_vol
         .importzp _snd_len
-        .include "sfx.inc"
+        .include "data.inc"
 
 TED_SOUND   = $FF11             ; 0-3 volume, 4 voice 1, 5 voice 2, 6 noise
 TED_HPOS    = $FF1E             ; (the beam's column: a seed)

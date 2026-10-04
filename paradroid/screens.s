@@ -2,8 +2,7 @@
 ;
 ; An overlay, kept packed in the program and unpacked into the pictures'
 ; slots when fire is held at a console or on a lift (paradroid.s), which
-; are made again afterwards. In assembly (it was console.c and lift.c) to
-; make room.
+; are made again afterwards.
 ;
 ; The console: a page with the host's unit and the ship, deck and alert,
 ; and a menu of four symbols beside it. Up and down choose, fire takes the
@@ -43,32 +42,10 @@
         .import pusha
         .importzp ptr1, ptr2
 
-        .include "build/gen/tiles.inc"   ; POOL
-        .include "build/gen/sfx.inc"
+        .include "game.inc"
+        .include "data.inc"
 
-K_UP      = 1                   ; game.h
-K_DOWN    = 2
-K_LEFT    = 4
-K_RIGHT   = 8
-K_FIRE    = 16
-ICON_N    = 51                  ; data.h
-ICON_CODE = 1
-NSIDE     = 48
-SIDE_BASE = 5
-NLIFTS    = 30
-BLK_VDOOR = 1
-BLK_HDOOR = 2
-BLK_VOPEN = 32
-BLK_HOPEN = 36
 SIDE      = POOL + SIDE_BASE - $80  ; screen code of original code c: c + SIDE
-CLS_HR    = $EAA0               ; the scheme's colour of each class
-DMAP      = $0400
-SCR0A     = $C000
-SCR0C     = $C400
-SCR1A     = $D000
-SCR1C     = $D400
-FONT0     = $C800
-FONT1     = $D800
 
         .bss
 k:      .res 1                  ; the keys now and the tick before

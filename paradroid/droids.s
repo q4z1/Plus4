@@ -6,8 +6,8 @@
 ; by one every 128, 64, 32 or 16 ticks, by the host's class. When it
 ; reaches nothing, so does he.
 ;
-; In assembly (it was droids.c) to make room: everything the game keeps
-; is in the program. The droids' ways are engine.s's, the player's drive,
+; In assembly, as all of the game, to make room: everything the game
+; keeps is in the program. The droids' ways are engine.s's, the player's drive,
 ; walls, doors and bumps move.s's.
 
         .export _nd, _d_type, _d_x, _d_y, _d_vx, _d_vy, _d_energy, _d_boom
@@ -23,17 +23,8 @@
         .import _ship, _deck, _level, _tick
         .import _wp_first, _wp_x, _wp_y, _dr_class, _dr_weapon, _blk_flag
 
-        .include "build/gen/sfx.inc"
-
-MAXD      = 13                  ; game.h
-MAXS      = 8
-BOOM_GONE = 13
-B_ENERGY  = 16
-K_UP      = 1
-K_DOWN    = 2
-K_LEFT    = 4
-K_RIGHT   = 8
-K_FIRE    = 16
+        .include "game.inc"
+        .include "data.inc"
 
         .bss
 _nd:            .res 1          ; droids on this deck, 0 = player

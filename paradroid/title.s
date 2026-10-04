@@ -19,8 +19,6 @@
 ; brief_top[k] over brief_bot[k]. A page is rolled up through the window
 ; a line of pixels at a time, the way the deck scrolls: picture 1's
 ; character set holds the briefing's, and both pictures show it.
-;
-; In assembly (it was title.c) to make room.
 
         .export _title_run, _title_scores
 
@@ -38,30 +36,14 @@
         .import pusha
         .importzp _br_p, sreg, ptr1, ptr2
 
-        .include "build/gen/tiles.inc"   ; POOL, TITLE_PIC_HEAD
+        .include "game.inc"
+        .include "data.inc"
 
-K_UP        = 1                 ; game.h
-K_DOWN      = 2
-K_LEFT      = 4
-K_RIGHT     = 8
-K_FIRE      = 16
-NBRIEF      = 134               ; data.h
-NLOGO       = 51
-LOGO_BG     = 15
-SCORE_TOP_AT = 3653
-SCORE_LOW_AT = 3700
 SCORE_CELLS = 17                ; a score's line: the original's room for
                                 ; the number and initials
 PIC_ROW     = 2                 ; the scores page's picture: its first row
 TED_SCROLLY = $FF06
 TED_BORDER  = $FF19
-SCR0A       = $C000
-SCR0C       = $C400
-SCR1A       = $D000
-SCR1C       = $D400
-FONT0       = $C800
-FONT1       = $D800
-PANELF      = $E000
 
         .segment "OVLDATA"
 ; (in the overlay: these start from these values each title)
