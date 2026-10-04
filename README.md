@@ -51,6 +51,7 @@ Each folder has a README of its own with the details.
 | **cc65** | C compiler, assembler and linker for 6502 targets (`cl65 -t plus4`) |
 | **VICE** (`xplus4`) | Plus/4 emulator, also used for source-level debugging |
 | **VS64** | VS Code extension that drives cc65 and VICE and provides breakpoints |
+| **plus4emu** | Another Plus/4 emulator to check against, see [below](#other-emulators) |
 
 Both cc65 and VICE are expected under `~/.local/share/cc65-vs64/bin`. On this machine
 VS Code runs as a Flatpak while cc65 and VICE are host packages, so that directory
@@ -100,6 +101,31 @@ $BIN/xplus4 -autostartprgmode 1 pacman/build/pacman.prg
 ```
 
 Two steps on purpose: `cl65` otherwise drops the object file next to the source.
+
+### Other emulators
+
+VICE is not the last word on the TED, so a program can be checked in
+[plus4emu](https://github.com/istvan-v/plus4emu) too (a PAL Plus/4 with 64 KB).
+There is no package for it; the prebuilt Linux release goes to `~/.cache/plus4emu`:
+
+```sh
+mkdir -p ~/.cache/plus4emu && cd ~/.cache/plus4emu
+curl -LO https://github.com/istvan-v/plus4emu/releases/download/1.2.11-beta_20190320/plus4emu-1.2.11-beta_20190320-x86_64.tar.xz
+tar xf plus4emu-*.tar.xz
+mkdir -p ~/.plus4emu/roms && cp plus4emu-*/roms/*.rom ~/.plus4emu/roms/
+plus4emu-*/p4makecfg ~/.plus4emu
+```
+
+Then, for any `.prg`:
+
+```sh
+~/.cache/plus4emu/plus4emu-1.2.11-beta_20190320/plus4emu \
+    -cfg ~/.plus4emu/config/P4_64k_PAL.cfg paradroid/build/paradroid.prg
+```
+
+or, for Paradroid, [paradroid/run-plus4emu.sh](paradroid/run-plus4emu.sh), which
+also works from VS Code's Flatpak. The joystick is the keypad (8/2/4/6, 0 fires)
+or a gamepad.
 
 ## Adding a program
 
