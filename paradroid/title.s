@@ -22,7 +22,7 @@
 ;
 ; In assembly (it was title.c) to make room.
 
-        .export _title_run
+        .export _title_run, _title_scores
 
         .import _wait_tick, _keys_irq, _eng_keys, _frames, _ready, _back
         .import _eng_plain, _win_clear, _r_done, _panel_status, _panel_frame
@@ -32,15 +32,18 @@
         .import _col_deck, _col_panel, _col_border, _col_fig2, _font_hi
         .import _panel_hi, _win_mc, _e_sx, _e_cutrow, _e_s
         .import _x_attr, _x_row, _x_col, _pal_deck, _pal_mc
-        .import _top_score, _low_score
-        .import _brief_srcs, _brief_pages, _brief_dig, _brief_misc
+        .import _top_score, _low_score, _initials, _score, _x_code, _xmap
+        .import _brief_srcs, _brief_pages, _brief_dig, _brief_misc, _brief_cap
         .import _logo_font, _logo_col, _logo_rle, _title_pic
         .import pusha
         .importzp _br_p, sreg, ptr1, ptr2
 
         .include "build/gen/tiles.inc"   ; POOL, TITLE_PIC_HEAD
 
-K_DOWN      = 2                 ; game.h
+K_UP        = 1                 ; game.h
+K_DOWN      = 2
+K_LEFT      = 4
+K_RIGHT     = 8
 K_FIRE      = 16
 NBRIEF      = 134               ; data.h
 NLOGO       = 51
@@ -119,6 +122,19 @@ lines_row:  .byte 12, 14, 16, 18, 20
 lines_col:  .byte 10, 9, 9, 9, 9
 lines_lo:   .byte <s_l1, <s_l2, <s_l3, <s_l4, <s_l5
 lines_hi:   .byte >s_l1, >s_l2, >s_l3, >s_l4, >s_l5
+; the day's scores taken: the original's words ($E714-$E75B)
+s_great:    .byte "Great Score!", 0
+s_lowest:   .byte "Lowest Score of the Day!", 0
+s_enter:    .byte "Please enter your initials -", 0
+s_dots:     .byte "...", 0
+ib:         .byte 0             ; the initials': 0 the top score's, 3 the worst's
+in_n:       .byte 0             ; how many taken
+in_l:       .byte 0             ; the one shown: A-Z 0-25, 26 a space
+in_mark:    .byte 0             ; x_code before it
+in_t:       .byte 0
+in_buf:     .res 5
+sc:         .byte 0
+sd:         .byte 0
 
         .segment "OVLCODE"
 
@@ -529,9 +545,9 @@ times40:
         sta off
         rts
 
-; score_line(): the day's score at ptr1 (its four bytes) into page 4's
-; line at off: the number in the middle of the line, without the
-; original's initials
+; score_line(): the day's score at ptr1 (its four bytes) and its
+; initials (from initials + ib) into page 4's line at off, as the
+; original's: the number to the right of eight cells, " - ", the initials
 score_line:
         ldy #2                  ; its four bytes for num_text(): the high
         lda (ptr1),y            ; two in sreg
@@ -561,25 +577,205 @@ score_line:
 :       sta (ptr1),y
         dey
         bpl :-
-        lda #SCORE_CELLS        ; from (cells - n) / 2 on
+        lda #8                  ; the digits from 8 - n on
         sec
         sbc _num_len
-        lsr a
-        clc
-        adc ptr1
-        sta ptr1
-        bcc :+
-        inc ptr1+1
-:       ldy #0
-:       lda (ptr2),y
-        beq :+
+        sta sc
+        ldy #0
+@dig:   lda (ptr2),y
+        beq @dash
         and #$0F
         tax
         lda _brief_dig,x
+        sty sd
+        ldy sc
+        sta (ptr1),y
+        inc sc
+        ldy sd
+        iny
+        bne @dig
+@dash:  ldy #9
+        lda _brief_misc+1
+        sta (ptr1),y
+        ldy #11                 ; the initials, two cells each (a space
+        ldx ib                  ; two spaces)
+@ini:   stx sd
+        lda _initials,x
+        cmp #26
+        bcs :+
+        asl a
+        tax
+        lda _brief_cap,x
         sta (ptr1),y
         iny
+        lda _brief_cap+1,x
+        sta (ptr1),y
+        dey
+:       iny
+        iny
+        ldx sd
+        inx
+        cpy #SCORE_CELLS
+        bcc @ini
+        rts
+
+; title_scores(): after a game, "Transmission terminated" still up: its
+; score the day's top or worst, if it is, as the original's ($E4E5):
+; "Great Score!" or "Lowest Score of the Day!" over "Transmission",
+; "Please enter your initials -" over "Terminated", and three initials
+; taken, each from A on: the stick steps through A-Z and a space (up or
+; left back, down or right on), fire takes it
+_title_scores:
+        ldx #3                  ; score > top_score: the top score
+@top:   lda _score,x            ; (compared from the high byte down)
+        cmp _top_score,x
+        bne :+
+        dex
+        bpl @top
+        bmi @low                ; (the same)
+:       bcc @low
+        ldx #3
+:       lda _score,x
+        sta _top_score,x
+        dex
+        bpl :-
+        lda #0
+        ldx #13
+        ldy #<s_great
+        jmp @take
+@low:   ldx #3                  ; score < low_score: the worst
+@lw:    lda _score,x
+        cmp _low_score,x
+        bne :+
+        dex
+        bpl @lw
+        rts
+:       bcc :+
+        rts
+:       ldx #3
+:       lda _score,x
+        sta _low_score,x
+        dex
+        bpl :-
+        lda #3
+        ldx #5
+        ldy #<s_lowest
+@take:  sta ib
+        stx _x_col
+        lda #10
+        sta _x_row
+        tya
+        ldx #>s_great           ; (both in one page: see the assert)
+        jsr _say
+        lda #22
+        sta _x_row
+        lda #1
+        sta _x_col
+        lda #<s_enter
+        ldx #>s_enter
+        jsr _say
+        lda #31                 ; the dots first: their characters stay
+        sta _x_col
+        lda #<s_dots
+        ldx #>s_dots
+        jsr _say
+        lda #0
+        sta in_n
+:       lda _keys_irq           ; (fire still held from the game: let go)
+        and #K_FIRE
         bne :-
+@next:  lda _x_code
+        sta in_mark
+        lda #0
+        sta in_l
+@show:  ldx #0                  ; the characters the last one shown took
+:       lda _xmap,x             ; made free again
+        cmp in_mark
+        bcc :+
+        lda #0
+        sta _xmap,x
+:       inx
+        bne :--
+        lda in_mark
+        sta _x_code
+        ldy #0                  ; the line: those taken, this one, dots,
+@ch:    cpy in_n                ; and a space after them for what a wider
+        beq @cur                ; one left
+        bcs @dot
+        tya
+        clc
+        adc ib
+        tax
+        lda _initials,x
+        jmp @lt
+@cur:   lda in_l
+@lt:    cmp #26
+        bcc :+
+        lda #$20
+        bne @put
+:       adc #$C1                ; (carry clear): A-Z
+        bne @put
+@dot:   lda #$2E
+@put:   sta in_buf,y
+        iny
+        cpy #3
+        bne @ch
+        lda #$20
+        sta in_buf+3
+        lda #0
+        sta in_buf+4
+        lda #22
+        sta _x_row
+        lda #31
+        sta _x_col
+        lda #<in_buf
+        ldx #>in_buf
+        jsr _say
+        lda _frames             ; 8 pictures, as the original's wait
+        clc
+        adc #8
+        sta in_t
+:       lda _frames
+        cmp in_t
+        bne :-
+        lda _keys_irq
+        tay
+        and #K_FIRE
+        bne @fire
+        tya
+        and #K_UP | K_LEFT
+        beq :+
+        dec in_l
+        bpl @agn
+        lda #26
+        sta in_l
+        bne @agn
+:       tya
+        and #K_DOWN | K_RIGHT
+        beq @agn
+        inc in_l
+        lda in_l
+        cmp #27
+        bcc @agn
+        lda #0
+        sta in_l
+@agn:   jmp @show
+@fire:  lda in_n
+        clc
+        adc ib
+        tax
+        lda in_l
+        sta _initials,x
+:       lda _keys_irq
+        and #K_FIRE
+        bne :-
+        inc in_n
+        lda in_n
+        cmp #3
+        beq :+
+        jmp @next
 :       rts
+        .assert >s_great = >s_lowest, error, "s_great and s_lowest in two pages"
 
 ; brief(): page bn of the briefing, rolled up, on bg_ in letters b_fg,
 ; the border bd_; page 4 has the picture; A 1 if fire ended it
@@ -670,6 +866,8 @@ brief:  lda _col_deck
         sta off
         lda #>SCORE_TOP_AT
         sta off+1
+        lda #0
+        sta ib
         jsr score_line
         lda #<_low_score
         sta ptr1
@@ -679,6 +877,8 @@ brief:  lda _col_deck
         sta off
         lda #>SCORE_LOW_AT
         sta off+1
+        lda #3
+        sta ib
         jsr score_line
 @nopic: lda bg_
         sta _col_deck

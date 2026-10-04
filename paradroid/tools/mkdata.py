@@ -670,8 +670,9 @@ for yy in range(4):
 # voice 2 has) and noise (7), and the pictures it sounds: until the period
 # ends, or the gate and half the release (the TED has no envelope). The
 # deck's hum's periods go into the block code tables' free end (row 0 at
-# 160 and 176, row 1 at 160).
-sfx_tab, sfx_names, hum = [], [], {}
+# 160 and 176, row 1 at 160). The title's three (title1-3) go into the
+# title's overlay instead, for music.s.
+sfx_tab, sfx_names, hum, mus_tab = [], [], {}, []
 for l in lines('sfx.txt'):
     w = l.split()
     if w[0].startswith('hum_'):
@@ -684,7 +685,11 @@ for l in lines('sfx.txt'):
     noise = wave == 'N'
     flags = cnt | int(reset) << 5 | (noise or ch == '2') << 6 | noise << 7
     assert cnt < 32
-    sfx_tab += [start & 255, start >> 8, step & 255, step >> 8, first, per, flags, sounds]
+    rec = [start & 255, start >> 8, step & 255, step >> 8, first, per, flags, sounds]
+    if name.startswith('title'):
+        mus_tab += rec
+        continue
+    sfx_tab += rec
     sfx_names.append(name)
 for k in range(16):
     bc[160 + k] = hum['hum_first'][k]
@@ -913,33 +918,10 @@ b.append(asm_bytes('logo_rle', logo_rle))
 b.append('        .export _title_pic')
 b.append(asm_bytes('title_pic', title_pic))
 
-# the title's sound (data/music.txt, from the original by tools/sidmusic.py):
-# per voice its entries, each a length in pictures and the TED's frequency
-# register, low byte and high bits ($FF: a rest); a length of 0 ends the
-# voice, which then starts again
-TED_CLOCK = 17734470 / 20 / 8                   # PAL: the sound's clock
-mus = {'v1': [], 'v2': []}
-for l in lines('music.txt'):
-    w = l.split()
-    if w[0] not in mus:
-        sys.exit('music.txt: unknown line ' + l)
-    n = mus[w[0]][-1][1] if mus[w[0]] else 1
-    for tok in w[1:]:
-        hz, _, ln = tok.partition(':')
-        if ln:
-            n = int(ln)
-        if hz == 'r':
-            mus[w[0]].append((None, n))
-        else:
-            reg = min(1023, max(0, round(1024 - TED_CLOCK / int(hz))))
-            mus[w[0]].append((reg, n))
-for v in ('v1', 'v2'):
-    data = []
-    for reg, n in mus[v]:
-        data += [n, 0, 0xFF] if reg is None else [n, reg & 255, reg >> 8]
-    b.append('        .export _mus_' + v)
-    b.append(asm_bytes('mus_' + v, data + [0]))
-    print('music: %s %d entries, %d pictures' % (v, len(mus[v]), sum(n for r, n in mus[v])))
+# the title's sound: its three effects (sfx.txt), one of them at random
+# each round of music.s
+b.append('        .export _mus_tab')
+b.append(asm_bytes('mus_tab', mus_tab))
 open(os.path.join(GEN, 'brief.s'), 'w').write('\n'.join(b) + '\n')
 
 

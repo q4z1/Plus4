@@ -34,6 +34,9 @@ phit      19 1   1024   1795    3   4  4  1 P   16   300
 bump      1a 1   1536     32    7   4  4  1 P    2   750
 finish    1b 2  12288  -8192  224   0  1  0 T   16  3000
 tmode     1c 1  13312 -10496   15   0  1  0 T   16   300
+title1    1d 1   8192  -6144  125   0  1  0 T  128  9000
+title2    1e 1   4096 -14592  125   0  1  0 S  128  9000
+title3    1f 1   3072 -13056  125   0  1  0 P  128  9000
 
 # the hum's periods, deck by deck: first, after, count
 hum_first 19 18 17 20 18 19 20 10 12 5 19 7 9 16 14 17

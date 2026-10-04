@@ -32,6 +32,7 @@
         .import _win_put, _wp_row, _wp_col, _wp_code, _wp_attr, _win_clear
         .import _picture, _say, _unit_name, _page_end, _panel_status
         .import _board_droid, _eng_plain, _sound, _rnd
+        .import _wait_tick
         .import _frames, _ready, _tick, _keys_irq, _col_deck
         .import _pal_deck, _pal_mc, _dr_class, _dr_num, _d_type, _board_font
         .import pusha
@@ -601,16 +602,9 @@ enemy:  ldx ts
         jmp draw_cursor
 @done:  rts
 
-; three pictures on: a tick
-wait3:  lda _frames
-        sta tk
-:       lda _frames
-        sec
-        sbc tk
-        cmp #3
-        bcc :-
-        inc _tick
-        rts
+; a tick: three pictures on from the last one, not from here, so that
+; the steps' own time does not add up (the game's ten seconds stay ten)
+wait3 = _wait_tick
 
 ; ---- the introduction: both droids, as the original shows them ----
 
@@ -784,10 +778,8 @@ _transfer_game:
         lda _pal_deck+0
         ora #8
         sta _blk
-        lda _col_deck
-        sta tcd
-        lda _pal_deck+2
-        sta _col_deck
+        lda _pal_deck+2         ; (the game's loop sets the deck's back,
+        sta _col_deck           ; when it draws the deck again)
         ; both droids into the slots after this overlay (it is unpacked
         ; where theirs were): the player's in its colours
         lda #SLOT_PANIM + 1
@@ -1033,9 +1025,7 @@ _transfer_game:
         dec tt
         bne :-
         jmp @round
-@over:  lda tcd
-        sta _col_deck
-        ldx #0
+@over:  ldx #0
         lda leader
         cmp me
         bne :+

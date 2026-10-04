@@ -42,6 +42,9 @@ EFFECTS = [
     ('bump', 0x1A, 1),      # the player bumping into a droid
     ('finish', 0x1B, 2),    # the transfer game's "Finish"
     ('tmode', 0x1C, 1),     # transfer mode: every 8 ticks
+    ('title1', 0x1D, 1),    # the title: one of these three at random every
+    ('title2', 0x1E, 1),    # 128 pictures ($054A), with ride on channel 2
+    ('title3', 0x1F, 1),    # twice in 64
 ]
 
 WAVES = {0x10: 'T', 0x20: 'S', 0x40: 'P', 0x80: 'N'}

@@ -26,7 +26,6 @@ TED_V2LO    = $FF0F
 TED_V2HI    = $FF10
 TED_SOUND   = $FF11             ; 0-3 volume, 4 voice 1, 5 voice 2, 6 noise
 TED_V1HI    = $FF12             ; 0-1 voice 1's high bits
-VOL         = 6
 
         .segment "ENGZP": zeropage
 ; each voice's effect: 0 the TED's voice 1, 1 its voice 2
@@ -41,8 +40,9 @@ _snd_len:
 s_ln:   .res 2                  ; pictures it still sounds; 0 none
 s_0l:   .res 2                  ; the start frequency, for reset
 s_0h:   .res 2
-s_vol:  .res 2                  ; the volume of voice 2's effect (+1): the
-                                ; ship's hum is quieter (sfxcall.s)
+s_vol:  .res 2                  ; the volume of each voice's effect: the
+                                ; ship's hum is quieter (sfxcall.s), the
+                                ; title's sound too (music.s)
 q0:     .res 1                  ; the division
 q1:     .res 1
 r0:     .res 1
@@ -81,7 +81,8 @@ sfx_frame:
         sta TED_V1HI
         lda TED_SOUND
         and #$E0
-        ora #$10 | VOL
+        ora s_vol               ; (VOL, the title's lower: music.s)
+        ora #$10
         bne @set
 @v2:    lda tr0                 ; voice 2, a square or noise
         sta TED_V2LO

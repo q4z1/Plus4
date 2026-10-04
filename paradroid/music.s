@@ -1,48 +1,44 @@
 ; music.s - the title's sound on the TED's two voices, in the title's
-; overlay (paradroid.cfg), as Stardew Pond plays its music
+; overlay (paradroid.cfg)
 ;
-; The sound is the original's (data/music.txt, made from its own sound
-; driver by tools/sidmusic.py): voice 1 its falling sweep, voice 2 its
-; wavering low tone. tools/mkdata.py makes of each voice a list of entries:
-; a length in pictures, the TED's frequency register (low byte, high bits;
-; $FF a rest); a length of 0 starts the voice again.
+; The sound is the original's, made as its driver makes it in the title
+; ($054A there): no tune, but its sound effects started on their own. A
+; counter goes down once a picture; each time its low seven bits are 0
+; (every 128 pictures) voice 1 gets one of three falling sweeps, picked at
+; random (title1-3 in data/sfx.txt: the same start and step, on the SID a
+; triangle, a saw and a pulse - the TED has squares only); at 34 and 48 of
+; each 64 voice 2 gets the lift's ride. sfx.s plays them, as it plays the
+; game's effects, at the title's lower volume.
 ;
 ; mus_start() hands the player to the engine's interrupt (mus_hook), which
-; calls it once a picture: the tempo is the picture's, whatever the title is
-; drawing. mus_stop() takes it back and silences both voices; title.c does
-; that before the overlay's memory goes to the pictures again. A sound
-; effect, should one play, keeps voice 2 meanwhile.
+; calls it once a picture, after sfx.s. mus_stop() takes it back and
+; silences both voices; title.s does that before the overlay's memory goes
+; to the pictures again.
 
         .export _mus_start, _mus_stop
-        .import _mus_v1, _mus_v2, _mus_hook
-        .importzp _snd_time              ; sfx.s
+        .import _mus_tab, _mus_hook, _sound
+        .importzp s_fl, s_fh, s_dl, s_dh, s_cn, s_pe, s_fg, s_0l, s_0h, s_vol
+        .importzp _snd_len
+        .include "sfx.inc"
 
-TED_V1LO    = $FF0E
-TED_V2LO    = $FF0F
-TED_V2HI    = $FF10
 TED_SOUND   = $FF11             ; 0-3 volume, 4 voice 1, 5 voice 2, 6 noise
-TED_V1HI    = $FF12             ; 0-1 voice 1's high bits (the rest: other)
+TED_HPOS    = $FF1E             ; (the beam's column: a seed)
 MVOL        = 3                 ; the original plays it at a third
 
-        .segment "ENGZP": zeropage
-p1:     .res 2                  ; each voice's next entry
-p2:     .res 2
-
         .segment "OVLDATA"
-t1:     .byte 0                 ; pictures left of each voice's entry
-t2:     .byte 0
-hi:     .byte 0
+mc:     .byte 1                 ; the original's counter ($9C)
+seed:   .byte 0
 
         .segment "OVLCODE"
 
 _mus_start:
+        lda TED_HPOS
+        ora #1
+        sta seed
+        lda #1                  ; a sweep at once
+        sta mc
         php
         sei
-        jsr rew1
-        jsr rew2
-        lda #1
-        sta t1
-        sta t2
         lda #<play
         sta _mus_hook
         lda #>play
@@ -55,90 +51,60 @@ _mus_stop:
         sei
         lda #0
         sta _mus_hook+1
+        sta _snd_len
+        sta _snd_len+1
         lda TED_SOUND
         and #$8F                ; both voices off
         sta TED_SOUND
         plp
         rts
 
-rew1:   lda #<_mus_v1
-        sta p1
-        lda #>_mus_v1
-        sta p1+1
-        rts
-
-rew2:   lda #<_mus_v2
-        sta p2
-        lda #>_mus_v2
-        sta p2+1
-        rts
-
 ; once a picture, from the interrupt (which keeps A, X and Y)
-play:   dec t1
+play:   dec mc
+        lda mc
+        and #$7F
         bne @v2
-        ldy #0
-        lda (p1),y
-        bne :+
-        jsr rew1                ; the end: again
-        lda (p1),y
-:       sta t1
-        iny
-        lda (p1),y
-        tax
-        iny
-        lda (p1),y
-        cmp #$FF
-        beq @off1
-        sta hi
-        stx TED_V1LO
-        lda TED_V1HI
-        and #$FC
-        ora hi
-        sta TED_V1HI
-        lda TED_SOUND
-        and #$F0
-        ora #$10 | MVOL
-        bne @set1
-@off1:  lda TED_SOUND
-        and #$EF
-@set1:  sta TED_SOUND
-        clc
-        lda p1
-        adc #3
-        sta p1
-        bcc @v2
-        inc p1+1
-
-@v2:    dec t2
+        lda seed                ; a random number (its own: the game's is
+        asl a                   ; not the interrupt's to take)
+        bcc :+
+        eor #$1D
+:       sta seed
+        ldy #0                  ; as the original: below $55 the first,
+        cmp #$55                ; below $AA the second, else the third
+        bcc @pick
+        ldy #8
+        cmp #$AA
+        bcc @pick
+        ldy #16
+@pick:  ldx #0                  ; voice 1, as sound() starts an effect
+        lda _mus_tab,y
+        sta s_0l,x
+        sta s_fl,x
+        lda _mus_tab+1,y
+        sta s_0h,x
+        sta s_fh,x
+        lda _mus_tab+2,y
+        sta s_dl,x
+        lda _mus_tab+3,y
+        sta s_dh,x
+        lda _mus_tab+4,y
+        sta s_cn,x
+        lda _mus_tab+5,y
+        sta s_pe,x
+        lda _mus_tab+6,y
+        sta s_fg,x
+        lda _mus_tab+7,y
+        sta _snd_len,x
+        lda #MVOL
+        sta s_vol,x
+        rts
+@v2:    and #$3F
+        cmp #$22
+        beq :+
+        cmp #$30
         bne @done
-        ldy #0
-        lda (p2),y
-        bne :+
-        jsr rew2
-        lda (p2),y
-:       sta t2
-        lda _snd_time           ; an effect has voice 2: keep time only
-        bne @next2
-        iny
-        lda (p2),y
-        tax
-        iny
-        lda (p2),y
-        cmp #$FF
-        beq @off2
-        stx TED_V2LO
-        sta TED_V2HI
-        lda TED_SOUND
-        and #$B0                ; no noise
-        ora #$20 | MVOL
-        bne @set2
-@off2:  lda TED_SOUND
-        and #$DF
-@set2:  sta TED_SOUND
-@next2: clc
-        lda p2
-        adc #3
-        sta p2
-        bcc @done
-        inc p2+1
+:       lda #SFX_RIDE
+        jsr _sound
+        lda #MVOL
+        sta s_vol+1
 @done:  rts

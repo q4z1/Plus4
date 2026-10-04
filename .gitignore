@@ -15,3 +15,4 @@ pokerth/proxy/.venv*/
 pokerth/proxy/gen/
 __pycache__/
 
+.claude/settings.local.json

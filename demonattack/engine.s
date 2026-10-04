@@ -21,14 +21,15 @@
         .macpack longbranch
 
         .export _eng_init, _eng_reset, _eng_chargen, _chargen
-        .export _eng_page_on, _eng_page_off
+        .export _eng_page_on, _eng_page_off, _eng_buf_reset, _eng_irq, _eng_nmi
         .export _frames, _back, _ready
         .export _ev_line, _ev_reg, _ev_val, _ev_n
         .export _r_begin, _r_prep8, _r_draw, _r_attr, _r_row_attr, _r_score
         .export _a_val, _a_col, _a_row, _a_n, _score_off
         .export _r_font_ptr, _r_scr_ptr, _r_att_ptr
         .export _o_d0, _o_n, _o_cx, _o_nc, _o_x, _o_col, _o_flags, _o_cmask
-        .export _coldata, _rev, _sh_tab
+        .export _coldata
+        .import sh_tab, _rev, code_lo, code_hi
         .exportzp _o_src, _o_mask, _o_rows
         .export _r_demon, _r_demon_off, _o_slot, _r_cannon, _r_quad, _nodraw
         .export _bar_val, _r_column, _r_vline, _o_val
@@ -50,14 +51,31 @@ TED_COL2    = $FF17
 TED_BORDER  = $FF19
 TED_SOUND   = $FF11
 TED_RLINE   = $FF1D
+TED_CURSOR_HI = $FF0C
+TED_CURSOR_LO = $FF0D
 
 ; ---- memory ---------------------------------------------------------------
 
+; Two builds from the same source: the PRG for a Plus/4 with its 64 KB, and
+; (with CART defined) a 32 KB cartridge for a C16 with 16 KB, where all of
+; this has to fit below $4000 - and where a write above it lands in RAM
+; below it again, because the C16 decodes 16 KB only.
+.ifdef CART
+MAT0        = $0800             ; colours at $0800, codes at $0C00
+MAT1        = $1000
+FONT0       = $1800             ; character set of picture 0, 256 * 8 bytes
+FONT1       = $2000
+DISP_END    = $2800
+CHARGEN     = $0400             ; 64 characters of the ROM's (crt0_cart.s)
+.else
 FONT0       = $C000             ; character set of picture 0, 256 * 8 bytes
 FONT1       = $C800
 MAT0        = $D000             ; colours at $D000, codes at $D400
 MAT1        = $D800
-PAGE        = $B800             ; the game-over page: colours, codes at +$400
+DISP_END    = $E000
+CHARGEN     = $E000             ; 64 characters of the ROM's (eng_chargen)
+.endif
+DISP_START  = FONT0 < MAT0 ? FONT0 : MAT0
 
 ; The character codes:
 ;     0          blank
@@ -174,12 +192,6 @@ ar_val:     .res 2*AR_MAX       ; what to put back
 ; can read lines above or below the figure without looking.
 _coldata:   .res 9*32
 
-        .segment "HIBSS"
-sh_tab:     .res 12*256         ; [sub*3+k][byte]: 8 pixels shifted by sub
-_sh_tab     = sh_tab
-_rev:       .res 256            ; bit order reversed - the 2600's REFP1
-code_lo:    .res 256            ; code * 8
-code_hi:    .res 256
 
         .rodata
 row_lo:     .repeat 25, R
@@ -210,7 +222,7 @@ _bar_val:   .byte $FF, $3F, $0F, $03, $C0, $F0, $FC
 bar_base:   .repeat 8, L
             .byte BAR_CODE + 7 * L
             .endrepeat
-col16p8:    .byte 8, 24, 40, 56, 72
+col8:       .byte 0, 8, 16, 24, 32
 col_lo:     .repeat 9, C
             .byte <(_coldata+8+C*32)
             .endrepeat
@@ -226,104 +238,18 @@ col_hi:     .repeat 9, C
 
 _eng_init:
         sei
-        ; --- tables -------------------------------------------------------
-        ; sh_tab: for each shift 0..3 and each of the three bytes an 8-pixel
-        ; row can touch, the multicolour bits (%11 per pixel).
-        ldx #0
-@sh:    stx z_t                 ; the 8 pixels
-        lda #0
-        sta z_sub
-@shs:   ; build 12 pixels: z_sub empty ones, the 8, the rest empty,
-        ; two bits each, into p_tmp (hi), p_tmp+1 (mid), z_k (lo)
-        lda #0
-        sta p_tmp
-        sta p_tmp+1
-        sta z_k
-        ldy z_sub
-        beq @pix
-@pad:   jsr sh_zero
-        dey
-        bne @pad
-@pix:   ldy #8
-        lda z_t
-        sta z_line
-@pbit:  asl z_line
-        bcc @p0
-        jsr sh_one
-        jmp @pn
-@p0:    jsr sh_zero
-@pn:    dey
-        bne @pbit
-        ; pad to 12 pixels
-        lda #4
-        sec
-        sbc z_sub
-        tay
-@pad2:  jsr sh_zero
-        dey
-        bne @pad2
-        ; store the three bytes
-        lda z_sub
-        asl a
-        clc
-        adc z_sub               ; sub*3
-        clc
-        adc #>sh_tab
-        sta p_dst+1
-        lda #0
-        sta p_dst
-        ldy z_t
-        lda p_tmp
-        sta (p_dst),y
-        inc p_dst+1
-        lda p_tmp+1
-        sta (p_dst),y
-        inc p_dst+1
-        lda z_k
-        sta (p_dst),y
-        inc z_sub
-        lda z_sub
-        cmp #4
-        bne @shs
-        ldx z_t
-        ; reversed bits
-        txa
-        ldy #8
-@rv:    lsr a
-        rol z_line
-        dey
-        bne @rv
-        lda z_line
-        sta _rev,x
-        ; code * 8
-        txa
-        asl a
-        asl a
-        asl a
-        sta code_lo,x
-        txa
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        sta code_hi,x
-        inx
-        beq @tabsdone
-        jmp @sh
-@tabsdone:
 
         ; --- both pictures empty -----------------------------------------------
         lda #0
         tay
-        ldx #$C0
+        ldx #>DISP_START
 @clr:   stx p_dst+1
         sty p_dst
 @clr2:  sta (p_dst),y
         iny
         bne @clr2
         inx
-        cpx #$E0
+        cpx #>DISP_END
         bne @clr
         sta cl_n
         sta cl_n+1
@@ -353,7 +279,8 @@ _eng_init:
         lda #0
         sta ev_pos
 
-        ; --- vectors -------------------------------------------------------
+.ifndef CART
+        ; --- vectors (the cartridge has them in its ROM) ------------------
         lda #<irq
         sta $FFFE
         lda #>irq
@@ -362,6 +289,7 @@ _eng_init:
         sta $FFFA
         lda #>nmi
         sta $FFFB
+.endif
 
         ; --- TED -----------------------------------------------------------
         lda #$1B                ; text, display on, 25 rows, y scroll 3
@@ -380,6 +308,10 @@ _eng_init:
         sta TED_BORDER
         sta TED_COL1
         sta TED_COL2
+        lda #$03                ; the hardware cursor off the screen: on the
+        sta TED_CURSOR_HI       ; cartridge nobody else has put it anywhere
+        lda #$FF
+        sta TED_CURSOR_LO
 
         lda #FRAME_LINE
         sta TED_RCMP
@@ -390,25 +322,6 @@ _eng_init:
         cli
         rts
 
-; one more pixel into the 12-pixel shift register (MSB first)
-sh_one: sec
-        rol z_k
-        rol p_tmp+1
-        rol p_tmp
-        sec
-        rol z_k
-        rol p_tmp+1
-        rol p_tmp
-        rts
-sh_zero:
-        asl z_k
-        rol p_tmp+1
-        rol p_tmp
-        asl z_k
-        rol p_tmp+1
-        rol p_tmp
-        rts
-
 ev_empty:
         lda #FRAME_LINE
         sta _ev_line,x
@@ -416,14 +329,14 @@ ev_empty:
         sta _ev_reg,x
         rts
 
-; Back to BASIC the hard way: a cold start. The game has used every part of
-; the machine, so there is nothing to return to.
 ; eng_page_on / eng_page_off: a still page of plain text instead of the
-; game - the score at the end of a game, to be photographed. While it is up
-; there is no raster interrupt at all: one-colour characters from the ROM's
-; character set, the matrix at PAGE, nothing changing on the way down.
-; Off again, the picture being shown comes back and the interrupt picks up
-; at the top of the next one.
+; game - the score at the end of a game, to be photographed. The page is
+; written into the picture not on screen (the caller puts it back together
+; afterwards, see eng_buf_reset), in one-colour characters from CHARGEN:
+; 128 characters, of which the first 64 - capitals, digits, signs - are
+; there. While it is up there is no raster interrupt at all. Off again, the
+; picture being shown comes back and the interrupt picks up at the top of
+; the next one.
 _eng_page_on:
         sei
         lda #0
@@ -434,14 +347,12 @@ _eng_page_on:
         sta TED_BG
         sta TED_BORDER
         sta TED_SOUND           ; quiet
-        lda #$88                ; 256 characters, one colour, 40 columns
+        lda #$08                ; 128 characters, one colour, 40 columns
         sta TED_CTRL2
-        lda TED_BMBASE
-        ora #$04                ; characters from ROM
-        sta TED_BMBASE
-        lda #$D0                ; the ROM's own character set
+        lda #>CHARGEN
         sta TED_CHBASE
-        lda #>PAGE
+        ldx _back
+        lda att_hi,x
         sta TED_VMBASE
         cli
         rts
@@ -450,9 +361,6 @@ _eng_page_off:
         sei
         lda #$98
         sta TED_CTRL2
-        lda TED_BMBASE
-        and #$FB
-        sta TED_BMBASE
         ldx front
         lda font_hi,x
         sta TED_CHBASE
@@ -469,35 +377,70 @@ _eng_page_off:
         cli
         rts
 
+; eng_buf_reset: the picture being drawn has had something else in its
+; matrix (the page above): it keeps nothing from before. No cells to give
+; back, no colour runs, no demon or cannon cells of its own - the C side
+; writes its fixed rows anew.
+_eng_buf_reset:
+        ldx _back
+        lda #0
+        sta cl_n,x
+        sta ar_n,x
+        lda #$FF
+        sta can_x,x
+        lda #3                  ; the three demon slots of this buffer
+        cpx #0
+        bne :+
+        lda #0
+:       tax
+        ldy #3
+:       lda #0
+        sta ds_rows,x
+        lda #$FF
+        sta ds_ly,x
+        inx
+        dey
+        bne :-
+        rts
+
 ; eng_chargen: the first 64 characters of the Plus/4's character ROM - the
-; capitals, digits and signs - into chargen, for the demo's messages. The
-; ROM is switched in for that; nothing on the stack is touched meanwhile,
-; as the ROM hides the RAM the stack is in.
+; capitals, digits and signs - into CHARGEN, for the demo's messages and the
+; page. The cartridge has done this already, in crt0_cart.s, while the
+; KERNAL's half of the ROM was still in.
 _eng_chargen:
+.ifndef CART
         php
         sei
         sta $FF3E               ; ROM in
         ldx #0
 :       lda $D000,x
-        sta _chargen,x
+        sta CHARGEN,x
         lda $D100,x
-        sta _chargen+256,x
+        sta CHARGEN+256,x
         inx
         bne :-
-        sta $FF3F               ; ROM out
-        plp
+        sta $FF3F               ; ROM out (the stack is not touched in between:
+        plp                     ; the ROM hides the RAM it is in)
+.endif
         rts
 
+; Run/Stop. The PRG goes back to BASIC the hard way, with a cold start: the
+; game has used every part of the machine, so there is nothing to return
+; to. The cartridge starts the game over.
 _eng_reset:
         sei
         lda #0
         sta TED_IRQEN
         lda TED_IRQ
         sta TED_IRQ
+.ifndef CART
         sta $FF3E               ; ROM in
+.endif
         jmp ($FFFC)
 
-nmi:    rti
+nmi:
+_eng_nmi:
+        rti
 
 ; ===========================================================================
 ; The raster interrupt
@@ -516,7 +459,9 @@ nmi:    rti
 ; one per line.
 ; ===========================================================================
 
-irq:    pha
+irq:
+_eng_irq:
+        pha
         txa
         pha
         tya
@@ -1530,19 +1475,18 @@ code_ptr:
         rts
 
 ; r_demon: a whole demon - both halves side by side, the same picture - from
-; a picture built at start-up (C's demon_img): five columns of eight lines,
-; each after eight zero bytes. The mask is the demons' own: line 0 of a
+; a picture made at build time (demon_img in tables.s): five columns of
+; eight lines, 40 bytes. The mask is the demons' own: line 0 of a
 ; character %11, odd lines %01, even ones %10 - see band_colours() in
 ; kernel.s for why.
 ;
 ; Each of the three demon slots has ten characters of its own - column by
 ; column, the character row above and then the one below - and keeps its
 ; cells from one picture of this buffer to the next. Those ten characters
-; are 80 bytes in a row, and the picture is laid out the same way: column c
-; of it is its 16 bytes from 16c + 8 - ly on, ly being the demon's first
-; line within its character row. So drawing a demon is copying 80 bytes -
-; or only the 40 with pixels, when ly is what it was last time and the
-; zeros around them are already there.
+; are 80 bytes in a row: column c is the 16 bytes from 16c on, and the
+; demon's eight lines of it go to 16c + ly, ly being its first line within
+; its character row. So drawing a demon is writing those 40 bytes, after
+; clearing the lines it has left since this buffer last showed it.
 ;
 ; Where two demons meet in one character row, the cell belongs to the one
 ; drawn first (the lower slot number); the other adds itself to its
@@ -1679,44 +1623,20 @@ _r_demon:
         cpy #80
         bcc @cc
         jmp @data
-@full:  ; everything: source from o_src + 8 - ly
-        lda _o_src
-        clc
-        adc #8
-        sta p_col
-        lda _o_src+1
-        adc #0
-        sta p_col+1
-        lda p_col
-        sec
-        sbc z_ly
-        sta p_col
-        bcs :+
-        dec p_col+1
-:       ldy #0
-@all:   .repeat 8, L
-        lda (p_col),y
-        .if L = 0
-        .else
-        .if L & 1
-        and #$55
-        .else
-        and #$AA
-        .endif
-        .endif
+@full:  ; nothing known about them: all 80 bytes clear, then the lines
+        lda #0
+        ldy #79
+@all:   .repeat 8
         sta (p_dst),y
-        iny
+        dey
         .endrepeat
-        cpy #80
-        jne @all
-        jmp @shared
-@data:  ; only the eight lines of each column, at 16c + ly
+        bpl @all
+@data:  ; only the eight lines of each column, at 16c + ly. Column c of the
+        ; picture is 8 bytes from o_src + 8c: p_col = o_src - 8c reads it
+        ; with the y of 16c
         lda _o_src
-        clc
-        adc #8
         sta p_col
         lda _o_src+1
-        adc #0
         sta p_col+1
         lda p_dst
         clc
@@ -1773,9 +1693,15 @@ _r_demon:
         lda (p_col),y
 @m7:    and #$FF
         sta (p_dst),y
-        tya
+        lda p_col               ; the next column: source 8 on, y 16 on
+        sec
+        sbc #8
+        sta p_col
+        bcs :+
+        dec p_col+1
+:       tya
         clc
-        adc #9                  ; to the next column, 16 on
+        adc #9
         tay
         cpy #80
         bcc @dcol
@@ -1797,9 +1723,9 @@ _r_demon:
         sbc #40
 :       sta z_col
         ldx z_c
-        lda _o_src              ; this column's source: o_src + 16c + 8
+        lda _o_src              ; this column's source: o_src + 8c
         clc
-        adc col16p8,x
+        adc col8,x
         sta z_srcl
         lda _o_src+1
         adc #0

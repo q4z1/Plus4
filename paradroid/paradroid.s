@@ -21,7 +21,7 @@
 ;   lift.c, console.c, transfer.c, title.c: overlays, kept packed
 
         .export _main, _wait_tick, _page_end, _mc_font
-        .export _ticks, _late, _top_score, _low_score
+        .export _ticks, _late, _top_score, _low_score, _initials
         .forceimport __STARTUP__        ; (cc65's start-up: main() is here)
 
         .import _frames, _ready, _keys_irq, _tick, _font_hi, _col_deck, _col_fig2
@@ -29,7 +29,7 @@
         .import _load_deck, _spawn_droids, _pictures_deck, _pictures_fixed
         .import _deck_colours, _deck_cleared, _ship_cleared, _new_ship, _rnd
         .import _lift_here, _console_here, _lift_deck, _lift_bx, _lift_by
-        .import _transfer_game, _ride_lift, _console_run, _title_run
+        .import _transfer_game, _ride_lift, _console_run, _title_run, _title_scores
         .import _take_over, _transfer_lost, _burnt_out, _sound
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
@@ -65,10 +65,11 @@ FONT1     = $D800
 MCFONT    = $0800
 
         .data
-; the day's top and worst scores, with initials (title.c shows them); the
-; original starts with these
+; the day's top and worst scores and their initials (title.s takes and
+; shows them); the original starts with these
 _top_score:     .dword 6809
 _low_score:     .dword 6502
+_initials:      .byte 0, 4, 1, 19, 18, 14   ; A-Z 0-25, 26 a space: AEB, TSO
 
         .bss
 _ticks:     .res 2              ; for measuring: ticks done,
@@ -103,8 +104,6 @@ s_fleet:    .byte "Fleet", 0
 s_cleared:  .byte "Cleared", 0
 s_loading:  .byte "Loading", 0
 s_gameover: .byte "Game over", 0
-s_trans:    .byte "Transmission", 0
-s_term:     .byte "Terminated", 0
 mc_mask:    .byte $C0, $30, $0C, $03
 
         .code
@@ -530,7 +529,10 @@ play:   lda #0
         lda #8                  ; figures against figures: the player where
         jsr _fig_place          ; its figure is, a character right of and
         lda keys                ; below its place (draw.s), as the
-        jsr _player_fire        ; original's sprites meet
+        ldx _transfer_mode      ; original's sprites meet; in transfer
+        beq :+                  ; mode fire held moves without shooting,
+        and #<~K_FIRE           ; till it is let go
+:       jsr _player_fire
         jsr _droids_fire
         jsr _move_shots
         jsr _collide
@@ -642,8 +644,10 @@ _mc_font:
 ; Waiting for a game
 ; ======================================================================
 
-; after a game, as the original: a droid picked at random between
-; "Transmission" and "Terminated"
+        .segment "HICODE"       ; (room there; it is copied at the start)
+
+; after a game, as the original: the 999 between "Transmission" and
+; "Terminated"; the window's colour before it in cd, for page_end()
 terminated:
         jsr wait_ready
         jsr _eng_plain
@@ -722,8 +726,8 @@ terminated:
         jsr pusha
         lda #12
         jsr pusha
-        lda #16
-        jsr _picture
+        lda #17                 ; (the droid in the middle, under the
+        jsr _picture            ; words)
         lda #$63                ; the original's light cyan
         sta _x_attr
         lda #10
@@ -747,8 +751,12 @@ terminated:
 :       jsr _wait_tick
         dec cnt
         bne :-
-        lda cd
-        ; (on into page_end)
+        rts
+
+s_trans:    .byte "Transmission", 0
+s_term:     .byte "Terminated", 0
+
+        .code
 
 ; page_end(cd): a page in the window done with (here, title.c,
 ; transfer.c, console.c): the window cleared, the deck's characters and
@@ -785,43 +793,18 @@ _page_end:
         rts
 
 ; title(): the day's scores taken, the end of the game, then the title
-title:  lda over
-        beq @scores
-        ldx #3                  ; score > top_score: the top score
-@top:   lda _score,x            ; (compared from the high byte down)
-        cmp _top_score,x
-        bne :+
-        dex
-        bpl @top
-        bmi @low                ; (the same)
-:       bcc @low
-        ldx #3
-:       lda _score,x
-        sta _top_score,x
-        dex
-        bpl :-
-@low:   ldx #3                  ; score < low_score: the worst
-@lw:    lda _score,x
-        cmp _low_score,x
-        bne :+
-        dex
-        bpl @lw
-        bmi @scores
-:       bcs @scores
-        ldx #3
-:       lda _score,x
-        sta _low_score,x
-        dex
-        bpl :-
-@scores:
-        lda #1
+title:  lda #1
         sta _hide_player
         lda #0
         sta _player_dead
         lda over
         beq @first
-        jsr terminated
-        jmp @title
+        jsr terminated          ; (still up while the overlay is unpacked:
+        jsr @ovl                ; the day's scores and their initials are
+        jsr _title_scores       ; taken there, over it, as the original's)
+        lda cd
+        jsr _page_end
+        jmp @run
 @first: jsr wait_ready          ; the first time: an empty window while the
         jsr _eng_plain          ; title is made, not the deck going on as
         lda #0                  ; if a game were running
@@ -831,19 +814,20 @@ title:  lda over
         lda #<s_loading
         ldx #>s_loading
         jsr status
-@title: lda #<__OVL_START__     ; the title and the briefing (title.c), an
-        sta _unp_dst            ; overlay kept packed, unpacked where the
-        lda #>__OVL_START__     ; pictures' slots are: the title has no use
-        sta _unp_dst+1          ; for them, they are made again for a game
-        lda #<_blob_title
-        ldx #>_blob_title
-        jsr _unpack
-        jsr _title_run
+        jsr @ovl
+@run:   jsr _title_run
         lda #1
         sta over
         lda #0
         sta _hide_player
         jmp _pictures_fixed
+@ovl:   lda #<__OVL_START__     ; the title and the briefing (title.s), an
+        sta _unp_dst            ; overlay kept packed, unpacked where the
+        lda #>__OVL_START__     ; pictures' slots are: the title has no use
+        sta _unp_dst+1          ; for them, they are made again for a game
+        lda #<_blob_title
+        ldx #>_blob_title
+        jmp _unpack
 
 _main:  jsr _eng_stack
         jsr _start_up           ; (startup.s)
