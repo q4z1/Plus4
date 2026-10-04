@@ -19,15 +19,14 @@ def labels():
 class Game:
     def __init__(self, god=True, warp=True, drive=None):
         os.makedirs(WORK, exist_ok=True)
-        # from the disk, which the briefing comes from
-        d64 = os.path.join(WORK, 'paradroid.d64')
-        open(d64, 'wb').write(open(os.path.join(ROOT, 'build', 'paradroid.d64'), 'rb').read())
+        # (a copy: a build does not change it under the test)
+        prg = os.path.join(WORK, 'paradroid.prg')
+        open(prg, 'wb').write(open(os.path.join(ROOT, 'build', 'paradroid.prg'), 'rb').read())
         self.lbl = labels()
-        self.v = Vice(d64, WORK, warp=True, drive=drive)
+        self.v = Vice(prg, WORK, warp=True, drive=drive)
         irq = self.lbl['irq']
-        # until the game's own interrupt runs and the title is up, loaded
-        # from the disk: the briefing's characters in the window (the
-        # picture is on while the fast loader loads; the title counts
+        # until the game's own interrupt runs and the title is up: the
+        # briefing's characters in the window (the title counts
         # pictures, not ticks)
         for i in range(200):
             self.v.run_for(0.2)

@@ -16,7 +16,7 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
 
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True)
 def word(n):
     a = y.mem(lbl[n], 2)
     return a[0] | a[1] << 8
@@ -24,7 +24,7 @@ try:
     # the title: up once the font's high byte is the window's ($D8)
     for t in range(30):
         y.run_for(1)
-        if y.mem(lbl['_font_hi'], 1)[0] == 0xD8 and y.mem(lbl['_fl_kind'], 1) is not None:
+        if y.mem(lbl['_font_hi'], 1)[0] == 0xD8:
             break
     y.run_for(2)
     y.poke(lbl['_dbg_god'], [1])

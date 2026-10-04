@@ -20,7 +20,7 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
 
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True, series=n)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True, series=n)
 try:
     for t in range(60):
         y.run_for(1)

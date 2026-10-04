@@ -15,7 +15,7 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
 
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True)
 try:
     for t in range(60):
         y.run_for(1)
@@ -27,7 +27,6 @@ try:
     y.run_for(1)
     y.poke(lbl['_dbg_keys'], [0])
     y.run_for(2)
-    print('kind', y.mem(lbl['_fl_kind'], 1)[0])
     for k in range(n):
         y.poke(lbl['_dbg_keys'], [16])          # transfer mode
         y.run_for(1)
@@ -44,7 +43,6 @@ try:
         t0 = y.mem(lbl['_tick'], 1)[0]
         y.poke(lbl['_dbg_keys'], [0])
         y.run_for(8)                              # the transfer game runs out
-        print('transfer %d: kind %d, ticking %s' % (k, y.mem(lbl['_fl_kind'], 1)[0],
-              y.mem(lbl['_tick'], 1)[0] != t0), flush=True)
+        print('transfer %d: ticking %s' % (k, y.mem(lbl['_tick'], 1)[0] != t0), flush=True)
 finally:
     y.stop()

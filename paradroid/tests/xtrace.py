@@ -22,11 +22,11 @@ for n in ('new_game', 'player_fire'):
         lbl['_' + n] = lbl[n]
 if os.path.exists(out):
     os.remove(out)
-d64 = os.path.join(WORK, 'xtrace.d64')
+prg = os.path.join(WORK, 'xtrace.prg')
 os.makedirs(WORK, exist_ok=True)
-open(d64, 'wb').write(open(os.path.join(root, 'build', 'paradroid.d64'), 'rb').read())
+open(prg, 'wb').write(open(os.path.join(root, 'build', 'paradroid.prg'), 'rb').read())
 
-v = Vice(d64, WORK, warp=True)
+v = Vice(prg, WORK, warp=True)
 def go(t=0.05):
     v.settle = t
     r = v.cmd('x')

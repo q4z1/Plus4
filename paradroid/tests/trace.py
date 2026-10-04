@@ -27,9 +27,9 @@ if os.path.exists(out):                 # (no old trace left to compare)
 for n in ('new_game', 'player_fire'):   # (C's names, or assembly's own)
     if '_' + n not in lbl:
         lbl['_' + n] = lbl[n]
-d64 = os.path.join(WORK, 'trace.d64')
+prg = os.path.join(WORK, 'trace.prg')
 os.makedirs(WORK, exist_ok=True)
-open(d64, 'wb').write(open(os.path.join(root, 'build', 'paradroid.d64'), 'rb').read())
+open(prg, 'wb').write(open(os.path.join(root, 'build', 'paradroid.prg'), 'rb').read())
 
 MAXD, MAXS = 13, 8
 ARRAYS = [('_nd', 1), ('_d_type', MAXD), ('_d_x', 2 * MAXD), ('_d_y', 2 * MAXD),
@@ -43,7 +43,7 @@ ARRAYS = [('_nd', 1), ('_d_type', MAXD), ('_d_x', 2 * MAXD), ('_d_y', 2 * MAXD),
           ('_ndoor', 1), ('_door_x', 32), ('_door_y', 32), ('_door_s', 32),
           ('_ship', 192), ('_deck', 1)]
 
-v = Vice(d64, WORK, warp=True)
+v = Vice(prg, WORK, warp=True)
 def go(timeout=0.05):
     v.settle = timeout
     r = v.cmd('x')
@@ -98,7 +98,13 @@ try:
                 # run at this moment: the panel's rows are, and the slots)
                 h = lambda a, n: hashlib.md5(bytes(v.mem(a, n))).hexdigest()[:12]
                 st['panel'] = [h(a, 240) for a in (0xC000, 0xC400, 0xD000, 0xD400)]
-                st['slots'] = h(lbl['_pre'], 23 * 512)
+                # the slots in use: the player's, the deck's droid types',
+                # the explosions' and lasers', the player's dome's (the
+                # others keep whatever was there)
+                used = [0] + sorted(set(x for x in v.mem(lbl['_slot_of'], 24) if x != 255)) \
+                    + list(range(10, 23))
+                st['slots'] = hashlib.md5(b''.join(bytes(v.mem(lbl['_pre'] + 512 * n, 512))
+                                                   for n in used)).hexdigest()[:12]
                 st['dmap'] = h(0x0400, 1024)
                 if os.environ.get('TRACE_DUMP') == str(t):   # (to look into)
                     for a in (0xC000, 0xD000):

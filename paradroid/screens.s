@@ -32,7 +32,7 @@
         .import _wait_tick, _keys_irq, _ready, _sound, _eng_plain, _win_clear
         .import _win_put, _wp_row, _wp_col, _wp_code, _wp_attr
         .import _col_deck, _font_hi, _x_code, _x_row, _x_col, _x_attr, _xmap
-        .import _x_letter, _say, _unit_name, _picture, _pic_pages
+        .import _x_letter, _say, _unit_name, _picture, _pic_pages, _pic_text
         .import _panel_status, _page_end, _anim_plan
         .import _pal_deck, _pal_mc, _dr_class, _dr_num, _d_type, _d_x, _d_y
         .import _deck, _alert, _deck_bg
@@ -365,6 +365,8 @@ copy:   sta cw
 ; page cn of type ct's: lines of row, column, length and letters, then
 ; $FF; a 0 after the last page
 enquiry_page:
+        lda #1                  ; (with its pages)
+        sta _pic_text
         lda ct
         jsr pusha
         lda #12

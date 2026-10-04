@@ -28,7 +28,7 @@ def pixels(scr, att, font, r, c, y):
     return [1 if b & (0x80 >> i) else 0 for i in range(8)]
 
 
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True)
 def word(n):
     a = y.mem(lbl[n], 2)
     return a[0] | a[1] << 8

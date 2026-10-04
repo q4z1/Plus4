@@ -8,7 +8,7 @@ from yape import Yape
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.expanduser('~/.cache/paradroid/test')
 secs = int(sys.argv[1]) if len(sys.argv) > 1 else 30
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp='warp' in sys.argv)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp='warp' in sys.argv)
 try:
     for t in range(secs // 5):
         y.run_for(5)

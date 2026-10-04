@@ -26,7 +26,6 @@
 
         .import _frames, _ready, _keys_irq, _tick, _font_hi, _col_deck, _col_fig2
         .import _eng_stack, _eng_plain, _eng_show, _start_up, _beam_in
-        .import _disk_init, _disk_start, _disk_tick, _disk_idle, _disk_spin
         .import _load_deck, _spawn_droids, _pictures_deck, _pictures_fixed
         .import _deck_colours, _deck_cleared, _ship_cleared, _new_ship, _rnd
         .import _lift_here, _console_here, _lift_deck, _lift_bx, _lift_by
@@ -216,8 +215,8 @@ add_score:
 ; ======================================================================
 
 slots_again:
-        jsr _pictures_deck
-        jmp _pictures_fixed
+        jsr _pictures_fixed     ; (first: it unpacks into the player's)
+        jmp _pictures_deck
 
 ; the console and lift's
 screens:
@@ -450,7 +449,6 @@ pause:  lda #<s_pause
 ; play(): a game, till the player is gone
 play:   lda #0
         sta held
-        jsr _disk_idle
         lda _deck
         jsr _deck_cleared
         sta lights_out
@@ -464,8 +462,7 @@ play:   lda #0
         lda #0                  ; (no end of a game shown)
         sta over
         rts
-@go:    jsr _disk_tick
-        lda _player_dead
+@go:    lda _player_dead
         beq @fire
         lda _d_boom
         cmp #BOOM_GONE
@@ -503,7 +500,6 @@ play:   lda #0
         jsr console
         lda #0
         sta held
-        jsr _disk_idle          ; (the motor kept going)
         jmp @tick
 @tmode: lda held
         cmp #3
@@ -651,7 +647,6 @@ _mc_font:
 terminated:
         jsr wait_ready
         jsr _eng_plain
-        jsr _disk_spin          ; (the 999's picture loads after)
         lda _col_deck
         sta cd
         lda _pal_deck+1
@@ -714,8 +709,8 @@ terminated:
         lda #SFX_STATIC
         jsr _sound
         ; then the 999's picture, "Transmission terminated" and its tune:
-        ; the static goes on while the picture loads (picture(): pic_late),
-        ; 1.2 seconds at least, as the original's (61 pictures)
+        ; the static goes on for 1.2 seconds, as the original's (61
+        ; pictures: picture()'s pic_late)
         lda #1
         sta _roll
         sta _pic_late
@@ -850,10 +845,8 @@ title:  lda over
         sta _hide_player
         jmp _pictures_fixed
 
-_main:  jsr _disk_init
-        jsr _eng_stack
-        jsr _disk_start         ; (it needs the stack)
-        jsr _start_up           ; (fastinit.c)
+_main:  jsr _eng_stack
+        jsr _start_up           ; (startup.s)
         jsr new_game
         jsr _draw
         jsr _eng_show

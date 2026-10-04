@@ -29,11 +29,11 @@ for l in open(os.path.join(root, 'data', 'decks.txt')):
         decks.append([])
     else:
         decks[-1].append(l)
-d64 = os.path.join(WORK, 'contrace.d64')
+prg = os.path.join(WORK, 'contrace.prg')
 os.makedirs(WORK, exist_ok=True)
-open(d64, 'wb').write(open(os.path.join(root, 'build', 'paradroid.d64'), 'rb').read())
+open(prg, 'wb').write(open(os.path.join(root, 'build', 'paradroid.prg'), 'rb').read())
 
-v = Vice(d64, WORK, warp=True)
+v = Vice(prg, WORK, warp=True)
 def go(t=0.05):
     v.settle = t
     r = v.cmd('x')

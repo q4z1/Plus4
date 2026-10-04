@@ -3,9 +3,11 @@
 mkdata.py - the text files in data/ as tables for the program
 
 Writes build/gen/:
-  tiles.inc   POOL, the first character code figures may use (for engine.s)
-  data.h      what the C side sees
-  data.s      the tables
+  tiles.inc   POOL, the first character code figures may use, and the
+              sizes the code needs (picture streams, the title's picture)
+  data.h      the same as C definitions (a summary: no C is left)
+  data.s      the tables, some packed by exomizer (decks, pictures, the
+              explosion's and lasers' figures)
 
 The deck characters are numbered afresh: 0 and 1 are blank (engine.s needs
 the first 16 bytes of each character set empty), the others follow in the
@@ -312,7 +314,6 @@ for l in read('pictures.txt').split('\n'):
         pics.append(cur)
     elif cur is not None and l and l[0] in '.ksmh':
         cur['rows'].append(l)
-os.makedirs(os.path.join(ROOT, 'build', 'pics'), exist_ok=True)
 pic_max = 0
 for n, pic in enumerate(pics):
     rows = ['.' * 48] * PIC_TOP + pic['rows']
@@ -537,17 +538,29 @@ for ln in lines('console.txt'):
     else:
         row, col, txt = ln.split(' ', 2)
         cur[-1].append((int(row), int(col), txt_codes(txt)))
+# The pictures, kept packed in the program (picture.s): their graphics -
+# characters, layout and a header of four - one after the other in one
+# stream, their pages (with a 0 after the last) in another. picture.s
+# unpacks the graphics into the end of the pictures' slots, which the
+# overlays leave free, and copies out the one it wants; the console the
+# pages too. Packed together they take half what they take one by one.
+gfx, txt, pic_go, pic_gl, pic_to, pic_tl = [], [], [], [], [], []
 for n, pic in enumerate(pics):
-    data = list(pic['data'])
+    g = list(pic['data'])
+    t = []
     for page in cpages.get(n, []):
-        for row, col, t in page:
-            data += [row, col, len(t)] + t
-        data.append(0xFF)
-    data.append(0)
-    data += [pic['head'] & 255, pic['head'] >> 8]
-    assert len(data) <= 139 * 8 - 8, (n, len(data))   # below the letters (from 140)
-    pic_max = max(pic_max, len(data))
-    open(os.path.join(ROOT, 'build', 'pics', 'p%02d' % n), 'wb').write(bytes([0, 0] + data))
+        for row, col, tx in page:
+            t += [row, col, len(tx)] + tx
+        t.append(0xFF)
+    t.append(0)
+    assert len(g) + len(t) <= 139 * 8 - 8, (n, len(g) + len(t))   # below the letters (from 140)
+    pic_max = max(pic_max, len(g) + len(t))
+    pic_go.append(len(gfx)); pic_gl.append(len(g)); gfx += g
+    pic_to.append(len(txt)); pic_tl.append(len(t)); txt += t
+PIC_GFX_RAW, PIC_TXT_RAW = len(gfx), len(txt)
+# the scores page's picture (the title's): its graphics in the title's data
+TITLE_PIC = 14
+title_pic = list(pics[TITLE_PIC]['data'])
 
 pages_bin = []
 score_at = []
@@ -580,6 +593,22 @@ def emit(name, data, per=16):
     s.append(asm_bytes(name, data, per))
 
 
+# Tables that only run once the game has started go into memory nobody
+# else has: the free ends of the block colour table (BLKA, from 160 on in
+# each of its four rows, 96 bytes) and $FF40-$FFF9, above the TED's
+# registers. They are copied there at the start (startup.s) from the
+# start's area, which the pictures' slots take over afterwards.
+xt_size = 0
+
+
+def emit_at(seg, name, data):
+    global xt_size
+    s.append('        .segment "%s"' % seg)
+    emit(name, data)
+    s.append('        .rodata')
+    xt_size += len(data)
+
+
 def pack(data):
     """data packed by exomizer (its raw files, unpack.s unpacks them)"""
     import subprocess, tempfile
@@ -608,8 +637,15 @@ tile_cls = [0] * POOL
 for c, ours in code_of.items():
     if ours:
         tile_cls[ours] = cclass[c]
-emit('tile_cls', tile_cls)
-emit('schemes', schemes)
+emit_at('XT5', 'tile_cls', tile_cls)
+# the pictures' streams (above)
+s.append('        .rodata')
+emit('pic_gfx', pack(gfx))
+emit('pic_txt', pack(txt))
+for seg, name, tab in (('XT2', 'pic_go', pic_go), ('XT2', 'pic_gl', pic_gl),
+                       ('XT3', 'pic_to', pic_to), ('XT3', 'pic_tl', pic_tl)):
+    emit_at(seg, name, [b for v in tab for b in (v & 255, v >> 8)])
+emit_at('XT1', 'schemes', schemes)
 emit('deck_scheme', [12 * int(x) for x in re.search(r'^deck_scheme (.*)$', ctxt, re.M).group(1).split()])  # (as offsets)
 plan_cls = cclass[:32] + [cclass[0xA0]]     # (the player's, $A0)
 # block codes, [yy][blk*4 + x]: 4 tables of 256. The free end of each,
@@ -618,6 +654,7 @@ plan_cls = cclass[:32] + [cclass[0xA0]]     # (the player's, $A0)
 # character code from $80 on (doors open by clearing that bit, above)
 bc = []
 assert NBLK <= 64
+assert NBLK * 4 <= 160          # (move.s colours blocks up to 160: the rest is tables)
 for yy in range(4):
     row = [0] * 256
     for b in range(NBLK):
@@ -653,7 +690,7 @@ for k in range(16):
     bc[160 + k] = hum['hum_first'][k]
     bc[176 + k] = hum['hum_period'][k]
     bc[256 + 160 + k] = hum['hum_count'][k]
-emit('blk_flag', [FLAG[b] for b in range(NBLK)])
+emit_at('XT5', 'blk_flag', [FLAG[b] for b in range(NBLK)])
 # the original's animated characters (anim.txt), four phases each: the
 # energizer's, in the game and on the deck plan, hires and as multicolour;
 # the plan's player (engine.s, anim_deck() and anim_plan())
@@ -663,8 +700,8 @@ for m in re.finditer(r'(energizer|player|static) (\d)\n((?:[.#]{8}\n){8})', read
         int(r.replace('.', '0').replace('#', '1'), 2) for r in m.group(3).split())
 emit('anim_e', anim['energizer'])
 emit('anim_emc', [mc(b) for b in anim['energizer']])
-emit('anim_p', anim['player'])
-emit('anim_s', anim['static'])
+emit_at('XT4', 'anim_p', anim['player'])
+emit_at('XT4', 'anim_s', anim['static'])
 # the energizer's dots, $4C-$4F, turned round in the game (engine.s)
 assert [code_of[c] for c in range(0x4C, 0x50)] == list(range(code_of[0x4C], code_of[0x4C] + 4))
 # decks
@@ -676,8 +713,7 @@ for r in deck_rle:
 # packed: deck.c unpacks them all when a deck is entered (into the droid
 # types' slots, which are made again then), and takes its own
 emit('deck_pk', pack(allrle))
-exports.append('deck_off')
-s.append('_deck_off:\n        .word ' + ','.join('%d' % o for o in offs) + '\n')
+emit_at('XT4', 'deck_off', [b for o in offs for b in (o & 255, o >> 8)])
 # waypoints
 wx, wy, wd, wofs = [], [], [], []
 for d in wps:
@@ -790,11 +826,12 @@ assert all(len(runs(r)) == 2 for r in sprites['laser_v'][1])
 eimg = []
 for i in range(6):
     eimg += pic_bytes(sprite_pic('explo%d' % i, 2))
-emit('explo_img', eimg)
-emit('laser_v', pic_bytes(laser_v()))
-emit('laser_h', pic_bytes(sprite_pic('laser_h', 3)))
-emit('laser_d1', pic_bytes(sprite_pic('laser_d1', 2)))
-emit('laser_d2', pic_bytes(sprite_pic('laser_d2', 2)))
+# packed, the explosion's six and the lasers' four: draw.s unpacks them
+# into the last two slots before it shifts them into theirs
+fixed = (eimg + pic_bytes(laser_v()) + pic_bytes(sprite_pic('laser_d1', 2))
+         + pic_bytes(sprite_pic('laser_h', 3)) + pic_bytes(sprite_pic('laser_d2', 2)))
+assert len(fixed) == 10 * 64
+emit('fixed_pk', pack(fixed))
 
 sf = []
 scol = []
@@ -836,7 +873,7 @@ for name, data in init:
     exports.append(name)
     s.append(asm_bytes(name, data))
 # fastinit.c and the drive code are in INITDATA too (build.sh says how much)
-init_size = (sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0))
+init_size = (sum(len(d) for n, d in init) + int(os.environ.get('INIT_EXTRA', 0)) + xt_size
              )
 assert init_size <= PRE_SLOTS * 512, init_size
 s.append('        .rodata')                  # (in the program: $FF40 had room for 23)
@@ -873,6 +910,8 @@ b[2] = b[2] + ', _brief_dig, _brief_cap, _brief_misc, _logo_font, _logo_col, _lo
 b.append(asm_bytes('logo_font', logo_font))
 b.append(asm_bytes('logo_col', logo_col))
 b.append(asm_bytes('logo_rle', logo_rle))
+b.append('        .export _title_pic')
+b.append(asm_bytes('title_pic', title_pic))
 
 # the title's sound (data/music.txt, from the original by tools/sidmusic.py):
 # per voice its entries, each a length in pictures and the TED's frequency
@@ -939,5 +978,8 @@ h.append('extern const unsigned char logo_font[], logo_col[], logo_rle[];')
 h += ['#define SCORE_TOP_AT %d' % score_at[0], '#define SCORE_LOW_AT %d' % score_at[1],
       '#define NLOGO %d' % len(lorder), '#define LOGO_BG %d' % LOGO_BG]
 open(os.path.join(GEN, 'data.h'), 'w').write('\n'.join(h) + '\n')
-open(os.path.join(GEN, 'tiles.inc'), 'w').write('POOL = %d\nENERGY_CHAR = %d\nDOT_CHAR = %d\n' % (POOL, code_of[0x14], code_of[0x4C]))
+open(os.path.join(GEN, 'tiles.inc'), 'w').write(
+    'POOL = %d\nENERGY_CHAR = %d\nDOT_CHAR = %d\n' % (POOL, code_of[0x14], code_of[0x4C])
+    + 'PIC_GFX_RAW = %d\nPIC_TXT_RAW = %d\nTITLE_PIC_HEAD = %d\n'
+    % (PIC_GFX_RAW, PIC_TXT_RAW, len(title_pic) - 4))
 print('tiles %d, pool %d chars, blocks %d, decks %d bytes, briefing %d bytes, pictures up to %d' % (POOL - 2, 256 - POOL, NBLK, len(allrle), BRIEF_SIZE, pic_max))

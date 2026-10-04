@@ -19,7 +19,7 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
 
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'),
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'),
          env=PAD + ['SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1', 'YAPE_JOYLOG=1', 'YAPE_PADKEYS=off'])
 pad = None
 try:

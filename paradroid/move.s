@@ -1003,7 +1003,8 @@ _colour_blocks:
         sta BLKA + R * 256,x
         .endrepeat
         inx
-        bne @b
+        cpx #40 * 4             ; the blocks' (NBLK): from 160 on are
+        bne @b                  ; tables (startup.s, mkdata.py's XT1-XT4)
         rts
 
 pal_alert:

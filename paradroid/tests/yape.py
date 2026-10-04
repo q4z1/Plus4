@@ -7,7 +7,7 @@ the TED's picture as a PPM to $YAPE_SHOT. It runs in gamescope's headless
 backend, with a configuration directory of its own, written afresh for
 each start (Yape saves its settings on exit, warp too).
 
-Yape has no true 1551: a .d64 gets a true 1541 on the serial bus.
+Yape starts the .prg itself.
 """
 import os, re, struct, subprocess, time, zlib
 from onetest import kill_other_tests

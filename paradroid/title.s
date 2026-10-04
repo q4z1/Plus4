@@ -26,7 +26,7 @@
 
         .import _wait_tick, _keys_irq, _eng_keys, _frames, _ready, _back
         .import _eng_plain, _win_clear, _r_done, _panel_status, _panel_frame
-        .import _picture, _say, _unit_name, _load_file, _num_text, _num_len
+        .import _picture, _say, _unit_name, _num_text, _num_len
         .import _mus_start, _mus_stop, _brief_rows
         .import _br_d, _br_rr, _br_rows, _br_k, _br_code, _br_cutend
         .import _col_deck, _col_panel, _col_border, _col_fig2, _font_hi
@@ -34,12 +34,11 @@
         .import _x_attr, _x_row, _x_col, _pal_deck, _pal_mc
         .import _top_score, _low_score
         .import _brief_srcs, _brief_pages, _brief_dig, _brief_misc
-        .import _logo_font, _logo_col, _logo_rle
-        .import __OVL_LAST__
-        .import pusha, pushax
+        .import _logo_font, _logo_col, _logo_rle, _title_pic
+        .import pusha
         .importzp _br_p, sreg, ptr1, ptr2
 
-        .include "build/gen/tiles.inc"   ; POOL
+        .include "build/gen/tiles.inc"   ; POOL, TITLE_PIC_HEAD
 
 K_DOWN      = 2                 ; game.h
 K_FIRE      = 16
@@ -71,9 +70,9 @@ b_h:        .byte 0             ; its rows
 b_fg:       .byte 0             ; its letters' colour
 free_code:  .byte 0             ; picture 1's first character not in use
 pic:        .word 0             ; the scores page's picture (the
-pic_lay:    .word 0             ; original's: a 614), loaded once a title
-pic_n:      .byte 0             ; behind the overlay: its characters,
-pic_rows:   .byte 0             ; layout and colours
+pic_lay:    .word 0             ; original's: a 614), in the overlay's
+pic_n:      .byte 0             ; data: its characters, layout and
+pic_rows:   .byte 0             ; colours
 pic_col:    .byte 0
 pic_code:   .byte 0
 code:       .byte 0             ; page_show()'s
@@ -116,7 +115,6 @@ s_l2:       .byte "currently control. Prepare", 0
 s_l3:       .byte "to board Robo-Freighter", 0
 s_l4:       .byte "Paradroid to eliminate all", 0
 s_l5:       .byte "rogue robots.", 0
-s_p14:      .byte "p14", 0
 lines_row:  .byte 12, 14, 16, 18, 20
 lines_col:  .byte 10, 9, 9, 9, 9
 lines_lo:   .byte <s_l1, <s_l2, <s_l3, <s_l4, <s_l5
@@ -1099,36 +1097,13 @@ start_page:
 
 ; title_run(): the title's rounds, until fire is pressed and let go
 _title_run:
-        lda #<__OVL_LAST__      ; the scores page's picture, behind the
-        sta pic                 ; overlay
-        lda #>__OVL_LAST__
+        lda #<_title_pic        ; the scores page's picture, in the
+        sta pic                 ; overlay's data
+        lda #>_title_pic
         sta pic+1
-        lda #<s_p14
-        ldx #>s_p14
-        jsr pushax
-        lda pic
-        ldx pic+1
-        jsr _load_file          ; its size: e from its last two bytes
-        clc
-        adc pic
-        sta ptr1
-        txa
-        adc pic+1
-        sta ptr1+1
-        lda ptr1
-        sec
-        sbc #2
-        sta ptr1
-        bcs :+
-        dec ptr1+1
-:       ldy #0
-        lda (ptr1),y
-        clc
-        adc pic
+        lda #<(_title_pic + TITLE_PIC_HEAD)
         sta ptr2
-        iny
-        lda (ptr1),y
-        adc pic+1
+        lda #>(_title_pic + TITLE_PIC_HEAD)
         sta ptr2+1
         ldy #0
         lda (ptr2),y

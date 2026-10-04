@@ -29,7 +29,7 @@
 # Another controller: YAPE_PAD_IGNORE and YAPE_PAD_MAP from outside (the
 # mapping's GUID as SDL reports it for the controller).
 cd "$(dirname "$0")"
-D64="$(pwd)/build/paradroid.d64"
+PRG="$(pwd)/build/paradroid.prg"
 IGNORE=${YAPE_PAD_IGNORE-0x28de/0x1205}
 MAP=${YAPE_PAD_MAP-"050018dc5e040000e002000003090000,Xbox One S Controller,a:b0,b:b1,x:b2,y:b3,back:b6,start:b7,guide:b10,leftshoulder:b4,rightshoulder:b5,leftstick:b8,rightstick:b9,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,rightx:a0,righty:a1,lefttrigger:a2,righttrigger:a5,platform:Linux,"}
 YAPE=${YAPE-$HOME/.cache/paradroid/yapesdl/yapesdl}
@@ -51,7 +51,7 @@ fi
 if [ -f /.flatpak-info ]; then
     # (started from VS Code's flatpak: Yape is the host's)
     exec flatpak-spawn --host --env=SDL_GAMECONTROLLER_IGNORE_DEVICES="$IGNORE" \
-        --env=SDL_GAMECONTROLLERCONFIG="$MAP" --env=YAPE_PADKEYS=off "$YAPE" "$D64"
+        --env=SDL_GAMECONTROLLERCONFIG="$MAP" --env=YAPE_PADKEYS=off "$YAPE" "$PRG"
 fi
 SDL_GAMECONTROLLER_IGNORE_DEVICES="$IGNORE" SDL_GAMECONTROLLERCONFIG="$MAP" YAPE_PADKEYS=off \
-    exec "$YAPE" "$D64"
+    exec "$YAPE" "$PRG"

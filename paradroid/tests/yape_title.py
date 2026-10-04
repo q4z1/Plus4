@@ -9,7 +9,7 @@ from yape import Yape
 from png import read_png
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.expanduser('~/.cache/paradroid/test')
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True)
 try:
     f = os.path.join(OUT, 'yape_scores.png')
     t0 = time.time()

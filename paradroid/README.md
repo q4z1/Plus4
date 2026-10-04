@@ -13,9 +13,9 @@ effects and the title's sound all come from the original, taken out of the
 memory of the C64 game running in VICE. How it plays - driving, walls,
 doors, bumps, the droids' ways, a game's start and end - was read from the
 original's code and measured against it, often to the pixel and the tick.
-The program around it is new, in C with the time-critical parts in
-assembly. It loads from a disk, with a fast loader for both the 1551 and
-the 1541.
+The program around it is new, in assembly. It is **one file**: once it has
+loaded, nothing loads any more - the title, the console, the transfer game
+and all the droids' pictures are kept in it, packed.
 
 ![A deck: the influence device, a droid, a laser on its way](screenshots/deck.png)
 
@@ -98,7 +98,7 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
 | **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*), then have ten seconds (*Finish -52*). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
-| **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and are files on the disk. |
+| **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and kept packed in the program. |
 | ![Console](screenshots/console.png) | ![Deck plan](screenshots/plan.png) |
 | **Console.** The original's first page and its four symbols: leave, droid enquiry, deck plan, ship. | **Deck plan.** As the original draws it: a character per block, the character's code being the block's number, in its characters and the deck's colours; the energizers' symbol turns and the player's blinks. |
 | ![Droid enquiry](screenshots/droids.png) | ![Its pages](screenshots/droids_more.png) |
@@ -210,9 +210,9 @@ where pulses go in, two layers of parts, the connection to the column.
 The work done for every line in every tick is in assembly
 ([xfer.s](xfer.s)): passing the pulses on, drawing a line again when it
 changed, and the dashes moving along live wires, which are the two wire
-characters turned by a pixel. Laying the board out and the course of the
-game stay in C ([transfer.c](transfer.c)), and its state lives in the low
-memory at `$0C68`, which only a disk load could disturb.
+characters turned by a pixel; laying the board out and the course of the
+game are [transfer.s](transfer.s). Its state lives in the low memory at
+`$0C68`.
 
 ### The console
 
@@ -227,9 +227,9 @@ is drawn the way the original's code does it: each block's number is the
 character code, in the original's characters `$00`-`$1F`, hires, with the
 deck's blocks 3 to 41 across.
 
-The console is always in memory, so it opens at once: its code (1.7 KB)
-at `$F400`, copied there at the start, its data in the program. The pages
-about a droid come with its picture's file.
+The console and the lift's side view are an overlay kept packed in the
+program (see *Everything in one file*), unpacked when fire is held at a
+console or on a lift. The pages about a droid are kept with its picture.
 
 ### The droids' pictures
 
@@ -244,10 +244,13 @@ twelve high. Multicolour 1 is black, as on the C64; multicolour 2 and the
 sprites' colour are set per picture. Cells with only the hires sprites'
 pixels stay hires.
 
-That is 24 files of up to three blocks, `p00`-`p23`. One is loaded for each
-screen that shows a droid, straight into picture 1's character set, which
-the window shows for both pictures meanwhile; the text goes there too, in
-the panel's letters. The words are the original's: its unit lines read
+All 24 are kept packed in the program: their graphics in one stream, the
+console's pages about them in another (6.4 KB for 15 KB; one by one they
+would take 11.9 KB). For a screen that shows a droid, the graphics are
+unpacked into the end of the pictures' slots, which the overlays leave
+free, and the droid's copied to picture 1's character set, which the
+window shows for both pictures meanwhile; the console's enquiry does the
+same with the pages. The text goes there too, in the panel's letters. The words are the original's: its unit lines read
 *Unit type 476 - Maintenance robot*, *robot* for classes 1-4, *droid* for
 5-8, *cyborg* for 9 and *device* for the 001.
 
@@ -481,100 +484,68 @@ them.
 
 ### Memory
 
-The program, the tables and 23 slots of pre-shifted pictures fill the
-Plus/4 up to `$C000`. Above that sit two pictures with their character
-sets, the panel's character set, the block tables, and at `$F000` the
-engine's tables and the code of the console and the figures. The data and
-code used only once at the start - the fast loader's set-up and the talk
-with the drive, the panel's first drawing, the engine's tables, the
-character sets' first copies - are linked into the very bytes where the
-slots begin, so they are overwritten as soon as they have done their work
-(`INITCODE` comes right after the data: the slots start at the data's
-first byte). The code copied above `$F000` and to `$FC00` comes from there
-too. The title is an overlay in the slots (below).
+The program, its tables, 23 slots of pre-shifted pictures and what it
+keeps packed fill the Plus/4 up to `$C000`. Above that sit two pictures
+with their character sets, the panel's character set, the block tables,
+and at `$F000` the engine's tables and the code of the figures, the window
+and the panel. The data and code used only once at the start - the
+panel's first drawing, the engine's tables, the character sets' first
+copies, the code and tables that are copied elsewhere - are linked into
+the very bytes where the slots begin, so they are overwritten as soon as
+they have done their work (`INITCODE` comes right after the data: the
+slots start at the data's first byte).
 
-## The disk and the fast loaders
+Small corners are used too: the unpacker at `$0200`-`$03FF` (only the
+KERNAL's loading needed that), and tables that are only read once a game
+runs in the free ends of the block colour table (from entry 160 on in each
+of its four rows: 40 blocks use 0-159) and at `$FF40`, above the TED's
+registers.
 
-The game runs from `build/paradroid.d64`. The title, with the briefing,
-the scores page and the logo, is an **overlay**: [title.c](title.c), the
-briefing's text and the logo are linked to run in the slots of the
-pre-shifted pictures, all of them, as the title needs none, and written
-to a file of their own, `title`. [paradroid.cfg](paradroid.cfg) puts the
-overlay there, and ld65 writes it to `build/title.bin`. It is loaded for
-each title, and the pictures are made again when a game starts. The decks
-stay in memory: loading for a lift or a transfer would cost too much time.
+## Everything in one file
 
-With a **1551** or a **1541**, a **fast loader** loads the files while the
-picture and the game's interrupt go on. At the start the game asks the
-drive who it is (the reply to `UI`: `CBM DOS V2.6 TDISK` for a 1551,
-`... 1541` for a 1541) and sends it its drive code with the DOS's `M-W`
-commands, then starts it with `M-E` ([fastinit.c](fastinit.c), run once
-and then overwritten). From then on the drive waits for a file's name,
-finds the file in the directory, reads its sectors and sends them over.
-The Plus/4's half for that drive is copied to the end of the program's
-memory at the start ([fastload.s](fastload.s) calls it there); there is
-room for one of them, not both. If the drive code does not answer, the
-KERNAL loads from then on.
+The game is `build/paradroid.prg`, 45 KB packed by exomizer into 32 KB
+(129 blocks). With the KERNAL that loads in about 85 seconds from a 1541
+and 45 from a 1551 (from the speeds measured for the files before), far
+less with JiffyDOS, SD2IEC or a cartridge's fast loading; then it unpacks
+itself into place in a few seconds. Nothing loads after that, so it runs
+from anything that can load a program, and emulators start it directly.
 
-- **1551** ([drive1551.s](drive1551.s), [fastload51.s](fastload51.s)):
-  the sectors read with the DOS's job queue, sent over its parallel port
-  a byte at a time, each answered by the other side's strobe, so neither
-  side depends on the other's timing.
-- **1541** ([drive1541.s](drive1541.s), [fastload41.s](fastload41.s)):
-  over the serial bus, two bits at a time on CLK and DATA, clocked by the
-  Plus/4 with ATN: at each change of ATN the drive puts the next pair on
-  the lines, and the Plus/4 reads it a fixed time later. That time is
-  the only timing there is, and interrupts or the TED's stolen cycles only
-  make it longer, so the picture can stay on. ATN is wired into the
-  1541's DATA line through an acknowledge bit, which the drive code turns
-  with every change. Between two changes of ATN the drive has only a
-  table lookup, a shift and a mask to do.
+Inside it, [exomizer](https://bitbucket.org/magli143/exomizer) keeps
+packed what is not needed all the time:
 
-  The 1541's DOS is not used for the sectors: it needed 50 ms after each
-  one (decoding it, taking the next job) before it could read the next.
-  The drive code has the drive to itself, its interrupt off: it turns the
-  motor on (and off after a few idle seconds), moves the head, sets the
-  bit rate of the track's zone, waits for the sector's header after a
-  SYNC, and reads its data block as GCR into the very place the DOS uses,
-  `$01BB`–`$02FF`, the top of the stack's page and the command buffer.
-  It is decoded there in place, five bytes to four, with the checksum
-  checked: 18 ms. Read, decoded and sent (55 ms), a sector takes about 95
-  ms. Yape, whose TED is closer to the real one, has a true 1541 but no
-  1551, so this is the loader it uses.
+- **Overlays**, code and data linked to run in the 23 pictures' slots
+  (11.8 KB): the title with the briefing, the scores page and the logo
+  ([title.s](title.s), 9.8 KB, packed 5.6 KB); the console with the lift's
+  side view ([screens.s](screens.s), 4 KB, packed 2.5 KB); the transfer
+  game ([transfer.s](transfer.s) and xfer.s's board, 3.5 KB, packed
+  2.3 KB). Each is unpacked when it is wanted; afterwards the slots are
+  made again (the explosions' and lasers' first, then the player's and
+  the deck's droid types).
+- **The droids' pictures**, in two streams (above), unpacked into the end
+  of the slots, after the overlay that shows them.
+- **The decks' maps** (3.5 KB, packed 1.7 KB), all unpacked into the
+  droid types' slots when a deck is entered, which are made for the deck
+  right after.
+- **The explosion's and lasers' pictures**, unpacked into the last two
+  slots before they are shifted into theirs.
 
-The title (10 KB) loads in about 4.5 seconds with a 1541 and 6.4 with a
-1551, measured in VICE with `tests/loadtime.py` (7.0 seconds with a 1541
-when the DOS still read its sectors); with the KERNAL a 1541 takes much
-longer, with a black screen.
+[unpack.s](unpack.s) unpacks with exomizer's own unpacker,
+[exodecrunch.s](exodecrunch.s) (changed only where it says so), at
+`$0200`. [build.sh](build.sh) links twice: the overlays are packed from
+the first link and put at the program's end (`BLOBS`), and the second
+link must give the same overlays - nothing they refer to moves.
 
-What makes a load slow is the drive's motor, which the DOS stops when the
-drive is idle and then waits two seconds for, every time. So whenever the
-player comes within five blocks across and three up or down of a console,
-whose droid enquiry loads the droids' pictures, and when a game ends, the
-game asks the drive for no file at all, and the drive code only gives
-the DOS a read of the directory to do, with nobody waiting for it: the
-motor starts, and keeps going while the player stays near. The directory
-stays in the drive's buffer, and is not read again for the load.
+To make the room, the game is all assembly: it began in C, and the C was
+rewritten module by module, each checked against the C it replaced with
+the traces of [tests/](tests/) - the same random start and keys in both,
+the droids, shots, score, doors, panel and slots compared after every
+tick (the C's `rnd() % 12` in the transfer game took the X register too,
+whatever it held; here it is the random byte's, as meant).
 
-The disk is written by [tools/d64.py](tools/d64.py) rather than `c1541`,
-for the sectors' order: the DOS puts a file's sectors 10 apart on a track,
-right for the KERNAL. With the fast loader, a 1541 is ready for the next
-sector 10 on (about 9.5 ms a sector): 10 apart, the title takes 4.3
-seconds instead of 10.9 with 8. A 1551 would rather have 8 (5.2 seconds
-instead of 6.0); one disk serves both, and 10 is the better one for the
-two together. The fast loader's files lie nearest the directory, the
-title on the very next track, then the pictures; the program, which the
-KERNAL loads, comes after them, 10 apart, and first in the directory.
-
-Loading with the KERNAL needs care in a program that uses all of memory:
-
-- The screen is off and there is no interrupt of the game's own, because
-  the KERNAL loads with the ROM switched in and its own interrupt handler.
-- The deck's map lies at `$0400`–`$07FF`, where the KERNAL keeps some of
-  its variables. A load test that filled ranges of that area with garbage
-  first showed which bytes it really needs: only `$07D8`–`$07E7`. The game
-  keeps them from the start and puts them back before each load. Then the
-  deck's map is unpacked again.
+Until 2026-10-04 the title and the pictures were files on the disk, with
+fast loaders for the 1551 and the 1541 of its own. On a real 1541-II the
+loader failed, and SD2IEC and Joco's C264 SD drive could not load the
+files at all: one file loaded by the KERNAL avoids all of that.
 
 ## What is not 1:1
 
@@ -610,10 +581,11 @@ Loading with the KERNAL needs care in a program that uses all of memory:
   start two lines lower than the original's: the heading's letters are two
   rows tall, and the original's picture, a sprite over them, starts in
   their lower row. Characters cannot share a cell that way.
-- They are files on the disk: the 999's after a game takes a second or
-  two to load, during which the static goes on (1.2 seconds in the
-  original). Between the start page and the deck, the window is empty for
-  about four pictures, while the deck is drawn the first time.
+- Between the start page and the deck, the window is empty for about
+  four pictures, while the deck is drawn the first time.
+- After a console, a lift or a transfer the game stands still for about a
+  second while the pictures' slots are made again (the overlay was
+  unpacked into them).
 - The player's **explosion** at a game's end is ours, shorter than the
   original's several explosions around it.
 - The day's **scores** have no initials.
@@ -628,63 +600,54 @@ Loading with the KERNAL needs care in a program that uses all of memory:
 
 | | |
 | --- | --- |
-| [paradroid.c](paradroid.c) | start, the main loop, transfer and lift hooks, pause, a game's end |
-| [deck.c](deck.c) | the ship, loading a deck and finding its doors |
-| [droids.c](droids.c) | the player, the droids, shots, hits, bumps, energy |
-| [draw.c](draw.c) | the window, the player's figure, the status panel |
-| [transfer.c](transfer.c) | the transfer game: laying out the board, the game's course; an overlay kept packed, with xfer.s's board |
-| [picture.c](picture.c) | the droids' pictures and the panel's letters in the window: for the transfer, the console, the start and the end |
-| [xfer.s](xfer.s) | the transfer board in assembly: laid out, pulses passed on, lines drawn, live wires moving (in the overlay); the letters and pictures (always there) |
-| [title.c](title.c) | the overlay: the title's round of logo, briefing and scores; a game's start page |
-| [lift.c](lift.c) | the side view and riding a lift, in the console's overlay |
-| [console.c](console.c) | the ship's computer, an overlay kept packed (with lift.c): menu, droid enquiry, deck plan, ship |
-| [music.s](music.s) | the title's sound, in its overlay |
-| [briefrows.s](briefrows.s) | the briefing's text into the window's rows, in the title's overlay |
+| [paradroid.s](paradroid.s) | start, the main loop, the overlays unpacked, pause, a game's end |
+| [deck.s](deck.s) | the ship, entering a deck and finding its doors, lifts and consoles by the player |
+| [droids.s](droids.s) | the player, the droids, shots, hits, bumps, energy |
+| [draw.s](draw.s) | the window, the player's figure, the pictures shifted in advance, the status panel; run at `$F400` |
+| [picture.s](picture.s) | the droids' pictures and the panel's letters in the window: for the transfer, the console, the start and the end |
+| [transfer.s](transfer.s), [xfer.s](xfer.s) | the transfer game, an overlay: its course and board, and what is done for every line every tick (xfer.s: the letters and pictures always there) |
+| [screens.s](screens.s) | the ship's computer and riding a lift, an overlay: menu, droid enquiry, deck plan, side view |
+| [title.s](title.s), [briefrows.s](briefrows.s), [music.s](music.s) | the title, an overlay: logo, briefing and scores, the briefing's rows, its sound; a game's start page |
 | [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them, the beam-in |
-| [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what exomizer packed: the decks' maps, all at once into the droid types' slots when a deck is entered; the console's and lift's overlay and the transfer's into the slots, which are made again afterwards |
+| [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what is kept packed (exomizer's unpacker) |
 | [move.s](move.s) | the player's driving, the walls, the doors, the droids looking ahead, bumps, the decks' colours |
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
-| [fastload.s](fastload.s), [fastload51.s](fastload51.s), [fastload41.s](fastload41.s), [drive1551.s](drive1551.s), [drive1541.s](drive1541.s), [fastinit.c](fastinit.c) | the fast loaders: what the Plus/4's halves share, its half for a 1551 and for a 1541, the drives' halves, and sending the right one to the drive; with the rest of the start |
-| [game.h](game.h) | what the parts share |
+| [startup.s](startup.s) | the start, once: everything into its place |
 | [paradroid.cfg](paradroid.cfg) | the memory layout |
-| [build.sh](build.sh), [run.sh](run.sh), [run-yape.sh](run-yape.sh) | building the program and the disk; starting VICE or Yape from the disk |
+| [build.sh](build.sh), [run.sh](run.sh), [run-yape.sh](run-yape.sh) | building the program; starting VICE or Yape with it |
 | [tools/extract.py](tools/extract.py) | the original's data out of a memory dump |
 | [tools/pictures.py](tools/pictures.py) | the droids' pictures, the console's symbols and the title's logo out of the original |
 | [tools/console.py](tools/console.py) | the console's pages about the droids, as read off the original's screens |
-| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`, the briefing into the overlay's data, the pictures into `build/pics/` |
+| [tools/mkdata.py](tools/mkdata.py) | `data/` into `build/gen/`: the tables, the briefing into the title's data, the decks, pictures and fixed figures packed |
 | [tools/sfx.py](tools/sfx.py) | the original's sound effects out of a memory dump |
 | [tools/sid.py](tools/sid.py), [tools/sidmusic.py](tools/sidmusic.py) | the original's sound driver run in a 6502 emulator; its title sound into `data/music.txt` |
-| [tools/d64.py](tools/d64.py) | the disk image, with each file's sectors as far apart as its loader wants |
 | [tools/yape.patch](tools/yape.patch) | Yape's changes for the gamepad and the tests |
 | [data/](data/) | decks, blocks, characters, colours, animated characters, waypoints, lifts, droids, panel, side view, briefing, transfer characters, droid pictures, console, logo, sound, as text |
-| [tests/](tests/) | headless VICE and Yape: screenshots, speed, profile, edges and rows, stress, the title and a game's start |
+| [tests/](tests/) | headless VICE and Yape: screenshots, traces against an older build, speed, profile, edges and rows, stress, the title and a game's start |
 
 ## Building and running
 
-From the repository root, with any of the `.c` files active, `F5` builds and
+From the repository root, with any of its files active, `F5` builds and
 starts it: the root's run script hands the build to [build.sh](build.sh)
 and the start to [run.sh](run.sh). Without an editor:
 
 ```sh
 sh paradroid/build.sh
-xplus4 -autostart paradroid/build/paradroid.d64
+xplus4 -autostart paradroid/build/paradroid.prg
 ```
 
 The build needs [exomizer](https://bitbucket.org/magli143/exomizer) 3.1
-besides cc65 (`$EXOMIZER`, else beside cc65's tools): it packs what the
-game keeps packed in memory. [unpack.s](unpack.s) unpacks it with
-exomizer's own unpacker, [exodecrunch.s](exodecrunch.s), changed only
-where it says so.
+besides cc65's assembler and linker (`$EXOMIZER`, else beside cc65's
+tools): it packs what the game keeps packed, and the program as a whole.
 
-The `.prg` alone does not run: it needs the title and the pictures from
-the disk. VICE's `xplus4` has a 1551 at device 8 by default; with
-`-drive8type 1541` it has a 1541, and the game loads with the fast loader
-for that.
+`build/paradroid.prg` is all there is: emulators start it directly, and
+on a Plus/4 it runs from any drive, SD card adapter or cartridge
+(`LOAD "PARADROID",8` and `RUN`; copied onto a disk for a 1541 or 1551).
 
 The second F5 configuration, "... in Yape", starts it in **Yape** instead
 ([run-yape.sh](run-yape.sh); `sh paradroid/run-yape.sh` without an
-editor). Yape gets the disk image with its full path (it looks for a
+editor). Yape gets the program with its full path (it looks for a
 relative one in its own folder), and the gamepad set up: Yape takes a game
 controller's right stick and A as the joystick, so for the Xbox One S
 controller over Bluetooth the script hides the Steam Deck's own
@@ -720,29 +683,31 @@ monitor on a port of its own:
 | `speed.py keys s` | ticks per second while keys are held (16.7 is full speed) |
 | `profile.py keys` | where the time goes, by symbol, sampled (rough) |
 | `chprof.py keys` | where the time goes, by symbol, every cycle of the last pictures |
-| `loadtime.py [drive]` | how long the title takes to load, with a 1551 or a 1541 |
+| `trace.py root out [ticks] [seed] [arena\|disrupt]` | a game tick by tick, of the build in `root`: the same random start and keys each time, the droids, shots, score, doors, panel, slots after every tick; `tracecmp.py a b` compares two |
+| `xtrace.py root out [seed]` | the transfer game step by step: parts, pulses, the board as drawn |
+| `contrace.py root out` | the console's pages and a lift ride: what the window shows |
 | `rowcheck.py` | every line of the window on screen against memory, for all eight fine positions |
 | `edges.py` | the window's top edge for every fine position |
 | `screens.py` | the screenshots in this README |
 
-All of them start the game from the disk.
+All of them start the program. Only one test runs at a time:
+each first ends any other still running ([tests/onetest.py](tests/onetest.py)),
+and `build.sh` does not build under one.
 
 The `yape_*.py` tests run **Yape** the same way, as its TED is closer to
 the real one than VICE's: a build of Yape from its sources
 ([yapesdl](https://github.com/calmopyrin/yapesdl)) in
 `~/.cache/paradroid/yapesdl` with [tools/yape.patch](tools/yape.patch):
 SIGUSR1 enters its monitor, which reads its commands from stdin, and
-SIGUSR2 saves the TED's picture ([tests/yape.py](tests/yape.py)). Yape has
-no true 1551; with a disk image it uses a true 1541. The program itself
-loads with the KERNAL there, slowly; the tests run Yape without its speed
-limit.
+SIGUSR2 saves the TED's picture ([tests/yape.py](tests/yape.py)). The
+tests run Yape without its speed limit.
 
 | | |
 | --- | --- |
-| `yape_boot.py [s] [warp]` | the start from the disk: registers and a screenshot every five seconds |
+| `yape_boot.py [s] [warp]` | the start: registers and a screenshot every five seconds |
 | `yape_play.py [s] [seed]` | the title, fire, a random joystick; fails if the game stops ticking |
 | `yape_rowcheck.py` | `rowcheck.py` in Yape |
-| `yape_xfer.py [n]` | transfers in Yape, their droids' pictures loaded with the fast loader |
+| `yape_xfer.py [n]` | transfers in Yape |
 | `yape_brief.py [n]` | the briefing in Yape, n pictures in a row: how far it moves in each |
 | `yape_title.py` | the title's scores page in Yape, with its picture |
 | `yape_start.py [logo]` | a game's start in Yape (fire on the briefing, or on the logo), 400 pictures in a row: the start page, the beam, "Mobile" |

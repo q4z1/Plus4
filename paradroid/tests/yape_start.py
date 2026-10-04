@@ -15,7 +15,7 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
 
-y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.d64'), warp=True, series=400)
+y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True, series=400)
 try:
     for t in range(300):
         y.run_for(0.2 if 'logo' in sys.argv else 1)

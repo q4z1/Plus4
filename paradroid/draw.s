@@ -2,7 +2,8 @@
 ; the status panel above
 ;
 ; In assembly (it was draw.c) to make room: everything the game keeps is
-; in the program.
+; in the program. Its code and tables run at $F400 on (HICODE, with
+; figs.s), copied there at the start.
 
         .export _pictures_fixed, _player_picture, _board_droid, _pictures_deck
         .export _draw, _panel_code, _panel_status, _num_text, _panel_score
@@ -15,8 +16,8 @@
         .import _f_h, _f_tint, _explo_col, _panel_put, _pp_off, _pp_code, _pp_attr
         .import _d_x, _d_y, _d_type, _d_boom, _d_energy, _nd, _transfer_mode
         .import _score, _score_changed
-        .import _droid_tmpl, _digit_bits, _explo_img
-        .import _laser_v, _laser_d1, _laser_h, _laser_d2, _dr_class, _dr_num
+        .import _droid_tmpl, _digit_bits, _fixed_pk, _unpack, _unp_dst
+        .import _dr_class, _dr_num
         .import popa
         .importzp _f_src, _p_pre, _org_x, _org_y, _fig_x, _fig_y, _fig_n
         .importzp sreg, ptr1
@@ -64,14 +65,14 @@ wt:     .res 2
 n32:    .res 4                  ; num_text()'s number
 nd_:    .res 1                  ; a digit's count
 
-        .rodata
+        .segment "HICODE"
 ; a multicolour pixel's place in its byte: kept, and set to %10
 px_and: .byte $3F, $CF, $F3, $FC
 px_or2: .byte $80, $20, $08, $02
 ; num_text()'s powers of ten, low byte first
 pow10:  .dword 1000000, 100000, 10000, 1000, 100, 10
 
-        .code
+        .segment "HICODE"
 
 ; ======================================================================
 ; Pictures, shifted in advance
@@ -99,44 +100,38 @@ shift_into:
         sta _p_pre+1
         jmp _pre_shift
 
-; pictures_fixed(): the explosions' and lasers' slots
+; pictures_fixed(): the explosions' and lasers' slots, from their pictures
+; kept packed, unpacked into the last two slots first (the player's dome's:
+; pictures_deck() makes them after this)
+FIXED   = _pre + 21 * 512
 _pictures_fixed:
-        lda #SLOT_EXPLO
-        sta dn
-        lda #<_explo_img
+        lda #<FIXED
+        sta _unp_dst
+        lda #>FIXED
+        sta _unp_dst+1
+        lda #<_fixed_pk
+        ldx #>_fixed_pk
+        jsr _unpack
+        lda #SLOT_EXPLO         ; the explosion's six, the lasers' four:
+        sta dn                  ; | / - \, one after the other
+        lda #<FIXED
         sta bits
-        lda #>_explo_img
+        lda #>FIXED
         sta bits+1
 @e:     lda bits
         ldx bits+1
         jsr shift_into
         lda bits
         clc
-        adc #EXPLO_H * 4
+        adc #64
         sta bits
         bcc :+
         inc bits+1
 :       inc dn
         lda dn
-        cmp #SLOT_EXPLO + NEXPLO
+        cmp #SLOT_LASER + 4
         bne @e
-        lda #SLOT_LASER         ; | / - \
-        sta dn
-        lda #<_laser_v
-        ldx #>_laser_v
-        jsr shift_into
-        inc dn
-        lda #<_laser_d1
-        ldx #>_laser_d1
-        jsr shift_into
-        inc dn
-        lda #<_laser_h
-        ldx #>_laser_h
-        jsr shift_into
-        inc dn
-        lda #<_laser_d2
-        ldx #>_laser_d2
-        jmp shift_into
+        rts
 
 ; droid_picture(A): type A's picture into pimg: the template with its
 ; number in the band, light digits on the dark body
@@ -594,10 +589,10 @@ _panel_code:
 :       lda misc_code,y
         rts
 
-        .rodata
+        .segment "HICODE"
 misc_ch:    .byte $3F, $2D, $2E, $2C, $3A, $27, $21   ; ? - . , : ' !
 misc_code:  .byte $24, $2E, $28, $29, $2A, $2D, $25
-        .code
+        .segment "HICODE"
 
 ; panel_text: the text at ptr1 from column pcol on, pcol after it
 panel_text:
