@@ -295,6 +295,7 @@ characters at `$0400`, cc65's stack at `$0200`, and everything else in
 | [mktables.py](mktables.py) | makes `build/tables.s`: everything the game only reads, at build time |
 | [crt0_cart.s](crt0_cart.s) | the cartridge's header and start-up |
 | [mkcrt.py](mkcrt.py) | wraps the raw cartridge image into a CRT file for VICE |
+| [run-yape.sh](run-yape.sh) | starts the cartridge in Yape as a C16, with a configuration of its own (F5 *in Yape*) |
 | [demonattack_cart.cfg](demonattack_cart.cfg) | the cartridge's memory layout: 32 KB ROM at `$8000`, everything in RAM below `$4000` |
 | [build.sh](build.sh) | builds `build/demonattack.prg`, `build/demonattack.bin` and `build/demonattack.crt`; with `DEBUG=1` also the test build `build/dbg.prg` |
 
@@ -327,8 +328,19 @@ has C1 low (`$8000`) in its first 16 KB and C1 high (`$C000`) in the
 second, so it fits a single 27256 on a board that puts both halves on one
 chip.
 
-- **Yape** (and YapeSDL, which also runs in the browser) has no cartridge
-  option on its command line. Open its menu with `F8`, `Esc` or the right
+- **Yape**: from the repository root, the F5 configuration *in Yape*
+  builds and starts [run-yape.sh](run-yape.sh). It gives Yape a
+  configuration of its own, with the cartridge in bank 2 and 16 KB of RAM,
+  so Yape comes up as a C16 running the game. Your own `yape.conf` stays as
+  it is. The gamepad is set up as for Paradroid, so a stick that SDL maps
+  wrongly no longer holds a joystick direction down. On a Plus/4 that
+  shows up as a key typing itself. The patched Yape from
+  [../paradroid/tools/yape.patch](../paradroid/tools/yape.patch) starts the
+  cartridge at once. Yape as it comes loads configured ROMs only at a hard
+  reset, so there `Shift`+`F11` starts it.
+
+  By hand: Yape (and YapeSDL, which also runs in the browser) has no
+  cartridge option on its command line. Open its menu with `F8`, `Esc` or the right
   mouse button, choose *Attach rom...* and then `demonattack.bin`. Where it
   offers banks, `BANK#1 LO` and `BANK#2 LO` both work: a 32 KB file fills
   the low and the high half. If the machine does not restart by itself,

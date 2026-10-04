@@ -7,6 +7,9 @@ Paradroid's changes to Yape (github.com/calmopyrin/yapesdl, at f5fcf8d):
   the TED's picture as a PPM to $YAPE_SHOT ($YAPE_SHOTN of them, one a
   frame); YAPE_WARP starts without the speed limit; YAPE_JOYLOG writes each
   change of the joystick ports as read, with the time.
+- the ROMs the settings name are loaded at start-up, not only at the next
+  hard reset: a cartridge in yape.conf (Demon Attack's run-yape.sh puts one
+  there) starts with the machine.
 
 diff --git a/keyboard.cpp b/keyboard.cpp
 index f1c63a5..da9d284 100644
@@ -38,7 +41,7 @@ index f1c63a5..da9d284 100644
  }
  
 diff --git a/main.cpp b/main.cpp
-index 9859b40..e35b3a9 100644
+index 9859b40..7e59d12 100644
 --- a/main.cpp
 +++ b/main.cpp
 @@ -7,7 +7,7 @@
@@ -167,7 +170,18 @@ index 9859b40..e35b3a9 100644
  	machineInit();
  	uinterface = new UI(ted8360);
  
-@@ -1501,6 +1576,8 @@ int main(int argc, char *argv[])
+@@ -1441,7 +1516,9 @@ int main(int argc, char *argv[])
+ 		ad_get_curr_dir(tmpStr);
+ 		fprintf(stderr, "IEC drive path: %s\n", tmpStr);
+ 		setEmulationLevel(g_iEmulationLevel);
+-		machineReset(true);
++		// power on with the ROMs the settings name: a plain reset kept the
++		// built-in ones until the next hard reset (shift+F11)
++		machineReset(3);
+ 	} else
+ 		fprintf(stderr,"Error loading settings or no .ini file present...\n");
+ #endif
+@@ -1501,6 +1578,8 @@ int main(int argc, char *argv[])
  	setMainLoop(1);
  #else
  	printSpecialKeys();
