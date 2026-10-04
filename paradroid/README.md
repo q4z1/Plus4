@@ -389,7 +389,33 @@ $FF1F := (6 - s) & 7   ; row line counter (bits 0-2) - one line later than
                        ; the row above it
 ```
 
-This moves the whole window down by `s` lines, `s` from 0 to 7. Below the
+This moves the whole window down by `s` lines, `s` from 0 to 7. That is
+how it was at first. On a real Plus/4 (Luca's) the window's colours
+flickered while the deck scrolled up or down: green turned ochre, the border
+beside the window brown. plus4emu shows the same; VICE and Yape do not. The
+TED takes the PAL colour phase of each line from bit 0 of the line counter.
+Set back by an odd `s`, two lines in a row have the same phase. The TV's
+PAL decoder is then out of step and decodes everything with the wrong phase
+until the counter jumps back under the window. So the line counter now
+goes back by the even part of `s` only. The odd part goes into the vertical
+scroll register, which the TED does follow in the middle of the picture
+when it decides whether a row is fetched (VICE does that too, as
+`rowcheck.py` shows, though it does not move the picture by it as above):
+
+```
+$FF06 := 3 + (s & 1)   ; in lines 71-73, before the counter is set back
+$FF1D := 74 - (s & 6)
+$FF1F := (6 - s) & 7
+```
+
+A row is fetched where the line counter and the vertical scroll agree in
+their last three bits. `(line - s) & 7 = 3` is `(line - (s & 6)) & 7 = 3 +
+(s & 1)`: the same lines as before. The vertical scroll must not be written
+in a line whose counter matches the new value, or the row is fetched at
+once. Lines 71 to 73 end in 7, 0 and 1. It goes back to 3 in the vertical
+blank, at line 252. [tests/p4emu_vscroll.py](tests/p4emu_vscroll.py) checks
+the colours in plus4emu, and `rowcheck.py` and `yape_rowcheck.py` check
+that the rows are where they were. Below the
 window, the line counter is put back to where it would have been, so the
 picture ends where it always does: in line 202 it is set to 202. The TED
 ends the picture's fetching only on a line that starts as 203; set
@@ -685,6 +711,11 @@ tools): it packs what the game keeps packed, and the program as a whole.
 on a Plus/4 it runs from any drive, SD card adapter or cartridge
 (`LOAD "PARADROID",8` and `RUN`; copied onto a disk for a 1541 or 1551).
 
+A third emulator is **plus4emu**, whose TED shows what the other two do not
+(the colours above): [run-plus4emu.sh](run-plus4emu.sh), or
+`sh paradroid/run-plus4emu.sh` without an editor. The script says how to
+set it up. The repository's README has it too.
+
 The second F5 configuration, "... in Yape", starts it in **Yape** instead
 ([run-yape.sh](run-yape.sh); `sh paradroid/run-yape.sh` without an
 editor). Yape gets the program with its full path (it looks for a
@@ -758,4 +789,14 @@ tests run Yape without its speed limit.
 | `yape_gap.py [n]` | the gap between panel and window in Yape, n pictures in a row: anything in it |
 | `yape_snow.py [n] [label ...]` | the window's bottom edge in Yape, n pictures in a row: stray pixels there (with labels, those routines switched off) |
 | `yape_joylag.py [s]` | how late the gamepad's stick arrives in Yape, against SDL itself (move the stick when READY shows) |
+
+The `p4emu*.py` tests run **plus4emu** inside the test, through its library
+([tests/p4emu.py](tests/p4emu.py)): no window, no process of its own, the
+TED's pictures straight from its video output. The release's own
+`libplus4emu.so` lacks functions, so the library is built from plus4emu's
+sources (`~/.cache/plus4emu/buildlib.sh`, see `p4emu.py`).
+
+| | |
+| --- | --- |
+| `p4emu_vscroll.py [n]` | in a game in plus4emu, driving up and down: the border beside the window and the window's colour in every picture, by fine position (the PAL phase) |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

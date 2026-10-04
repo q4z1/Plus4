@@ -1061,14 +1061,18 @@ picture_on:
         pha
         jsr frame_start         ; (under the window, the border)
         pla
+        php                     ; (the interrupt changes the y scroll in
+        sei                     ; it: engine.s's set_s)
         beq :+
         lda TED_SCROLLY
         ora #$10
         sta TED_SCROLLY
+        plp
         rts
 :       lda TED_SCROLLY
         and #$EF
         sta TED_SCROLLY
+        plp
         lda _col_border         ; (now, not at the next picture)
         sta TED_BORDER
         rts

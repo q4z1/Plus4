@@ -180,7 +180,8 @@ b_r:        .res 2
 b_blank7:   .res 2
 b_cut:      .res 2              ; window row + 1 it cut, 0 none
 b_sx:       .res 2              ; what the interrupt sets for it
-b_s:        .res 2
+b_s:        .res 2              ; the line counter's set-back: s's even part
+b_yo:       .res 2              ; the window's y scroll: 3 + s's odd part
 b_rcv:      .res 2
 
 ; colours
@@ -342,8 +343,7 @@ _eng_init:
         lda #1
         sta _back
         lda #1                  ; no shift
-        sta b_s
-        sta b_s+1
+        jsr _eng_roll
         lda #6
         sta b_rcv
         sta b_rcv+1
@@ -395,9 +395,7 @@ _eng_plain:
         sta b_cut,x
         sta b_valid,x
         sta cl_n,x
-        sta b_s,x
-        lda #6                  ; 6 - s for s = 0
-        sta b_rcv,x
+        jsr set_s               ; (s = 0)
         dex
         bpl :-
         lda #>(FONT0 ^ FONT1)
@@ -487,6 +485,13 @@ irq_rc:
 ; character set, from the next line on.
 irq_scroll:
         ldy front
+        ; the y scroll for the window (set_s), now, in line 71 or 72: a
+        ; line whose counter agrees with it in its last three bits would
+        ; fetch a row at once (71, 72, 73: 7, 0, 1; the window's 3 or 4)
+        lda TED_SCROLLY
+        and #$F8
+        ora b_yo,y
+        sta TED_SCROLLY
         ; the next interrupt's line first: the line counter is set back
         ; below, to 74 - s, and set to this interrupt's line (71, for s =
         ; 3) the TED raises it again at once (Yape does, as the real chip;
@@ -612,6 +617,10 @@ irq_out:
 
 ; the panel at the top of the picture
 panel_regs:
+        lda TED_SCROLLY         ; the y scroll irq_scroll changed (the line
+        and #$F8                ; counter is 252 here: 4, no row fetched)
+        ora #3
+        sta TED_SCROLLY
         lda _panel_hi
         sta TED_CHBASE
         lda #$88                ; 256 characters, hires, 40 columns
@@ -1114,12 +1123,7 @@ _r_done:
         lda _e_sx
         sta b_sx,x
         lda _e_s
-        sta b_s,x
-        eor #$FF                ; 6 - s, in three bits
-        clc
-        adc #7
-        and #7
-        sta b_rcv,x
+        jsr set_s
         lda next_code
         beq :+
         eor #$FF
@@ -1975,13 +1979,37 @@ roll_step:
 ; eng_roll(s): a page in the window moved down by s lines (0-7), both
 ; pictures - the static's rolling, as the original's fine scroll
 _eng_roll:
-        sta b_s
-        sta b_s+1
-        eor #$FF                ; 6 - s
-        sec
-        adc #6
-        sta b_rcv
-        sta b_rcv+1
+        ldx #1
+        jsr set_s
+        dex
+        ; (on into set_s)
+
+; set_s: the window moved down by A = s lines (0-7) in picture X, for the
+; interrupt (irq_scroll). The line counter is set back by s's even part
+; only, its odd part is the y scroll's: the TED's PAL colour phase
+; alternates with the line counter's bit 0, and a TV or plus4emu shown two
+; lines of one phase in a row decodes the rest of the picture with the
+; wrong one - the window's colours, green to ochre, in every picture with
+; an odd s (Luca's real Plus/4). Rows are fetched where the line counter
+; and the y scroll agree in their last three bits, so (line - s) & 7 = 3
+; is (line - even) & 7 = 3 + odd: the same lines. A and X kept.
+set_s:  pha
+        and #6
+        sta b_s,x
+        pla
+        pha
+        and #1
+        clc
+        adc #3
+        sta b_yo,x
+        pla
+        pha
+        eor #$FF                ; 6 - s, in three bits
+        clc
+        adc #7
+        and #7
+        sta b_rcv,x
+        pla
         rts
 
 ; the energizer's next phase: X its last byte's index

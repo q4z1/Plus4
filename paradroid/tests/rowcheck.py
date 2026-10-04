@@ -36,8 +36,10 @@ try:
         font = g.v.mem(base + 0x400, 2048)
         bs = g.v.mem(g.lbl['b_s'], 2)[front]; sx = g.v.mem(g.lbl['b_sx'], 2)[front]
         k = (-(py - 56)) & 7
-        line = pix[36 + 8 * 13 + 3][56:330]   # the deck colour: the commonest
-        bg = max(set(line), key=line.count)   # of a line in the window
+        # the deck colour: the commonest in the window (of one line, a
+        # wall's line could be it, at k = 7 the grid's)
+        line = [p for yy in range(120, 230, 3) for p in pix[yy][56:330]]
+        bg = max(set(line), key=line.count)
         # every screen line in the window, as bits over columns 2..37
         shot = []
         for yy in range(h):
