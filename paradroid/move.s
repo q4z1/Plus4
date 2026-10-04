@@ -975,9 +975,14 @@ _deck_colours:
         lda #$56                ; class 15: always light blue
         sta CLS_HR+15
         sta CLS_MC+15
-        lda CLS_HR              ; (the background may have any colour:
-        cmp #$56                ; light blue its nearest)
-        bne :+
+        lda CLS_HR              ; the yellow background a level darker, so
+        cmp #$77                ; that the white 001 stands out on it (the
+        bne :+                  ; yellow of the other classes stays)
+        lda #$57
+        sta CLS_HR
+        sta CLS_MC
+:       cmp #$56                ; (the background may have any colour:
+        bne :+                  ; light blue its nearest)
         lda #$5D
 :       sta _deck_bg
         lda CLS_HR+3

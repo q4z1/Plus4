@@ -177,8 +177,12 @@ window's background, its fourth the border's and the panel frame's. A
 deck whose droids are gone has the dark scheme 7, and the ALERT console's
 lights take the alert's colour. On the Plus/4 the colours are the nearest
 of the TED's, the deck's characters' those of 0-7, as they turn
-multicolour where figures are; the light green is a level darker than the
-nearest, which left white figures and doors on it hard to see. The
+multicolour where figures are. Where the nearest left white figures and
+doors hard to see on a deck's background, it is darker (measured against
+white: a contrast of about 2.5 now, 1.5 before): the light green two
+levels, the cyan one, the yellow one where it is the background (not
+where it draws details), and the green of the light green decks' edges
+one, so that it still stands out from their background. The
 console's deck plan, which shows the deck's own characters, has the
 scheme too.
 
@@ -570,8 +574,8 @@ files at all: one file loaded by the KERNAL avoids all of that.
   here rather than touching its frame.
 - The deck's colour starts a line above the window's top edge (see
   above); in the original, the edge and the colour change are the same.
-- **Colours**: the nearest of the TED's, the light green a level darker
-  (see above); some, like the red and the light green, look a little
+- **Colours**: the nearest of the TED's, the light ones some darker as
+  backgrounds (see above); some, like the red and the light green, look a little
   different from the C64's.
 - **Sound**: the effects and the title's sound are the original's, but on
   the TED's squares instead of the SID's triangles, saws and pulses, and

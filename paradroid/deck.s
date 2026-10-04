@@ -44,17 +44,20 @@ dc:     .res 1                  ; console_here()'s flags
 ; The C64's colours on the TED: for each, the nearest of the TED's 121, as
 ; VICE draws both (measured: tests of all colours on each machine). The
 ; deck's light blue is the nearest of 0-7, as deck characters turn into
-; multicolour in the cells figures cover. The light green one level
-; darker than the nearest found (0x7F, 0x75): nearer the C64's to the
-; eye, and white figures, doors and consoles stand out on it.
+; multicolour in the cells figures cover. Some a level or two darker than
+; the nearest, so that the white 001 and doors stand out on the decks they
+; are the background of (measured: contrast against white about 2.5 now,
+; 1.5 before): the light green ($7F, $75 nearest) and the cyan; the green
+; with them, as the light green decks' edges are drawn in it; the yellow
+; when it is the background (move.s, deck_colours()).
 _pal_deck:
-        .byte $00, $71, $3B, $63, $4E, $55, $36, $77
-        .byte $48, $39, $5B, $31, $51, $6F, $56, $61
+        .byte $00, $71, $3B, $53, $4E, $45, $36, $77
+        .byte $48, $39, $5B, $31, $51, $5F, $56, $61
 ; the same for multicolour cells, whose colour can only be 0-7: the
 ; nearest of those
 _pal_mc:
-        .byte $00, $71, $42, $63, $44, $55, $36, $77
-        .byte $42, $37, $52, $31, $51, $65, $56, $61
+        .byte $00, $71, $42, $53, $44, $45, $36, $77
+        .byte $42, $37, $52, $31, $51, $55, $56, $61
 
         .code
 
