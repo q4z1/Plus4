@@ -1,11 +1,12 @@
 #!/bin/sh
-# Baut die uebergebene .c-Datei fuer den Commodore Plus/4 und startet sie in VICE.
+# Baut die uebergebene .c-Datei (oder das Programm mit eigener build.sh, zu
+# dem die Datei gehoert) fuer den Commodore Plus/4 und startet es in VICE.
 #
 # Das Ergebnis landet im build/-Verzeichnis neben der Quelldatei - also z.B.
 # main/build/main.prg fuer main/main.c. Damit passt es zu dem Layout, das VS64
 # beim direkten Oeffnen eines Programmordners selbst verwendet.
 #
-# Aufruf: run-current.sh <pfad/zur/datei.c>
+# Aufruf: run-current.sh <pfad/zur/datei>
 
 set -e
 
@@ -18,22 +19,32 @@ if [ -z "$SRC" ]; then
     exit 1
 fi
 
-case "$SRC" in
-    *.c) ;;
-    *)
-        echo "Fehler: '$SRC' ist keine .c-Datei." >&2
-        echo "Bitte die zu startende .c-Datei im Editor aktivieren und F5 erneut druecken." >&2
-        exit 1
-        ;;
-esac
-
 if [ ! -f "$SRC" ]; then
     echo "Fehler: '$SRC' existiert nicht." >&2
     exit 1
 fi
 
-DIR=$(dirname "$SRC")
-NAME=$(basename "$SRC" .c)
+# A program with its own build.sh (Paradroid: all assembly): any of its
+# files will do, in its folder or below (tests/, tools/), and the program
+# is named after the folder. Everything else is one .c file.
+DIR=$(cd "$(dirname "$SRC")" && pwd)
+while [ "$DIR" != / ] && [ ! -f "$DIR/build.sh" ] && [ ! -d "$DIR/.vscode" ]; do
+    DIR=$(dirname "$DIR")
+done
+if [ -f "$DIR/build.sh" ]; then
+    NAME=$(basename "$DIR")
+else
+    case "$SRC" in
+        *.c) ;;
+        *)
+            echo "Fehler: '$SRC' ist keine .c-Datei." >&2
+            echo "Bitte die zu startende .c-Datei im Editor aktivieren und F5 erneut druecken." >&2
+            exit 1
+            ;;
+    esac
+    DIR=$(dirname "$SRC")
+    NAME=$(basename "$SRC" .c)
+fi
 OUT="$DIR/build"
 
 mkdir -p "$OUT"
@@ -47,9 +58,10 @@ if [ -f "$DIR/cflags" ]; then
     EXTRA=$(cat "$DIR/cflags")
 fi
 
-# A program made of several sources (C plus assembler, its own linker
+# A program made of several sources (assembler, C, its own linker
 # configuration) brings its own build.sh, which must leave
-# build/<name>.prg behind. Everything else is one .c file, built here.
+# build/<name>.prg behind (<name>: its folder's). Everything else is one
+# .c file, built here.
 if [ -f "$DIR/build.sh" ]; then
     echo "Baue $NAME ueber $DIR/build.sh ..."
     CC65_BIN="$BIN_DIR" sh "$DIR/build.sh"
@@ -65,7 +77,7 @@ echo "Fertig: $OUT/$NAME.prg"
 
 # The emulator: VICE, or Yape with PLUS4_EMU=yape (the F5 configuration
 # "... in Yape"), whose TED is closer to the real chip. A program may bring
-# its own run-yape.sh for that (Paradroid: its disk, the gamepad). Yape
+# its own run-yape.sh for that (Paradroid: the gamepad). Yape
 # looks for a relative file name in its own folder, so it gets the full
 # path; from VS Code's flatpak it is started on the host.
 if [ "$PLUS4_EMU" = yape ]; then

@@ -2,7 +2,9 @@
     "version": "0.2.0",
     "configurations": [
         {
-            // F5: baut die gerade im Editor aktive .c-Datei und startet sie in VICE.
+            // F5: baut die gerade im Editor aktive .c-Datei und startet sie in VICE
+            // - oder, in einem Programmordner mit eigener build.sh (Paradroid),
+            // bei irgendeiner seiner Dateien dieses Programm.
             //
             // Der Typ "node-terminal" ist hier nur das Vehikel, um per F5 einen
             // Befehl auszufuehren - es ist kein JavaScript im Spiel. VS64s eigener
@@ -15,19 +17,19 @@
             // dort greift dann dessen eigene launch.json.
             "type": "node-terminal",
             "request": "launch",
-            "name": "Plus/4: Aktive .c-Datei bauen & starten",
+            "name": "Plus/4: Aktive Datei bauen & starten",
             "command": "${workspaceFolder}/.vscode/run-current.sh '${file}'",
             "cwd": "${workspaceFolder}"
         },
         {
             // Wie oben, nur in Yape statt VICE (dessen TED ist naeher am
             // echten Chip). Bringt das Programm ein run-yape.sh mit, startet
-            // das - Paradroid: von seiner Diskette, mit dem Gamepad.
+            // das - Paradroid: mit dem Gamepad.
             // Welche Konfiguration F5 nimmt, waehlt man oben in der Ansicht
             // "Ausfuehren und Debuggen"; F5 bleibt dann bei ihr.
             "type": "node-terminal",
             "request": "launch",
-            "name": "Plus/4: Aktive .c-Datei bauen & in Yape starten",
+            "name": "Plus/4: Aktive Datei bauen & in Yape starten",
             "command": "PLUS4_EMU=yape ${workspaceFolder}/.vscode/run-current.sh '${file}'",
             "cwd": "${workspaceFolder}"
         }

@@ -1,6 +1,6 @@
 #!/bin/sh
-# Start Paradroid in Yape from its disk (Yape's TED is closer to the real
-# chip than VICE's). Called by the root's run script with the .prg when
+# Start Paradroid in Yape (Yape's TED is closer to the real chip than
+# VICE's): build/paradroid.prg, which is all there is. Called by the root's run script with the .prg when
 # the F5 configuration for Yape is chosen; works on its own too.
 #
 # Which Yape: the one built with tools/yape.patch (in
@@ -13,8 +13,8 @@
 #   git clone https://github.com/calmopyrin/yapesdl ~/.cache/paradroid/yapesdl
 #   cd ~/.cache/paradroid/yapesdl && git apply <this folder>/tools/yape.patch && make
 #
-# The disk image goes to Yape with its full path: Yape looks for a
-# relative one in its own folder.
+# The program goes to Yape with its full path: Yape looks for a relative
+# one in its own folder.
 #
 # The gamepad. Yape takes a game controller's right stick and its A button
 # (through SDL) as the joystick, and the Steam Deck's own controller gets
