@@ -488,7 +488,8 @@ for ln in lines('briefing.txt'):
     page.append((int(row) - 2, int(col), txt_codes(text)))
 brief.append(page)
 # an addition to the original's credits (page 4)
-brief[4].append((55 - 2, 13, txt_codes('Plus4 version 2026 in C.')))
+credit = txt_codes('Plus4 version 2026 in assembly.')
+brief[4].append((55 - 2, 1 + (38 - len(credit)) // 2, credit))   # (centred)
 brief[4].sort()
 # The briefing brings a character set of its own, for the window to scroll
 # it in: the panel's characters it needs, each picture once, the blank one
