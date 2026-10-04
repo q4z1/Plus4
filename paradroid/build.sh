@@ -39,7 +39,6 @@ INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
 # (and the console's and the figures' code, copied to $F400 at the start:
 # its size is known once they are compiled, which needs mkdata's data.h -
 # so mkdata again, with that)
-$B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/console.o console.c
 $B/cl65 -t plus4 -g -c -o build/figs.o figs.s
 for o in build/figs.o; do
     n=$($B/od65 -S $o | awk '/HICODE:/{print $2}')
@@ -50,7 +49,7 @@ $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/fastinit.o fastinit.c
 n=$($B/od65 -S build/fastinit.o | awk '/INITDATA:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
-for f in disk lift title; do
+for f in disk title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
 done
 $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
@@ -60,6 +59,7 @@ $B/cl65 -t plus4 -g -c -o build/deck.o deck.s
 $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/paradroid.o paradroid.s
 $B/cl65 -t plus4 -g -c -o build/picture.o picture.s
 $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/transfer.o transfer.s
+$B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/screens.o screens.s
 $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
 $B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/music.o music.s
@@ -81,7 +81,7 @@ OVLS="con xfer title"
 link() {
     $B/cl65 -t plus4 -C paradroid.cfg -m build/paradroid.map -Ln build/paradroid.lbl \
         -o build/paradroid.prg build/paradroid.o build/deck.o build/droids.o \
-        build/draw.o build/picture.o build/disk.o build/transfer.o build/lift.o build/console.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
+        build/draw.o build/picture.o build/disk.o build/transfer.o build/screens.o build/title.o build/engine.o build/xfer.o build/fastload.o build/fastload51.o build/fastload41.o build/music.o build/briefrows.o build/move.o build/figs.o build/sfxcall.o \
         build/data.o build/brief.o build/condata.o build/fastinit.o build/drivecode.o \
         build/sfx.o build/unpack.o build/blobs.o
 }
