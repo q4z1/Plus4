@@ -50,7 +50,7 @@ $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/fastinit.o fastinit.c
 n=$($B/od65 -S build/fastinit.o | awk '/INITDATA:/{print $2}')
 INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 INIT_EXTRA=$INIT_EXTRA python3 tools/mkdata.py
-for f in disk transfer lift title; do
+for f in disk lift title; do
     $B/cl65 -t plus4 -O -Cl -g -I build/gen -c -o build/$f.o $f.c
 done
 $B/cl65 -t plus4 -g -c -o build/engine.o engine.s
@@ -59,6 +59,7 @@ $B/cl65 -t plus4 -g -c -o build/draw.o draw.s
 $B/cl65 -t plus4 -g -c -o build/deck.o deck.s
 $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/paradroid.o paradroid.s
 $B/cl65 -t plus4 -g -c -o build/picture.o picture.s
+$B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/transfer.o transfer.s
 $B/cl65 -t plus4 -g -c -o build/xfer.o xfer.s
 $B/cl65 -t plus4 -g -c -o build/fastload.o fastload.s
 $B/cl65 -t plus4 -g -c -o build/music.o music.s
