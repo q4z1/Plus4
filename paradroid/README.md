@@ -441,7 +441,17 @@ for s = 0 and 7, the TED stops the processor to fetch a row through the
 whole visible part, and the colour came a line or two late in one picture
 in five to twenty. Measured in Yape with `tests/yape_top.py`, which needs
 the briefing rolling to show it; `tests/yape_gamegap.py` checks the game,
-`tests/yape_gap.py` the title.
+`tests/yape_gap.py` the title. What row 8 shows at the window's top is
+checked in memory: `tests/yape_toprow.py`, driving about, compares it in
+the picture on show with the deck. (It was missing at first: picture 1's
+last copy code ends at 256, 0 in a byte, so it got none, and the window's
+top lines were blank in every other picture - a flicker.)
+
+Row 8 is the window's now in everything drawn into it: pages clear it,
+its colours too (they show at the window's top; left from the logo, the
+briefing's first lines came in the logo's greys). The logo, over the
+whole screen in one character set, has the gap rows in that set too:
+`_gap_eor` (engine.s) is 0 for it, `eng_plain()` puts it back.
 
 The figures lose the 40 codes to the copies: they have 75 (the most seen
 in a crowd of droids). In the title, where both pictures show picture 1's
@@ -737,6 +747,7 @@ tests run Yape without its speed limit.
 | `yape_rowcheck.py` | `rowcheck.py` in Yape, with the window's top line |
 | `yape_top.py [n]` | the window's top line in Yape while the briefing rolls, for each fine position (`YTOP_FILL=1`: line by line) |
 | `yape_gamegap.py [n]` | in a game in Yape, driving: the gap clean and the window's top in place in every picture |
+| `yape_toprow.py [n]` | in a game in Yape, driving: the window's top row in memory against the deck, in the picture on show |
 | `yape_still.py [n]` | in a game standing still, n pictures: each one's content fitted to the first's |
 | `yape_rollcheck.py [n]` | the briefing rolling in Yape: its rows against where they are meant to be |
 | `yape_xfer.py [n]` | transfers in Yape |

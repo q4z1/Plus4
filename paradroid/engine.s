@@ -61,6 +61,7 @@
         .export _panel_put, _pp_off, _pp_code, _pp_attr
         .export _keys_irq, _eng_keys, _dbg_keys, _pause_keys
         .export _pool_left, _eng_stack, _font_hi, _f_tint, _panel_hi, _win_mc
+        .export _gap_eor
         .export _mus_hook
         .import sfx_frame               ; sfx.s
         .importzp sp
@@ -251,6 +252,10 @@ _panel_hi:  .byte >PANELF
 ; colours can then be any of the TED's (in multicolour mode a colour of 8
 ; or more makes a cell multicolour)
 _win_mc:    .byte $10
+; the gap's character set against the window's: the other picture's
+; (FONT0 ^ FONT1), or the same for a picture over the whole screen (the
+; logo); eng_plain() sets it back
+_gap_eor:   .byte >(FONT0 ^ FONT1)
 
         .rodata
 rowc_lo:    .repeat WROWS, R    ; window rows in the code matrix
@@ -395,6 +400,8 @@ _eng_plain:
         sta b_rcv,x
         dex
         bpl :-
+        lda #>(FONT0 ^ FONT1)
+        sta _gap_eor
         ldx #WCOLS              ; the window's top row blank: unscrolled,
         lda #0                  ; its last line is the window's first
 :       sta SCR0C + WROW0 * 40,x
@@ -459,7 +466,7 @@ irq_rc:
         bcs :-
         ldy front
         lda font_hi,y           ; the other picture's set ($C8 <-> $D8):
-        eor #>(FONT0 ^ FONT1)   ; the top row's copies are blank in it
+        eor _gap_eor            ; the top row's copies are blank in it
         sta TED_CHBASE
         lda b_sx,y
         ora #$80                ; 256 characters, 38 columns,
@@ -1143,9 +1150,8 @@ cut_row:
         beq :+
         lda #CUT_R0 + CUT_N
 :       sta z_pc                ; the next copy's code
-        clc
-        adc #CUT_N
-        sta z_k                 ; and the first past them
+        lda #CUT_N              ; and how many are left (a count: picture
+        sta z_k                 ; 1's end, 256, is 0 in a byte)
         lda #WCOLS-1
         sta z_col
 @c:     ldy z_col
@@ -1158,13 +1164,13 @@ cut_row:
         beq @have
         lda z_tag
         sta cut_tag,x
-        lda z_pc
-        cmp z_k
-        bcc :+
-        lda #0                  ; none left: blank
-        sta cut_code,x
+        lda z_k
+        bne :+
+        sta cut_code,x          ; none left: blank
         beq @have
-:       sta cut_code,x
+:       dec z_k
+        lda z_pc
+        sta cut_code,x
         inc z_pc
         jsr cut_copy
         ldy z_col

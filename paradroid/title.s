@@ -28,6 +28,7 @@
         .import _mus_start, _mus_stop, _brief_rows
         .import _br_d, _br_rr, _br_rows, _br_k, _br_code, _br_cutend
         .import _col_deck, _col_panel, _col_border, _col_fig2, _font_hi
+        .import _gap_eor
         .import _panel_hi, _win_mc, _e_sx, _e_cutrow, _e_s
         .import _x_attr, _x_row, _x_col, _pal_deck, _pal_mc
         .import _top_score, _low_score, _initials, _score, _x_code, _xmap
@@ -1175,6 +1176,8 @@ logo:   jsr _eng_plain
         lda #$D8
         sta _font_hi
         sta _panel_hi
+        lda #0                  ; (the gap's rows in it too)
+        sta _gap_eor
         jsr frame_start         ; (the registers set for it)
         lda #1
         jsr picture_on

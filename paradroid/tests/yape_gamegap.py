@@ -2,9 +2,11 @@
 """yape_gamegap.py [pictures] - in a game in Yape, driving up and down
 (every vertical fine position, the deck drawn anew): in each picture the
 gap between the panel and the window, which must show nothing but its
-colour, and the window's top at its right end, which must not move. The
-window's top row is shown twice by the TED, first in the gap in the other
-picture's character set, where its copies are blank (engine.s)."""
+colour, and the window's top, which must not move (it can only come
+lower, where the deck there is the gap's colour). The window's top row
+is shown twice by the TED, first in the gap in the other picture's
+character set, where its copies are blank (engine.s). That the row shows
+its characters at the window's top: yape_toprow.py."""
 import os, sys, collections, random
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.expanduser('~/.cache/paradroid/work/py'))
@@ -18,6 +20,7 @@ for l in open(os.path.join(HERE, '..', 'build', 'paradroid.lbl')):
     p = l.split()
     lbl[p[2].lstrip('.')] = int(p[1], 16)
 y = Yape(os.path.join(HERE, '..', 'build', 'paradroid.prg'), warp=True)
+TOP = 112                               # the window's first line (Yape)
 tops = collections.Counter()
 bad = 0
 try:
@@ -41,14 +44,19 @@ try:
         x = w // 2
         top = max(v for v in range(100) if min(pix[v][x]) > 240) + 1  # the panel's frame
         gap = pix[top + 2][x]
-        xr = 32 + 8 * 39 - 1
-        edge = next((v for v in range(top, top + 60) if pix[v][xr] != gap), -1)
-        dirt = [(v, xx) for v in range(top, edge) for xx in range(40, 344) if pix[v][xx] != gap]
+        # the window's first line: the first not all the gap's colour (the
+        # deck may have the gap's colour too, at its top or all of it)
+        edge = next((v for v in range(top, top + 60)
+                     if any(pix[v][xx] != gap for xx in range(40, 344))), -1)
+        dirt = [(v, xx) for v in range(top, min(edge, TOP)) for xx in range(40, 344)
+                if pix[v][xx] != gap]
+        if edge < TOP:
+            dirt = dirt or [(edge, 0)]
         tops[edge] += 1
         if dirt:
             bad += 1
             print('picture %d: %d pixels in the gap, first at %s' % (i, len(dirt), dirt[0]), flush=True)
             os.replace(f, os.path.join(OUT, 'ygg_%d.png' % i))
-    print('window top (right end):', dict(tops), '| pictures with something in the gap:', bad)
+    print('window top:', dict(tops), '| pictures with something in the gap:', bad)
 finally:
     y.stop()

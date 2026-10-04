@@ -705,33 +705,34 @@ _panel_score:
 ; Screens drawn straight into the window (lift, console, transfer)
 ; ======================================================================
 
-; win_clear(code, attr): the window rows (screen rows 9 to 24) of both
-; pictures cleared
+; win_clear(code, attr): the window rows (screen rows 8 to 24: the gap's
+; last too, whose last lines are the window's first) of both pictures
+; cleared
 _win_clear:
         sta dk                  ; attr
         jsr popa                ; code
-        ldy #160
+        ldy #170
 :       dey
-        sta SCR0C + 360,y
-        sta SCR0C + 520,y
-        sta SCR0C + 680,y
-        sta SCR0C + 840,y
-        sta SCR1C + 360,y
-        sta SCR1C + 520,y
-        sta SCR1C + 680,y
-        sta SCR1C + 840,y
+        sta SCR0C + 320,y
+        sta SCR0C + 490,y
+        sta SCR0C + 660,y
+        sta SCR0C + 830,y
+        sta SCR1C + 320,y
+        sta SCR1C + 490,y
+        sta SCR1C + 660,y
+        sta SCR1C + 830,y
         bne :-
         lda dk
-        ldy #160
+        ldy #170
 :       dey
-        sta SCR0A + 360,y
-        sta SCR0A + 520,y
-        sta SCR0A + 680,y
-        sta SCR0A + 840,y
-        sta SCR1A + 360,y
-        sta SCR1A + 520,y
-        sta SCR1A + 680,y
-        sta SCR1A + 840,y
+        sta SCR0A + 320,y
+        sta SCR0A + 490,y
+        sta SCR0A + 660,y
+        sta SCR0A + 830,y
+        sta SCR1A + 320,y
+        sta SCR1A + 490,y
+        sta SCR1A + 660,y
+        sta SCR1A + 830,y
         bne :-
         rts
 
