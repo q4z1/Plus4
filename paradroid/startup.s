@@ -90,7 +90,8 @@ _start_up:
         sta _col_deck
         lda #0
         sta _col_fig1
-        sta _bw
+        lda #$80                ; (the first title's logo in scheme 0, as
+        sta _bw                 ; the original's at its start: title.s)
         lda #$71
         sta _col_fig2
         ; the status panel, the original's, and the gap's rows under it

@@ -30,6 +30,7 @@
         .import _col_deck, _col_panel, _col_border, _col_fig2, _font_hi
         .import _gap_eor
         .import _panel_hi, _win_mc, _e_sx, _e_cutrow, _e_s
+        .import _pause_keys, _bw, s_colour, s_bw, _deck_bg
         .import _x_attr, _x_row, _x_col, _pal_deck, _pal_mc
         .import _top_score, _low_score, _initials, _score, _x_code, _xmap
         .import _brief_srcs, _brief_pages, _brief_dig, _brief_misc, _brief_cap
@@ -129,12 +130,37 @@ fired:  jsr _eng_keys
         and #K_FIRE
         rts
 
+; colour_keys(): F1 colours, F2 black and white, here too, as the
+; original's title ($32B7 in its loop): its word in the panel, if the
+; panel shows (not over the logo). From fire_in() once a picture and
+; fire_by() once a call - not more often: the keyboard is read with the
+; interrupt held off.
+colour_keys:
+        jsr _pause_keys
+        and #4 | 8
+        beq @out
+        and #8                  ; (as the pause's: 8 black and white)
+        sta _bw
+        ldy _panel_hi
+        cpy #>PANELF
+        bne @out
+        tay
+        bne :+
+        lda #<s_colour
+        ldx #>s_colour
+        jmp _panel_status
+:       lda #<s_bw
+        ldx #>s_bw
+        jmp _panel_status
+@out:   rts
+
 ; fire_in(A): A pictures; A 1 as soon as fire is pressed
 fire_in:
         sta nn
 @n:     lda nn
         beq @no
         dec nn
+        jsr colour_keys
         lda _frames
 :       cmp _frames
         beq :-
@@ -149,6 +175,7 @@ fire_in:
 ; once at least, also when the picture has gone by already)
 fire_by:
         sta nn
+        jsr colour_keys
 :       jsr fired
         bne @yes
         lda _frames
@@ -1094,9 +1121,9 @@ logo:   jsr _eng_plain
         sta cd
         lda _col_panel
         sta cp
-        lda _pal_deck + LOGO_BG
-        sta _col_border
-        lda #0
+        lda _deck_bg            ; the deck's colours, as the original's
+        sta _col_border         ; ($27E5 on its way to the title): scheme 0
+        lda #0                  ; at the start, then the last deck's
         jsr picture_on
         ldy #239                ; the panel's rows kept where the pool's
 :       lda SCR0C,y             ; characters are
@@ -1132,9 +1159,9 @@ logo:   jsr _eng_plain
         lda (ptr1),y
         sta cc
         tax
-        lda _logo_col,x
+        lda _logo_col,x         ; (its colour class)
         tax
-        lda _pal_deck,x
+        lda CLS_HR,x
         sta ff
 @cell:  lda off
         sta ptr2
@@ -1173,9 +1200,12 @@ logo:   jsr _eng_plain
         bcc @run
         inc ptr1+1
         bne @run
-@done:  lda _pal_deck + LOGO_BG
+@done:  lda _deck_bg
         sta _col_deck
         sta _col_panel
+        lda _bw                 ; (startup.s's mark for the start: gone)
+        and #8
+        sta _bw
         lda #$D8
         sta _font_hi
         sta _panel_hi

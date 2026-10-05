@@ -651,6 +651,8 @@ _console_run:
         jmp @wait
 @ship:  lda #$C8
         sta _font_hi
+        lda _deck_bg            ; on the deck's background, as the
+        sta _col_deck           ; original's (not the menu's orange)
         jsr side_view
         lda _deck
         jsr side_light

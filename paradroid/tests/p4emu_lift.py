@@ -2,7 +2,8 @@
 """p4emu_lift.py - the lift in plus4emu:
 1. where on a lift's block fire held starts it: the player put at every
    fourth pixel of the block (and a little off it), across and down; the
-   original takes the whole block (paradroid's _lift_here).
+   original takes the character under the player, the lift's middle four
+   (move.s's player_spot). Then driven over it with fire held: nothing.
 2. a ride to another deck (fire let go, a stop chosen, fire pressed),
    picture by picture: the border beside the
    window and whether the window shows the side view or the deck. The
@@ -85,6 +86,35 @@ try:
             e.run_for(2.0)
             print('%s %+3d: %s' % (axis, off, 'transfer mode, no lift' if st else 'the lift'),
                   flush=True)
+    # 1b. driven over with fire held (the weapon), as the original: only
+    # the character under the player counts, for 5 ticks - so it passes
+    across = True
+    for axis, k in (('x', 16 | 8), ('y', 16 | 2)):
+        # a lift with floor two blocks before it and one after, that way
+        dx, dy = (1, 0) if axis == 'x' else (0, 1)
+        free = [(x, y) for y in range(2, 14) for x in range(2, 62) if m[y][x] == '3'
+                and all(m[y + i * dy][x + i * dx] == 'l' for i in (-2, -1, 1))]
+        if not free:
+            print('driving over along %s: no lift with floor that way on deck %d' % (axis, d))
+            continue
+        ax, ay = free[0]
+        x0 = ax * 32 + (16 if axis == 'y' else -40)
+        y0 = ay * 32 + (16 if axis == 'x' else -40)
+        if not put(e, x0, y0):
+            print('driving over along %s: the player does not stay there' % axis)
+            continue
+        e.poke(lbl['_dbg_keys'], [k])
+        e.run_for(1.2)
+        e.poke(lbl['_dbg_keys'], [0])
+        e.run_for(1.0)
+        p = word(e, '_d_x' if axis == 'x' else '_d_y')
+        end = (ax if axis == 'x' else ay) * 32 + 32
+        print('driven over along %s with fire held: at %d, %s' % (
+            axis, p, 'past it' if p > end else 'stopped (the lift opened?)'), flush=True)
+        across &= p > end
+        if p <= end:                    # (out of the side view again)
+            e.poke(lbl['_dbg_keys'], [16]); e.run_for(0.2)
+            e.poke(lbl['_dbg_keys'], [0]); e.run_for(2.0)
     # 2. a ride, as the original's: on the lift, fire held till the side
     # view shows, let go, down (or up) a stop, fire pressed and let go
     for k in (2, 1):
@@ -130,6 +160,7 @@ try:
         if nb is not None and nw is not None:
             break
     print('after letting go: the border new in picture %s, the window in %s' % (nb, nw))
-    print('ok' if nb == nw else 'FAILED: the border must change with the window')
+    print('ok' if nb == nw and across else 'FAILED: the border must change with the window,'
+          ' and driving over a lift with fire held must not start it')
 finally:
     e.stop()

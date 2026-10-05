@@ -31,13 +31,14 @@
 
         .export _main, _wait_tick, _page_end, _mc_font
         .export _ticks, _late, _top_score, _low_score, _initials, last
+        .export s_colour, s_bw
         .forceimport __STARTUP__        ; (cc65's start-up: main() is here)
 
         .import _frames, _ready, _keys_irq, _tick, _font_hi, _col_deck, _col_fig2
         .import _eng_stack, _eng_plain, _eng_show, _start_up, _beam_in
         .import _load_deck, _spawn_droids, _pictures_deck, _pictures_fixed
         .import _deck_colours, _deck_cleared, _ship_cleared, _new_ship, _rnd
-        .import _lift_here, _console_here, _lift_deck, _lift_bx, _lift_by
+        .import _lift_here, _player_spot, _lift_deck, _lift_bx, _lift_by
         .import _transfer_game, _ride_lift, _console_run, _title_run, _title_scores
         .import _take_over, _transfer_lost, _burnt_out, _sound
         .import _panel_status, _panel_score, _win_clear, _picture, _say
@@ -538,24 +539,20 @@ play:   jsr play_init
 ; (the original's $2E7B)
 @lc:    lda fstate
         bmi @nolc
+        jsr _player_spot        ; (on the character itself, not its block:
+        beq @nolc               ; driven over with fire held, nothing)
+        lda held
+        cmp #4
+        bne @held
         jsr _lift_here
         cmp #255
         beq @cons
-        ldx held
-        cpx #4
-        bne @held
         jsr lift
         lda _deck
         jsr _deck_cleared
         sta lights_out
         jmp @again
-@cons:  jsr _console_here
-        cmp #0
-        beq @nolc
-        lda held
-        cmp #4
-        bne @held
-        jsr console
+@cons:  jsr console
 @again: jsr play_init
         jmp @tick
 @held:  inc held

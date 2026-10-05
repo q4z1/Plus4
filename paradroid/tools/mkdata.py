@@ -434,7 +434,6 @@ for r in range(25):
     for c in range(40):
         lcol[lrows[r][c]] = lcols[r][c]
 logo_font = sum((lglyph[c] for c in lorder), [])
-logo_col = [lcol[c] for c in lorder]
 flat = [lorder.index(c) for r in lrows for c in r]
 logo_rle = []
 i = 0
@@ -649,7 +648,7 @@ emit_at('XT1', 'schemes', schemes)
 emit('deck_scheme', [12 * int(x) for x in re.search(r'^deck_scheme (.*)$', ctxt, re.M).group(1).split()])  # (as offsets)
 plan_cls = cclass[:32] + [cclass[0xA0]]     # (the player's, $A0)
 # block codes, [yy][blk*4 + x]: 4 tables of 256. The free end of each,
-# from 192 on, holds the walls: for block b, at 192 + b, a bit for each of
+# from 192 on, holds the walls: for block b, at 192 + b, a bit (0-3) for each of
 # its four characters in row yy that is a wall - in the original, a
 # character code from $80 on (doors open by clearing that bit, above)
 bc = []
@@ -661,6 +660,11 @@ for yy in range(4):
         for x in range(4):
             row[b * 4 + x] = code_of[blocks[b][yy * 4 + x]]
         row[192 + b] = sum(1 << x for x in range(4) if blocks[b][yy * 4 + x] >= 0x80)
+        # bits 4-7: the characters fire held on starts a lift or a console
+        # from, as the original's $2E7B looks at the one under the player:
+        # $2B-$2E a lift's middle, $42 the floor before a console
+        row[192 + b] |= sum(16 << x for x in range(4)
+                            if 0x2B <= blocks[b][yy * 4 + x] <= 0x2E or blocks[b][yy * 4 + x] == 0x42)
     bc += row
 
 # the original's sound effects (data/sfx.txt, from it by tools/sfx.py), for
@@ -908,6 +912,13 @@ for name, data in (('brief_srcs', srcs), ('brief_top', [t for t, u in letters]),
                    ('brief_bot', [u for t, u in letters]), ('brief_pages', pages_bin),
                    ('brief_dig', brief_dig), ('brief_cap', brief_cap), ('brief_misc', brief_misc)):
     b.append(asm_bytes(name, data))
+# The colours are the deck's: each character's colour class, as the
+# original draws the logo with the colours of the deck it is at ($27E5) -
+# scheme 0 at its start, which gives the colours read (lcol; the credit's
+# letters take the plates' class)
+logo_col = [cclass[c] if c < 0x100 else cclass[0xE0] for c in lorder]
+assert all(c == 0 or lcol[c] == schemes[cclass[c] if c < 0x100 else cclass[0xE0]]
+           or cclass[c if c < 0x100 else 0xE0] == 14 for c in lorder)
 b[2] = b[2] + ', _brief_dig, _brief_cap, _brief_misc, _logo_font, _logo_col, _logo_rle'
 b.append(asm_bytes('logo_font', logo_font))
 b.append(asm_bytes('logo_col', logo_col))

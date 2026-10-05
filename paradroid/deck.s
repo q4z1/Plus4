@@ -7,7 +7,7 @@
         .export _pal_deck, _pal_mc
         .export _door_x, _door_y, _door_v, _door_s
         .export _deck_cleared, _ship_cleared, _new_ship, _load_deck
-        .export _lift_here, _console_here
+        .export _lift_here
 
         .import _rnd, _blk_at, _unpack, _unp_dst, pushax
         .import _pre, _deck_pk, _deck_off, _ship_base, _ship_count
@@ -324,54 +324,3 @@ _lift_here:
         ldx #0
         rts
 
-; console_here(): the console next to the player, if any (B_CONSOLE)
-_console_here:
-        lda #0
-        sta dc
-        lda #<-20               ; left, right
-        ldy #0
-        jsr @at
-        lda #20
-        ldy #0
-        jsr @at
-        lda #0                  ; above, below
-        ldy #<-18
-        jsr @at
-        lda #0
-        ldy #18
-        jsr @at
-        lda dc
-        and #B_CONSOLE
-        ldx #0
-        rts
-; blk_flag[blk_at(PX + A, PY + Y)] into dc (A, Y signed)
-@at:    sty dr
-        ldx #0
-        cmp #$80
-        bcc :+
-        dex
-:       clc
-        adc _d_x
-        pha
-        txa
-        adc _d_x+1
-        tax
-        pla
-        jsr pushax
-        ldx #0
-        lda dr
-        bpl :+
-        dex
-:       clc
-        adc _d_y
-        pha
-        txa
-        adc _d_y+1
-        tax
-        pla
-        jsr _blk_at
-        tay
-        lda _blk_flag,y
-        ora dc
-        sta dc
-        rts

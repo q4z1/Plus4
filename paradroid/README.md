@@ -26,8 +26,8 @@ and all the droids' pictures are kept in it, packed.
 | Joystick in either port, or the cursor keys | drive. The droid has inertia, as in the original |
 | Fire (or `Space`, `CTRL` or `C=`) with a direction | the weapon (*Weapon* in the panel): lasers in that direction, and as long as fire stays held, in whichever direction the stick goes - the droid drives while it fires, as in the original |
 | Fire held, no direction | half a second's wait: a direction in it is the weapon; none, transfer mode: the player blinks, and touching a droid starts the transfer game. While fire stays held, it drives without shooting; letting go ends it |
-| Fire held on a lift | after a quarter of a second, the side view of the ship: let go of fire, up and down choose a deck on that shaft, fire gets out there. Anywhere on the lift's block, as in the original |
-| Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
+| Fire held on a lift | after a quarter of a second, the side view of the ship: let go of fire, up and down choose a deck on that shaft, fire gets out there. Only on the lift's middle four characters, the original's `$2B`-`$2E`: as there, the character under the player counts, for 5 ticks, so driving over a lift with fire held does nothing |
+| Fire held at a console | standing on the floor before it (the original's character `$42`; boxes are not consoles), the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
 | `Run/Stop` | pause: all stands but what turns. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `F3` freezes even that, for a photo ("Cheese"), till `Help`, `F1`/`F2` colours or black and white - no key with shift |
 
 On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
@@ -109,7 +109,7 @@ second. The window scrolls a pixel at a time in any direction.
 | | |
 | --- | --- |
 | ![The logo](screenshots/title.png) | ![The briefing](screenshots/briefing.png) |
-| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it. In its empty box at the bottom right, the port's credit, in the letters of the original's plates (those missing drawn in their style). | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
+| **Logo.** The original's, over the whole screen: the panel's rows show the window's character set for it. As in the original, the title starts with it, and in the colours of the deck the last game ended on (its characters' colour classes in that deck's scheme, `$27E5`); the grey scheme 0 at the start. In its empty box at the bottom right, the port's credit, in the letters of the original's plates (those missing drawn in their style). | **Briefing.** The original's four pages, in the panel's letters, scrolled up a pixel at a time, each round in another of its colours: yellow, pink, light green. |
 | ![The day's scores](screenshots/scores.png) | ![A game's end](screenshots/terminated.png) |
 | **The day's scores**, the keys and the credits, on white with the original's droid, as there. The top and worst scores start as the original's, 6809 and 6502, by AEB and TSO. Then the round starts again with the logo. | **A game's end**, after the static: the 999 and the original's words. |
 | ![Initials](screenshots/initials.png) | ![After a game](screenshots/highscore.png) |
@@ -350,7 +350,9 @@ goes off at once, till the logo is whole), and the C64's `F7` is *Cheese*
 or `Clr/Home`. Not in the briefing, also as in the original (`$32B7`):
 `F1` shows *Colour*, `F2` *Blk-White*, and from the pause's end on the
 decks are in scheme 0, the grey one, till `F1` again (a deck without
-droids keeps its dark scheme 7). On the C64, `F2` and `F8` are `F1` and
+droids keeps its dark scheme 7). The title takes `F1` and `F2` too, as
+the original's loop there calls the same routine, with the word in the
+panel when it shows. On the C64, `F2` and `F8` are `F1` and
 `F7` with shift. The Plus/4 has keys of its own for `F1`, `F2`, `F3` and
 `Help`, so here those four are the pause's, none with shift: `F1`
 colours, `F2` black and white, `F3` *Cheese*, `Help` back to the pause.

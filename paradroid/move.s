@@ -20,6 +20,7 @@
         .export _move_player, _solid_at, droid_look, d_lk
         .export _deck_colours, _colour_blocks, _bw, _keep_border, _side_c5
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
+        .export _player_spot
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
         .import _ndoor, _door_x, _door_y, _door_v, _door_s
@@ -71,7 +72,9 @@ vmax_of:
 ; up (three each)
 sen_dx: .byte 2, 1, 2,   <-2, <-1, <-2,   1, <-1, 0,   0, 1, <-1
 sen_dy: .byte 1, 0, <-1, 1, 0, <-1,   2, 2, 1,   <-1, <-2, <-2
-bitv:   .byte 1, 2, 4, 8
+        .segment "XT5"          ; (above the TED, copied there at the start:
+bitv:   .byte 1, 2, 4, 8        ; its load image costs the program nothing)
+        .code
 
 ; a wall at character (tx, ty)? Z clear if so. Keeps X.
 csolid: lda ty
@@ -111,6 +114,40 @@ csolid: lda ty
         tay
         lda c_p
         and bitv,y
+        rts
+
+; player_spot(): Z clear if the player's character is one fire held on
+; starts a lift or a console from - as the original's $2E7B, the one under
+; the player ((p + 7) / 8 as the walls'), its codes $2B-$2E or $42: bits
+; 4-7 of the block's wall bits (mkdata.py)
+_player_spot:
+        ldx #0
+        jsr @half
+        sta tx
+        ldx #2 * MAXD           ; (d_y after d_x)
+        jsr @half
+        sta ty
+        jsr csolid
+        lda c_p
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        and bitv,y
+        rts
+@half:  lda _d_x,x
+        clc
+        adc #7
+        sta c_p
+        lda _d_x+1,x
+        adc #0
+        lsr a
+        ror c_p
+        lsr a
+        ror c_p
+        lsr a
+        ror c_p
+        lda c_p
         rts
 
 ; any of the three points from X on a wall? Carry set if so.
