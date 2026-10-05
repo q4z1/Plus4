@@ -7,7 +7,7 @@
 ; and row 0, less 64, from draw.s's window()) it gives the engine's r_fig
 ; its cell, line and the slot's copy for the pixel it starts at.
 
-        .export _figure, _draw_figs, _explo_col
+        .export _figure, _draw_figs, _explo_col, _fig_seen
         .exportzp _fig_x, _fig_y, _fig_n, _org_x, _org_y
         .import _r_fig, _f_col, _f_row, _f_line, _f_tint, _pre
         .importzp _f_pre
@@ -26,6 +26,10 @@ rx:     .res 2
 ry:     .res 1
 fh:     .res 1
 fi:     .res 1
+
+        .segment "LOWBSS"
+_fig_seen: .res 23              ; slots drawn in the window (draw.s's
+                                ; turn_droids() turns those)
 
         .segment "HICODE"       ; (run at $F400 on, paradroid.cfg)
 
@@ -78,6 +82,8 @@ _figure:
         sec
         sbc #8
         sta _f_col
+        ldx _fig_n
+        inc _fig_seen,x
         lda rx                  ; the copy: pre + 512 * fig_n + 64 * (rx & 6)
         and #6
         lsr a

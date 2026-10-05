@@ -30,7 +30,7 @@
 ;   title.s      the title, with briefrows.s and music.s; the day's scores
 
         .export _main, _wait_tick, _page_end, _mc_font
-        .export _ticks, _late, _top_score, _low_score, _initials
+        .export _ticks, _late, _top_score, _low_score, _initials, last
         .forceimport __STARTUP__        ; (cc65's start-up: main() is here)
 
         .import _frames, _ready, _keys_irq, _tick, _font_hi, _col_deck, _col_fig2
@@ -43,7 +43,7 @@
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
         .import _player_fire, _droids_fire, _move_shots, _collide, _energy_tick
-        .import _anim_deck, _draw, _pause_keys, _bw, _col_border, _panel_frame
+        .import _anim_deck, _turn_droids, _draw, _pause_keys, _bw, _col_border, _panel_frame
         .import _keep_border
         .import _unpack, _unp_dst, _blob_title, _blob_con, _blob_xfer
         .import __OVL_START__, __CONOVL_START__, __XFEROVL_START__
@@ -383,7 +383,7 @@ next_ship:
 
 ; pause(): the pause, as the original's ($3B7C): RUN/STOP, and all stands
 ; still and is quiet but the deck's turning characters and the droids'
-; turning domes (here the player's: the others' do not turn), till fire or
+; turning domes (here all droids of a type turn together), till fire or
 ; RUN/STOP. In it, as its briefing says: CLR/HOME ends the game (A 1:
 ; straight to the title); "Cheese": not even those turn, till fire,
 ; RUN/STOP, CLR/HOME or the key back to the pause. And, not in the
@@ -440,7 +440,8 @@ pause:  lda #<s_pause
         ldx #>s_bw
         jsr status
 @anim:  jsr _anim_deck
-        jsr _draw               ; (the player's dome turning)
+        jsr _draw
+        jsr _turn_droids        ; (the domes turning)
         jmp @loop
 @end:   lda #K_STOP | K_FIRE
         jsr wait_free
@@ -635,6 +636,7 @@ play:   jsr play_init
         sta _alert
         jsr _deck_colours
 :       jsr _draw
+        jsr _turn_droids        ; the droids' domes, in the time left
         jmp @tick
 
 ; mc_font(): the deck characters in multicolour, for the cells figures

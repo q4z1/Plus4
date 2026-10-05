@@ -204,7 +204,21 @@ phases and off for one. Every other tick the energizer's dots, its
 characters `$4C`-`$4F`, go round one character on (`$38C4`). The 001 has
 the original's turning dome, a slanted gap running round it: measured in
 x64sc, a hires pixel a tick over eight positions; here a multicolour
-pixel every two ticks over four - the same speed.
+pixel every two ticks over four - the same speed. So do the other droids
+(`$3CFB`), with a difference: in the original each droid turns on its own,
+slower the less energy it has; here all droids of a type share one
+picture, shifted in advance, so they turn together, at full speed, half a
+turn from the player. Their domes are the same for every type, and are
+taken each step from the player's picture for that turn, its colours
+swapped back, into the droids' pictures - only those drawn in the window
+lately, and only the three columns of each shift the gap gets into: on
+even ticks into a buffer and the even ones, on odd ticks into the odd
+ones. The buffer is the 18 bytes after each of the two pictures' 1000
+colours and codes, which the TED does not show. It is done after the
+window is drawn, and only with a picture's time left in the tick: in a
+crowded window the domes wait a tick rather than the game (measured in
+Yape with eight droids of three types in the window: without it, 13 % of
+the ticks came late already; turning before the drawing, 29 %).
 
 ### The transfer game
 
@@ -323,8 +337,7 @@ rip, 2.56 seconds over and over.)
 
 As the original's (`$3B7C`, read from its code): `Run/Stop` shows
 *Pause*, the sound stops, and everything stands still but the deck's
-turning characters and the droids' turning domes (here only the player's
-turn, in the game too), till fire or `Run/Stop`, which show *Continue*. In it,
+turning characters and the droids' turning domes, till fire or `Run/Stop`, which show *Continue*. In it,
 as its briefing says, `Clr/Home` quits the game, straight to the title
 (`$10D3`, no end of a game; here its score does not count: the picture
 goes off at once, till the logo is whole), and the C64's `F7` is *Cheese*

@@ -8,7 +8,7 @@
         .export _pictures_fixed, _player_picture, _board_droid, _pictures_deck
         .export _draw, _panel_code, _panel_status, _num_text, _panel_score
         .export _win_clear, _win_put
-        .export _slot_of, _tick, _hide_player, _num_len
+        .export _slot_of, _tick, _hide_player, _num_len, _turn_droids
         .export _wp_row, _wp_col, _wp_code, _wp_attr
 
         .import _pre_shift, _pre, _r_begin, _r_done, _figure, _draw_figs
@@ -17,7 +17,7 @@
         .import _d_x, _d_y, _d_type, _d_boom, _d_energy, _nd, _transfer_mode
         .import _score, _score_changed
         .import _droid_tmpl, _digit_bits, _fixed_pk, _unpack, _unp_dst
-        .import _dr_class, _dr_num
+        .import _dr_class, _dr_num, _fig_seen, _frames, last
         .import popa
         .importzp _f_src, _p_pre, _org_x, _org_y, _fig_x, _fig_y, _fig_n
         .importzp sreg, ptr1
@@ -52,6 +52,8 @@ wl:     .res 2                  ; world pixel at the window's corner
 wt:     .res 2
 n32:    .res 4                  ; num_text()'s number
 nd_:    .res 1                  ; a digit's count
+n_ds:   .res 1                  ; the droids' slots end
+d_fill: .res 1                  ; DBUF made this step
 
         .segment "HICODE"
 ; a multicolour pixel's place in its byte: kept, and set to %10
@@ -324,7 +326,144 @@ _pictures_deck:
         inc dn
 @next:  inc pf
         bne @i
+@done:  lda dn                  ; (the slots turn_droids() turns)
+        sta n_ds
+        rts
+
+;
+; turn_droids(): once a tick (when there is time: below), the droids' domes turning as the original's
+; ($3CFB): the slanted gap round them that the player's has. All droids of
+; a type share their slot here, so they turn together, a step every two
+; ticks, half a turn from the player's - those drawn in the window lately
+; (figs.s's fig_seen), the others need not. The domes are the same for
+; every type (the number is in lines 5-9): their lines are taken from the
+; player's slot for that turn, its colours swapped back - on even ticks
+; into DBUF, and into the even slots, on odd ticks into the odd ones. Of
+; the four columns of a shift only the first three change (the gap is in
+; pixels 3-8, shifted by up to 3). DBUF: the 18 bytes after each
+; picture's 1000 colours and codes, which the TED does not show, one for
+; each shift.
+        .code
+turn_go:
+        lda _tick
+        lsr a
+        bcs @copy
+        pha
+        lda #0                  ; any droid's slot seen? (none: nothing to do)
+        sta d_fill
+        ldx n_ds
+:       dex
+        cpx #SLOT_DROID
+        bcc :+
+        ora _fig_seen,x
+        jmp :-
+:       tax
+        pla
+        cpx #0
+        beq @done
+        inc d_fill
+        clc
+        adc #2                  ; the turn: the player's plus 2
+        and #3
+        beq :+                  ; its slot: 0, or SLOT_PANIM.. for 1-3
+        adc #SLOT_PANIM - 1
+:       jsr slot_ptr
+@sub:   ldy dy
+        lda dbuf_hi,y
+        sta @put+2
+        ldx #17
+@get:   ldy dome_off,x
+        lda (ptr1),y            ; %01 and %10 swapped
+        asl a
+        and #$AA
+        sta dk
+        lda (ptr1),y
+        lsr a
+        and #$55
+        ora dk
+@put:   sta SCR0A + 1000,x
+        dex
+        bpl @get
+        jsr next_sub
+        bpl @sub
+@copy:  lda d_fill
+        beq @done
+        lda _tick
+        and #1
+        clc
+        adc #SLOT_DROID
+@slot:  cmp n_ds
+        bcs @done
+        sta dn
+        tax
+        lda _fig_seen,x
+        beq @next
+        lda #0
+        sta _fig_seen,x
+        txa
+        jsr slot_ptr
+@sub2:  ldy dy
+        lda dbuf_hi,y
+        sta @get2+2
+        ldx #17
+@get2:  lda SCR0A + 1000,x
+        ldy dome_off,x
+        sta (ptr1),y
+        dex
+        bpl @get2
+        jsr next_sub
+        bpl @sub2
+@next:  lda dn
+        clc
+        adc #2
+        bne @slot
 @done:  rts
+
+        .segment "HICODE"
+
+; only with a picture's time left in the tick (after the window is drawn):
+; in a crowded window it waits, and the tick is not late for it
+_turn_droids:
+        lda _frames
+        sec
+        sbc last
+        cmp #2
+        bcs :+
+        jmp turn_go
+:       rts
+
+; ptr1 := slot A, its first shift (dy 3)
+slot_ptr:
+        asl a
+        adc #>_pre
+        sta ptr1+1
+        lda #<_pre
+        sta ptr1
+        lda #3
+        sta dy
+        rts
+
+; ptr1 := its next 128 bytes, the next shift's; N set after the last
+next_sub:
+        lda ptr1
+        eor #$80
+        sta ptr1
+        bmi :+
+        inc ptr1+1
+:       dec dy
+        rts
+
+; DBUF's pages, for shifts 3..0
+dbuf_hi:
+        .byte >(SCR0A + 1000), >(SCR0C + 1000), >(SCR1A + 1000), >(SCR1C + 1000)
+; where the domes' lines are in a shift's 128 bytes: 8 + 24 * column +
+; line, for lines 0-2 and 12-14 (the gap's, as player_picture() makes it),
+; columns 0-2
+dome_off:
+        .repeat 3, C
+        .byte 8 + 24 * C, 9 + 24 * C, 10 + 24 * C
+        .byte 20 + 24 * C, 21 + 24 * C, 22 + 24 * C
+        .endrepeat
 
 ; ======================================================================
 ; The window onto the deck
