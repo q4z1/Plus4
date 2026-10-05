@@ -749,11 +749,19 @@ side_view:
         tax
         lda _side_col,x
         cmp #16                 ; (the deck's class 5: lit decks in its
-        bne :+                  ; colour, as the original's)
-        lda _side_c5
-:       jsr side_attr
-        sta cw
-        lda cv
+        bne @hr                 ; colour, as the original's - but where
+        lda _side_c5            ; that is the background's, the cyan
+        jsr side_attr           ; decks', two levels darker: there the
+        sta cw                  ; original's lit deck cannot be seen)
+        and #$F7                ; (its multicolour bit off)
+        cmp _col_deck
+        bne @c5
+        lda cw
+        sbc #$20                ; (C set: the same)
+        bne @put
+@hr:    jsr side_attr
+@put:   sta cw
+@c5:    lda cv
         clc
         adc #SIDE
         sta ch

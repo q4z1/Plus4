@@ -942,7 +942,12 @@ _deck_colours:
         bne :+                  ; light blue its nearest)
         lda #$5D
 :       sta _deck_bg
-        lda _keep_border        ; (a lift, the start: till it shows)
+        lda CLS_HR+3            ; a yellow border too (the dark scheme 7's,
+        cmp #$77                ; of a deck without droids), the tester's
+        bne :+                  ; wish: the bright one glared
+        lda #$67
+        sta CLS_HR+3
+:       lda _keep_border        ; (a lift, the start: till it shows)
         bne :+
         lda CLS_HR+3
         sta _col_border

@@ -237,10 +237,12 @@ _picture:
         sta _x_code
         rts
 
+        .segment "LOWEND"       ; (at the end of $0C68-$0FFF, copied there)
 dark_y: cmp #$77
         bne :+
         lda #$57
 :       rts
+        .code
 
 ; picture pt's part of the stream unpacked at A/X (Y 0: the graphics,
 ; 2: the pages) to character 1 of picture 1's set (the pages after the

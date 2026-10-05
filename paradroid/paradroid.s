@@ -459,12 +459,14 @@ pause:  lda #<s_pause
         rts
 
 ; play_init(): fire in none of its states
+        .segment "LOWEND"       ; (at $0FEB on, copied there at the start)
 play_init:
         lda #$80
         sta fstate
         lda #0
         sta held
         rts
+        .code
 
 ; play(): a game, till the player is gone
 play:   jsr play_init

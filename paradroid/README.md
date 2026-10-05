@@ -103,7 +103,7 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Game on](screenshots/start.png) | ![Beamed aboard](screenshots/beam.png) |
 | **A game's start.** The original's page, with its words and the 001's picture, in its purple. | **Beamed aboard.** The 001 flashing at the top left of the deck, as in the original, before the panel says *Mobile*. |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
-| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*, counting down from 99 for 12 seconds), then have ten seconds (*Finish -52*, from 99 too), each a number at a time, as in the original (measured there: a step every 5.9 and 5.3 pictures). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change, in the colour the deck's scheme gives those characters - mostly near its background's, cyan on the grey decks. |
+| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*, counting down from 99 for 12 seconds), then have ten seconds (*Finish -52*, from 99 too), each a number at a time, as in the original (measured there: a step every 5.9 and 5.3 pictures). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change, in the colour the deck's scheme gives those characters - mostly near its background's, cyan on the grey decks. On the cyan decks it is the background's own, and could not be seen there; here it is two levels darker. |
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
 | **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and kept packed in the program. |
 | ![Console](screenshots/console.png) | ![Deck plan](screenshots/plan.png) |
@@ -613,7 +613,8 @@ KERNAL's loading needed that), the sight's line ([sight.s](sight.s)) at
 `$0100`-`$01BF` under the processor's stack (which never went below
 `$01D8`, measured through the game, its pages, the console and
 transfers), a few words and `player_spot()` after the sound effects'
-player up to `$FCEF` (cc65's stack above it used 2 bytes), and tables that
+player up to `$FCEF` (cc65's stack above it used 2 bytes), two small
+routines after the engine's lists at `$0FEB`-`$0FFC`, and tables that
 are only read once a game runs in the free ends of the block colour table
 (from entry 160 on in each of its four rows: 40 blocks use 0-159) and at
 `$FF40`, above the TED's registers.
@@ -714,6 +715,11 @@ files at all: one file loaded by the KERNAL avoids all of that.
   are a level darker, on the white pages, as the yellow decks are - both
   their colours, the cells' and the second multicolour, the same yellow
   as in the original.
+- The **border** of a deck without droids, the dark scheme 7's yellow, is
+  a level darker too (`$67`), so that it does not glare.
+- In the **lift's side view**, the lit deck on the cyan decks (13, 14):
+  the original's is the background's own cyan there; here it is two
+  levels darker, so that it can be seen.
 - In the **title**, the original also takes `F5`/`F6` (the volume, 0-15,
   shown in the panel); here there is no volume. `F1`/`F2` it takes, as
   there.
