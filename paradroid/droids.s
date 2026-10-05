@@ -22,6 +22,7 @@
         .import _bump_i, _player_picture, pushax
         .import _ship, _deck, _level, _tick
         .import _wp_first, _wp_x, _wp_y, _dr_class, _dr_weapon, _blk_flag
+        .import _d_seen
 
         .include "game.inc"
         .include "data.inc"
@@ -398,6 +399,8 @@ disrupt:
         beq @nx
         lda _d_boom,x
         bne @nx
+        lda _d_seen,x           ; (only those in sight: sight.s)
+        beq @nx
         lda _d_type,x
         jsr immune
         beq @body
@@ -796,6 +799,8 @@ _droids_fire:
         rts
 :       lda _d_boom,x
         bne @next
+        lda _d_seen,x           ; (only seen, as the original's: sight.s)
+        beq @next
         ldy _d_type,x
         lda _dr_weapon,y
         beq @next

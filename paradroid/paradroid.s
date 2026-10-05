@@ -44,6 +44,7 @@
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
         .import _player_fire, _droids_fire, _move_shots, _collide, _energy_tick
+        .import _sight
         .import _anim_deck, _turn_droids, _draw, _pause_keys, _bw, _col_border, _panel_frame
         .import _keep_border
         .import _unpack, _unp_dst, _blob_title, _blob_con, _blob_xfer
@@ -495,12 +496,11 @@ play:   jsr play_init
 ; it, the weapon still (fire let go by then: one shot); none, transfer
 ; mode, till fire is let go. The droid drives all the while.
 @fire:  lda fstate
-        beq @st0                ; 0: transfer mode
         bmi @st80               ; $80: none
         cmp #2
         beq @st2                ; 2: the wait
-        lda keys                ; 1: the weapon, till fire is let go
-        and #K_FIRE
+        lda keys                ; 1, the weapon, and 0, transfer mode:
+        and #K_FIRE             ; till fire is let go
         bne @lc
 @mob:   lda #$80
         sta fstate
@@ -510,10 +510,6 @@ play:   jsr play_init
         ldx #>s_mobile
         jsr status
         jmp @lc
-@st0:   lda keys
-        and #K_FIRE
-        bne @lc
-        beq @mob
 @st80:  lda keys
         and #K_FIRE
         beq @lc
@@ -582,6 +578,7 @@ play:   jsr play_init
         jsr _collide
         lda #<-8
         jsr _fig_place
+        jsr _sight              ; the droids it sees, for the next ones
         lda _transfer_mode
         beq :+
         lda _touched

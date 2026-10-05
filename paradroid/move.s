@@ -20,7 +20,8 @@
         .export _move_player, _solid_at, droid_look, d_lk
         .export _deck_colours, _colour_blocks, _bw, _keep_border, _side_c5
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
-        .export _player_spot
+        .export _player_spot, csolid
+        .exportzp tx, ty
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
         .import _ndoor, _door_x, _door_y, _door_v, _door_s
@@ -116,6 +117,9 @@ csolid: lda ty
         and bitv,y
         rts
 
+        .segment "SFXCODE"      ; (at $FC00 on, after the effects' player:
+                                ; copied there at the start, its load image
+                                ; costs the program nothing)
 ; player_spot(): Z clear if the player's character is one fire held on
 ; starts a lift or a console from - as the original's $2E7B, the one under
 ; the player ((p + 7) / 8 as the walls'), its codes $2B-$2E or $42: bits
@@ -149,6 +153,7 @@ _player_spot:
         ror c_p
         lda c_p
         rts
+        .code
 
 ; any of the three points from X on a wall? Carry set if so.
 sense:  lda #3

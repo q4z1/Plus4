@@ -12,7 +12,7 @@
         .import _r_fig, _f_col, _f_row, _f_line, _f_tint, _pre
         .importzp _f_pre
         .import _nd, _d_boom, _d_x, _d_y, _d_type, _slot_of
-        .import _s_life, _s_img, _s_x, _s_y
+        .import _s_life, _s_img, _s_x, _s_y, _d_seen
 
         .include "game.inc"
 
@@ -150,7 +150,9 @@ _draw_figs:
         lda #0
         sta _f_tint
         beq @nd
-@alive: ldy _d_type,x
+@alive: lda _d_seen,x            ; (behind a wall: sight.s)
+        beq @nd
+        ldy _d_type,x
         lda _slot_of,y
         cmp #255
         beq @nd

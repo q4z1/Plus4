@@ -15,7 +15,7 @@ asm() {
 # code needs.
 python3 tools/mkdata.py >/dev/null
 for f in paradroid deck droids draw picture transfer screens title engine \
-         xfer music briefrows move figs sfxcall sfx unpack startup; do
+         xfer music briefrows move figs sfxcall sfx unpack startup sight; do
     asm $f
 done
 # What is used once at the start, then overwritten by the pictures' slots
@@ -24,8 +24,8 @@ done
 # sound effects' player, the unpacker, what runs at $F400) and the start's
 # code itself. mkdata again, with their size, for the slots' rest.
 INIT_EXTRA=0
-for o in sfx:SFXCODE paradroid:SFXCODE unpack:UNPACK figs:HICODE draw:HICODE paradroid:HICODE \
-         startup:INITDATA engine:INITCODE move:XT5; do
+for o in sfx:SFXCODE paradroid:SFXCODE move:SFXCODE unpack:UNPACK figs:HICODE draw:HICODE paradroid:HICODE \
+         startup:INITDATA engine:INITCODE move:XT5 sight:PAGE1 sight:UNPACK; do
     n=$($B/od65 -S build/${o%:*}.o | awk "/${o#*:}:/{print \$2}")
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done
@@ -44,7 +44,7 @@ link() {
         build/draw.o build/picture.o build/transfer.o build/screens.o build/title.o \
         build/engine.o build/xfer.o build/music.o build/briefrows.o build/move.o \
         build/figs.o build/sfxcall.o build/data.o build/brief.o build/condata.o \
-        build/startup.o build/sfx.o build/unpack.o build/blobs.o
+        build/startup.o build/sfx.o build/unpack.o build/sight.o build/blobs.o
 }
 blobs() {
     {

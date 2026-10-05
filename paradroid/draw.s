@@ -453,9 +453,11 @@ next_sub:
 :       dec dy
         rts
 
+        .rodata                 ; (HICODE is full)
 ; DBUF's pages, for shifts 3..0
 dbuf_hi:
         .byte >(SCR0A + 1000), >(SCR0C + 1000), >(SCR1A + 1000), >(SCR1C + 1000)
+        .segment "HICODE"
 ; where the domes' lines are in a shift's 128 bytes: 8 + 24 * column +
 ; line, for lines 0-2 and 12-14 (the gap's, as player_picture() makes it),
 ; columns 0-2

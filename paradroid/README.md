@@ -52,6 +52,11 @@ original's, read from its code:
   need better hosts to get at them. A droid's laser takes 8 or 16.
 - The **disruptor** of the 711 and 742 is a flash that hurts every droid in
   sight, and you as well, except a few types.
+- You only **see** a droid with nothing in between: as the original's
+  `$24AE`, a line from your character to the droid's, in steps of less
+  than a character, must not cross a wall character - a closed door is
+  one. A droid out of sight is not shown, does not fire, and the
+  disruptor does not reach it; open the door, and there it is.
 - How much energy you may have **sinks** while you stay in a host: one
   point every 128 ticks in the 001, every 16 in the 999. When it reaches
   nothing, so do you. Moving on to a new host resets it. **Energizers**
@@ -604,10 +609,14 @@ they have done their work (`INITCODE` comes right after the data: the
 slots start at the data's first byte).
 
 Small corners are used too: the unpacker at `$0200`-`$03FF` (only the
-KERNAL's loading needed that), and tables that are only read once a game
-runs in the free ends of the block colour table (from entry 160 on in each
-of its four rows: 40 blocks use 0-159) and at `$FF40`, above the TED's
-registers.
+KERNAL's loading needed that), the sight's line ([sight.s](sight.s)) at
+`$0100`-`$01BF` under the processor's stack (which never went below
+`$01D8`, measured through the game, its pages, the console and
+transfers), a few words and `player_spot()` after the sound effects'
+player up to `$FCEF` (cc65's stack above it used 2 bytes), and tables that
+are only read once a game runs in the free ends of the block colour table
+(from entry 160 on in each of its four rows: 40 blocks use 0-159) and at
+`$FF40`, above the TED's registers.
 
 ## Everything in one file
 
@@ -723,6 +732,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [title.s](title.s), [briefrows.s](briefrows.s), [music.s](music.s) | the title, an overlay: logo, briefing and scores, the briefing's rows, its sound; a game's start page |
 | [sfx.s](sfx.s), [sfxcall.s](sfxcall.s) | the original's sound effects: the player at `$FC00`, starting them, the beam-in |
 | [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what is kept packed (exomizer's unpacker) |
+| [sight.s](sight.s) | which droids the player sees: the original's line of sight, past walls and closed doors |
 | [move.s](move.s) | the player's driving, the walls, the doors, the droids looking ahead, bumps, the decks' colours |
 | [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
@@ -852,6 +862,7 @@ sources (`~/.cache/plus4emu/buildlib.sh`, see `p4emu.py`).
 | `p4emu_pause.py [keys]` | the pause's keys pressed on plus4emu's keyboard (VICE and Yape cannot): `Run/Stop`, `F1`, `F2`, `F3`, `Help`, `Clr/Home`; a picture after each |
 | `p4emu_lift.py` | where on a lift's block fire held starts it, and a ride to another deck (let go, a stop down, fire) picture by picture: the border must change with the window |
 | `p4emu_tmode.py` | transfer mode: fire held with a direction drives and does not shoot |
+| `p4emu_sight.py` | the line of sight on deck 4: a droid in the room seen, behind a wall or a closed door not, through the opened door again |
 | `p4emu_fire.py` | fire's states as the original's: the wait, transfer mode, the weapon (also from a direction in the wait, and kept with fire held), letting go |
 | `p4emu_xcount.py` | the transfer game's counts, picture by picture: every number from 99 down, and how often |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |
