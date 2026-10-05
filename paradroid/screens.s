@@ -34,7 +34,7 @@
         .import _x_letter, _say, _unit_name, _picture, _pic_pages, _pic_text
         .import _panel_status, _page_end, _anim_plan
         .import _pal_deck, _pal_mc, _dr_class, _dr_num, _d_type, _d_x, _d_y
-        .import _deck, _alert, _deck_bg
+        .import _deck, _alert, _deck_bg, _win_mc
         .import _icon_font, _icon_tab, _icon_lay, _plan_font, _plan_cls
         .import _side_font, _side_col, _side_rle, _side_box, _side_c5
         .import _shaft_col, _shaft_top, _shaft_len
@@ -262,6 +262,8 @@ icons:  lda #<_icon_lay
         rts
 
 menu_page:
+        lda #$10                ; (multicolour again after the plan)
+        sta _win_mc
         ldx #$48                ; the original's orange
         lda #$71
         jsr clear
@@ -481,6 +483,8 @@ enquiry:
 plan:   ldx _deck_bg
         lda #$71
         jsr clear
+        lda #0                  ; hires all over, as the original's: its
+        sta _win_mc             ; colours are any of the 16
         ldx #33 * 8 - 1 - 256   ; its characters (264 bytes)
 :       lda _plan_font + 256,x
         sta FONT1 + 256,x

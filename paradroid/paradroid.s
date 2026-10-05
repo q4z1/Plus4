@@ -90,9 +90,6 @@ cnt:        .res 2
 s_mobile:   .byte "Mobile", 0
 s_transfer: .byte "Transfer", 0
 s_weapon:   .byte "Weapon", 0
-s_complete: .byte "Complete", 0
-s_rejected: .byte "Rejected", 0
-s_burnt:    .byte "Burnt Out", 0
 s_pause:    .byte "Pause", 0
 s_cheese:   .byte "Cheese", 0
 s_colour:   .byte "Colour", 0
@@ -101,6 +98,13 @@ s_continue: .byte "Continue", 0
 s_fleet:    .byte "Fleet", 0
 s_cleared:  .byte "Cleared", 0
 s_gameover: .byte "Game over", 0
+        .segment "SFXCODE"      ; (run at $FC00 on, after the effects'
+                                ; player, copied there at the start: its
+                                ; load image costs the program nothing)
+s_complete: .byte "Complete", 0
+s_rejected: .byte "Rejected", 0
+s_burnt:    .byte "Burnt Out", 0
+        .rodata
 mc_mask:    .byte $C0, $30, $0C, $03
 
         .code

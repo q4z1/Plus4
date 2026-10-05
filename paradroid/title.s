@@ -1211,7 +1211,8 @@ logo:   jsr _eng_plain
         sta _panel_hi
         lda #0                  ; (the gap's rows in it too)
         sta _gap_eor
-        jsr frame_start         ; (the registers set for it)
+        sta _win_mc             ; hires all over: its colours are any of
+        jsr frame_start         ; the 16 (the registers set for it)
         lda #1
         jsr picture_on
         lda #200
@@ -1221,6 +1222,8 @@ logo:   jsr _eng_plain
         jsr picture_on
         lda #$E0                ; the panel's set again
         sta _panel_hi
+        lda #$10                ; (multicolour again, for the next page's
+        sta _win_mc             ; pictures)
         lda cd
         sta _col_deck
         lda cp                  ; (the border stays: the next page sets

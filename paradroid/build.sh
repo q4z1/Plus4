@@ -24,7 +24,7 @@ done
 # sound effects' player, the unpacker, what runs at $F400) and the start's
 # code itself. mkdata again, with their size, for the slots' rest.
 INIT_EXTRA=0
-for o in sfx:SFXCODE unpack:UNPACK figs:HICODE draw:HICODE paradroid:HICODE \
+for o in sfx:SFXCODE paradroid:SFXCODE unpack:UNPACK figs:HICODE draw:HICODE paradroid:HICODE \
          startup:INITDATA engine:INITCODE move:XT5; do
     n=$($B/od65 -S build/${o%:*}.o | awk "/${o#*:}:/{print \$2}")
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
