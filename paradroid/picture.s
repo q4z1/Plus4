@@ -199,14 +199,13 @@ _picture:
         lda (ptr1),y
         tax
         lda _pal_deck,x
-        cmp #$77                ; the yellow (the 001's, the 999's) a
-        bne :+                  ; level darker: the pages are white, as
-        lda #$57                ; the original's (move.s does the same
-:       sta _col_fig2           ; for the yellow decks)
-        dey
-        lda (ptr1),y
-        tax
-        lda _pal_mc,x
+        jsr dark_y              ; the yellow (the 001's, the 999's) a
+        sta _col_fig2           ; level darker: the pages are white, as
+        dey                     ; the original's (move.s does the same
+        lda (ptr1),y            ; for the yellow decks) - both its
+        tax                     ; colours, the cells' too: in the
+        lda _pal_mc,x           ; original they are the same yellow
+        jsr dark_y
         sta _x_attr
         lda prow
         sta _x_row
@@ -237,6 +236,11 @@ _picture:
         lda #140
         sta _x_code
         rts
+
+dark_y: cmp #$77
+        bne :+
+        lda #$57
+:       rts
 
 ; picture pt's part of the stream unpacked at A/X (Y 0: the graphics,
 ; 2: the pages) to character 1 of picture 1's set (the pages after the

@@ -66,10 +66,15 @@ try:
     g.keys(2, 0.15); g.keys(0, 0.3); g.keys(16, 0.15); g.keys(0, 0.2)
     g.settle()                          # (another deck takes a moment)
     # a console: plan and enquiry
+    # on the floor before it, as the original: a character $42 of the
+    # console's block (its column and row there), under the player
     m = decks[g.byte('_deck')]
-    x, y = [(x, y) for y in range(1, 15) for x in range(1, 63) if m[y][x] == 'l'
-            and any(m[y + b][x + a] in 'ghijstu' for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1)))][0]
-    to(g, x, y); g.keys(0, 0.4)
+    spot = {'g': (1, 2), 'h': (1, 1), 'i': (2, 1), 'j': (1, 1)}
+    bx, by = [(x, y) for y in range(1, 15) for x in range(1, 63) if m[y][x] in spot][0]
+    cx, cy = spot[m[by][bx]]
+    X, Y = (bx * 4 + cx) * 8 - 3, (by * 4 + cy) * 8 - 3   # ((p + 7) / 8)
+    g.poke('_d_x', X & 255, X >> 8); g.poke('_d_y', Y & 255, Y >> 8)
+    g.poke('_d_vx', 0); g.poke('_d_vy', 0); g.keys(0, 0.4)
     # the console, an overlay from the disk: its menu, then the deck plan
     # (down twice, fire), the droid enquiry (up, fire) and a page of it
     g.keys(16, 0.7); g.keys(0, 6.0)
@@ -96,7 +101,7 @@ try:
     x, y = [(x, y) for y in range(2, 14) for x in range(2, 62)
             if all(m[y + b][x + a] in 'lkop' for a in (-1, 0, 1) for b in (-1, 0, 1))][0]
     to(g, x, y); g.keys(0, 0.4)
-    g.keys(16, 0.5)
+    g.keys(16, 0.8)                     # (transfer mode after 9 ticks)
     px = g.word('_d_x'); py = g.word('_d_y')
     i = [i for i in range(1, g.byte('_nd')) if g.byte('_d_boom', i) == 0][0]
     g.poke('_d_x', px & 255, px >> 8, off=2 * i); g.poke('_d_y', py & 255, py >> 8, off=2 * i)
@@ -126,6 +131,18 @@ try:
         g.keys(16, 0.12); g.keys(0, 0.2)
     g.v.run_for(1.0)
     save(g, 'transfer.png')
+    # won, whatever the other side did: where transfer.s's end looks at
+    # the leader (lda leader, 35 bytes before its @over, before the
+    # deadlock's test) the leader made the player's side - lost, the bare
+    # 001 burns out and the game is over before the pictures below; a
+    # deadlock plays a round more than the monitor waits
+    judge = g.lbl['@over'] - 35
+    ld = g.lbl['leader']
+    assert list(g.v.mem(judge, 3)) == [0xAD, ld & 255, ld >> 8], 'transfer.s changed: judge'
+    g.v.cmd('break %04x' % judge)
+    g.v.cmd('x')
+    g.v.cmd('delete')
+    g.poke('leader', g.byte('me'))
     # the day's top score after a game: the transfer played out, the game
     # ended with a score, and the next title round's scores page
     g.v.cmd('warp on')

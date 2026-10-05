@@ -699,10 +699,12 @@ files at all: one file loaded by the KERNAL avoids all of that.
   here, and its keys for the pause's *Cheese* are `F3` and `Help` for the
   C64's `F7` and `F8` (see above); it names `F1` and `F2` too.
 - The droids' **pictures** in the original's yellow (the 001, the 999)
-  are a level darker, on the white pages, as the yellow decks are.
-- In the **title**, the original also takes `F1`/`F2` (colours, black and
-  white) and `F5`/`F6` (the volume, 0-15, shown in the panel). Here only
-  the pause takes `F1`/`F2`, and there is no volume.
+  are a level darker, on the white pages, as the yellow decks are - both
+  their colours, the cells' and the second multicolour, the same yellow
+  as in the original.
+- In the **title**, the original also takes `F5`/`F6` (the volume, 0-15,
+  shown in the panel); here there is no volume. `F1`/`F2` it takes, as
+  there.
 
 ## Files
 
@@ -800,7 +802,7 @@ monitor on a port of its own:
 | `contrace.py root out` | the console's pages and a lift ride: what the window shows |
 | `rowcheck.py` | every line of the window on screen against memory, for all eight fine positions |
 | `edges.py` | the window's top edge for every fine position |
-| `screens.py` | the screenshots in this README |
+| `screens.py` | the screenshots in this README (but `start.png` and `beam.png`: `yape_start.py`'s pictures 60 and 158); the transfer it plays is won at its end (the leader set where the original looks at it), so that the game goes on to its end pictures |
 
 All of them start the program. Only one test runs at a time:
 each first ends any other still running ([tests/onetest.py](tests/onetest.py)),

@@ -14,7 +14,7 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 | --- | --- |
 | [demonattack/](demonattack/README.md) | A conversion of the Atari 2600 **Demon Attack** that behaves like the original frame for frame, checked automatically against it. A colour on every line through a raster interrupt, collisions worked out pixel by pixel as the 2600's video chip sees them, and a page at the end of each game for hall of fame screenshots. Also as a 32 KB cartridge that runs on the C16. |
 | [main/](main/README.md) | The starting point — `clrscr()`, `printf()`, `cgetc()`. Useful as a template and as a sanity check that the toolchain is wired up correctly. |
-| [paradroid/](paradroid/README.md) | **Paradroid** (Andrew Braybrook, 1985) after the C64 original, with its decks, droids, waypoints and lifts taken out of its memory: an eight-way scrolling deck under a fixed status panel, shooting, the transfer game, lifts with the side view of the ship, the deck plan at consoles, the original's briefing. Runs from a `.d64`. |
+| [paradroid/](paradroid/README.md) | **Paradroid** (Andrew Braybrook, 1985) after the C64 original, with its decks, droids, waypoints and lifts taken out of its memory: an eight-way scrolling deck under a fixed status panel, shooting, the transfer game, lifts with the side view of the ship, the deck plan at consoles, the original's briefing. One `.prg`: nothing loads after the start. |
 | [pacman/](pacman/README.md) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
 | [phoenix/](phoenix/README.md) | A rebuild of the Atari 2600 **Phoenix**: all five waves, the force field, the mothership, two-voice sound with the arcade melodies, and a starfield that scrolls pixel by pixel. |
 | [stardew/](stardew/README.md) | **Stardew Pond**, a small farming game modelled on **Stardew Valley** by ConcernedApe: a farm, a village with a store and a smith, three villagers, a mine with thirty floors. Runs from a `.d64` and loads its rooms and tile sets as it goes; figures walk see-through over any background; the game is saved to the disk. |
@@ -269,6 +269,6 @@ Each program lists its own; see the README in its folder.
 | --- | --- |
 | [Demon Attack](demonattack/README.md) | joystick in port 1 or 2, or cursor keys and space; fire, space or `F1` starts, `F2` picks one of the ten games, `F3` / `Help` the difficulty |
 | [Pac-Man](pacman/README.md) | joystick in port 1, or `W` `A` `S` `D`, or the cursor keys; `Q` quits, fire or space starts |
-| [Paradroid](paradroid/README.md) | joystick in either port, or cursor keys; fire (or space, `CTRL`, `C=`) with a direction shoots, held without one transfers; `Run/Stop` pauses |
+| [Paradroid](paradroid/README.md) | joystick in either port, or cursor keys; fire (or space, `CTRL`, `C=`) with a direction shoots, held without one transfers, held on a lift or before a console opens it; `Run/Stop` pauses |
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
 | [Stardew Pond](stardew/README.md) | joystick in either port, or cursor keys; fire or space uses what is in your hand; `,` `.` pick an item; `I` the backpack |
