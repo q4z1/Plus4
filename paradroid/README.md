@@ -196,7 +196,10 @@ levels, the cyan one, the yellow one where it is the background (not
 where it draws details), and the green of the light green decks' edges
 one, so that it still stands out from their background. The
 console's deck plan, which shows the deck's own characters, has the
-scheme too.
+scheme too, and so has the title's logo. Those two are hires all over and
+take the nearest of all the TED's colours: the window's multicolour mode,
+in which a cell whose colour is one of 8-15 is drawn in multicolour, is
+off for them, as for the briefing's pages.
 
 ### Characters that move
 
