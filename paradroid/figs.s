@@ -31,13 +31,15 @@ fi:     .res 1
 _fig_seen: .res 23              ; slots drawn in the window (draw.s's
                                 ; turn_droids() turns those)
 
-        .segment "HICODE"       ; (run at $F400 on, paradroid.cfg)
+        .rodata                 ; (in the main program: HICODE is full)
 
 ; an explosion's colour by its stage, multicolour: the original's yellow,
 ; then its orange as it dies down - a red of middle luminance, as cells in
 ; multicolour can only have the colours 0-7
 _explo_col:
         .byte $7F, $7F, $7F, $4A, $4A, $4A
+
+        .segment "HICODE"       ; (run at $F400 on, paradroid.cfg)
 
 ; figure(): the one at fig_x, fig_y from slot fig_n, if it is in the window
 _figure:

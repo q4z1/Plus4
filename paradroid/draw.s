@@ -591,9 +591,11 @@ _draw:  jsr window
         lda _d_x+1
         sbc #0
         sta _fig_x+1
-        lda _d_y
-        sta _fig_y
-        lda _d_y+1
+        lda _d_y                ; 2 up: the original's 001 is 18 lines
+        sbc #2                  ; high, 2 more than this one, around the
+        sta _fig_y              ; same middle (measured against its deck
+        lda _d_y+1              ; in x64sc; C set by the sbc above)
+        sbc #0
         sta _fig_y+1
         lda _d_boom
         beq @alive

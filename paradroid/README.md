@@ -172,7 +172,12 @@ player's sprite is drawn a character right of and below its place, its
 droids' sprites are not. So here too the window and the player's figure
 are a character on, and where figures meet - bumps, shots, the droids'
 aim, which the original leaves to its sprites' collisions - the player
-counts where its figure is.
+counts where its figure is. The figures are 16 lines high, the
+original's sprites 18; each stands around the same middle as the
+original's against the deck (measured with a droid beside the 001), so
+the player's is drawn 2 lines higher than its place says. Under the
+boxes the 001 stops 10 lines short of their edge, the original 9: its
+walls are the original's, to the pixel.
 
 ### The decks' colours
 
