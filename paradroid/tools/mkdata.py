@@ -845,7 +845,9 @@ for c in range(0x80, 0x80 + NSIDE):
     if col >= 8:
         g = [swap_mc(b) for b in g]
     sf += g
-    scol.append(col)
+    # class 5's colour is the deck's (its scheme's, as the original's
+    # colour table gives it): 16 for it, screens.s puts it in
+    scol.append(16 if cclass[c] == 5 else col)
 # (in the console's and lift's overlay, kept packed: screens.s)
 s.append('        .segment "CONDATA"')
 emit('side_font', sf)

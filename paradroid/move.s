@@ -18,7 +18,7 @@
 ; of the block code tables (BLKC + 192 + block; tools/mkdata.py).
 
         .export _move_player, _solid_at, droid_look, d_lk
-        .export _deck_colours, _colour_blocks, _bw, _keep_border
+        .export _deck_colours, _colour_blocks, _bw, _keep_border, _side_c5
         .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
         .import _blk_flag, _nd, _d_boom, _d_bx, _d_by
@@ -54,6 +54,7 @@ _bump_i: .res 1                 ; bump_next(): the droid last found
 
         .bss
 _keep_border: .res 1            ; deck_colours() leaves the border alone
+_side_c5: .res 1                ; its class 5's C64 colour
 nbx:    .res 13                 ; doors(): the droids by the screen
 nby:    .res 13
 d_lk:   .res 13                 ; looked ahead, free: no look till the droid
@@ -281,14 +282,11 @@ kp_of:  .byte K_RIGHT, K_DOWN
 kn_of:  .byte K_LEFT, K_UP
 sp_of:  .byte 0, 6
 
-; move_player(k): a tick's driving by the keys k; firing, none
+; move_player(k): a tick's driving by the keys k (fire held too, as in
+; the original: its $39F9 looks at the stick only)
 _move_player:
         sta kk
-        and #K_FIRE
-        beq :+
-        lda #0
-        sta kk
-:       ldx _d_type
+        ldx _d_type
         ldy _dr_drive,x
         lda vmax_of,y
         sta vmax
@@ -879,6 +877,8 @@ _deck_colours:
         inx
         cpx #12
         bne :-
+        lda CLS_HR+5            ; (class 5 for the side view, screens.s)
+        sta _side_c5
         ldx #11
 :       ldy CLS_HR,x            ; the TED's
         lda _pal_mc,y

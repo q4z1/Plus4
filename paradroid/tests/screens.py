@@ -61,9 +61,9 @@ try:
     d = g.byte('_deck'); m = decks[d]
     lx, ly = [(x, y) for y in range(16) for x in range(64) if m[y][x] == '3'][0]
     to(g, lx, ly); g.keys(0, 0.4)
-    g.keys(16, 1.0); g.keys(17, 0.15); g.keys(16, 0.4)
+    g.keys(16, 1.0); g.keys(0, 0.3); g.keys(1, 0.15); g.keys(0, 0.4)
     save(g, 'lift.png')
-    g.keys(18, 0.15); g.keys(16, 0.3); g.keys(0, 0.2)
+    g.keys(2, 0.15); g.keys(0, 0.3); g.keys(16, 0.15); g.keys(0, 0.2)
     g.settle()                          # (another deck takes a moment)
     # a console: plan and enquiry
     m = decks[g.byte('_deck')]

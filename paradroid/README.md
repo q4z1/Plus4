@@ -24,11 +24,11 @@ and all the droids' pictures are kept in it, packed.
 | | |
 | --- | --- |
 | Joystick in either port, or the cursor keys | drive. The droid has inertia, as in the original |
-| Fire (or `Space`, `CTRL` or `C=`) with a direction | lasers in that direction |
-| Fire held, no direction | transfer mode: the player blinks, and touching a droid starts the transfer game. While fire stays held, it moves without shooting; letting go ends it |
-| Fire held on a lift | the side view of the ship; up and down choose a deck on that shaft, letting go gets out there. Anywhere on the lift's block, as in the original |
+| Fire (or `Space`, `CTRL` or `C=`) with a direction | the weapon (*Weapon* in the panel): lasers in that direction, and as long as fire stays held, in whichever direction the stick goes - the droid drives while it fires, as in the original |
+| Fire held, no direction | half a second's wait: a direction in it is the weapon; none, transfer mode: the player blinks, and touching a droid starts the transfer game. While fire stays held, it drives without shooting; letting go ends it |
+| Fire held on a lift | after a quarter of a second, the side view of the ship: let go of fire, up and down choose a deck on that shaft, fire gets out there. Anywhere on the lift's block, as in the original |
 | Fire held at a console | the ship's computer: up and down choose a symbol, fire takes it (the first leaves); in the droid enquiry right and left turn the pages, up and down go through the droid types |
-| `Run/Stop` | pause. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `F3` freezes the picture ("Cheese") till `Help`, `F1`/`F2` colours or black and white - no key with shift |
+| `Run/Stop` | pause: all stands but what turns. In it: fire or `Run/Stop` go on, `Clr/Home` ends the game, `F3` freezes even that, for a photo ("Cheese"), till `Help`, `F1`/`F2` colours or black and white - no key with shift |
 
 On a PC keyboard in an emulator: the arrow keys, and Space or either Ctrl
 key as fire (Yape puts the left Ctrl on `C=` and the right one on `CTRL`).
@@ -98,7 +98,7 @@ second. The window scrolls a pixel at a time in any direction.
 | ![Game on](screenshots/start.png) | ![Beamed aboard](screenshots/beam.png) |
 | **A game's start.** The original's page, with its words and the 001's picture, in its purple. | **Beamed aboard.** The 001 flashing at the top left of the deck, as in the original, before the panel says *Mobile*. |
 | ![Transfer](screenshots/transfer.png) | ![Lift](screenshots/lift.png) |
-| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*, counting down from 99 for 12 seconds), then have ten seconds (*Finish -52*, from 99 too), each a number at a time, as in the original (measured there: a step every 5.9 and 5.3 pictures). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change. |
+| **Transfer.** The original's board in its characters: yellow on the left, purple on the right, twelve lines each from the rail to the column of lights. The parts are the original's: dead ends, amplifiers that keep a pulse once they have one, colour changers, branches (one line in, two out) and gates (two in, both needed). A light shows the side whose line is live there and flickers when both are. You pick your colour (*Colour? 76*, counting down from 99 for 12 seconds), then have ten seconds (*Finish -52*, from 99 too), each a number at a time, as in the original (measured there: a step every 5.9 and 5.3 pictures). As in the original, you get your droid's class plus 3 pulses and the other side its class plus 4. The side with more lights wins; a draw is a deadlock and is played again. Winning is *Complete*; losing from a host is *Rejected* and costs that host; losing as the bare 001 is *Burnt Out*, and the game is over. | **Lift.** The original's side view of the ship: its map and characters, multicolour in white, black and blue. As in the original, the lift's own shaft is white and the deck it is at is lit, by the original's rule for which characters of the deck's box change, in the colour the deck's scheme gives those characters - mostly near its background's, cyan on the grey decks. |
 | ![Your droid](screenshots/intro_you.png) | ![The other droid](screenshots/intro.png) |
 | **Before a transfer.** As in the original, both droids first: your own, then the one you touched, with the original's pictures and words. | The pictures are the original's, taken from it by running its own drawing routine for each droid type (see below), and kept packed in the program. |
 | ![Console](screenshots/console.png) | ![Deck plan](screenshots/plan.png) |
@@ -323,10 +323,12 @@ rip, 2.56 seconds over and over.)
 
 As the original's (`$3B7C`, read from its code): `Run/Stop` shows
 *Pause*, the sound stops, and everything stands still but the deck's
-turning characters, till fire or `Run/Stop`, which show *Continue*. In it,
+turning characters and the droids' turning domes (here only the player's
+turn, in the game too), till fire or `Run/Stop`, which show *Continue*. In it,
 as its briefing says, `Clr/Home` quits the game, straight to the title
-(`$10D3`, no end of a game; here its score does not count), and the C64's `F7` is *Cheese*
-(`$0B8A`): not even those characters turn, till its `F8`, fire, `Run/Stop`
+(`$10D3`, no end of a game; here its score does not count: the picture
+goes off at once, till the logo is whole), and the C64's `F7` is *Cheese*
+(`$0B8A`), for a photo: not even those turn, till its `F8`, fire, `Run/Stop`
 or `Clr/Home`. Not in the briefing, also as in the original (`$32B7`):
 `F1` shows *Colour*, `F2` *Blk-White*, and from the pause's end on the
 decks are in scheme 0, the grey one, till `F1` again (a deck without
@@ -823,7 +825,8 @@ sources (`~/.cache/plus4emu/buildlib.sh`, see `p4emu.py`).
 | `p4emu_vscroll.py [n]` | in a game in plus4emu, driving up and down: the border beside the window and the window's colour in every picture, by fine position (the PAL phase) |
 | `p4emu_snow.py [n]` | the title in plus4emu, n pictures: pixels of colour `$7F`, which the TED draws where a colour register is written |
 | `p4emu_pause.py [keys]` | the pause's keys pressed on plus4emu's keyboard (VICE and Yape cannot): `Run/Stop`, `F1`, `F2`, `F3`, `Help`, `Clr/Home`; a picture after each |
-| `p4emu_lift.py` | where on a lift's block fire held starts it, and a ride to another deck picture by picture: the border must change with the window |
+| `p4emu_lift.py` | where on a lift's block fire held starts it, and a ride to another deck (let go, a stop down, fire) picture by picture: the border must change with the window |
 | `p4emu_tmode.py` | transfer mode: fire held with a direction drives and does not shoot |
+| `p4emu_fire.py` | fire's states as the original's: the wait, transfer mode, the weapon (also from a direction in the wait, and kept with fire held), letting go |
 | `p4emu_xcount.py` | the transfer game's counts, picture by picture: every number from 99 down, and how often |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |

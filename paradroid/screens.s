@@ -21,8 +21,8 @@
 ;
 ; The lift: the ship from the side, as the original shows it: its map in
 ; the upper half of the original's deck characters, multicolour, with the
-; lift's shaft white and the deck it is at lit. Up and down go along the
-; shaft, letting go of fire gets out there. The characters go where the
+; lift's shaft white and the deck it is at lit. Fire let go, up and down
+; go along the shaft, fire gets out there. The characters go where the
 ; figures' usually are, the map straight into the window of both
 ; pictures.
 
@@ -36,7 +36,7 @@
         .import _pal_deck, _pal_mc, _dr_class, _dr_num, _d_type, _d_x, _d_y
         .import _deck, _alert, _deck_bg
         .import _icon_font, _icon_tab, _icon_lay, _plan_font, _plan_cls
-        .import _side_font, _side_col, _side_rle, _side_box
+        .import _side_font, _side_col, _side_rle, _side_box, _side_c5
         .import _shaft_col, _shaft_top, _shaft_len
         .import _lift_shaft, _lift_deck
         .import pusha
@@ -742,7 +742,10 @@ side_view:
         sbc #$80
         tax
         lda _side_col,x
-        jsr side_attr
+        cmp #16                 ; (the deck's class 5: lit decks in its
+        bne :+                  ; colour, as the original's)
+        lda _side_c5
+:       jsr side_attr
         sta cw
         lda cv
         clc
@@ -1000,21 +1003,17 @@ _ride_lift:
         lda _lift_deck,x
         jsr side_light
         jsr deck_name
-        lda _keys_irq
-        sta prev
-@loop:  jsr _wait_tick
-        lda _keys_irq
+        lda _keys_irq           ; (fire still held: not pressed yet)
         sta k
-        and #K_FIRE
-        beq @out
+@loop:  jsr tick_keys           ; as the original's ($267A): fire let go,
+        lda #K_FIRE             ; a deck chosen, fire pressed again gets
+        jsr pressed             ; out there
+        bne @out
         lda li
         sta nl
-        lda k                   ; up: the lift above on the same shaft
-        and #K_UP
+        lda #K_UP               ; up: the lift above on the same shaft
+        jsr pressed
         beq @down
-        lda prev
-        and #K_UP
-        bne @down
         ldx li
         beq @down
         lda _lift_shaft-1,x
@@ -1022,12 +1021,9 @@ _ride_lift:
         bne @down
         dex
         stx nl
-@down:  lda k                   ; down: the one below
-        and #K_DOWN
+@down:  lda #K_DOWN             ; down: the one below
+        jsr pressed
         beq @new
-        lda prev
-        and #K_DOWN
-        bne @new
         ldx li
         inx
         cpx #NLIFTS
@@ -1037,9 +1033,7 @@ _ride_lift:
         cmp _lift_shaft,y
         bne @new
         stx nl
-@new:   lda k
-        sta prev
-        lda nl
+@new:   lda nl
         cmp li
         beq @loop
         ldx li
@@ -1054,6 +1048,10 @@ _ride_lift:
         lda #SFX_RIDE
         jsr _sound
         jmp @loop
-@out:   lda li
+@out:   jsr tick_keys           ; and let go again, still in the side view
+        lda k
+        and #K_FIRE
+        bne @out
+        lda li
         ldx #0
         rts

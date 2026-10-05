@@ -71,7 +71,9 @@ _late:      .res 2              ; and ticks that came too late
 last:       .res 1              ; frames at the last tick
 over:       .res 1              ; a game has been played
 lights_out: .res 1              ; this deck went dark already
-held:       .res 1              ; ticks fire is held without a direction
+held:       .res 1              ; ticks fire is held on a lift or console
+fstate:     .res 1              ; fire's state (play())
+ftimer:     .res 1              ; its wait
 keys:       .res 1
 wf:         .res 1              ; wait_free()'s keys
 pf:         .res 1              ; the pause's keys
@@ -86,6 +88,7 @@ cnt:        .res 2
         .rodata
 s_mobile:   .byte "Mobile", 0
 s_transfer: .byte "Transfer", 0
+s_weapon:   .byte "Weapon", 0
 s_complete: .byte "Complete", 0
 s_rejected: .byte "Rejected", 0
 s_burnt:    .byte "Burnt Out", 0
@@ -96,7 +99,6 @@ s_bw:       .byte "Blk-White", 0
 s_continue: .byte "Continue", 0
 s_fleet:    .byte "Fleet", 0
 s_cleared:  .byte "Cleared", 0
-s_loading:  .byte "Loading", 0
 s_gameover: .byte "Game over", 0
 mc_mask:    .byte $C0, $30, $0C, $03
 
@@ -380,7 +382,8 @@ next_ship:
         jmp status
 
 ; pause(): the pause, as the original's ($3B7C): RUN/STOP, and all stands
-; still and is quiet but the deck's turning characters, till fire or
+; still and is quiet but the deck's turning characters and the droids'
+; turning domes (here the player's: the others' do not turn), till fire or
 ; RUN/STOP. In it, as its briefing says: CLR/HOME ends the game (A 1:
 ; straight to the title); "Cheese": not even those turn, till fire,
 ; RUN/STOP, CLR/HOME or the key back to the pause. And, not in the
@@ -437,6 +440,7 @@ pause:  lda #<s_pause
         ldx #>s_bw
         jsr status
 @anim:  jsr _anim_deck
+        jsr _draw               ; (the player's dome turning)
         jmp @loop
 @end:   lda #K_STOP | K_FIRE
         jsr wait_free
@@ -447,9 +451,16 @@ pause:  lda #<s_pause
         lda #0
         rts
 
-; play(): a game, till the player is gone
-play:   lda #0
+; play_init(): fire in none of its states
+play_init:
+        lda #$80
+        sta fstate
+        lda #0
         sta held
+        rts
+
+; play(): a game, till the player is gone
+play:   jsr play_init
         lda _deck
         jsr _deck_cleared
         sta lights_out
@@ -472,70 +483,98 @@ play:   lda #0
 :       inc _d_boom
         lda #0
         sta keys
-@fire:  lda keys                ; fire without a direction: a lift, a
-        and #K_FIRE             ; console, or transfer
-        beq @nofire
-        lda keys
-        and #K_DIRS
-        bne @move
-        lda held
-        cmp #255
-        beq :+
-        inc held
-:       lda held
+; fire, as the original's ($31B9, $3A): pressed with a direction, the
+; weapon, which fires while fire stays held, whichever way the stick goes;
+; pressed without one, a wait of 8 ticks (half a second): a direction in
+; it, the weapon still (fire let go by then: one shot); none, transfer
+; mode, till fire is let go. The droid drives all the while.
+@fire:  lda fstate
+        beq @st0                ; 0: transfer mode
+        bmi @st80               ; $80: none
         cmp #2
-        bne @tmode
-        jsr _lift_here
-        cmp #255
-        beq @cons
-        jsr lift
-        lda _deck
-        jsr _deck_cleared
-        sta lights_out
-        lda #0
-        sta held
-        jmp @tick
-@cons:  jsr _console_here
-        cmp #0
-        beq @tmode
-        jsr console
-        lda #0
-        sta held
-        jmp @tick
-@tmode: lda held
-        cmp #3
-        bne @move
-        lda _transfer_mode
-        bne @move
-        lda #1
-        sta _transfer_mode
-        lda #<s_transfer
-        ldx #>s_transfer
-        jsr status
-        jmp @move
-@nofire:
-        lda #0
-        sta held
-        lda _transfer_mode
-        beq @move
+        beq @st2                ; 2: the wait
+        lda keys                ; 1: the weapon, till fire is let go
+        and #K_FIRE
+        bne @lc
+@mob:   lda #$80
+        sta fstate
         lda #0
         sta _transfer_mode
         lda #<s_mobile
         ldx #>s_mobile
         jsr status
+        jmp @lc
+@st0:   lda keys
+        and #K_FIRE
+        bne @lc
+        beq @mob
+@st80:  lda keys
+        and #K_FIRE
+        beq @lc
+        lda #2
+        sta fstate
+        lda #9                  ; (8 after this tick, as there: transfer
+        sta ftimer              ; mode in fire's ninth tick)
+@st2:   lda keys
+        and #K_DIRS
+        beq @wait
+        lda #1
+        sta fstate
+        lda #<s_weapon
+        ldx #>s_weapon
+        jsr status
+        jmp @lc
+@wait:  dec ftimer
+        bne @lc
+        lda #0
+        sta fstate
+        lda #1
+        sta _transfer_mode
+        lda #<s_transfer
+        ldx #>s_transfer
+        jsr status
+; a lift or a console, fire held on it for 5 ticks in any of those states
+; (the original's $2E7B)
+@lc:    lda fstate
+        bmi @nolc
+        jsr _lift_here
+        cmp #255
+        beq @cons
+        ldx held
+        cpx #4
+        bne @held
+        jsr lift
+        lda _deck
+        jsr _deck_cleared
+        sta lights_out
+        jmp @again
+@cons:  jsr _console_here
+        cmp #0
+        beq @nolc
+        lda held
+        cmp #4
+        bne @held
+        jsr console
+@again: jsr play_init
+        jmp @tick
+@held:  inc held
+        bne @move
+@nolc:  lda #0
+        sta held
 @move:  jsr _sfx_tick           ; the original's own: hum, warning
-        lda keys                ; in transfer mode fire held drives (fire
-        ldx _transfer_mode      ; takes the stick otherwise: it shoots)
-        beq :+                  ; and does not shoot, till it is let go
-        and #<~K_FIRE
-        sta keys
-:       jsr _move_player
+        lda keys
+        jsr _move_player
         jsr _move_droids
         jsr _doors
         lda #8                  ; figures against figures: the player where
         jsr _fig_place          ; its figure is, a character right of and
         lda keys                ; below its place (draw.s), as the
-        jsr _player_fire        ; original's sprites meet
+        and #<~K_FIRE           ; original's sprites meet; fired in the
+        ldx fstate              ; weapon's state only
+        dex
+        bne :+
+        ora #K_FIRE
+:       jsr _player_fire
         jsr _droids_fire
         jsr _move_shots
         jsr _collide
@@ -546,6 +585,7 @@ play:   lda #0
         lda _touched
         beq :+
         jsr transfer
+        jsr play_init
 :       jsr _energy_tick
         lda _score_changed
         beq @flash
@@ -817,15 +857,14 @@ title:  lda #1
         lda cd
         jsr _page_end
         jmp @run
-@first: jsr wait_ready          ; the first time: an empty window while the
-        jsr _eng_plain          ; title is made, not the deck going on as
-        lda #0                  ; if a game were running
-        jsr pusha
-        lda #$71
-        jsr _win_clear
-        lda #<s_loading
-        ldx #>s_loading
-        jsr status
+@first: jsr wait_ready          ; the first time, or the game ended in the
+        lda #0                  ; pause: the picture off, the border black,
+        sta _col_border         ; while the title is made, as at the start
+        sei                     ; (the original goes straight to the title)
+        lda $FF06
+        and #$EF
+        sta $FF06
+        cli
         jsr @ovl
 @run:   jsr _title_run
         lda #1

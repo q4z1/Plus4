@@ -3,7 +3,8 @@
 1. where on a lift's block fire held starts it: the player put at every
    fourth pixel of the block (and a little off it), across and down; the
    original takes the whole block (paradroid's _lift_here).
-2. a ride to another deck, picture by picture: the border beside the
+2. a ride to another deck (fire let go, a stop chosen, fire pressed),
+   picture by picture: the border beside the
    window and whether the window shows the side view or the deck. The
    border must change with the window, not before (it did while the
    slots were made, a second with the side view up)."""
@@ -76,22 +77,29 @@ try:
             # in the deck's characters' upper half ($C8 set, no figures)
             st = e.mem(lbl['_transfer_mode'], 1)[0]
             e.png(os.path.join(OUT, 'lift_%s%d.png' % (axis, off)))
+            e.poke(lbl['_dbg_keys'], [0])       # out again: let go, fire
+            e.run_for(0.3)
+            e.poke(lbl['_dbg_keys'], [16])
+            e.run_for(0.2)
             e.poke(lbl['_dbg_keys'], [0])
             e.run_for(2.0)
             print('%s %+3d: %s' % (axis, off, 'transfer mode, no lift' if st else 'the lift'),
                   flush=True)
-    # 2. a ride: on the lift, fire held, down (or up) a stop, let go
-    for k in (18, 17):
+    # 2. a ride, as the original's: on the lift, fire held till the side
+    # view shows, let go, down (or up) a stop, fire pressed and let go
+    for k in (2, 1):
         put(e, lx * 32 + 16, ly * 32 + 16)
         e.poke(lbl['_dbg_keys'], [16])
         e.run_for(2.0)
+        e.poke(lbl['_dbg_keys'], [0])
+        e.run_for(0.3)
         e.poke(lbl['_dbg_keys'], [k])
         e.run_for(0.2)
-        e.poke(lbl['_dbg_keys'], [16])
-        e.run_for(1.0)
+        e.poke(lbl['_dbg_keys'], [0])
+        e.run_for(0.5)
         e.png(os.path.join(OUT, 'ride_0.png'))
-        if 'Deck %d' % d not in '':
-            pass
+        e.poke(lbl['_dbg_keys'], [16])
+        e.run_for(0.2)
         e.poke(lbl['_dbg_keys'], [0])
         n = 0
         while e.mem(lbl['_deck'], 1)[0] == d and n < 150:
