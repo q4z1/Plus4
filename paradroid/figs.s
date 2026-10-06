@@ -121,16 +121,16 @@ _draw_figs:
         txa
         asl a
         tay
-        sec
-        lda _d_x,y
-        sbc #13
+        sec                     ; where the original's sprite is (its
+        lda _d_x,y              ; droid's, its explosion's; measured
+        sbc #11                 ; against its deck in x64sc)
         sta _fig_x
         lda _d_x+1,y
         sbc #0
         sta _fig_x+1
         sec
         lda _d_y,y
-        sbc #8
+        sbc #11
         sta _fig_y
         lda _d_y+1,y
         sbc #0
@@ -168,16 +168,16 @@ _draw_figs:
         txa
         asl a
         tay
-        sec
-        lda _s_x,y
-        sbc #12
+        sec                     ; (as the droids': the original's
+        lda _s_x,y              ; sprites, the same way from the world)
+        sbc #11
         sta _fig_x
         lda _s_x+1,y
         sbc #0
         sta _fig_x+1
         sec
         lda _s_y,y
-        sbc #8
+        sbc #11
         sta _fig_y
         lda _s_y+1,y
         sbc #0

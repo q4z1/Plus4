@@ -177,12 +177,24 @@ player's sprite is drawn a character right of and below its place, its
 droids' sprites are not. So here too the window and the player's figure
 are a character on, and where figures meet - bumps, shots, the droids'
 aim, which the original leaves to its sprites' collisions - the player
-counts where its figure is. The figures are 16 lines high, the
-original's sprites 18; each stands around the same middle as the
-original's against the deck (measured with a droid beside the 001), so
-the player's is drawn 2 lines higher than its place says. Under the
-boxes the 001 stops 10 lines short of their edge, the original 9: its
-walls are the original's, to the pixel.
+counts where its figure is.
+
+The figures are the original's sprites, line for line: 20 lines high
+(the sprites have 21, and only the lasers' tips use the last), and where
+the sprites are. A droid is the original's as `$3CFB` builds it, in one
+colour: two domes with the turning gap, the number in three big digits
+between them (the original's own, `$6AAE`, 7 hires pixels wide, here 3
+multicolour ones), and an antenna of 2 lines, under the domes for half a
+turn and above them for the other half. It is 11 multicolour pixels wide
+for the original's 23 hires ones. The player's shot starts 12 pixels from
+its sprite, in the sprites' own coordinates (`$33B5`), so the droids,
+their explosions, the shots and the player all go from the world to the
+screen the same way. Measured in x64sc against the original's screen
+with the 001 and a 302 beside it on deck 7 (the deck found to a pixel in
+both pictures), every line of both figures is where the original has
+it; across, the deck itself is a pixel off, as multicolour pixels are
+two wide. As the walls are the original's, to the pixel, so are the
+gaps the figures keep to them.
 
 ### The decks' colours
 
@@ -222,12 +234,13 @@ pixel every two ticks over four - the same speed. So do the other droids
 slower the less energy it has; here all droids of a type share one
 picture, shifted in advance, so they turn together, at full speed, half a
 turn from the player. Their domes are the same for every type, and are
-taken each step from the player's picture for that turn, its colours
-swapped back, into the droids' pictures - only those drawn in the window
-lately, and only the three columns of each shift the gap gets into: on
-even ticks into a buffer and the even ones, on odd ticks into the odd
-ones. The buffer is the 18 bytes after each of the two pictures' 1000
-colours and codes, which the TED does not show. It is done after the
+taken each step from the player's picture for that turn, with the
+antenna, its colours swapped back, into the droids' pictures - only those
+drawn in the window lately, and only the three columns of each shift the
+gap and the antenna get into: on even ticks into a buffer and the even
+ones, on odd ticks into the odd ones. The buffer is the 22 bytes after
+each of the two pictures' 1000 colours and codes, which the TED does not
+show. It is done after the
 window is drawn, and only with a picture's time left in the tick: in a
 crowded window the domes wait a tick rather than the game (measured in
 Yape with eight droids of three types in the window: without it, 13 % of
@@ -388,7 +401,7 @@ were found by tracing the game:
 | `$F180` | the side view of the ship, run-length coded. Code `c` shows as `c + $80`, from the upper half of the deck's character set |
 | `$F120`–`$F15F` | each deck's box in the side view: row, column, rows, columns. Lighting a deck turns codes `$80`.. into `$90`.. and back |
 | `$6CB0`–`$6CC7` | the lift shafts: column, top row, length. The shaft ridden gets colour `$F9`, white multicolour |
-| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures: a run of hires pixels gets half as many multicolour ones about its middle, so the bolts stay thin, and the vertical one is smoothed and keeps its tips in 16 of its 21 lines |
+| `$4E40`, `$6440` | sprites: the explosion (blocks `$39`–`$43`) and the twin lasers (`$91`–`$97`), turned into multicolour figures: a run of hires pixels gets half as many multicolour ones about its middle, so the bolts stay thin, and the vertical one is smoothed and keeps its tips in 20 of its 21 lines |
 | `$7F88`–`$7FF7` | the transfer game's characters `$F1`–`$FE` (and `$D0`, `$D1`): wires, arrows, the colour changer, boxes, the lights |
 | `$6C28` | the animated characters: the energizer's, the plan's player; and at `$7BD0` the static's |
 | `$C610` | the sound effects' records, their instruments at `$EAA0` |
@@ -560,20 +573,30 @@ the TED that is a bit in each cell's colour, while the rest of the window
 stays hires. The deck character in such a cell is turned into multicolour
 too (any pixel pair with something set becomes the cell's own colour). That
 makes floor lines one pixel thicker inside the droid's cells and leaves
-them their colour. The droid uses the two colours all multicolour cells
-share: black and white.
+them their colour. The droids use the two colours all multicolour cells
+share: black for the others, white for the player, as the original's
+sprites.
 
 ### Pictures shifted in advance
 
 A figure can start at four multicolour pixels inside a cell. Shifting its
-16 lines at drawing time cost more than everything else in a picture put
+20 lines at drawing time cost more than everything else in a picture put
 together, as the sampling profiler (`tests/profile.py`) showed. So each
 picture is shifted once into a 512-byte slot when it is needed: for the
 droid types on a deck when you enter it, and for the player's droid when you
 change host. A slot holds all four positions, the columns one under the
 other with blank lines between them, and for each column which lines have
 pixels. Drawing is then copying through a mask, and only into cells with
-something in them.
+something in them: which rows of cells those are follows from the
+column's lines and the line the figure starts at inside its cell, by two
+small tables, not by shifting. The pictures themselves are 3 bytes a
+line, 12 multicolour pixels, all any figure needs.
+
+A droid standing on a waypoint (a multiple of 8 down) starts 5 lines into
+a cell, as the original's sprite does there, and so takes four rows of
+cells, its antenna's line alone in the last; the earlier 16-line figure
+fit two rows there. That costs about a third more cells for the droids
+in the window.
 
 ### Where the time goes
 

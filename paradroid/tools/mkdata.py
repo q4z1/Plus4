@@ -173,37 +173,38 @@ for m in re.finditer(r'char ([0-9a-f]{2})\n((?:[.#]{8}\n){8})', ptxt):
         pfont[c * 8 + y] = int(r.replace('.', '0').replace('#', '1'), 2)
 
 # --- figures ------------------------------------------------------------------
-# Multicolour, 4 bytes (16 pixels) a line. In the pictures: '.' see-through,
-# 'x' %01 (dark), 'o' %10 (light).
-DROID = [
-    '.....xxx.....',
-    '...xxxxxxx...',
-    '.xxxxxxxxxxx.',
-    '.............',
-    'xxxxxxxxxxxxx',
-    'x...x...x...x',
-    'x...x...x...x',
-    'x...x...x...x',
-    'x...x...x...x',
-    'x...x...x...x',
-    'xxxxxxxxxxxxx',
-    '.............',
-    '.xxxxxxxxxxx.',
-    '...xxxxxxx...',
-    '.....xxx.....',
-    '.....x.x.....',
+# Multicolour, 3 bytes (12 pixels) a line, 20 lines (FIG_H): the original's
+# sprites are 21, its droids 20 (an antenna 2 lines above or below the
+# domes). In the pictures: '.' see-through, 'x' %01 (dark), 'o' %10 (light).
+FIG_H = 20
+# A droid as the original's sprite ($3CFB builds it): one colour, its
+# number in big digits between two domes, all 11 multicolour pixels wide
+# (the original's 23 hires ones). A slanted gap runs round the domes, from
+# the original's tables at $6B0E-$6B4F: its eight phases, a hires pixel
+# apart, here four, its phases 1, 3, 5 and 7 (lines of the top dome, the
+# bottom one is their mirror). In the first two the antenna is under the
+# domes, in the last two above.
+DOME = [
+    ['...x.xxx...', '..x.xxxxx..', '.xx.xxxxxx.'],
+    ['...xx.xx...', '..xxx.xxx..', '.xxxx.xxxx.'],
+    ['...xxx.x...', '..xxxxx.x..', '.xxxxxx.xx.'],
+    ['...xxxx....', '..xxxxxx...', '.xxxxxxxx..'],
 ]
+ANTENNA = '.....x.....'
+# The original's digits ($6AAE, 7 hires pixels by 8 lines, 3 to a
+# sprite) in 3 multicolour pixels; a pixel stands for the hires ones
+# 0-1, 2-4 and 5-6
 DIGITS = [
-    ['###', '#.#', '#.#', '#.#', '###'],
-    ['.#.', '##.', '.#.', '.#.', '###'],
-    ['###', '..#', '###', '#..', '###'],
-    ['###', '..#', '.##', '..#', '###'],
-    ['#.#', '#.#', '###', '..#', '..#'],
-    ['###', '#..', '###', '..#', '###'],
-    ['###', '#..', '###', '#.#', '###'],
-    ['###', '..#', '..#', '.#.', '.#.'],
-    ['###', '#.#', '###', '#.#', '###'],
-    ['###', '#.#', '###', '..#', '###'],
+    ['###', '###', '...', '#.#', '#.#', '#.#', '###', '###'],
+    ['.##', '###', '.##', '.##', '.##', '.##', '.##', '.##'],
+    ['##.', '###', '..#', '.##', '##.', '...', '###', '###'],
+    ['###', '##.', '...', '.#.', '.##', '..#', '###', '##.'],
+    ['.##', '.#.', '##.', '###', '###', '...', '.##', '.##'],
+    ['###', '###', '#..', '##.', '###', '...', '###', '##.'],
+    ['.#.', '.#.', '##.', '##.', '#.#', '#.#', '###', '###'],
+    ['###', '###', '...', '.##', '.##', '.#.', '.#.', '##.'],
+    ['###', '###', '#.#', '.#.', '.#.', '#.#', '###', '###'],
+    ['###', '###', '#.#', '#.#', '.##', '.##', '.#.', '.#.'],
 ]
 
 
@@ -223,14 +224,11 @@ def pic_bytes(rows, swap=False):
     return out
 
 
-def droid_rows(num):
-    pic = [list(r) for r in DROID]
-    for k, ch in enumerate('%03d' % num):
-        g = DIGITS[int(ch)]
-        for y in range(5):
-            for x in range(3):
-                pic[5 + y][1 + k * 4 + x] = 'o' if g[y][x] == '#' else 'x'
-    return [''.join(r) for r in pic]
+def fig_bytes(rows):
+    """a figure's picture: 3 bytes a line (draw.s, engine.s's pre_shift)"""
+    b = pic_bytes(rows)
+    assert not any(b[3::4]), 'a figure wider than 12 pixels'
+    return [v for i, v in enumerate(b) if i % 4 != 3]
 
 
 # the transfer game's, the original's: $F1-$FE, $D0, $D1 (transfer.txt);
@@ -747,20 +745,21 @@ emit('dr_weapon', [int(d[2]) for d in droids])
 emit('ship_base', [x[1] for x in ship])
 emit('ship_count', [x[2] for x in ship])
 # figures
-# a droid's picture is made when needed: the template and its number
-emit('droid_tmpl', pic_bytes([r.replace('.', 'x') if 5 <= i <= 9 else r
-                              for i, r in enumerate(DROID)]))
+# a droid's picture is made when needed (draw.s): its domes' lines per
+# phase, 3 bytes each, and the digits, two lines to a byte (%01 pixels: the
+# first line's in bits 6, 4, 2, the second's in 5, 3, 1)
+emit('droid_dome', [v for ph in DOME for r in ph for v in fig_bytes([r])])
 dg = []
 for g in DIGITS:
-    v = 0
-    for y in range(5):
+    for y in range(0, 8, 2):
+        v = 0
         for x in range(3):
-            if g[y][x] == '#':
-                v |= 1 << (y * 3 + x)
-    dg += [v & 255, v >> 8]
-emit('digit_bits', dg)
+            v |= (g[y][x] == '#') << (6 - 2 * x) | (g[y + 1][x] == '#') << (5 - 2 * x)
+        dg.append(v)
+emit('digit_rows', dg)
 # lasers and explosion from the original's sprites (24 x 21), as 12
-# multicolour pixels by 16 lines. The explosion's black stays black (%01),
+# multicolour pixels by 20 lines (the last line goes, the original's
+# lasers' tips). The explosion's black stays black (%01),
 # its yellow and orange are the cells' own colour (%11), which draw.s sets:
 # yellow, then orange as it dies down. The lasers' hires pixels become
 # light ones (%10), and as their bolts are thin, not every pair with a
@@ -794,10 +793,10 @@ def mc_run(row, width, centre):
         row[p] = 'o'
 
 
-def sprite_pic(name, top):
+def sprite_pic(name):
     kind, rows = sprites[name]
     out = []
-    for r in rows[top:top + 16]:
+    for r in rows[:FIG_H]:
         if kind == 'hires':
             row = ['.'] * 12
             for i, j in runs(r):
@@ -824,7 +823,7 @@ def laser_v():
                 return sum(v) / len(v)
             mc_run(out[y], avg(3, lambda i, j: j - i), avg(10, lambda i, j: (i + j) / 2))
     out = [''.join(r) for r in out]
-    while len(out) > 16:
+    while len(out) > FIG_H:
         n = len(out)
         k = min(range(2, n - 2), key=lambda k: (out[k] != out[k - 1], abs(k - n / 2)))
         del out[k]
@@ -834,12 +833,12 @@ def laser_v():
 assert all(len(runs(r)) == 2 for r in sprites['laser_v'][1])
 eimg = []
 for i in range(6):
-    eimg += pic_bytes(sprite_pic('explo%d' % i, 2))
+    eimg += fig_bytes(sprite_pic('explo%d' % i))
 # packed, the explosion's six and the lasers' four: draw.s unpacks them
 # into the last two slots before it shifts them into theirs
-fixed = (eimg + pic_bytes(laser_v()) + pic_bytes(sprite_pic('laser_d1', 2))
-         + pic_bytes(sprite_pic('laser_h', 3)) + pic_bytes(sprite_pic('laser_d2', 2)))
-assert len(fixed) == 10 * 64
+fixed = (eimg + fig_bytes(laser_v()) + fig_bytes(sprite_pic('laser_d1'))
+         + fig_bytes(sprite_pic('laser_h')) + fig_bytes(sprite_pic('laser_d2')))
+assert len(fixed) == 10 * FIG_H * 3
 emit('fixed_pk', pack(fixed))
 
 sf = []
@@ -941,7 +940,7 @@ inc = ['; made by tools/mkdata.py - do not edit',
        'NDECKS = %d' % len(decks),
        'NLIFTS = %d' % len(lifts),
        'NDROIDS = %d' % len(droids),
-       'DROID_H = %d' % len(DROID),
+       'FIG_H = %d' % FIG_H,
        'EXPLO_H = 16', 'NEXPLO = 6',
        'B_SOLID = 1', 'B_DOOR = 2', 'B_LIFT = 4', 'B_CONSOLE = 8', 'B_ENERGY = 16',
        'BLK_VDOOR = 1', 'BLK_HDOOR = 2',     # a door shut, up and down / across,

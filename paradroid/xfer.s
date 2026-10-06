@@ -717,19 +717,20 @@ _x_picture:
         .segment "XFERCODE"
 
 ; x_droid(slot): a droid's picture from its pre-shifted slot (the first of
-; its four positions: columns at 8 + 24 * column) as eight characters
-; x_code to x_code + 7 of both sets, 4 wide and 2 high at x_row, x_col
+; its four positions: columns at 7 + 27 * column) as twelve characters
+; x_code to x_code + 11 of both sets, 4 wide and 3 high at x_row, x_col,
+; its first line the third of x_row's (where the original's sprite is)
 _x_droid:
-        asl a                   ; slot * 512, + 8: column 0, line 0
+        asl a                   ; slot * 512
         clc
-        adc #>(_pre + 8)
+        adc #>_pre
         sta p_from + 1
-        lda #<(_pre + 8)
+        lda #<_pre
         sta p_from
         lda #0
         sta xk                  ; the column, 0-3
 @col:   lda #0
-        sta xv                  ; top or bottom
+        sta xv                  ; the row, 0-2
 @half:  lda _x_code
         ldx #>FONT0
         jsr charad
@@ -738,15 +739,16 @@ _x_droid:
         lda p_to + 1
         eor #>FONT0 ^ >FONT1
         sta p_to2 + 1
-        lda xk                  ; 24 * column + 8 * half
-        asl a
-        adc xk
+        lda xv                  ; 7 + 27 * column + 8 * row - 3
         asl a
         asl a
         asl a
-        ldx xv
-        beq :+
-        adc #8
+        adc #4
+        ldx xk
+:       dex
+        bmi :+
+        adc #27
+        bne :-
 :       sta xw
         ldx #0
 @b:     ldy xw
@@ -776,7 +778,7 @@ _x_droid:
         inc _x_code
         inc xv
         lda xv
-        cmp #2
+        cmp #3
         bne @half
         inc xk
         lda xk

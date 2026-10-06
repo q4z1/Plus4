@@ -16,7 +16,7 @@
         .import _f_h, _f_tint, _explo_col, _panel_put, _pp_off, _pp_code, _pp_attr
         .import _d_x, _d_y, _d_type, _d_boom, _d_energy, _nd, _transfer_mode
         .import _score, _score_changed
-        .import _droid_tmpl, _digit_bits, _fixed_pk, _unpack, _unp_dst
+        .import _droid_dome, _digit_rows, _fixed_pk, _unpack, _unp_dst
         .import _dr_class, _dr_num, _fig_seen, _frames, last
         .import popa
         .importzp _f_src, _p_pre, _org_x, _org_y, _fig_x, _fig_y, _fig_n
@@ -36,8 +36,7 @@ _wp_row:        .res 1          ; win_put()'s cell
 _wp_col:        .res 1
 _wp_code:       .res 1
 _wp_attr:       .res 1
-pimg:   .res DROID_H * 4        ; a droid's picture being made
-base:   .res DROID_H * 4        ; the player's, its colours swapped
+pimg:   .res FIG_H * 3          ; a droid's picture being made
 num_buf:.res 8
 dn:     .res 1                  ; a slot
 dt:     .res 1                  ; a type
@@ -47,7 +46,8 @@ dx:     .res 1
 bits:   .res 2
 pcol:   .res 1                  ; panel_char()'s
 pch:    .res 1
-pf:     .res 1                  ; player_picture()'s turn
+pf:     .res 1
+ph:     .res 1                  ; droid_picture()'s turn
 wl:     .res 2                  ; world pixel at the window's corner
 wt:     .res 2
 n32:    .res 4                  ; num_text()'s number
@@ -56,9 +56,6 @@ n_ds:   .res 1                  ; the droids' slots end
 d_fill: .res 1                  ; DBUF made this step
 
         .segment "HICODE"
-; a multicolour pixel's place in its byte: kept, and set to %10
-px_and: .byte $3F, $CF, $F3, $FC
-px_or2: .byte $80, $20, $08, $02
 ; num_text()'s powers of ten, low byte first
 pow10:  .dword 1000000, 100000, 10000, 1000, 100, 10
 
@@ -73,14 +70,14 @@ pow10:  .dword 1000000, 100000, 10000, 1000, 100, 10
 ; for the types on it; the player's when he changes host.
 ; ======================================================================
 
-; shift_into: A/X's picture, 16 lines, into slot dn
+; shift_pimg: pimg into slot dn; shift_into: A/X's picture into it
 shift_pimg:
         lda #<pimg
         ldx #>pimg
 shift_into:
         sta _f_src
         stx _f_src+1
-        lda #16
+        lda #FIG_H
         sta _f_h
         lda #<_pre
         sta _p_pre
@@ -113,7 +110,7 @@ _pictures_fixed:
         jsr shift_into
         lda bits
         clc
-        adc #64
+        adc #FIG_H * 3
         sta bits
         bcc :+
         inc bits+1
@@ -123,97 +120,95 @@ _pictures_fixed:
         bne @e
         rts
 
-; droid_picture(A): type A's picture into pimg: the template with its
-; number in the band, light digits on the dark body
+; droid_picture(A): type A's picture into pimg, as the original's sprite
+; ($3CFB): its number's three digits in lines 6-13, between the domes in
+; turn ph (lines 2-4, and their mirror 15-17), and the antenna under them
+; in turns 0 and 1, above in 2 and 3 - all in one colour, %01
 droid_picture:
         tay
-        ldx #DROID_H * 4 - 1
-:       lda _droid_tmpl,x
-        sta pimg,x
+        ldx #FIG_H * 3 - 1
+        lda #0
+:       sta pimg,x
         dex
         bpl :-
         lda _dr_num,y           ; its number's tens and ones
-        ldx #0
 :       cmp #10
         bcc :+
         sbc #10
-        inx
-        bne :-
+        inx                     ; (X from -1)
+        bcs :-
 :       sta dt                  ; (ones)
+        inx
         stx dk                  ; (tens)
         lda _dr_class,y         ; the digits, left to right: class, tens,
-        ldx #1                  ; ones, at pixels 1, 5, 9
+        ldx #0                  ; ones, in the line's bytes 0, 1, 2
         jsr digit
         lda dk
-        ldx #5
+        ldx #1
         jsr digit
         lda dt
-        ldx #9
-; digit A at pixel column X of lines 5 to 9
-digit:  stx dx
+        ldx #2
+        jsr digit
+        lda ph                  ; the domes: 9 bytes a turn
         asl a
+        asl a
+        asl a
+        adc ph
         tay
-        lda _digit_bits,y
-        sta bits
-        lda _digit_bits+1,y
-        sta bits+1
-        lda #5 * 4              ; line 5's first byte
+        ldx #2 * 3              ; line 2's first byte, and line 17's
+        lda #17 * 3
         sta dy
-@line:  ldx #3
-        lda dx
-        sta pch
-@px:    lsr bits+1
-        ror bits
-        bcc @next
-        lda pch                 ; pimg[dy + px / 4]: %10 at px & 3
-        lsr a
-        lsr a
-        clc
-        adc dy
-        tay
-        lda pch
-        and #3
-        sty pcol
-        tay
-        lda px_or2,y
-        sta n32
-        lda px_and,y
-        ldy pcol
-        and pimg,y
-        ora n32
-        sta pimg,y
-@next:  inc pch
-        dex
-        bne @px
-        lda dy
-        clc
-        adc #4
+@dl:    lda #3
+        sta dk
+@db:    lda _droid_dome,y
+        iny
+        sta pimg,x
+        stx dx
+        ldx dy
+        sta pimg,x
+        inc dy
+        ldx dx
+        inx
+        dec dk
+        bne @db
+        lda dy                  ; the mirror a line up
+        sec
+        sbc #6
         sta dy
-        cmp #10 * 4
-        bne @line
+        cpx #5 * 3
+        bne @dl
+        lda #$10                ; the antenna: pixel 5, 2 lines
+        ldx #18 * 3 + 1
+        ldy ph
+        cpy #2
+        bcc :+
+        ldx #0 * 3 + 1
+:       sta pimg,x
+        sta pimg+3,x
         rts
 
-; clear_px: pixel dx of line A made see-through
-clear_px:
+; digit A in byte X of lines 6 to 13, two lines from each of its bytes
+digit:  asl a
         asl a
-        asl a
-        sta dy
-        lda dx
-        lsr a
-        lsr a
-        clc
-        adc dy
         tay
-        lda dx
-        and #3
+@l:     lda _digit_rows,y
+        and #$54
+        sta pimg+6*3,x
+        lda _digit_rows,y
+        asl a
+        and #$54
+        sta pimg+7*3,x
+        iny
+        txa
+        clc
+        adc #2 * 3
         tax
-        lda pimg,y
-        and px_and,x
-        sta pimg,y
+        cpx #8 * 3
+        bcc @l
         rts
 
 ; pimg's two colours swapped (the player's)
-swap:   ldx #DROID_H * 4 - 1
+swap:   ldx #FIG_H * 3 - 1
 :       lda pimg,x
         and #$55
         asl a
@@ -228,45 +223,18 @@ swap:   ldx #DROID_H * 4 - 1
         rts
 
 ; player_picture(): the player's droid: the same picture with its two
-; colours swapped, in four turns of its domes. As in the original
-; (measured in x64sc): a slanted gap, its top to the right, runs round them
-; from left to right, a hires pixel a tick over eight; here a multicolour
-; pixel every two ticks over four (it went two at a time before, twice as
-; fast)
+; colours swapped, in its four turns. As in the original (measured in
+; x64sc): a slanted gap, its top to the right, runs round the domes from
+; left to right, a hires pixel a tick over eight phases; here a
+; multicolour pixel every two ticks over four. Turn 0 into the player's
+; slot, 1-3 into SLOT_PANIM on
 _player_picture:
-        lda _d_type
+        lda #0
+        sta ph
+@turn:  lda _d_type
         jsr droid_picture
         jsr swap
-        ldx #DROID_H * 4 - 1
-:       lda pimg,x
-        sta base,x
-        dex
-        bpl :-
-        lda #0
-        sta pf
-@turn:  ldx #DROID_H * 4 - 1
-:       lda base,x
-        sta pimg,x
-        dex
-        bpl :-
-        lda pf                  ; the gap at 4 + turn, three lines a dome
-        clc
-        adc #5
-        sta dx
-        lda #0
-        sta dk
-@r:     lda dk
-        jsr clear_px
-        lda #14
-        sec
-        sbc dk
-        jsr clear_px
-        dec dx
-        inc dk
-        lda dk
-        cmp #3
-        bne @r
-        ldx pf                  ; turn 0 the player's slot, then the dome's
+        ldx ph
         beq :+
         txa
         clc
@@ -274,21 +242,23 @@ _player_picture:
         tax
 :       stx dn
         jsr shift_pimg
-        inc pf
-        lda pf
+        inc ph
+        lda ph
         cmp #4
         bne @turn
         rts
 
 ; board_droid(n, t, p): droid type t into slot n, the player's colours if
 ; p: the transfer's board shows the two droids from slots its overlay
-; leaves alone
+; leaves alone (in turn 2, the antenna up, as the original's there)
 _board_droid:
         sta pf                  ; p (droid_picture() takes dt and dk)
         jsr popa
         sta dt                  ; t
         jsr popa
         sta dn                  ; n
+        lda #2
+        sta ph
         lda dt
         jsr droid_picture
         lda pf
@@ -296,7 +266,8 @@ _board_droid:
         jsr swap
 :       jmp shift_pimg
 
-; pictures_deck(): the player's and the deck's droid types' slots
+; pictures_deck(): the player's and the deck's droid types' slots (turn 0:
+; turn_droids() turns them)
 _pictures_deck:
         lda #255
         ldx #NDROIDS - 1
@@ -304,6 +275,8 @@ _pictures_deck:
         dex
         bpl :-
         jsr _player_picture
+        lda #0
+        sta ph
         lda #SLOT_DROID
         sta dn
         lda #1
@@ -323,11 +296,39 @@ _pictures_deck:
         tya
         jsr droid_picture
         jsr shift_pimg
+        jsr ant_mask
         inc dn
 @next:  inc pf
         bne @i
 @done:  lda dn                  ; (the slots turn_droids() turns)
         sta n_ds
+        rts
+
+; ant_mask: in slot dn's line masks the antenna's lines at both ends, in
+; its column (1, in the last shift 2): turn_droids() moves it from one end
+; to the other, and the engine draws only lines the masks have
+ant_mask:
+        lda dn
+        jsr slot_ptr
+@s:     ldy #115 + 3            ; (mask_at + 3 * column)
+        lda dy
+        bne :+
+        ldy #115 + 6
+:       lda (ptr1),y
+        ora #$03                ; lines 0-1
+        sta (ptr1),y
+        iny
+        iny
+        lda (ptr1),y
+        ora #$0C                ; lines 18-19
+        sta (ptr1),y
+        lda ptr1
+        eor #$80
+        sta ptr1
+        bmi :+
+        inc ptr1+1
+:       dec dy
+        bpl @s
         rts
 
 ;
@@ -336,13 +337,14 @@ _pictures_deck:
 ; a type share their slot here, so they turn together, a step every two
 ; ticks, half a turn from the player's - those drawn in the window lately
 ; (figs.s's fig_seen), the others need not. The domes are the same for
-; every type (the number is in lines 5-9): their lines are taken from the
-; player's slot for that turn, its colours swapped back - on even ticks
-; into DBUF, and into the even slots, on odd ticks into the odd ones. Of
-; the four columns of a shift only the first three change (the gap is in
-; pixels 3-8, shifted by up to 3). DBUF: the 18 bytes after each
-; picture's 1000 colours and codes, which the TED does not show, one for
-; each shift.
+; every type (the number is in lines 6-13): their lines and the
+; antenna's are taken from the player's slot for that turn, its colours
+; swapped back - on even ticks into DBUF, and into the even slots, on odd
+; ticks into the odd ones. Of the four columns of a shift only three
+; change (the gap is in pixels 3-9, the antenna in 5, shifted by up to 3):
+; 0-2, in the last shift 1-3. DBUF: the 22 bytes after each picture's
+; 1000 colours and codes, which the TED does not show, one for each
+; shift.
         .code
 turn_go:
         lda _tick
@@ -371,7 +373,7 @@ turn_go:
 @sub:   ldy dy
         lda dbuf_hi,y
         sta @put+2
-        ldx #17
+        ldx #DOMES - 1
 @get:   ldy dome_off,x
         lda (ptr1),y            ; %01 and %10 swapped
         asl a
@@ -405,7 +407,7 @@ turn_go:
 @sub2:  ldy dy
         lda dbuf_hi,y
         sta @get2+2
-        ldx #17
+        ldx #DOMES - 1
 @get2:  lda SCR0A + 1000,x
         ldy dome_off,x
         sta (ptr1),y
@@ -443,7 +445,8 @@ slot_ptr:
         sta dy
         rts
 
-; ptr1 := its next 128 bytes, the next shift's; N set after the last
+; ptr1 := its next 128 bytes, the next shift's (for the last, its column
+; 1); N set after the last
 next_sub:
         lda ptr1
         eor #$80
@@ -451,21 +454,29 @@ next_sub:
         bmi :+
         inc ptr1+1
 :       dec dy
-        rts
+        bne :+
+        clc
+        lda ptr1
+        adc #27
+        sta ptr1
+        lda dy
+:       rts
 
         .rodata                 ; (HICODE is full)
 ; DBUF's pages, for shifts 3..0
 dbuf_hi:
         .byte >(SCR0A + 1000), >(SCR0C + 1000), >(SCR1A + 1000), >(SCR1C + 1000)
         .segment "HICODE"
-; where the domes' lines are in a shift's 128 bytes: 8 + 24 * column +
-; line, for lines 0-2 and 12-14 (the gap's, as player_picture() makes it),
-; columns 0-2
+; where the domes' lines are in a shift's 128 bytes: 7 + 27 * column +
+; line, for lines 2-4 and 15-17, columns 0-2; the antenna's, lines 0-1 and
+; 18-19 of column 1
 dome_off:
         .repeat 3, C
-        .byte 8 + 24 * C, 9 + 24 * C, 10 + 24 * C
-        .byte 20 + 24 * C, 21 + 24 * C, 22 + 24 * C
+        .byte 9 + 27 * C, 10 + 27 * C, 11 + 27 * C
+        .byte 22 + 27 * C, 23 + 27 * C, 24 + 27 * C
         .endrepeat
+        .byte 34, 35, 52, 53
+DOMES   = * - dome_off
 
 ; ======================================================================
 ; The window onto the deck
@@ -473,7 +484,7 @@ dome_off:
 
 ; window(): across in steps of two: the figures are of multicolour pixels,
 ; two wide, and with the window on every pixel the player would shake by
-; one. In step with the player's figure (its left edge at PX - 13), it
+; one. In step with the player's figure (its left edge at PX - 3), it
 ; stands still in the middle, as the original's sprite does. The deck a
 ; character up and left of where the player's coordinates put it, as the
 ; original draws it (measured against its screen): its player's sprite
@@ -586,17 +597,17 @@ _draw:  jsr window
         bne :-
         jsr _r_begin
         jsr _draw_figs
-        lda _d_x                ; (see window())
-        sec
-        sbc #5
+        lda _d_x                ; (see window(): a character right of
+        sec                     ; and below the droids')
+        sbc #3
         sta _fig_x
         lda _d_x+1
         sbc #0
         sta _fig_x+1
-        lda _d_y                ; 2 up: the original's 001 is 18 lines
-        sbc #2                  ; high, 2 more than this one, around the
-        sta _fig_y              ; same middle (measured against its deck
-        lda _d_y+1              ; in x64sc; C set by the sbc above)
+        lda _d_y
+        sbc #3                  ; (C set by the sbc above)
+        sta _fig_y
+        lda _d_y+1
         sbc #0
         sta _fig_y+1
         lda _d_boom

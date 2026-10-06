@@ -195,7 +195,7 @@ _col_border: .res 1
 _f_col:     .res 1              ; window column of its left cell (signed)
 _f_row:     .res 1              ; window row of its top cell (signed)
 _f_line:    .res 1              ; line in that cell, 0..7
-_f_h:       .res 1              ; pre_shift: lines, up to 16
+_f_h:       .res 1              ; pre_shift: lines, up to 20
 
 ; block changes still to be shown in a picture
 NPEND = 16
@@ -1235,14 +1235,15 @@ note_cell:
 ;
 ; A figure is drawn from a pre-shifted copy: for each of the four
 ; multicolour pixels it may start at inside a cell, 128 bytes holding its
-; four columns of up to 16 lines one under the other, 8 lines of nothing
-; before each and after the last, so the eight lines of any cell can be
-; read without looking where the figure ends. At 104 + 2 * column, which of
-; the column's lines have pixels (bit = line).
+; four columns of up to 20 lines one under the other (at col_at), 7 lines
+; of nothing before each and after the last, so the eight lines of any cell
+; with a line of the figure can be read without looking where the figure
+; ends. At mask_at, 3 bytes for each column: which of its lines have pixels
+; (bit = line).
 ; ===========================================================================
 
-; pre_shift: f_src (f_h lines of 4 bytes, at most 13 pixels wide) into the
-; 512 bytes at p_pre
+; pre_shift: f_src (f_h lines of 3 bytes, 12 pixels) into the 512 bytes at
+; p_pre
 _pre_shift:
         lda #0
         sta z_sub
@@ -1252,6 +1253,7 @@ _pre_shift:
 :       sta (_p_pre),y
         dey
         bpl :-
+        sta z_acc+3             ; (the column a shift spills into)
         lda z_sub               ; the shift: 2 bits a pixel
         asl a
         sta p_shr
@@ -1264,7 +1266,7 @@ _pre_shift:
         sta z_acc,x
         iny
         inx
-        cpx #4
+        cpx #3
         bne :-
         sty z_si
         ; column 0: byte 0's share; column c: byte c-1's spill and byte c's
@@ -1285,33 +1287,23 @@ _pre_shift:
         sta z_c
         lda p_shl
         sta z_t
-        ; at 8 + 24 * column + line
-        lda z_k
-        asl a
-        asl a
-        asl a
-        sta z_t2
-        asl a
+        ldx z_k
+        lda col_at,x
         clc
-        adc z_t2                ; 24 * column
-        adc #8
         adc z_i
         tay
         lda z_c
         sta (_p_pre),y
         beq @nx
         ; the line has pixels: its bit
-        lda z_k
-        asl a
+        lda z_i
+        lsr a
+        lsr a
+        lsr a
         clc
-        adc #104
-        ldx z_i
-        cpx #8
-        bcc :+
-        clc
-        adc #1                  ; lines 8..15: the high byte
-:       tay
-        txa
+        adc mask_at,x
+        tay
+        lda z_i
         and #7
         tax
         lda bitof,x
@@ -1339,6 +1331,9 @@ _pre_shift:
         rts
 
 bitof:  .byte 1, 2, 4, 8, 16, 32, 64, 128
+; in a copy's 128 bytes: a column's line 0, its line mask
+col_at: .byte 7, 7 + 27, 7 + 2 * 27, 7 + 3 * 27
+mask_at:.byte 115, 118, 121, 124
 
 ; r_fig: one figure into the back buffer.
 ;   f_pre  its pre-shifted copy for the pixel it starts at in its cell
@@ -1355,59 +1350,73 @@ _r_fig:
         cmp #WCOLS              ; also < 0, as unsigned
         jcs @nextc
         sta z_col
-        ; which cell rows have pixels: the line mask, moved down by f_line
-        lda z_c
-        asl a
-        clc
-        adc #104
-        tay
-        lda (_f_pre),y
-        sta z_acc
-        iny
-        lda (_f_pre),y
-        sta z_acc+1
-        lda #0
-        sta z_acc+2
-        ldx _f_line
-        beq @m
-:       asl z_acc
-        rol z_acc+1
-        rol z_acc+2
-        dex
-        bne :-
-@m:     ; the column's lines from line -f_line: (p_d),y is a cell's line y
-        lda z_c
-        asl a
-        asl a
-        asl a
-        sta z_t
-        asl a
-        adc z_t                 ; 24 * column
-        adc #8
+        ; which cell rows have pixels: row k shows the column's lines
+        ; 8k - f_line to 8k - f_line + 7, the low 8 - f_line bits of line
+        ; mask byte k and the high f_line bits of byte k - 1
+        ldx z_c
+        ldy mask_at,x
+        lda col_at,x            ; (the lines of row 0 from line -f_line)
         sec
         sbc _f_line
+        sta z_t2
+        ldx _f_line
+        lda (_f_pre),y
+        sta z_t
+        and lo_f,x
+        sta z_acc
+        lda z_t
+        and hi_f,x
+        sta z_acc+1
+        iny
+        lda (_f_pre),y
+        sta z_t
+        and lo_f,x
+        ora z_acc+1
+        sta z_acc+1
+        lda z_t
+        and hi_f,x
+        sta z_acc+2
+        iny
+        lda (_f_pre),y
+        sta z_t
+        and lo_f,x
+        ora z_acc+2
+        sta z_acc+2
+        lda z_t
+        and hi_f,x
+        sta z_acc+3
+        ldx #0
+@cell:  lda z_acc,x
+        bne @row
+@skip:  inx
+        cpx #4
+        bcc @cell
+        jmp @nextc
+@skipk: ldx z_k
+        jmp @skip
+@row:   stx z_k
+        txa
         clc
+        adc _f_row
+        cmp #WROWS              ; also < 0
+        bcs @skipk
+        sta z_row
+        tay
+        bne :+
+        lda _e_blank7           ; row 0 above the window
+        bne @skipk
+:       txa                     ; (p_d),y: the cell's line y
+        asl a
+        asl a
+        asl a
+        adc z_t2
         adc _f_pre
         sta p_d
         lda _f_pre+1
         adc #0
         sta p_d+1
-        lda _f_row
-        sta z_row
-        lda #0
-        sta z_k
-@cell:  ldx z_k
-        lda z_acc,x
-        jeq @skip
-        lda z_row
-        cmp #WROWS              ; also < 0
-        jcs @skip
-        tax
-        bne :+
-        lda _e_blank7           ; row 0 above the window
-        jne @skip
-:       jsr cell_get
-        jcs @nextc              ; no characters left
+        jsr cell_get
+        bcs @nextc              ; no characters left
         .repeat 8, L
         ldy #L
         lda (p_d),y
@@ -1417,22 +1426,17 @@ _r_fig:
         ora ident,x
         sta (p_dst),y
         .endrepeat
-@skip:  inc z_row
-        lda p_d
-        clc
-        adc #8
-        sta p_d
-        bcc :+
-        inc p_d+1
-:       inc z_k
-        lda z_k
-        cmp #3
-        jcc @cell
+        jmp @skipk
 @nextc: inc z_c
         lda z_c
         cmp #4
         jcc @col
         rts
+
+; r_fig's line masks for f_line: a mask byte's lines in its own cell row,
+; and in the next
+lo_f:   .byte $FF, $7F, $3F, $1F, $0F, $07, $03, $01
+hi_f:   .byte $00, $80, $C0, $E0, $F0, $F8, $FC, $FE
 
 ; cell_get: the character of cell (z_row, z_col) in the back buffer, for
 ; drawing into; p_dst points at its 8 bytes, p_src at what is behind the

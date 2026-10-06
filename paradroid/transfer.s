@@ -288,12 +288,12 @@ draw_droids:
         sta _x_row
         lda #FIG
         sta _x_code
-        ldx #7                  ; the player's on its side
-        ldy #29
+        ldx #8                  ; the player's on its side (the original's
+        ldy #29                 ; sprites at 8 and 28 7/8)
         lda me
         beq :+
         ldx #29
-        ldy #7
+        ldy #8
 :       stx _x_col
         sty tk
         lda #SLOT_PANIM + 1
