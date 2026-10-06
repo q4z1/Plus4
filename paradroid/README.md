@@ -49,9 +49,25 @@ original's, read from its code:
 - Every droid has up to 64 energy and slowly gets it back. A shot of yours
   takes 16 per class of your host's weapon plus 80, less 4 per type of the
   droid hit. So the bare 001 cannot hurt the 8xx and 999 at all, and you
-  need better hosts to get at them. A droid's laser takes 8 or 16.
+  need better hosts to get at them.
+- **Armed droids fire** as the original's (`$3450`, `$34B5`): one that
+  sees you, each tick, with a chance of the ship's number (1-8) in 32,
+  once it is ready again - 26 ticks less its type after its last shot -
+  and only while the original would have had one of its six sprites free
+  (droids on the screen and their shots). Its laser leaves it where it
+  is, straight at you, along the line of sight: the two distances in
+  characters stretched as `$25AF` does, over 32, so 4 to 7 pixels a tick
+  along the longer way. For its first four ticks it is not shown and hits
+  nothing (the original's sprite is off), and it is gone where the
+  original would take its sprite away (`$321E`) or at a wall. The droid
+  waits 2 to 5 ticks after it fires. It takes 16 of your energy (weapon
+  1: the 476, 614, 615, 751, 834, 883) or 8 (weapon 2: the 629, 821,
+  999), and a droid it hits (40 less its type) times 2, as the original's
+  pictures and its `$1BF6` have it.
 - The **disruptor** of the 711 and 742 is a flash that hurts every droid in
-  sight, and you as well, except a few types.
+  sight, and you as well, except a few types. A droid sets it off with a
+  chance of the ship's number in 128 a tick, when none is flashing
+  (`$34A1`).
 - You only **see** a droid with nothing in between: as the original's
   `$24AE`, a line from your character to the droid's, in steps of less
   than a character, must not cross a wall character - a closed door is
@@ -76,7 +92,8 @@ original's, read from its code:
   green through yellow and orange to red.
 
 When a deck has no droids left, its lights go out. When the whole ship is
-dark, the next ship of the fleet follows, with droids a class higher.
+dark, the next ship of the fleet follows, with droids a class higher (its
+number, which the droids fire by, stops at 8, as the original's `$67`).
 
 **A game starts** as the original's: a page with the 001 and what it is
 there for, "Game on!" in the panel, for three and a half seconds or until
@@ -758,7 +775,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [paradroid.s](paradroid.s) | start, the main loop, the overlays unpacked, pause, a game's end |
 | [deck.s](deck.s) | the ship, entering a deck and finding its doors, lifts and consoles by the player |
 | [droids.s](droids.s) | the player, the droids, shots, hits, bumps, energy |
-| [draw.s](draw.s) | the window, the player's figure, the pictures shifted in advance, the status panel; run at `$F400` |
+| [draw.s](draw.s) | the window, the player's figure, the pictures shifted in advance, the status panel; run at `$F300` |
 | [picture.s](picture.s) | the droids' pictures and the panel's letters in the window: for the transfer, the console, the start and the end |
 | [transfer.s](transfer.s), [xfer.s](xfer.s) | the transfer game, an overlay: its course and board, and what is done for every line every tick (xfer.s: the letters and pictures always there) |
 | [screens.s](screens.s) | the ship's computer and riding a lift, an overlay: menu, droid enquiry, deck plan, side view |
@@ -767,7 +784,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what is kept packed (exomizer's unpacker) |
 | [sight.s](sight.s) | which droids the player sees: the original's line of sight, past walls and closed doors |
 | [move.s](move.s) | the player's driving, the walls, the doors, the droids looking ahead, bumps, the decks' colours |
-| [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F400` |
+| [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F300` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
 | [startup.s](startup.s) | the start, once: everything into its place |
 | [game.inc](game.inc) | what the parts share: the keys, droids and shots, the pictures' slots, where things are in memory (the numbers from the data are in `build/gen/data.inc`, by `mkdata.py`) |

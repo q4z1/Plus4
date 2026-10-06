@@ -39,7 +39,7 @@ _fig_seen: .res 23              ; slots drawn in the window (draw.s's
 _explo_col:
         .byte $7F, $7F, $7F, $4A, $4A, $4A
 
-        .segment "HICODE"       ; (run at $F400 on, paradroid.cfg)
+        .segment "HICODE"       ; (run at $F300 on, paradroid.cfg)
 
 ; figure(): the one at fig_x, fig_y from slot fig_n, if it is in the window
 _figure:
@@ -163,8 +163,10 @@ _draw_figs:
 @shots: lda #0
         sta fi
 @shot:  ldx fi
-        lda _s_life,x
-        beq @ns
+        ldy _s_life,x           ; (none, or a droid's still hidden: 251 on)
+        dey
+        cpy #250
+        bcs @ns
         txa
         asl a
         tay

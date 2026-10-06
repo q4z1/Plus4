@@ -1,7 +1,7 @@
 ; startup.s - the start, once: everything into its place
 ;
 ; The sound effects' player to $FC00 (sfx.s) and both voices quiet, the
-; code that runs at $F400 (the figures, the window and the panel: figs.s,
+; code that runs at $F300 (the figures, the window and the panel: figs.s,
 ; draw.s), tables into free ends of memory (mkdata.py's XT1-XT5), the engine (eng_init()), the unpacker to $0200 (once the
 ; KERNAL's interrupt, whose vector is at $0314, is off), the character
 ; sets and block tables, the colours, and the status panel.

@@ -2,7 +2,7 @@
 ; the status panel above
 ;
 ; In assembly, as all of the game, to make room: everything the game
-; keeps is in the program. Its code and tables run at $F400 on (HICODE, with
+; keeps is in the program. Its code and tables run at $F300 on (HICODE, with
 ; figs.s), copied there at the start.
 
         .export _pictures_fixed, _player_picture, _board_droid, _pictures_deck
@@ -304,6 +304,8 @@ _pictures_deck:
         sta n_ds
         rts
 
+        .segment "LOWEND"       ; (at the end of $0C68-$0FFF, copied there
+                                ; at the start)
 ; ant_mask: in slot dn's line masks the antenna's lines at both ends, in
 ; its column (1, in the last shift 2): turn_droids() moves it from one end
 ; to the other, and the engine draws only lines the masks have
@@ -330,6 +332,7 @@ ant_mask:
 :       dec dy
         bpl @s
         rts
+        .segment "HICODE"
 
 ;
 ; turn_droids(): once a tick (when there is time: below), the droids' domes turning as the original's
@@ -344,9 +347,7 @@ ant_mask:
 ; change (the gap is in pixels 3-9, the antenna in 5, shifted by up to 3):
 ; 0-2, in the last shift 1-3. DBUF: the 22 bytes after each picture's
 ; 1000 colours and codes, which the TED does not show, one for each
-; shift. (It runs at the end of $0C68-$0FFF, where the cell lists leave
-; room, copied there at the start.)
-        .segment "LOWEND"
+; shift.
 turn_go:
         lda _tick
         lsr a
@@ -422,8 +423,6 @@ turn_go:
         bne @slot
 @done:  rts
 
-        .segment "HICODE"
-
 ; only with a picture's time left in the tick (after the window is drawn):
 ; in a crowded window it waits, and the tick is not late for it
 _turn_droids:
@@ -463,6 +462,7 @@ next_sub:
         lda dy
 :       rts
 
+        .rodata
 ; DBUF's pages, for shifts 3..0
 dbuf_hi:
         .byte >(SCR0A + 1000), >(SCR0C + 1000), >(SCR1A + 1000), >(SCR1C + 1000)

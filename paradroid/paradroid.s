@@ -16,8 +16,8 @@
 ;   deck.s       the ship, decks, doors
 ;   droids.s     the player, droids, shots, energy
 ;   move.s       driving, walls, doors, the decks' colours
-;   draw.s       the picture and the status panel (at $F400)
-;   figs.s       the figures in the window (at $F400)
+;   draw.s       the picture and the status panel (at $F300)
+;   figs.s       the figures in the window (at $F300)
 ;   picture.s    the droids' pictures and the panel's letters
 ;   engine.s     what has to be fast or on time: the interrupt, the window
 ;   sfx.s        the sound effects' player (at $FC00); sfxcall.s starts them
@@ -371,7 +371,11 @@ new_game:
 
 ; the ship is clear: on to the next of the fleet, droids a class higher
 next_ship:
+        lda _level              ; (no more than 8, as the original's $67)
+        cmp #8
+        bcs :+
         inc _level
+:
         jsr _new_ship
         lda #50
         sta cnt

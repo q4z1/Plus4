@@ -22,7 +22,7 @@
         .import _bump_i, _player_picture, pushax
         .import _ship, _deck, _level, _tick
         .import _wp_first, _wp_x, _wp_y, _dr_class, _dr_weapon, _blk_flag
-        .import _d_seen, csolid
+        .import _d_seen, csolid, _player_spot
         .importzp tx, ty
 
         .include "game.inc"
@@ -37,19 +37,9 @@ _d_vx:          .res MAXD
 _d_vy:          .res MAXD
 _d_energy:      .res MAXD
 _d_boom:        .res MAXD
-_d_bx:          .res MAXD       ; block of each droid
-_d_by:          .res MAXD
-d_slot:         .res MAXD       ; where in ship[deck]
-_d_wait:        .res MAXD
-d_cool:         .res MAXD       ; ticks until it may fire again
 _s_x:           .res 2 * MAXS
 _s_y:           .res 2 * MAXS
-s_vx:           .res MAXS
-s_vy:           .res MAXS
-_s_life:        .res MAXS
-_s_img:         .res MAXS
-s_own:          .res MAXS
-s_dmg:          .res MAXS
+_s_life:        .res MAXS       ; a droid's: 255 on, hidden while 251 on
 _score:         .res 4
 _score_changed: .res 1
 _transfer_mode: .res 1
@@ -60,6 +50,18 @@ _alert_acc:     .res 1          ; kills by type, slowly forgotten
 _flash:         .res 1          ; ticks the deck stays lit (the disruptor)
 _dbg_god:       .res 1          ; tests: the player takes no damage
 bumped:         .res 1          ; the droid bumped last
+
+        .segment "LOWBSS"       ; (set before they are read: not cleared)
+_d_bx:          .res MAXD       ; block of each droid
+_d_by:          .res MAXD
+d_slot:         .res MAXD       ; where in ship[deck]
+_d_wait:        .res MAXD
+d_cool:         .res MAXD       ; ticks until it may fire again
+s_vx:           .res MAXS       ; a shot's step, signed
+s_vy:           .res MAXS
+_s_img:         .res MAXS
+s_own:          .res MAXS       ; who fired it (0 the player)
+s_dmg:          .res MAXS       ; what it does to the player
 ; working values
 di:     .res 1                  ; a droid
 dj:     .res 1                  ; disrupt()'s (its callers loop over di)
@@ -77,8 +79,11 @@ sx:     .res 2                  ; a shot on its way
 sy:     .res 2
 sbx:    .res 1
 sby:    .res 1
-adx:    .res 2                  ; droids_fire(): from the droid to the player
+adx:    .res 2                  ; move_shots(): from the shot to a droid
 ady:    .res 2
+ua:     .res 2                  ; dshoot(): sizes, across and down, then
+us:     .res 2                  ; the speeds; the signs; the line's steps
+uz:     .res 2
 
         .rodata
 burn_mask:  .byte 127, 63, 63, 63, 63, 31, 31, 31, 31, 15
@@ -87,9 +92,14 @@ take_pts:   .byte 0, 25, 50, 75, 100, 125, 150, 175, 200, 250
 alert_pts:  .byte 0, 5, 10, 25
 ; types the disruptor does not touch: 420, 711, 742, 821, 999
 no_disrupt: .byte 8, 17, 18, 20, 23
-; damage of a droid's shot, by weapon; the player's depends on the target
-; as well (pdamage)
-wdamage:    .byte 0, 8, 16, 16
+; damage of a droid's shot to the player, by weapon: the original's by its
+; pictures ($1AF6: those of weapon 1, $99-$9F, take 16, weapon 2's 8); the
+; player's depends on the target as well (pdamage)
+wdamage:    .byte 0, 16, 8
+; onscr()'s limits, across and (at 2) down: added, then below
+on_off:     .byte 240, 0, 128
+on_hi:      .byte >576, 0, 0
+on_lo:      .byte <576, 0, 216
 ; a shot's picture by direction (dx + 1) + 3 * (dy + 1): | / - \
 shot_img:   .byte 3, 0, 1,  2, 0, 2,  1, 0, 3
 ; the player's shot's start by direction -1, 0, 1: 12 on, as the
@@ -242,16 +252,11 @@ _spawn_droids:
         sta _d_vy,x
         sta _d_wait,x
         sta _d_boom,x
+        sta d_cool,x            ; (ready, as the original's: $1672)
         lda dk
         sta d_slot,x
         lda #64
         sta _d_energy,x
-        jsr _rnd
-        and #31
-        clc
-        adc #16
-        ldx _nd
-        sta d_cool,x
         inc _nd
 @next:  inc dk
         lda dk
@@ -299,21 +304,12 @@ gone:   jsr shipx
 ; Shots
 ; ======================================================================
 
-; shoot(): a shot from droid di in direction ddx, ddy with weapon dw
-shoot:  ldx #0
-:       lda _s_life,x
-        beq @free
-        inx
-        cpx #MAXS
-        bne :-
-        rts
-@free:  stx dk
-        lda di
-        asl a
-        sta dt                  ; the droid's word index
-        bne @start              ; (a droid's starts where it is, $34B5)
-        tay                     ; the player's: no shot if a wall is
-        tax                     ; where it would start ($336F)
+; shoot(): the player's shot in direction ddx, ddy with weapon dw
+shoot:  jsr free_shot
+        bcs @none
+        lda #0                  ; no shot if a wall is where it would
+        tay                     ; start ($336F)
+        tax
         jsr @pcol
         sta tx
         ldy #2 * MAXD           ; (d_y after d_x)
@@ -322,6 +318,7 @@ shoot:  ldx #0
         jsr csolid
         beq @start
         jmp @sound
+@none:  rts
 @pcol:  lda _d_x+1,y            ; X: the direction's character
         sta hi8
         lda _d_x,y
@@ -341,16 +338,13 @@ shoot:  ldx #0
         txa
         asl a
         tax                     ; the shot's
-        ldy ddx                 ; x + 12 * dx (a droid's: + 0)
+        ldy ddx                 ; x + 12 * dx
         iny
-        lda di
-        beq :+
-        ldy #1
-:       lda off12,y
+        lda off12,y
         sta lo8
         lda offhi,y
         sta hi8
-        ldy dt
+        ldy #0
         clc
         lda lo8
         adc _d_x,y
@@ -360,14 +354,11 @@ shoot:  ldx #0
         sta _s_x+1,x
         ldy ddy                 ; y + 12 * dy
         iny
-        lda di
-        beq :+
-        ldy #1
-:       lda off12,y
+        lda off12,y
         sta lo8
         lda offhi,y
         sta hi8
-        ldy dt
+        ldy #0
         clc
         lda lo8
         adc _d_y,y
@@ -386,11 +377,8 @@ shoot:  ldx #0
         sta s_vy,x
         lda #14
         sta _s_life,x
-        lda di
+        lda #0
         sta s_own,x
-        ldy dw
-        lda wdamage,y
-        sta s_dmg,x
         lda ddy                 ; the picture: 3 * (dy + 1) + dx + 1
         clc
         adc #1
@@ -402,14 +390,184 @@ shoot:  ldx #0
         tay
         lda shot_img,y
         sta _s_img,x
-@sound: lda di                  ; the player's sounds by the weapon, as
-        bne @quiet              ; the original's; the droids' are silent
-        ldy _d_type
-        lda _dr_weapon,y
+@sound: ldy _d_type              ; its sound by the weapon, as the
+        lda _dr_weapon,y        ; original's (the droids' are silent)
         clc
         adc #SFX_SHOT1
         jmp _sound
-@quiet: rts
+
+        .segment "HICODE"
+
+; free_shot: dk := a free shot, C set if there is none
+free_shot:
+        ldx #0
+:       lda _s_life,x
+        beq @free
+        inx
+        cpx #MAXS
+        bne :-
+        rts                     ; (C set by cpx)
+@free:  stx dk
+        clc
+        rts
+
+; dmg40: A := (40 - the type of droid X) * 2, what the disruptor and a
+; droid's shot do to a droid ($1BF6, $2360)
+dmg40:  lda #40
+        sec
+        sbc _d_type,x
+        asl a
+        rts
+
+        .code
+
+; dshoot(): droid di fires at the player, as the original's ($34B5): from
+; where it is, the way the line of sight goes (sight.s, $24AE: the two
+; distances in characters doubled while they fit a byte, then added to
+; themselves while they still do), its speed that line's step over 32,
+; signed, in pixels a tick - 4 to 7 along the longer way. Its picture by
+; the speeds ($3530). The droid then waits 2 to 5 ticks and may fire again
+; after 26 less its type.
+dshoot: jsr free_shot
+        bcs @none
+        jsr _player_spot        ; (tx, ty: the player's character, one on
+        dec tx                  ; while it is a character on: fig_place)
+        dec ty
+        lda di
+        asl a
+        tay
+        ldx #0
+@ax:    lda _d_x+1,y            ; the droid's character, less the player's
+        sta hi8
+        lda _d_x,y
+        lsr hi8
+        ror a
+        lsr hi8
+        ror a
+        lsr hi8
+        ror a
+        sec
+        sbc tx,x
+        sta us,x
+        bpl :+
+        eor #$FF
+        clc
+        adc #1
+:       sta ua,x
+        sta uz,x
+        tya
+        clc
+        adc #2 * MAXD
+        tay
+        inx
+        cpx #2
+        bne @ax
+        lda ua
+        ora ua+1
+        bne @dbl
+@none:  rts                     ; (the same character)
+@dbl:   lda uz                  ; doubled while both fit
+        asl a
+        bcs @add
+        tay
+        lda uz+1
+        asl a
+        bcs @add
+        sta uz+1
+        sty uz
+        bcc @dbl
+@add:   lda uz                  ; added to while both fit
+        clc
+        adc ua
+        bcs @v
+        tay
+        lda uz+1
+        adc ua+1
+        bcs @v
+        sta uz+1
+        sty uz
+        bcc @add
+@v:     ldx #1                  ; each way: -(the signed step >> 5), as 16
+@vx:    lda #0                  ; bits; |speed| to ua
+        sta hi8
+        lda uz,x
+        ldy us,x
+        bpl :+
+        eor #$FF
+        clc
+        adc #1
+        dec hi8
+:       ldy #5
+:       lsr hi8
+        ror a
+        dey
+        bne :-
+        sta uz,x                ; (- speed)
+        cmp #$80
+        bcc :+
+        eor #$FF
+        adc #0                  ; (C set: + 1)
+:       sta ua,x
+        lda #0
+        sec
+        sbc uz,x
+        sta uz,x                ; the speed
+        dex
+        bpl @vx
+        lda ua                  ; the picture: up and down (|) if less
+        cmp ua+1                ; across than down, across (-) if at least
+        lda #0                  ; twice as much, else / or \ by the signs
+        bcc @img
+        lda ua
+        sbc ua+1
+        cmp ua+1
+        lda #2
+        bcs @img
+        lda uz
+        eor uz+1
+        asl a
+        lda #3                  ; (the same way: \)
+        bcc @img
+        lda #1
+@img:   ldx dk
+        sta _s_img,x
+        lda uz
+        sta s_vx,x
+        lda uz+1
+        sta s_vy,x
+        lda #255
+        sta _s_life,x
+        lda di
+        sta s_own,x
+        ldy dw
+        lda wdamage,y
+        sta s_dmg,x
+        txa
+        asl a
+        tax
+        lda di
+        asl a
+        tay
+        lda _d_x,y
+        sta _s_x,x
+        lda _d_x+1,y
+        sta _s_x+1,x
+        lda _d_y,y
+        sta _s_y,x
+        lda _d_y+1,y
+        sta _s_y+1,x
+        ldx di
+        lda #$1A
+        sec
+        sbc _d_type,x
+        sta d_cool,x
+        jsr _rnd
+        and #3
+        clc
+        adc #2
+        ldx di
+        sta _d_wait,x
+        rts
 
 ; immune(A): Z clear (A nonzero) if type A is one the disruptor spares
 immune: ldx #4
@@ -487,12 +645,7 @@ disrupt:
         cmp #161
         bcs @next
         ldx dj                  ; (40 - type) * 2
-        lda _d_type,x
-        sta dt
-        lda #40
-        sec
-        sbc dt
-        asl a
+        jsr dmg40
         sta hi_d
         stx hi_i
         ldy #0
@@ -648,7 +801,10 @@ pdamage:
 @none:  lda #0
         rts
 
-; move_shots(): every shot three steps on, or until it hits
+; move_shots(): every shot on - the player's three steps, a droid's one,
+; its own speed - or until it hits; a droid's hits nothing while hidden
+; (its first four ticks: the original's sprite is off then) and is gone
+; where the original would take its sprite away ($321E)
 _move_shots:
         lda #0
         sta dk
@@ -669,7 +825,10 @@ _move_shots:
         lda _s_y+1,y
         sta sy+1
         lda #3
-        sta step
+        ldy s_own,x
+        beq :+
+        lda #1
+:       sta step
 @step:  ldx dk
         lda _s_life,x
         bne :+
@@ -703,6 +862,11 @@ _move_shots:
         tax
         beq :+
         jmp @end
+:       ldx dk                  ; (hidden: it hits nothing)
+        lda _s_life,x
+        cmp #251
+        bcc :+
+        jmp @nextstep
 :       lda sx+1                ; its block: x >> 5, y >> 5
         sta sbx
         lda sx
@@ -795,8 +959,11 @@ _move_shots:
         sta hi_p
         bne @hit
 @droids:
-        lda s_dmg,y
-        sta hi_d
+        lda s_dmg,y             ; the player: by the weapon; a droid: as
+        ldx di                  ; the disruptor ($1BF6)
+        beq :+
+        jsr dmg40
+:       sta hi_d
         lda #0
         sta hi_p
 @hit:   jsr hit
@@ -808,8 +975,16 @@ _move_shots:
         jmp @j
 @nextstep:
         dec step
-        beq @store
+        beq @last
         jmp @step
+@last:  ldx dk
+        lda s_own,x
+        beq @store
+        jsr onscr
+        bcc @store
+        ldx dk
+        lda #0
+        sta _s_life,x
 @store: lda dk
         asl a
         tay
@@ -828,8 +1003,11 @@ _move_shots:
         jmp @k
 :       rts
 
-; droids_fire(): armed droids fire at the player when they have him in
-; line
+; droids_fire(): armed droids in sight fire at the player, as the
+; original's ($3450): by the ship (a chance of ship / 32 a tick), when
+; ready, and when one of the original's six sprites is free - a disruptor
+; by the ship over 128, when none flashes ($34A1). Every droid gets
+; readier every tick ($1D45).
 _droids_fire:
         lda #1
         sta di
@@ -839,114 +1017,127 @@ _droids_fire:
         rts
 :       lda _d_boom,x
         bne @next
-        lda _d_seen,x           ; (only seen, as the original's: sight.s)
+        lda _d_seen,x           ; (sight.s)
         beq @next
         ldy _d_type,x
         lda _dr_weapon,y
         beq @next
         sta dw
+        cmp #3
+        bne @gun
+        jsr _rnd
+        and #$7F
+        cmp _level
+        bcs @next
+        lda _flash
+        bne @next
+        lda di
+        sta dfrom
+        jsr disrupt
+        jmp @next
+@gun:   jsr sprites
+        bcs @next
+        jsr _rnd
+        and #$1F
+        cmp _level
+        bcs @next
+        ldx di
+        lda d_cool,x
+        bne @next
+        jsr dshoot
+@next:  ldx di
         lda d_cool,x
         beq :+
         dec d_cool,x
-@next:  inc di
+:       inc di
         bne @i
-:       txa                     ; dx = PX - d_x, dy = PY - d_y
+
+        .segment "HICODE"       ; (run at $F300 on: it costs the program
+                                ; nothing)
+
+; sprites(): C set if the original would have no sprite for a shot now:
+; six in use (the droids on the screen, the droids' shots) or fifteen
+; things on the deck besides the player ($3450, $32A8)
+sprites:
+        lda #0
+        sta dt                  ; sprites
+        sta step                ; things
+        ldx #1
+@d:     cpx _nd
+        bcs @s
+        lda _d_boom,x
+        cmp #BOOM_GONE
+        beq @dn
+        inc step
+        txa
         asl a
         tay
-        lda _d_x
+        lda _d_x,y
+        sta sx
+        lda _d_x+1,y
+        sta sx+1
+        lda _d_y,y
+        sta sy
+        lda _d_y+1,y
+        sta sy+1
+        stx dj
+        jsr onscr
+        ldx dj
+        bcs @dn
+        inc dt
+@dn:    inx
+        bne @d
+@s:     ldx #MAXS - 1
+:       lda _s_life,x
+        beq :+
+        lda s_own,x
+        beq :+
+        inc dt
+        inc step
+:       dex
+        bpl :--
+        lda step
+        cmp #15
+        bcs @r
+        lda dt
+        cmp #6
+@r:     rts
+
+        .segment "LOWEND"       ; (at the end of $0C68-$0FFF)
+
+; onscr(): C clear if (sx, sy) is where the original keeps a sprite for a
+; thing ($321E): from 240 left of the player (where its figure is) to 335
+; right of it, from 128 above to 87 below
+onscr:  ldx #0
+        ldy #0
+@a:     lda sx,x
         sec
         sbc _d_x,y
-        sta adx
-        lda _d_x+1
+        sta lo8
+        lda sx+1,x
         sbc _d_x+1,y
-        sta adx+1
-        lda _d_y
-        sec
-        sbc _d_y,y
-        sta ady
-        lda _d_y+1
-        sbc _d_y+1,y
-        sta ady+1
-        lda adx                 ; |dx| <= 150, |dy| <= 90
-        ldx adx+1
-        jsr absax
-        bne @next
-        cmp #151
-        bcs @next
-        sta sbx
-        lda ady
-        ldx ady+1
-        jsr absax
-        bne @next
-        cmp #91
-        bcs @next
-        sta sby
-        jsr _rnd                ; as the original: by the ship
-        and #31
-        sta dt
-        lda _level
+        sta hi8
+        lda lo8
         clc
-        adc #2
-        cmp dt
-        beq @next
-        bcc @next
-        lda di
-        sta dfrom
-        lda dw
-        cmp #3
-        bne @aim
-        jsr disrupt
-        jmp @cool
-@aim:   ldx #1                  ; the directions: -1 or 1 by the signs
-        lda adx+1
-        bpl :+
-        ldx #$FF
-:       stx ddx
-        ldx #1
-        lda ady+1
-        bpl :+
-        ldx #$FF
-:       stx ddy
-        lda sbx                 ; in line across, down or diagonally
-        cmp #10
-        bcs :+
-        lda #0
-        sta ddx
-        beq @shoot
-:       lda sby
-        cmp #10
-        bcs :+
-        lda #0
-        sta ddy
-        beq @shoot
-:       lda sbx
-        sec
-        sbc sby
-        clc
-        adc #12
-        cmp #24
-        bcs @next2
-@shoot: jsr shoot
-@cool:  ldx di
-        jsr cool_of
-        ldx di
-        sta d_cool,x
-@next2: jmp @next
-
-; A := |A/X| low byte, Z set if it fits in a byte
-absax:  cpx #0
-        bpl @pos
-        eor #$FF
-        clc
-        adc #1
-        pha
-        txa
-        eor #$FF
+        adc on_off,x
+        sta lo8
+        lda hi8
         adc #0
-        tax
-        pla
-@pos:   cpx #0
-        rts
+        cmp on_hi,x
+        bcc @ok
+        bne @out
+        lda lo8
+        cmp on_lo,x
+        bcs @out
+@ok:    cpx #2
+        beq @in
+        ldx #2
+        ldy #2 * MAXD
+        bne @a
+@in:    clc
+@out:   rts
+
+        .code
 
 ; ======================================================================
 ; Touching droids, energy

@@ -26,7 +26,7 @@ done
 INIT_EXTRA=0
 for o in sfx:SFXCODE paradroid:SFXCODE move:SFXCODE unpack:UNPACK figs:HICODE draw:HICODE paradroid:HICODE \
          startup:INITDATA engine:INITCODE move:XT5 sight:PAGE1 sight:UNPACK \
-         paradroid:LOWEND picture:LOWEND engine:HICODE figs:PAGE1 droids:UNPACK; do
+         paradroid:LOWEND picture:LOWEND engine:HICODE figs:PAGE1 droids:UNPACK droids:HICODE; do
     n=$($B/od65 -S build/${o%:*}.o | awk "/${o#*:}:/{print \$2}")
     INIT_EXTRA=$((INIT_EXTRA + ${n:-0}))
 done

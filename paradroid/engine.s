@@ -223,8 +223,8 @@ _bs_y:      .res 1              ; LOWBSS is not cleared)
 _bs_v:      .res 1
 kj:         .res 1              ; the keys' reading
 kr:         .res 1
-CL_N = CUT_R0 - POOL + WCOLS    ; (cell_get() hands out codes up to CUT_R0;
-                                ; the cut row notes a cell per copy use)
+CL_N = CUT_R0 - POOL            ; (only cell_get() notes cells, and hands
+                                ; out codes up to CUT_R0)
 cl_col0:    .res CL_N           ; cells handed a character, picture 0
 cl_row0:    .res CL_N
 cl_col1:    .res CL_N
@@ -240,7 +240,6 @@ cut_code:   .res 256
 nmaskof:    .res 256            ; %11 for every pixel that is %00, else %00
 code_lo:    .res 256            ; code * 8
 code_hi:    .res 256
-ident:      .res 256            ; the byte itself
 
         .data
 ; the window's character set per picture; the briefing puts the panel's there
@@ -317,7 +316,6 @@ _eng_init:
         asl a
         sta code_lo,x
         txa
-        sta ident,x
         lsr a
         lsr a
         lsr a
@@ -1424,7 +1422,7 @@ _r_fig:
         tax
         lda (p_src),y
         and nmaskof,x
-        ora ident,x
+        ora (p_d),y
         sta (p_dst),y
         .endrepeat
         jmp @skipk
@@ -1436,7 +1434,7 @@ _r_fig:
 
 ; r_fig's line mask for f_line: a mask byte's lines in its own cell row
 ; (the others are in the next)
-        .segment "HICODE"       ; (run at $F400 on: it costs the program nothing)
+        .segment "HICODE"       ; (run at $F300 on: it costs the program nothing)
 lo_f:   .byte $FF, $7F, $3F, $1F, $0F, $07, $03, $01
         .code
 
