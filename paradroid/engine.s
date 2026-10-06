@@ -238,8 +238,6 @@ cut_code:   .res 256
         .segment "TABLES"
         .align 256
 nmaskof:    .res 256            ; %11 for every pixel that is %00, else %00
-code_lo:    .res 256            ; code * 8
-code_hi:    .res 256
 
         .data
 ; the window's character set per picture; the briefing puts the panel's there
@@ -309,19 +307,6 @@ _eng_init:
         bne @px
         lda z_t2
         sta nmaskof,x
-        ; code * 8
-        txa
-        asl a
-        asl a
-        asl a
-        sta code_lo,x
-        txa
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        sta code_hi,x
         inx
         bne @sh
         lda #0
@@ -1190,16 +1175,22 @@ cut_row:
 ; cut_copy: character X copied to code cut_code,X
 cut_copy:
         stx z_t
-        lda code_lo,x
+        txa
+        asl a
+        asl a
+        asl a
         sta p_src
-        lda code_hi,x
+        jsr chi
         ora z_fonthi
         sta p_src+1
         lda cut_code,x
         tax
-        lda code_lo,x
+        txa
+        asl a
+        asl a
+        asl a
         sta p_dst
-        lda code_hi,x
+        jsr chi
         ora z_fonthi
         sta p_dst+1
         ldy #7
@@ -1432,9 +1423,20 @@ _r_fig:
         jcc @col
         rts
 
+        .segment "HICODE"
+; chi: A := X / 32, character X's high byte in a set (code * 8)
+chi:    txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        rts
+        .code
+
 ; r_fig's line mask for f_line: a mask byte's lines in its own cell row
 ; (the others are in the next)
-        .segment "HICODE"       ; (run at $F300 on: it costs the program nothing)
+        .segment "HICODE"       ; (run at $F100 on: it costs the program nothing)
 lo_f:   .byte $FF, $7F, $3F, $1F, $0F, $07, $03, $01
         .code
 
@@ -1478,18 +1480,34 @@ cell_get:
         ora #$08                ; or the deck's, multicolour
         sta (p_att),y
 :
-        lda code_lo,x           ; behind it: the deck character in multicolour
+        txa                     ; behind it: the deck character in multicolour
+        asl a
+        asl a
+        asl a
         sta p_src
-        lda code_hi,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
         clc
         adc #>MCFONT
         sta p_src+1
         jsr note_cell
         ldx next_code
         dex
-        lda code_lo,x
+        txa
+        asl a
+        asl a
+        asl a
         sta p_dst
-        lda code_hi,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
         ora z_fonthi
         sta p_dst+1
         clc
@@ -1498,10 +1516,18 @@ cell_get:
         lda _f_tint
         beq :+
         sta (p_att),y
-:       lda code_lo,x
+:       txa
+        asl a
+        asl a
+        asl a
         sta p_dst
         sta p_src
-        lda code_hi,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
         ora z_fonthi
         sta p_dst+1
         sta p_src+1

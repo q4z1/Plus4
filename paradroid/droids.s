@@ -11,7 +11,8 @@
 ; walls, doors and bumps move.s's.
 
         .export _nd, _d_type, _d_x, _d_y, _d_vx, _d_vy, _d_energy, _d_boom
-        .export _d_bx, _d_by, _d_wait, _s_x, _s_y, _s_life, _s_img
+        .export _d_bx, _d_by, _d_wait, _s_x, _s_y, _s_life, _s_img, _s_boom
+        .export _clashes
         .export _score, _score_changed, _transfer_mode, _touched
         .export _player_dead, _burn, _alert_acc, _flash, _dbg_god
         .export _spawn_droids, _remove_droid, _player_fire, _move_shots
@@ -38,6 +39,7 @@ _d_vy:          .res MAXD
 _d_energy:      .res MAXD
 _d_boom:        .res MAXD
 _s_x:           .res 2 * MAXS
+                .res 2 * (MAXD - MAXS)  ; (_s_y as far on as _d_y: spos)
 _s_y:           .res 2 * MAXS
 _s_life:        .res MAXS       ; a droid's: 255 on, hidden while 251 on
 _score:         .res 4
@@ -62,6 +64,14 @@ s_vy:           .res MAXS
 _s_img:         .res MAXS
 s_own:          .res MAXS       ; who fired it (0 the player)
 s_dmg:          .res MAXS       ; what it does to the player
+_s_boom:        .res MAXS       ; exploding: its step, 1-12, else 0
+bx:     .res 2                  ; near()'s other place
+by:     .res 2
+lim:    .res 4                  ; near()'s reach: across, (at 2) down
+ci:     .res 1                  ; clashes()'s
+cj:     .res 1
+ce:     .res 1
+ct:     .res 1
 ; working values
 di:     .res 1                  ; a droid
 dj:     .res 1                  ; disrupt()'s (its callers loop over di)
@@ -95,13 +105,14 @@ no_disrupt: .byte 8, 17, 18, 20, 23
 ; damage of a droid's shot to the player, by weapon: the original's by its
 ; pictures ($1AF6: those of weapon 1, $99-$9F, take 16, weapon 2's 8); the
 ; player's depends on the target as well (pdamage)
+        .segment "XT8"
 wdamage:    .byte 0, 16, 8
+        .segment "XT9"
 ; onscr()'s limits, across and (at 2) down: added, then below
 on_off:     .byte 240, 0, 128
 on_hi:      .byte >576, 0, 0
 on_lo:      .byte <576, 0, 216
-; a shot's picture by direction (dx + 1) + 3 * (dy + 1): | / - \
-shot_img:   .byte 3, 0, 1,  2, 0, 2,  1, 0, 3
+        .rodata
 ; the player's shot's start by direction -1, 0, 1: 12 on, as the
 ; original's from its sprite ($33F8, table $6E58); the character it looks
 ; at for a wall there, from the player's own (less the 8 its place has
@@ -170,6 +181,7 @@ shipx:  lda _deck               ; deck * 12
         tay
         rts
 
+        .segment "XT10"         ; ($E9E8)
 ; A := 32 - 2 * the class of droid X's type: its time between shots
 cool_of:
         ldy _d_type,x
@@ -179,6 +191,9 @@ cool_of:
         sec
         adc #32
         rts
+; a shot's picture by direction (dx + 1) + 3 * (dy + 1): | / - \
+shot_img:   .byte 3, 0, 1,  2, 0, 2,  1, 0, 3
+        .code
 
 ; ======================================================================
 ; Droids on a deck
@@ -398,6 +413,7 @@ shoot:  jsr free_shot
 
         .segment "HICODE"
 
+        .segment "XT11"         ; ($EAE8)
 ; free_shot: dk := a free shot, C set if there is none
 free_shot:
         ldx #0
@@ -411,6 +427,7 @@ free_shot:
         clc
         rts
 
+        .segment "HICODE"
 ; dmg40: A := (40 - the type of droid X) * 2, what the disruptor and a
 ; droid's shot do to a droid ($1BF6, $2360)
 dmg40:  lda #40
@@ -569,6 +586,7 @@ dshoot: jsr free_shot
         sta _d_wait,x
         rts
 
+        .segment "HICODE"
 ; immune(A): Z clear (A nonzero) if type A is one the disruptor spares
 immune: ldx #4
 :       cmp no_disrupt,x
@@ -579,6 +597,7 @@ immune: ldx #4
         rts
 @yes:   lda #1
         rts
+        .code
 
 ; disrupt(): a flash that hurts every droid in sight but a few types,
 ; fired by droid dfrom; by a droid, the player too. Keeps di.
@@ -744,10 +763,12 @@ hit:    ldx hi_i
         bcc @dead
         sbc hi_d
         sta _d_energy,x
-        lda #SFX_DHIT
-        cpx #0
-        bne :+
         lda #SFX_PHIT
+        cpx #0
+        beq :+
+        lda hi_p                ; a droid: only the player's fire sounds
+        beq @done               ; ($1C0F; $1BF6 is silent)
+        lda #SFX_DHIT
 :       jmp _sound
 @dead:  lda #0
         sta _d_energy,x
@@ -783,6 +804,7 @@ hit:    ldx hi_i
 
 ; A := what a shot of the player's does to droid hi_i: 16 per class of his
 ; weapon and 80, less 4 per type of the droid - nothing below that
+        .segment "HICODE"
 pdamage:
         ldy _d_type
         lda _dr_weapon,y
@@ -800,6 +822,7 @@ pdamage:
         rts
 @none:  lda #0
         rts
+        .code
 
 ; move_shots(): every shot on - the player's three steps, a droid's one,
 ; its own speed - or until it hits; a droid's hits nothing while hidden
@@ -811,6 +834,10 @@ _move_shots:
 @k:     ldx dk
         lda _s_life,x
         bne :+
+        jmp @next
+:       lda _s_boom,x
+        beq :+
+        jsr sboom               ; (exploding)
         jmp @next
 :       dec _s_life,x
         txa
@@ -861,7 +888,12 @@ _move_shots:
         jsr _solid_at
         tax
         beq :+
-        jmp @end
+        ldx dk                  ; a droid's explodes there (the original's
+        lda s_own,x             ; turns to a spark, $18B7)
+        beq @gone
+        jsr boom
+        jmp @store
+@gone:  jmp @end
 :       ldx dk                  ; (hidden: it hits nothing)
         lda _s_life,x
         cmp #251
@@ -1052,7 +1084,272 @@ _droids_fire:
 :       inc di
         bne @i
 
-        .segment "HICODE"       ; (run at $F300 on: it costs the program
+        .segment "HICODE"
+
+
+; sboom: a tick of shot X's explosion ($17F4): on by its speed, which then
+; halves as the original's does it (-1 stays, anything else is 0), and
+; the next step; gone after the last
+sboom:  stx ct
+        txa
+        asl a
+        tay
+        lda #2
+        sta ce
+@ax:    lda s_vx,x
+        pha
+        clc
+        adc _s_x,y
+        sta _s_x,y
+        pla
+        pha
+        and #$80                ; (signed: the high byte + $FF)
+        beq :+
+        lda #$FF
+:       adc _s_x+1,y
+        sta _s_x+1,y
+        pla
+        cmp #$80
+        ror a
+        cmp #$FF
+        beq :+
+        lda #0
+:       sta s_vx,x
+        txa
+        clc
+        adc #MAXS
+        tax
+        tya
+        adc #_s_y - _s_x
+        tay
+        dec ce
+        bne @ax
+        ldx ct
+        inc _s_boom,x
+        lda _s_boom,x
+        cmp #BOOM_GONE
+        bcc :+
+        lda #0
+        sta _s_life,x
+        sta _s_boom,x
+:       rts
+
+; clashes(): once a tick, what the original's sprites meeting do ($6D6D):
+; shots meeting - a droid's explodes, the player's is gone; then each
+; explosion, the droids' and the shots', hurts the player by the ship's
+; number and a droid in sight by (40 - its type) * 2, every tick they
+; touch, and a droid's shot touching it explodes (the player's goes on)
+_clashes:
+        lda #12                 ; a shot's reach, as move_shots()'s
+        sta lim
+        lda #8
+        sta lim+2
+        ldx #0
+@i:     stx ci
+        jsr fly
+        bcs @ni
+        jsr spos
+        jsr b2s
+        ldx ci
+@j:     inx
+        cpx #MAXS
+        bcs @ni
+        stx cj
+        jsr fly
+        bcs @nj
+        ldy ci
+        lda s_own,x
+        ora s_own,y
+        beq @nj                 ; (two of the player's)
+        jsr spos
+        jsr near
+        bcs @nj
+        ldx cj
+        jsr settle
+        ldx ci
+        jsr settle
+        jmp @ni
+@nj:    ldx cj
+        jmp @j
+@ni:    ldx ci
+        inx
+        cpx #MAXS
+        bcc @i
+        ldx #1                  ; the droids' explosions
+@e:     cpx _nd
+        bcs @es
+        lda _d_boom,x
+        beq @ne
+        cmp #BOOM_GONE
+        beq @ne
+        stx ce
+        jsr dpos
+        jsr b2s
+        jsr hurt
+        ldx ce
+@ne:    inx
+        bne @e
+@es:    ldx #0                  ; the shots'
+@f:     lda _s_life,x
+        beq @nf
+        lda _s_boom,x
+        beq @nf
+        stx ce
+        jsr spos
+        jsr b2s
+        jsr hurt
+        ldx ce
+@nf:    inx
+        cpx #MAXS
+        bcc @f
+        rts
+
+; hurt: the explosion at (sx, sy) on what touches it
+hurt:   lda #24                 ; a bump's reach (move.s)
+        sta lim
+        lda #16
+        sta lim+2
+        ldx #0                  ; the player, the droids in sight
+@t:     cpx _nd
+        bcs @shots
+        lda _d_boom,x
+        bne @nt
+        cpx #0
+        beq :+
+        lda _d_seen,x
+        beq @nt
+:       stx ct
+        jsr dpos
+        jsr near
+        ldx ct
+        bcs @nt
+        stx hi_i
+        lda _level
+        cpx #0
+        beq :+
+        jsr dmg40
+:       sta hi_d
+        lda #0
+        sta hi_p
+        jsr hit
+        ldx ct
+@nt:    inx
+        bne @t
+@shots: lda #12
+        sta lim
+        lda #8
+        sta lim+2
+        ldx #0
+@s:     stx ct
+        jsr fly
+        bcs @ns
+        lda s_own,x
+        beq @ns
+        jsr spos
+        jsr near
+        ldx ct
+        bcs @ns
+        jsr boom
+@ns:    ldx ct
+        inx
+        cpx #MAXS
+        bcc @s
+        rts
+
+; fly: C clear if shot X is on its way and seen (not exploding, not hidden)
+fly:    lda _s_boom,x
+        bne @no
+        ldy _s_life,x
+        dey
+        cpy #250
+        rts
+@no:    sec
+        rts
+
+; settle: shot X met another: a droid's explodes, the player's is gone
+settle: lda s_own,x
+        beq :+
+        jmp boom
+:       sta _s_life,x
+        rts
+
+        .segment "XT7"          ; ($EBA0: the block table's free end)
+; dpos: bx, by := droid X's place (X kept)
+dpos:   txa
+        asl a
+        tay
+pos:    lda _d_x,y
+        sta bx
+        lda _d_x+1,y
+        sta bx+1
+        lda _d_y,y
+        sta by
+        lda _d_y+1,y
+        sta by+1
+        rts
+
+        .segment "XT8"          ; ($E9B0)
+; b2s: sx, sy := bx, by
+b2s:    ldy #3
+:       lda bx,y
+        sta sx,y
+        dey
+        bpl :-
+        rts
+
+        .segment "XT6"          ; ($EBE8)
+; spos: bx, by := shot X's place (X kept): as a droid's, its words as far
+; apart
+spos:   txa
+        asl a
+        clc
+        adc #_s_x - _d_x
+        tay
+        jmp pos
+
+        .segment "XT9"          ; ($E8E8)
+; boom: shot X explodes where it is, as the original's explosion (a
+; droid's or a spark: $1BCA, $18B7) - its pictures are the droids'
+boom:   lda #1
+        sta _s_boom,x
+        sta _s_life,x
+        rts
+
+        .segment "HICODE"
+
+; near: C clear if (bx, by) is less than lim across and lim+2 up or down
+; from (sx, sy)
+near:   ldx #0
+@a:     lda sx,x
+        sec
+        sbc bx,x
+        sta lo8
+        lda sx+1,x
+        sbc bx+1,x
+        bpl :+
+        eor #$FF                ; (its size: - (hi, lo))
+        sta hi8
+        lda lo8
+        eor #$FF
+        clc
+        adc #1
+        sta lo8
+        lda hi8
+        adc #0
+:       bne @out
+        lda lo8
+        cmp lim,x
+        bcs @out
+        inx
+        inx
+        cpx #4
+        bne @a
+        clc
+        rts
+@out:   sec
+        rts
+
+        .segment "HICODE"       ; (run at $F100 on: it costs the program
                                 ; nothing)
 
 ; sprites(): C set if the original would have no sprite for a shot now:

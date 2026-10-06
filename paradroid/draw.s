@@ -2,7 +2,7 @@
 ; the status panel above
 ;
 ; In assembly, as all of the game, to make room: everything the game
-; keeps is in the program. Its code and tables run at $F300 on (HICODE, with
+; keeps is in the program. Its code and tables run at $F100 on (HICODE, with
 ; figs.s), copied there at the start.
 
         .export _pictures_fixed, _player_picture, _board_droid, _pictures_deck

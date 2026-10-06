@@ -1,7 +1,7 @@
 ; startup.s - the start, once: everything into its place
 ;
 ; The sound effects' player to $FC00 (sfx.s) and both voices quiet, the
-; code that runs at $F300 (the figures, the window and the panel: figs.s,
+; code that runs at $F100 (the figures, the window and the panel: figs.s,
 ; draw.s), tables into free ends of memory (mkdata.py's XT1-XT5), the engine (eng_init()), the unpacker to $0200 (once the
 ; KERNAL's interrupt, whose vector is at $0314, is off), the character
 ; sets and block tables, the colours, and the status panel.
@@ -23,6 +23,12 @@
         .import __XT3_LOAD__, __XT3_RUN__, __XT3_SIZE__
         .import __XT4_LOAD__, __XT4_RUN__, __XT4_SIZE__
         .import __XT5_LOAD__, __XT5_RUN__, __XT5_SIZE__
+        .import __XT6_LOAD__, __XT6_RUN__, __XT6_SIZE__
+        .import __XT7_LOAD__, __XT7_RUN__, __XT7_SIZE__
+        .import __XT8_LOAD__, __XT8_RUN__, __XT8_SIZE__
+        .import __XT9_LOAD__, __XT9_RUN__, __XT9_SIZE__
+        .import __XT10_LOAD__, __XT10_RUN__, __XT10_SIZE__
+        .import __XT11_LOAD__, __XT11_RUN__, __XT11_SIZE__
         .importzp _snd_len, ptr1, ptr2
 
         .include "game.inc"
@@ -74,6 +80,15 @@ _start_up:
         move __XT3_LOAD__, __XT3_RUN__, __XT3_SIZE__
         move __XT4_LOAD__, __XT4_RUN__, __XT4_SIZE__
         move __XT5_LOAD__, __XT5_RUN__, __XT5_SIZE__
+        move _blk_code, BLKC, 1024
+        move __XT6_LOAD__, __XT6_RUN__, __XT6_SIZE__    ; (into its free ends; all before
+                                ; eng_init(), which writes where their
+                                ; load images are)
+        move __XT7_LOAD__, __XT7_RUN__, __XT7_SIZE__
+        move __XT8_LOAD__, __XT8_RUN__, __XT8_SIZE__
+        move __XT9_LOAD__, __XT9_RUN__, __XT9_SIZE__
+        move __XT10_LOAD__, __XT10_RUN__, __XT10_SIZE__
+        move __XT11_LOAD__, __XT11_RUN__, __XT11_SIZE__
         lda #0
         sta _snd_len
         sta _snd_len+1
@@ -85,7 +100,6 @@ _start_up:
         move _tile_font, FONT1, POOL * 8
         jsr _mc_font
         move _panel_font, PANELF, 2048
-        move _blk_code, BLKC, 1024
         lda #$71
         sta _col_panel
         lda #0                  ; black till the title's first screen

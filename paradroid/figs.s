@@ -12,7 +12,7 @@
         .import _r_fig, _f_col, _f_row, _f_line, _f_tint, _pre
         .importzp _f_pre
         .import _nd, _d_boom, _d_x, _d_y, _d_type, _slot_of
-        .import _s_life, _s_img, _s_x, _s_y, _d_seen
+        .import _s_life, _s_img, _s_x, _s_y, _d_seen, _s_boom
 
         .include "game.inc"
 
@@ -39,7 +39,7 @@ _fig_seen: .res 23              ; slots drawn in the window (draw.s's
 _explo_col:
         .byte $7F, $7F, $7F, $4A, $4A, $4A
 
-        .segment "HICODE"       ; (run at $F300 on, paradroid.cfg)
+        .segment "HICODE"       ; (run at $F100 on, paradroid.cfg)
 
 ; figure(): the one at fig_x, fig_y from slot fig_n, if it is in the window
 _figure:
@@ -184,7 +184,22 @@ _draw_figs:
         lda _s_y+1,y
         sbc #0
         sta _fig_y+1
-        lda _s_img,x
+        lda _s_boom,x           ; exploding: the droids' explosion
+        beq @laser
+        sec
+        sbc #1
+        lsr a
+        tay
+        clc
+        adc #SLOT_EXPLO
+        sta _fig_n
+        lda _explo_col,y
+        sta _f_tint
+        jsr _figure
+        lda #0
+        sta _f_tint
+        beq @ns
+@laser: lda _s_img,x
         clc
         adc #SLOT_LASER
         sta _fig_n

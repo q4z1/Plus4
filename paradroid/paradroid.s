@@ -16,8 +16,8 @@
 ;   deck.s       the ship, decks, doors
 ;   droids.s     the player, droids, shots, energy
 ;   move.s       driving, walls, doors, the decks' colours
-;   draw.s       the picture and the status panel (at $F300)
-;   figs.s       the figures in the window (at $F300)
+;   draw.s       the picture and the status panel (at $F100)
+;   figs.s       the figures in the window (at $F100)
 ;   picture.s    the droids' pictures and the panel's letters
 ;   engine.s     what has to be fast or on time: the interrupt, the window
 ;   sfx.s        the sound effects' player (at $FC00); sfxcall.s starts them
@@ -44,6 +44,7 @@
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
         .import _player_fire, _droids_fire, _move_shots, _collide, _energy_tick
+        .import _clashes
         .import _sight
         .import _anim_deck, _turn_droids, _draw, _pause_keys, _bw, _col_border, _panel_frame
         .import _keep_border
@@ -581,6 +582,7 @@ play:   jsr play_init
 :       jsr _player_fire
         jsr _droids_fire
         jsr _move_shots
+        jsr _clashes
         jsr _collide
         lda #<-8
         jsr _fig_place

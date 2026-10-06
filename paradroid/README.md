@@ -17,7 +17,7 @@ The program around it is new, in assembly. It is **one file**: once it has
 loaded, nothing loads any more - the title, the console, the transfer game
 and all the droids' pictures are kept in it, packed.
 
-![A deck: the influence device, a droid, a laser on its way](screenshots/deck.png)
+![A deck: the influence device, droids, a shot exploding](screenshots/deck.png)
 
 **Controls**
 
@@ -59,11 +59,22 @@ original's, read from its code:
   characters stretched as `$25AF` does, over 32, so 4 to 7 pixels a tick
   along the longer way. For its first four ticks it is not shown and hits
   nothing (the original's sprite is off), and it is gone where the
-  original would take its sprite away (`$321E`) or at a wall. The droid
+  original would take its sprite away (`$321E`). At a wall it explodes:
+  the original shows a spark of its own there (`$18B7`), here it is the
+  droids' explosion. The droid
   waits 2 to 5 ticks after it fires. It takes 16 of your energy (weapon
   1: the 476, 614, 615, 751, 834, 883) or 8 (weapon 2: the 629, 821,
   999), and a droid it hits (40 less its type) times 2, as the original's
   pictures and its `$1BF6` have it.
+- **What meets** is the original's table `$6D6D`, its sprites colliding:
+  two shots meeting, a droid's explodes and the player's is gone; an
+  **explosion** - a droid's, or a shot's (as the original's, they are the
+  same: pictures `$39`-`$43`) - hurts the player by the ship's number and
+  a droid in sight by (40 less its type) times 2, every tick they touch,
+  so one droid's end may take its neighbours along, and a droid's shot
+  touching it explodes too; the player's laser goes through. An exploding
+  shot moves on once, then stands (its speed halved as the original
+  halves it: what is left of -1 or -2 drifts on by -1).
 - The **disruptor** of the 711 and 742 is a flash that hurts every droid in
   sight, and you as well, except a few types. A droid sets it off with a
   chance of the ship's number in 128 a tick, when none is flashing
@@ -775,7 +786,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [paradroid.s](paradroid.s) | start, the main loop, the overlays unpacked, pause, a game's end |
 | [deck.s](deck.s) | the ship, entering a deck and finding its doors, lifts and consoles by the player |
 | [droids.s](droids.s) | the player, the droids, shots, hits, bumps, energy |
-| [draw.s](draw.s) | the window, the player's figure, the pictures shifted in advance, the status panel; run at `$F300` |
+| [draw.s](draw.s) | the window, the player's figure, the pictures shifted in advance, the status panel; run at `$F100` |
 | [picture.s](picture.s) | the droids' pictures and the panel's letters in the window: for the transfer, the console, the start and the end |
 | [transfer.s](transfer.s), [xfer.s](xfer.s) | the transfer game, an overlay: its course and board, and what is done for every line every tick (xfer.s: the letters and pictures always there) |
 | [screens.s](screens.s) | the ship's computer and riding a lift, an overlay: menu, droid enquiry, deck plan, side view |
@@ -784,7 +795,7 @@ files at all: one file loaded by the KERNAL avoids all of that.
 | [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what is kept packed (exomizer's unpacker) |
 | [sight.s](sight.s) | which droids the player sees: the original's line of sight, past walls and closed doors |
 | [move.s](move.s) | the player's driving, the walls, the doors, the droids looking ahead, bumps, the decks' colours |
-| [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F300` |
+| [figs.s](figs.s) | the droids, their explosions and the shots into the window, run at `$F100` |
 | [engine.s](engine.s) | raster interrupt and fine scroll, the two pictures, building the window, figures, the droids' ways, keyboard, the animated characters |
 | [startup.s](startup.s) | the start, once: everything into its place |
 | [game.inc](game.inc) | what the parts share: the keys, droids and shots, the pictures' slots, where things are in memory (the numbers from the data are in `build/gen/data.inc`, by `mkdata.py`) |
