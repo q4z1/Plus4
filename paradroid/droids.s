@@ -22,7 +22,8 @@
         .import _bump_i, _player_picture, pushax
         .import _ship, _deck, _level, _tick
         .import _wp_first, _wp_x, _wp_y, _dr_class, _dr_weapon, _blk_flag
-        .import _d_seen
+        .import _d_seen, csolid
+        .importzp tx, ty
 
         .include "game.inc"
         .include "data.inc"
@@ -91,10 +92,16 @@ no_disrupt: .byte 8, 17, 18, 20, 23
 wdamage:    .byte 0, 8, 16, 16
 ; a shot's picture by direction (dx + 1) + 3 * (dy + 1): | / - \
 shot_img:   .byte 3, 0, 1,  2, 0, 2,  1, 0, 3
-; a shot's start by direction -1, 0, 1: 20 across, 14 up or down
-off20:      .byte <-20, 0, 20
-off14:      .byte <-14, 0, 14
+; the player's shot's start by direction -1, 0, 1: 12 on, as the
+; original's from its sprite ($33F8, table $6E58); the character it looks
+; at for a wall there, from the player's own (less the 8 its place has
+; while it shoots): 12 / 8 on, rounded down ($336F)
+        .segment "UNPACK"       ; (copied to the end of $0200-$03FF at the
+off12:      .byte <-12, 0, 12   ; start: their load image costs nothing)
 offhi:      .byte $FF, 0, 0
+        .segment "LOWEND"
+offc:       .byte <-3, <-1, 0
+        .rodata
 
         .code
 
@@ -304,12 +311,42 @@ shoot:  ldx #0
         lda di
         asl a
         sta dt                  ; the droid's word index
+        bne @start              ; (a droid's starts where it is, $34B5)
+        tay                     ; the player's: no shot if a wall is
+        tax                     ; where it would start ($336F)
+        jsr @pcol
+        sta tx
+        ldy #2 * MAXD           ; (d_y after d_x)
+        jsr @pcol
+        sta ty
+        jsr csolid
+        beq @start
+        jmp @sound
+@pcol:  lda _d_x+1,y            ; X: the direction's character
+        sta hi8
+        lda _d_x,y
+        lsr hi8
+        ror a
+        lsr hi8
+        ror a
+        lsr hi8
+        ror a
+        ldy ddx,x
+        iny
+        clc
+        adc offc,y
+        ldx #1                  ; (then ddy)
+        rts
+@start: ldx dk
         txa
         asl a
         tax                     ; the shot's
-        ldy ddx                 ; x + 20 * dx
+        ldy ddx                 ; x + 12 * dx (a droid's: + 0)
         iny
-        lda off20,y
+        lda di
+        beq :+
+        ldy #1
+:       lda off12,y
         sta lo8
         lda offhi,y
         sta hi8
@@ -321,9 +358,12 @@ shoot:  ldx #0
         lda hi8
         adc _d_x+1,y
         sta _s_x+1,x
-        ldy ddy                 ; y + 14 * dy
+        ldy ddy                 ; y + 12 * dy
         iny
-        lda off14,y
+        lda di
+        beq :+
+        ldy #1
+:       lda off12,y
         sta lo8
         lda offhi,y
         sta hi8
@@ -362,7 +402,7 @@ shoot:  ldx #0
         tay
         lda shot_img,y
         sta _s_img,x
-        lda di                  ; the player's sounds by the weapon, as
+@sound: lda di                  ; the player's sounds by the weapon, as
         bne @quiet              ; the original's; the droids' are silent
         ldy _d_type
         lda _dr_weapon,y

@@ -186,10 +186,14 @@ colour: two domes with the turning gap, the number in three big digits
 between them (the original's own, `$6AAE`, 7 hires pixels wide, here 3
 multicolour ones), and an antenna of 2 lines, under the domes for half a
 turn and above them for the other half. It is 11 multicolour pixels wide
-for the original's 23 hires ones. The player's shot starts 12 pixels from
-its sprite, in the sprites' own coordinates (`$33B5`), so the droids,
-their explosions, the shots and the player all go from the world to the
-screen the same way. Measured in x64sc against the original's screen
+for the original's 23 hires ones. Of its digits only the 3 is drawn
+otherwise than by the rule above: its middle comes in from the right, as
+the original's. The player's shot starts 12 pixels from its sprite, in
+the sprites' own coordinates (`$33B5`, table `$6E58`), and none starts
+where the character it would start in is a wall (`$336F`: the player's
+character, plus 1 on, 2 back); a droid's starts where the droid is
+(`$34B5`). So the droids, their explosions, the shots and the player all
+go from the world to the screen the same way. Measured in x64sc against the original's screen
 with the 001 and a 302 beside it on deck 7 (the deck found to a pixel in
 both pictures), every line of both figures is where the original has
 it; across, the deck itself is a pixel off, as multicolour pixels are

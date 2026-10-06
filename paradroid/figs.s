@@ -31,7 +31,7 @@ fi:     .res 1
 _fig_seen: .res 23              ; slots drawn in the window (draw.s's
                                 ; turn_droids() turns those)
 
-        .rodata                 ; (in the main program: HICODE is full)
+        .segment "PAGE1"        ; (on page 1, under the stack: sight.s)
 
 ; an explosion's colour by its stage, multicolour: the original's yellow,
 ; then its orange as it dies down - a red of middle luminance, as cells in

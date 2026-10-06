@@ -217,14 +217,14 @@ _mus_hook:  .res 2              ; music once a picture (the title's: music.s)
 
 next_code:  .res 1
 cl_n:       .res 2
-POOL_N      = 256 - POOL
         .segment "LOWBSS"
 _bs_x:      .res 1              ; (these written before they are read:
 _bs_y:      .res 1              ; LOWBSS is not cleared)
 _bs_v:      .res 1
 kj:         .res 1              ; the keys' reading
 kr:         .res 1
-CL_N = POOL_N + WCOLS           ; the cut row notes a cell per copy use
+CL_N = CUT_R0 - POOL + WCOLS    ; (cell_get() hands out codes up to CUT_R0;
+                                ; the cut row notes a cell per copy use)
 cl_col0:    .res CL_N           ; cells handed a character, picture 0
 cl_row0:    .res CL_N
 cl_col1:    .res CL_N
@@ -1364,26 +1364,27 @@ _r_fig:
         sta z_t
         and lo_f,x
         sta z_acc
-        lda z_t
-        and hi_f,x
+        eor z_t                 ; (the high bits)
         sta z_acc+1
         iny
         lda (_f_pre),y
         sta z_t
         and lo_f,x
+        sta z_si
         ora z_acc+1
         sta z_acc+1
         lda z_t
-        and hi_f,x
+        eor z_si
         sta z_acc+2
         iny
         lda (_f_pre),y
         sta z_t
         and lo_f,x
+        sta z_si
         ora z_acc+2
         sta z_acc+2
         lda z_t
-        and hi_f,x
+        eor z_si
         sta z_acc+3
         ldx #0
 @cell:  lda z_acc,x
@@ -1433,10 +1434,11 @@ _r_fig:
         jcc @col
         rts
 
-; r_fig's line masks for f_line: a mask byte's lines in its own cell row,
-; and in the next
+; r_fig's line mask for f_line: a mask byte's lines in its own cell row
+; (the others are in the next)
+        .segment "HICODE"       ; (run at $F400 on: it costs the program nothing)
 lo_f:   .byte $FF, $7F, $3F, $1F, $0F, $07, $03, $01
-hi_f:   .byte $00, $80, $C0, $E0, $F0, $F8, $FC, $FE
+        .code
 
 ; cell_get: the character of cell (z_row, z_col) in the back buffer, for
 ; drawing into; p_dst points at its 8 bytes, p_src at what is behind the

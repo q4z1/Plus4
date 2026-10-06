@@ -344,8 +344,9 @@ ant_mask:
 ; change (the gap is in pixels 3-9, the antenna in 5, shifted by up to 3):
 ; 0-2, in the last shift 1-3. DBUF: the 22 bytes after each picture's
 ; 1000 colours and codes, which the TED does not show, one for each
-; shift.
-        .code
+; shift. (It runs at the end of $0C68-$0FFF, where the cell lists leave
+; room, copied there at the start.)
+        .segment "LOWEND"
 turn_go:
         lda _tick
         lsr a
@@ -462,7 +463,6 @@ next_sub:
         lda dy
 :       rts
 
-        .rodata                 ; (HICODE is full)
 ; DBUF's pages, for shifts 3..0
 dbuf_hi:
         .byte >(SCR0A + 1000), >(SCR0C + 1000), >(SCR1A + 1000), >(SCR1C + 1000)
