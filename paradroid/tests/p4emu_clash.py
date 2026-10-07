@@ -4,10 +4,17 @@ just two of them touch does anything happen. Measured in x64sc first
 (~/.cache/paradroid/work/chain.py, touch.py); here the same rows of 123s,
 right of the player on an open stretch of floor, held still:
 1. one droid 48 on: the laser kills it;
-2. two droids 16 apart, touching: the laser does nothing to them;
+2. two droids 16 apart, touching: the laser hits one, its explosion
+   takes the other along (not as the original, which let it through);
 3. one droid moved into the first's explosion: it dies;
 4. two droids moved into it, touching each other: three things touch,
-   nothing happens while it lasts."""
+   nothing happens while it lasts;
+5. two droids driving into each other: the first turns round, the second
+   stands still ($1C5F, $1C39);
+6. the player driving into two droids side by side: bumped, not through
+   (not as the original: there three touching would let it through);
+7. the player touching a droid fires: the laser hits it (not as the
+   original)."""
 import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 from p4emu import P4emu
@@ -148,9 +155,10 @@ try:
     row(2, 16)
     f = fire(2)
     frames(10, 2)
-    check('2. two touching: fired (%s), the laser does nothing (boom %s, '
-          'energy %s)' % (f, booms(2), [byte('_d_energy', i) for i in (1, 2)]),
-          f and booms(2) == [0, 0])
+    en = [byte('_d_energy', i) for i in (1, 2)]
+    check('2. two touching: fired (%s), the laser hits one (boom %s, '
+          'energy %s)' % (f, booms(2), en),
+          f and min(booms(2)) > 0 and booms(2)[0] != booms(2)[1])
     frames(30, 2)
     # 3.
     row(2, 40)
@@ -179,6 +187,59 @@ try:
         alive &= booms(3)[1:] == [0, 0]
     check('4. two touching in it: nothing while it lasts (boom %s)' % booms(3),
           alive)
+    frames(30, 3)
+    # 5.
+    row(2, 40)
+    for i in (1, 2):                    # (off the waypoints' middle row)
+        setw('_d_y', i, word('_d_y', i) + 3)
+    e.poke(lbl['_d_vx'] + 1, [1, 255])
+    e.poke(lbl['_d_wait'] + 1, [0, 0])
+    t = 0
+    while byte('_d_wait', 2) == 0 and t < 40:
+        e.frame()
+        t += 1
+    x2 = word('_d_x', 2)
+    for _ in range(6):
+        e.frame()
+    vx = [byte('_d_vx', i) for i in (1, 2)]
+    wait = [byte('_d_wait', i) for i in (1, 2)]
+    check('5. two droids meeting: vx %s, wait %s, the second moved %d'
+          % (vx, wait, word('_d_x', 2) - x2),
+          vx == [255, 255] and wait[0] == 0 and 10 < wait[1] <= 16
+          and word('_d_x', 2) == x2)
+    frames(30, 2)
+    # 6.
+    row(2, 14)
+    e.poke(lbl['_dbg_keys'], [way[0]])
+    front = -999
+    for _ in range(90):
+        frames(1, 2)
+        front = max(front, word('_d_x') + 8 - word('_d_x', 1))
+    e.poke(lbl['_dbg_keys'], [0])
+    check('6. into two side by side: bumped (nearest %d, booms %s)'
+          % (front, booms(2)), front < 0 and booms(2) == [0, 0])
+    frames(30, 2)
+    # 7.
+    row(1, 0)
+    x1 = word('_d_x', 1)
+    for _ in range(60):                 # the player held 20 left of it
+        setw('_d_x', 0, x1 - 8 - 18)
+        e.poke(lbl['_d_vx'], [0])
+        e.poke(lbl['_d_vy'], [0])
+        frames(1, 1)
+        if byte('d_cool') == 0:
+            break
+    f = False
+    for k in range(40):
+        setw('_d_x', 0, x1 - 8 - 18)
+        e.poke(lbl['_d_vx'], [0])
+        e.poke(lbl['_d_vy'], [0])
+        e.poke(lbl['_dbg_keys'], [16 | way[0]] if k < 6 else [0])
+        frames(1, 1)
+        f |= byte('d_cool') != 0
+    check('7. touching it, fired (%s): it is hit (boom %s, energy %d)'
+          % (f, booms(1), byte('_d_energy', 1)),
+          f and (booms(1)[0] != 0 or byte('_d_energy', 1) < 64))
 finally:
     e.stop()
 print('ok' if ok else 'FAILED')

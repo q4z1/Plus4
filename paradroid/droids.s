@@ -83,6 +83,9 @@ c_t:    .res NC
 cn:     .res 1                  ; how many
 pa:     .res 1                  ; the pair found, a and b (in the list)
 pb:     .res 1
+pp:     .res 1                  ; the player's droid (in the list), or $FF
+la:     .res 1                  ; the laser and a droid, or $FF
+lb:     .res 1
 memo:   .res 1                  ; who was bumped (the original's $6C)
 ce:     .res 1
 ct:     .res 1
@@ -1053,6 +1056,11 @@ sboom:  stx ct
 ; original's collision register has it - does anything happen, by the
 ; classes ($6D6D); with three or more touching, nothing. Bumping is once
 ; while they touch: the original's $6C, forgotten in a tick without a pair.
+; Not as the original: the player meeting a droid, and the laser meeting a
+; droid, always count, whatever else touches (else the player drove through
+; two droids side by side, the laser through them, and a droid touching the
+; player was neither shot nor taken); the rule of one pair is for the rest.
+; The player's own laser meeting it does not count.
 ; First a list of them, up to NC, near enough to the player to be on the
 ; screen: their places as a byte each, across in steps of two, from the
 ; player's (its own 2 lower: its sprite's middle).
@@ -1100,6 +1108,8 @@ _clashes:
         bcc @s
 @list:  lda #$FF                ; then two by two
         sta pa
+        sta pp
+        sta la
         ldx #0
 @a:     txa
         tay
@@ -1134,24 +1144,69 @@ _clashes:
         cmp lo8
         bcc @b
         beq @b
-        lda pa                  ; a second pair: three or more, nothing
-        bpl @none
-        stx pa
-        sty pb
-        bmi @b
+        jmp @touch
 @na:    inx
         cpx cn
         bcc @a
-        lda pa
-        bpl @pair
-@none:  lda #0
+        lda pp                  ; no pair that bumps: forgotten
+        and pa
+        bpl :+
+        lda #0
         sta memo
+:       lda pa                  ; the one other pair, if just one
+        bmi :+
+        jsr @pair
+:       ldy pp                  ; the player and a droid
+        bmi :+
+        jsr @pthing
+:       lda la                  ; the laser and a droid
+        bpl :+
         rts
+:       sta pa
+        tax
+        ldy lb
+        sty pb
+        jmp @two
+@touch:
+        lda c_k,x               ; touching: the player (only ever a)
+        cmp #T_PLAYER
+        bne @nopl
+        lda c_k,y
+        beq @pd                 ; and a droid: always
+        cmp #T_LASER            ; and its own laser: not counted
+        bne @oth
+@tb:    jmp @b
+@pd:    sty pp
+        jmp @b
+@nopl:  sta ct                  ; a droid and the laser: always
+        lda c_k,y
+        bne :+
+        lda ct
+        cmp #T_LASER
+        beq @ld
+        bne @oth
+:       cmp #T_LASER
+        bne @oth
+        lda ct
+        bne @oth
+@ld:    stx la
+        sty lb
+        jmp @b
+@oth:   lda pa                  ; anything else: a second such pair, three
+        cmp #$FF                ; or more touching, nothing ($FE)
+        bne :+
+        stx pa
+        sty pb
+        jmp @b
+:       lda #$FE
+        sta pa
+        jmp @b
 @pair:  tax                     ; (the player, if in it: a, the list's
         ldy pb                  ; first)
         lda c_k,x
         cmp #T_PLAYER
         bne @two
+@pthing:
         ldx c_t,y               ; the player and thing b ($1A43)
         lda c_k,y
         bne @pboom
@@ -1221,14 +1276,17 @@ _clashes:
         .segment "HICODE"
 
 ; act: the list's thing X met its thing Y, as the original's table has it
-; ($6D6D): a droid meeting a droid turns round (the first of them: $1C5F),
-; one met by a droid's shot or an explosion takes (40 - its type) * 2
+; ($6D6D): of two droids meeting, the first turns round, once ($1C5F), the
+; second stands still for 16 ticks, from every tick they touch ($1C39); one
+; met by a droid's shot or an explosion takes (40 - its type) * 2
 ; ($1BF6), by the laser the laser's damage ($1C0F, points); a droid's shot
 ; meeting a droid is gone ($1C82), meeting anything else it explodes; an
 ; explosion and the laser take nothing. A droid and its own shot do not
 ; meet (the original's would be apart by then, its pictures smaller than
 ; their sprites).
-act:    lda c_k,y
+act:    stx ci                  ; (C clear: the second of the pair)
+        cpy ci
+        lda c_k,y
         sta ct                  ; the other's kind
         lda c_t,y
         sta cj                  ; and thing
@@ -1240,7 +1298,8 @@ act:    lda c_k,y
         bne @shot               ; (T_DROID 0)
         lda ct
         bne @hurt
-        lda memo                ; droid and droid: once
+        bcc @wait               ; droid and droid: the second waits,
+        lda memo                ; the first turns, once
         cmp #$FF
         beq @r
         lda #$FF
@@ -1254,6 +1313,9 @@ act:    lda c_k,y
         sbc _d_vy,x
         sta _d_vy,x
 @r:     rts
+@wait:  lda #16
+        sta _d_wait,x
+        rts
 @hurt:  ldy cj
         cmp #T_DSHOT
         bne :+
