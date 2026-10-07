@@ -43,7 +43,7 @@
         .import _take_over, _transfer_lost, _burnt_out, _sound
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
-        .import _player_fire, _droids_fire, _move_shots, _collide, _energy_tick
+        .import _player_fire, _droids_fire, _move_shots, _energy_tick
         .import _clashes
         .import _sight
         .import _anim_deck, _turn_droids, _draw, _pause_keys, _bw, _col_border, _panel_frame
@@ -583,7 +583,6 @@ play:   jsr play_init
         jsr _droids_fire
         jsr _move_shots
         jsr _clashes
-        jsr _collide
         lda #<-8
         jsr _fig_place
         jsr _sight              ; the droids it sees, for the next ones

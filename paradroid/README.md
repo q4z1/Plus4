@@ -66,13 +66,22 @@ original's, read from its code:
   1: the 476, 614, 615, 751, 834, 883) or 8 (weapon 2: the 629, 821,
   999), and a droid it hits (40 less its type) times 2, as the original's
   pictures and its `$1BF6` have it.
-- **What meets** is the original's table `$6D6D`, its sprites colliding:
-  two shots meeting, a droid's explodes and the player's is gone; an
-  **explosion** - a droid's, or a shot's (as the original's, they are the
-  same: pictures `$39`-`$43`) - hurts the player by the ship's number and
-  a droid in sight by (40 less its type) times 2, every tick they touch,
-  so one droid's end may take its neighbours along, and a droid's shot
-  touching it explodes too; the player's laser goes through. An exploding
+- **What meets** is decided as the original's `$19EA` decides it, from
+  its sprites' collision register: once a tick, and only if just two
+  things touch. The original's table `$6D6D` then says what happens: a
+  droid takes the laser's damage, or (40 less its type) times 2 from a
+  droid's shot or an **explosion** - a droid's, or a shot's (as the
+  original's, they are the same: pictures `$39`-`$43`); the player loses
+  the ship's number to an explosion; of two droids touching, one turns
+  round; a droid's shot meeting a droid is gone, meeting anything else it
+  explodes; the laser is gone after whatever it met. With three or more
+  touching, nothing happens at all: two droids standing close let a laser
+  through, and one droid's end takes a neighbour along only while nothing
+  else touches the two - a row goes up one by one, or stops. They touch
+  where the original's sprites do (measured in x64sc): 20 pixels apart
+  across, 16 up or down, the player 11 up and 16 down; the lasers' and the
+  explosions' pictures are as large as a droid's. The original has eight
+  sprites; here up to 13 things near the player count. An exploding
   shot moves on once, then stands (its speed halved as the original
   halves it: what is left of -1 or -2 drifts on by -1).
 - The **disruptor** of the 711 and 742 is a flash that hurts every droid in
@@ -92,7 +101,8 @@ original's, read from its code:
 - Touching a droid is a **bump**: the player is thrown back at twice its
   speed (at most its host's top speed; at 2 up and left if it stood
   still), the droid turns round and waits 16 ticks, and the stronger of
-  the two hurts the weaker. It bumps once until the two are apart again.
+  the two hurts the weaker. It bumps once, until a tick in which no two
+  things touch (the original's `$6C`).
 - A lost transfer throws you out of your host, back into the bare 001,
   and takes that host's kill points off your score. Lost as the 001, it
   is the end.

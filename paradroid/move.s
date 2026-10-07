@@ -19,7 +19,7 @@
 
         .export _move_player, _solid_at, droid_look, d_lk
         .export _deck_colours, _colour_blocks, _bw, _keep_border, _side_c5
-        .export _doors, _blk_at, _bump_next, _bump_i, _bump_back, _fig_place
+        .export _doors, _blk_at, _bump_back, _fig_place
         .export _player_spot, csolid
         .exportzp tx, ty
         .import popax, _d_x, _d_y, _d_vx, _d_vy, _d_type, _dr_drive, _d_wait
@@ -52,7 +52,6 @@ nn:     .res 1
 
         .segment "LOWBSS"       ; (not cleared: start_up() clears bw)
 _bw:    .res 1                  ; F2 in the pause: black and white
-_bump_i: .res 1                 ; bump_next(): the droid last found
 
         .bss
 _keep_border: .res 1            ; deck_colours() leaves the border alone
@@ -709,62 +708,6 @@ ptch:   lda _door_x,x
         clc
         rts
 @hit:   sec
-        rts
-
-; bump_next(): from droid bump_i + 1 on, the next one (not exploding) that
-; touches the player: less than 24 across and 16 up or down between their
-; middles. Its number, 0 if none.
-_bump_next:
-        ldx _bump_i
-@n:     inx
-        cpx _nd
-        bcs @none
-        lda _d_boom,x
-        bne @n
-        txa
-        asl a
-        tay
-        sec                     ; across: -23 .. 23, plus 23
-        lda _d_x
-        sbc _d_x,y
-        sta tx
-        lda _d_x+1
-        sbc _d_x+1,y
-        sta ty
-        lda tx
-        clc
-        adc #23
-        sta tx
-        lda ty
-        adc #0
-        bne @n
-        lda tx
-        cmp #47
-        bcs @n
-        sec                     ; up and down: -15 .. 15, plus 15
-        lda _d_y
-        sbc _d_y,y
-        sta c_q
-        lda _d_y+1
-        sbc _d_y+1,y
-        sta c_q+1
-        lda c_q
-        clc
-        adc #15
-        sta c_q
-        lda c_q+1
-        adc #0
-        bne @n
-        lda c_q
-        cmp #31
-        bcs @n
-        stx _bump_i
-        txa
-        ldx #0
-        rts
-@none:  stx _bump_i
-        lda #0
-        tax
         rts
 
 ; bump_back(i): the bump of droid i, as the original's ($1A73): the droid
