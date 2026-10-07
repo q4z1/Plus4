@@ -81,3 +81,18 @@ done
 $EXOMIZER sfx sys -t 4 -q -n -s 'lda #$0b sta $ff06 lda #0 sta $ff19' \
     -o build/paradroid.prg build/paradroid.raw
 echo "build/paradroid.prg: $(stat -c%s build/paradroid.raw) bytes, packed $(stat -c%s build/paradroid.prg)"
+# build/paradroid-god.prg: the same with startup.s's _god_init set, the
+# player immortal (_dbg_god), to play the game through. One byte apart, so
+# the labels and the tests hold for both.
+python3 - <<'EOF2'
+raw = bytearray(open('build/paradroid.raw', 'rb').read())
+lbl = open('build/paradroid.lbl').read().split()
+addr = int(lbl[lbl.index('._god_init') - 1], 16)
+off = addr - (raw[0] | raw[1] << 8) + 2
+assert raw[off - 1] == 0xA9 and raw[off] == 0     # lda #0
+raw[off] = 1
+open('build/paradroid-god.raw', 'wb').write(raw)
+EOF2
+$EXOMIZER sfx sys -t 4 -q -n -s 'lda #$0b sta $ff06 lda #0 sta $ff19' \
+    -o build/paradroid-god.prg build/paradroid-god.raw
+echo "build/paradroid-god.prg: the player immortal"

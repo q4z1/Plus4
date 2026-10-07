@@ -8,7 +8,7 @@
 ;
 ; In INITDATA: used once, then overwritten by the pictures' slots.
 
-        .export _start_up
+        .export _start_up, _god_init
 
         .import _eng_init, _mc_font, _panel_put, _pp_off, _pp_code, _pp_attr
         .import _col_panel, _col_border, _col_deck, _col_fig1, _col_fig2, _bw
@@ -29,6 +29,7 @@
         .import __XT9_LOAD__, __XT9_RUN__, __XT9_SIZE__
         .import __XT10_LOAD__, __XT10_RUN__, __XT10_SIZE__
         .import __XT11_LOAD__, __XT11_RUN__, __XT11_SIZE__
+        .import _dbg_god
         .importzp _snd_len, ptr1, ptr2
 
         .include "game.inc"
@@ -92,6 +93,9 @@ _start_up:
         lda #0
         sta _snd_len
         sta _snd_len+1
+_god_init = * + 1               ; 1 in paradroid-god.prg (build.sh): the
+        lda #0                  ; player takes no damage, to play it
+        sta _dbg_god            ; through
         jsr _eng_init
         move __UNPACK_LOAD__, __UNPACK_RUN__, __UNPACK_SIZE__
         move __PAGE1_LOAD__, __PAGE1_RUN__, __PAGE1_SIZE__

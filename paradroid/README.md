@@ -833,6 +833,16 @@ tools): it packs what the game keeps packed, and the program as a whole.
 on a Plus/4 it runs from any drive, SD card adapter or cartridge
 (`LOAD "PARADROID",8` and `RUN`; copied onto a disk for a 1541 or 1551).
 
+The build makes a second program beside it, `build/paradroid-god.prg`, to
+play the game through: the same with the player immortal (no damage from
+shots, bumps or explosions, a host never burning out, a lost transfer
+never fatal). The two are one byte apart, the start's `lda #0` before
+`_dbg_god` in [startup.s](startup.s), which the tests set the same way.
+The F5 configuration "Paradroid: unsterblich in Yape (Gamepad)" builds
+the game, whichever file is active, and starts this one in Yape with the
+gamepad (below); without an editor, `sh paradroid/build.sh` and
+`sh paradroid/run-yape.sh paradroid/build/paradroid-god.prg`.
+
 A third emulator is **plus4emu**, whose TED shows what the other two do not
 (the colours above): [run-plus4emu.sh](run-plus4emu.sh), or
 `sh paradroid/run-plus4emu.sh` without an editor. The script says how to

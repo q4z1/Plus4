@@ -32,6 +32,16 @@
             "name": "Plus/4: Aktive Datei bauen & in Yape starten",
             "command": "PLUS4_EMU=yape ${workspaceFolder}/.vscode/run-current.sh '${file}'",
             "cwd": "${workspaceFolder}"
+        },
+        {
+            // Paradroid zum Durchspielen: baut es (egal welche Datei aktiv
+            // ist) und startet build/paradroid-god.prg - der Spieler ist
+            // unsterblich - in Yape mit dem Gamepad (paradroid/run-yape.sh).
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Paradroid: unsterblich in Yape (Gamepad)",
+            "command": "PLUS4_EMU=yape PLUS4_PRG=paradroid-god ${workspaceFolder}/.vscode/run-current.sh '${workspaceFolder}/paradroid/build.sh'",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

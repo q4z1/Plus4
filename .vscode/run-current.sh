@@ -33,6 +33,9 @@ while [ "$DIR" != / ] && [ ! -f "$DIR/build.sh" ] && [ ! -d "$DIR/.vscode" ]; do
 done
 if [ -f "$DIR/build.sh" ]; then
     NAME=$(basename "$DIR")
+    # PLUS4_PRG: another program the build leaves behind is started
+    # (Paradroid: paradroid-god, the player immortal)
+    START=${PLUS4_PRG:-$NAME}
 else
     case "$SRC" in
         *.c) ;;
@@ -44,6 +47,7 @@ else
     esac
     DIR=$(dirname "$SRC")
     NAME=$(basename "$SRC" .c)
+    START=$NAME
 fi
 OUT="$DIR/build"
 
@@ -73,7 +77,7 @@ else
     "$BIN_DIR/cl65" -t plus4 -O $EXTRA -g -c -o "$OUT/$NAME.o" "$SRC"
     "$BIN_DIR/cl65" -t plus4 -o "$OUT/$NAME.prg" "$OUT/$NAME.o"
 fi
-echo "Fertig: $OUT/$NAME.prg"
+echo "Fertig: $OUT/$START.prg"
 
 # The emulator: VICE, or Yape with PLUS4_EMU=yape (the F5 configuration
 # "... in Yape"), whose TED is closer to the real chip. A program may bring
@@ -83,9 +87,9 @@ echo "Fertig: $OUT/$NAME.prg"
 if [ "$PLUS4_EMU" = yape ]; then
     if [ -x "$DIR/run-yape.sh" ]; then
         echo "Starte ueber $DIR/run-yape.sh ..."
-        exec "$DIR/run-yape.sh" "$OUT/$NAME.prg"
+        exec "$DIR/run-yape.sh" "$OUT/$START.prg"
     fi
-    PRG="$(cd "$OUT" && pwd)/$NAME.prg"
+    PRG="$(cd "$OUT" && pwd)/$START.prg"
     echo "Starte Yape ..."
     if [ -f /.flatpak-info ]; then
         exec flatpak-spawn --host yape "$PRG"
@@ -99,8 +103,8 @@ fi
 # and gets the finished .prg passed to it.
 if [ -x "$DIR/run.sh" ]; then
     echo "Starte ueber $DIR/run.sh ..."
-    exec "$DIR/run.sh" "$OUT/$NAME.prg"
+    exec "$DIR/run.sh" "$OUT/$START.prg"
 fi
 
 echo "Starte VICE ..."
-exec "$BIN_DIR/xplus4" -autostartprgmode 1 "$OUT/$NAME.prg"
+exec "$BIN_DIR/xplus4" -autostartprgmode 1 "$OUT/$START.prg"
