@@ -97,6 +97,8 @@ uz:     .res 2
 
         .rodata
 burn_mask:  .byte 127, 63, 63, 63, 63, 31, 31, 31, 31, 15
+; points by class, the original's: a droid bumped to its end, a lost
+; host's ($6DF6); one shot or disrupted, one taken over ($6DEC)
 kill_pts:   .byte 0, 10, 20, 30, 40, 50, 60, 70, 80, 200
 take_pts:   .byte 0, 25, 50, 75, 100, 125, 150, 175, 200, 250
 alert_pts:  .byte 0, 5, 10, 25
@@ -670,7 +672,7 @@ disrupt:
         ldy #0
         lda dfrom
         bne :+
-        iny
+        ldy #2                  ; (the player's: points as for a laser's)
 :       sty hi_p
         jsr hit
 @next:  inc dj
@@ -783,16 +785,19 @@ hit:    ldx hi_i
         lda #SFX_PBOOM
         jmp _sound
 @droid: jsr gone                ; off the ship
+        ldx hi_i                ; points by the class, as the original's:
+        ldy _d_type,x           ; by the player's laser or disruptor
+        lda _dr_class,y         ; $6DEC ($1C41, $23F3), bumped $6DF6
+        tay                     ; ($1AE7), by the droids' fire none
         lda hi_p
-        beq @boom
-        ldx hi_i
-        ldy _d_type,x
-        lda _dr_class,y
-        tay
+        beq @alert
+        lsr a
+        lda take_pts,y
+        bcc :+
         lda kill_pts,y
-        jsr points
-        ldx hi_i                ; the alert: kills by type, up to 255
-        lda _alert_acc
+:       jsr points
+@alert: ldx hi_i                ; the alert: every kill, by its type, up
+        lda _alert_acc          ; to 255 ($1C41, $1AD5, $23B6)
         clc
         adc _d_type,x
         bcc :+
@@ -987,7 +992,7 @@ _move_shots:
         bne @droids
         jsr pdamage
         sta hi_d
-        lda #1
+        lda #2                  ; (the player's laser: hi_p 2)
         sta hi_p
         bne @hit
 @droids:

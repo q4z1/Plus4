@@ -96,11 +96,14 @@ original's, read from its code:
 - A lost transfer throws you out of your host, back into the bare 001,
   and takes that host's kill points off your score. Lost as the 001, it
   is the end.
-- Points: 10 to 200 for a kill, 25 to 250 for a transfer, by class; 250 for
-  a deck cleared, 2000 for a ship.
-- Each kill raises the **alert** by the droid's type, and it sinks again
-  slowly. While it is up it pays points, and the ALERT consoles turn from
-  green through yellow and orange to red.
+- Points, by class, as the original's tables `$6DEC` and `$6DF6`: 25 to
+  250 for a droid shot or disrupted, and for a transfer; 10 to 200 for one
+  bumped to its end; none for one the droids' fire or an explosion ends.
+  500 for a deck cleared, 2000 for a ship. A lost transfer takes 10 to
+  200 off.
+- Each kill raises the **alert** by the droid's type, whoever made it,
+  and it sinks again slowly. While it is up it pays points, and the ALERT
+  consoles turn from green through yellow and orange to red.
 
 When a deck has no droids left, its lights go out. When the whole ship is
 dark, the next ship of the fleet follows, with droids a class higher (its

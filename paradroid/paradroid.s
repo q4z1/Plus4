@@ -603,10 +603,10 @@ play:   jsr play_init
         jsr _deck_cleared
         cmp #0
         beq @flash
-        lda #1                  ; the deck cleared
-        sta lights_out
-        lda #<250
-        ldx #>250
+        lda #1                  ; the deck cleared: 2 * 250, as the
+        sta lights_out          ; original's ($17DC)
+        lda #<500
+        ldx #>500
         jsr add_score
         jsr _deck_colours
         lda #SFX_CLEARED
