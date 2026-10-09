@@ -245,9 +245,10 @@ _spawn_droids:
         sta _d_type,x
         ldy dk                  ; w = k + 2, 999's 1
         iny
-        cmp #$17
-        beq :+
         iny
+        cmp #$17
+        bne :+
+        ldy #1
 :       tya
         ldy _deck
         clc
