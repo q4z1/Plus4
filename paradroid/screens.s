@@ -34,7 +34,7 @@
         .import _x_letter, _say, _unit_name, _picture, _pic_pages, _pic_text
         .import _panel_status, _page_end, _anim_plan
         .import _pal_deck, _pal_mc, _dr_class, _dr_num, _d_type, _d_x, _d_y
-        .import _deck, _alert, _deck_bg, _win_mc
+        .import _deck, _alert, _deck_bg, _win_mc, _ship_name
         .import _icon_font, _icon_tab, _icon_lay, _plan_font, _plan_cls
         .import _side_font, _side_col, _side_rle, _side_box, _side_c5
         .import _shaft_col, _shaft_top, _shaft_len
@@ -75,7 +75,7 @@ dbuf:   .res 8
 s_unit:     .byte "Unit type ", 0
 s_dash:     .byte " - ", 0
 s_access:   .byte "Access granted.", 0
-s_ship:     .byte "Ship  : Paradroid", 0
+s_ship:     .byte "Ship  : ", 0
 s_deck:     .byte "Deck  : ", 0
 s_alert:    .byte "Alert : ", 0
 s_console:  .byte "Console", 0
@@ -294,6 +294,8 @@ menu_page:
         lda #<s_ship
         ldx #>s_ship
         jsr text
+        jsr _ship_name          ; (the original's, $2955)
+        jsr _say
         lda #18
         sta cr
         lda #<s_deck

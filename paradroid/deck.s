@@ -94,8 +94,8 @@ _ship_cleared:
         tax
         rts
 
-; new_ship(): a new ship, as the original fills it: the first six droids
-; of a deck are of its class or up to three above, the others lower
+; new_ship(): a new ship, as the original fills it ($15E8): the first seven
+; droids of a deck are of its class or up to three above, the others lower
 _new_ship:
         lda #0
         ldx #NDECKS * 12 - 1
@@ -122,27 +122,23 @@ _new_ship:
 @k:     lda dk
         cmp dn
         bcs @next
-        cmp #6
+        cmp #7
         bcs @low
-        jsr _rnd                ; the first six: up to three above
+        jsr _rnd                ; the first seven: up to three above
         and #3
         clc
         adc dt
         jmp @put
-@low:   jsr _rnd                ; the others below, or none
-        and #15
-@half:  beq @skip
-        sta dr
-        lda dt
-        clc
+@low:   lda dt                  ; the others below, or none: 0-15 halved,
+        clc                     ; and again while at least t + 3
         adc #3
-        cmp dr                  ; r >= t + 3: halved
-        beq :+
-        bcs @lowok
-:       lda dr
-        lsr a
-        jmp @half
-@lowok: lda dr
+        sta dr
+        jsr _rnd
+        and #15
+@half:  lsr a
+        beq @skip
+        cmp dr
+        bcs @half
 @put:   sta dr
         lda dd                  ; ship[d][k] = r + 1
         asl a

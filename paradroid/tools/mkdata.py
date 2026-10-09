@@ -156,6 +156,10 @@ for l in lines('waypoints.txt'):
 lifts = [tuple(int(x) for x in l.split()) for l in lines('lifts.txt')]
 droids = [l.split() for l in lines('droids.txt')]
 ship = [tuple(int(x) for x in l.split()) for l in lines('ship.txt')]
+# the droids start on waypoints 2 on (droids.s spawn_droids(), as the
+# original's): a deck's last, the 12th at most, must have one
+for d, base, n in ship:
+    assert min(n, 12) + 2 <= len(wps[d]), 'deck %d: too few waypoints' % d
 
 # --- panel --------------------------------------------------------------------
 ptxt = read('panel.txt')

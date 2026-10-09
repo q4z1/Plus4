@@ -110,20 +110,27 @@ original's, read from its code:
   250 for a droid shot or disrupted, and for a transfer; 10 to 200 for one
   bumped to its end; none for one the droids' fire or an explosion ends.
   500 for a deck cleared, 2000 for a ship. A lost transfer takes 10 to
-  200 off.
+  200 off. As in the original (`$3E94`, `$0A7D`), points come onto the
+  score one a tick, counting up in the panel; each full 256 at once.
 - Each kill raises the **alert** by the droid's type, whoever made it,
   and it sinks again slowly. While it is up it pays points, and the ALERT
   consoles turn from green through yellow and orange to red.
 
 When a deck has no droids left, its lights go out. When the whole ship is
-dark, the next ship of the fleet follows, with droids a class higher (its
-number, which the droids fire by, stops at 8, as the original's `$67`).
+dark, as in the original (`$1272`): a page with your droid and the
+congratulations, the bonus of 2000 counting up, then the start page for
+the next ship of the fleet - *Paradroid*, *Metahawk*, *Hewstromo*,
+*Graftgold*, *Blabgorius IV*, *Red Barchetta*, *Retta-beast*,
+*Itsnotardenuff* - and you are beamed aboard in the droid you were in,
+the droids a class higher (the ship's number, which the droids fire by,
+stops at 8, as the original's `$67`). The console shows the ship's name.
 
 **A game starts** as the original's: a page with the 001 and what it is
 there for, "Game on!" in the panel, for three and a half seconds or until
 fire. Then the 001 is beamed aboard, with the original's sound, at the
 first waypoint of a deck between 4 and 7 - its top left; the droids start
-on the waypoints after it - flashing as with low energy (it starts with
+on the waypoints from the third on, the 999 on the second of deck 1, as
+the original's `$1664` - flashing as with low energy (it starts with
 7 for that while) for 32 steps of two pictures, while the droids stand
 still.
 

@@ -13,7 +13,8 @@
         .export _nd, _d_type, _d_x, _d_y, _d_vx, _d_vy, _d_energy, _d_boom
         .export _d_bx, _d_by, _d_wait, _s_x, _s_y, _s_life, _s_img, _s_boom
         .export _clashes
-        .export _score, _score_changed, _transfer_mode, _touched
+        .export _score, _score_pend, _score_changed, _transfer_mode, _touched
+        .export points
         .export _player_dead, _burn, _alert_acc, _flash, _dbg_god
         .export _spawn_droids, _remove_droid, _player_fire, _move_shots
         .export _droids_fire, _energy_tick, _take_over
@@ -53,6 +54,7 @@ _s_x:           .res 2 * MAXS
 _s_y:           .res 2 * MAXS
 _s_life:        .res MAXS       ; a droid's: 255 on, hidden while 251 on
 _score:         .res 4
+_score_pend:    .res 1          ; (after it: cleared with it) to count on
 _score_changed: .res 1
 _transfer_mode: .res 1
 _touched:       .res 1
@@ -147,10 +149,11 @@ offc:       .byte <-3, <-1, 0
 
         .segment "XT7"          ; ($EBA0: the block table's free end)
 
-; points(A): onto the score
+; points(A): onto the score, as the original's ($3E94): counted on one
+; at a time (paradroid.s count_on()), each 256 at once
 points: clc
-        adc _score
-        sta _score
+        adc _score_pend
+        sta _score_pend
         bcc @done
         inc _score + 1
         bne @done
@@ -223,40 +226,32 @@ shot_img:   .byte 3, 0, 1,  2, 0, 2,  1, 0, 3
 ; Droids on a deck
 ; ======================================================================
 
-; spawn_droids(): the deck's droids on its waypoints, after the first
+; spawn_droids(): the deck's droids on its waypoints, as the original's
+; ($1664): slot k on waypoint k + 2, the command cyborg on waypoint 1 (it
+; has a slot of its own there, the 13th; waypoint 0 is where the player
+; starts). mkdata.py makes sure the waypoints are enough.
 _spawn_droids:
         lda #1
         sta _nd
-        ldx _deck
-        lda _wp_first,x
-        sta dw                  ; w0
-        lda _wp_first+1,x
-        sec
-        sbc dw
-        sta dt                  ; wn
         lda #0
         sta dk
 @k:     jsr shipk
         lda _ship,y
         bne :+
         jmp @next
-:
-        ldx _nd
+:       ldx _nd
         sec
         sbc #1
         sta _d_type,x
-        lda dk                  ; w = k + 1, else k % wn
+        ldy dk                  ; w = k + 2, 999's 1
+        iny
+        cmp #$17
+        beq :+
+        iny
+:       tya
+        ldy _deck
         clc
-        adc #1
-        cmp dt
-        bcc :+
-        lda dk
-@mod:   cmp dt
-        bcc :+
-        sbc dt
-        bcs @mod
-:       clc
-        adc dw
+        adc _wp_first,y
         tay
         txa
         asl a

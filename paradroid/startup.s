@@ -76,6 +76,7 @@ copy:   sta cnt
 _start_up:
         move __SFXCODE_LOAD__, __SFXCODE_RUN__, __SFXCODE_SIZE__
         move __HICODE_LOAD__, __HICODE_RUN__, __HICODE_SIZE__
+        move __LOWEND_LOAD__, __LOWEND_RUN__, __LOWEND_SIZE__
         move __XT1_LOAD__, __XT1_RUN__, __XT1_SIZE__
         move __XT2_LOAD__, __XT2_RUN__, __XT2_SIZE__
         move __XT3_LOAD__, __XT3_RUN__, __XT3_SIZE__
@@ -99,7 +100,6 @@ _god_init = * + 1               ; 1 in paradroid-god.prg (build.sh): the
         jsr _eng_init
         move __UNPACK_LOAD__, __UNPACK_RUN__, __UNPACK_SIZE__
         move __PAGE1_LOAD__, __PAGE1_RUN__, __PAGE1_SIZE__
-        move __LOWEND_LOAD__, __LOWEND_RUN__, __LOWEND_SIZE__
         move _tile_font, FONT0, POOL * 8
         move _tile_font, FONT1, POOL * 8
         jsr _mc_font

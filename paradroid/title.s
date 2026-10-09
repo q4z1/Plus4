@@ -20,7 +20,7 @@
 ; a line of pixels at a time, the way the deck scrolls: picture 1's
 ; character set holds the briefing's, and both pictures show it.
 
-        .export _title_run, _title_scores
+        .export _title_run, _title_scores, _ship_pages
 
         .import _wait_tick, _keys_irq, _eng_keys, _frames, _ready, _back
         .import _eng_plain, _win_clear, _r_done, _panel_status, _panel_frame
@@ -35,6 +35,8 @@
         .import _top_score, _low_score, _initials, _score, _x_code, _xmap
         .import _brief_srcs, _brief_pages, _brief_dig, _brief_misc, _brief_cap
         .import _logo_font, _logo_col, _logo_rle, _title_pic
+        .import _d_type, _level, _dr_class, _dr_num, _ship_name, _count_on
+        .import _panel_score, _score_changed, points, _sound
         .import pusha
         .importzp _br_p, sreg, ptr1, ptr2
 
@@ -96,16 +98,25 @@ round_bd:   .byte $3B, $3B, $55
 s_brief:    .byte "Briefing", 0
 s_press:    .byte "Press fire", 0
 s_gameon:   .byte "Game on!", 0
-s_unit:     .byte "Unit type 001 - ", 0
+s_unit:     .byte "Unit type ", 0
+num:        .byte "001 - ", 0
+; the start page's lines, the ship's name in the fourth (the original's
+; break after "eliminate" where "all" no longer fits), then the cleared
+; ship's
 s_l1:       .byte "This is the unit that you", 0
 s_l2:       .byte "currently control. Prepare", 0
 s_l3:       .byte "to board Robo-Freighter", 0
-s_l4:       .byte "Paradroid to eliminate all", 0
-s_l5:       .byte "rogue robots.", 0
-lines_row:  .byte 12, 14, 16, 18, 20
-lines_col:  .byte 10, 9, 9, 9, 9
-lines_lo:   .byte <s_l1, <s_l2, <s_l3, <s_l4, <s_l5
-lines_hi:   .byte >s_l1, >s_l2, >s_l3, >s_l4, >s_l5
+s_elim:     .byte " to eliminate", 0
+s_all:      .byte " all", 0
+s_l5:       .byte "all rogue robots.", 0
+s_c1:       .byte "Congratulations! Ship is", 0
+s_c2:       .byte "now clear of all robot", 0
+s_c3:       .byte "activity. Bonus of 2000", 0
+s_c4:       .byte "awarded.", 0
+lines_row:  .byte 12, 14, 16,  12, 14, 16, 18
+lines_col:  .byte 10, 9, 9,  10, 9, 9, 9
+lines_lo:   .byte <s_l1, <s_l2, <s_l3,  <s_c1, <s_c2, <s_c3, <s_c4
+lines_hi:   .byte >s_l1, >s_l2, >s_l3,  >s_c1, >s_c2, >s_c3, >s_c4
 ; the day's scores taken: the original's words ($E714-$E75B)
 s_great:    .byte "Great Score!", 0
 s_lowest:   .byte "Lowest Score of the Day!", 0
@@ -1268,23 +1279,127 @@ logo:   jsr _eng_plain
 ; until fire) the player's unit and what it is there for, in the
 ; original's purple, "Game on!" in the panel - as the transfer's pages
 ; show a unit. The page stays up while the game makes its figures and the
-; deck, some 65 pictures (paradroid.s, page_end()).
+; deck, some 65 pictures (paradroid.s, page_end()). The same for each ship
+; after the first, in whatever droid the player is then ($36B9).
 start_page:
-        lda _ready
-        bne start_page
-        jsr _eng_plain
-        lda _pal_deck+1
-        sta _col_deck
         lda #<s_gameon
         ldx #>s_gameon
         jsr _panel_status
+        lda _pal_mc+4
+        ldx #0
+        ldy #3
+        jsr unit_page
+        lda #18
+        sta _x_row
+        lda #9
+        sta _x_col
+        jsr _ship_name
+        jsr _say
+        lda #<s_elim
+        ldx #>s_elim
+        jsr _say
+        ldx _level              ; ships 3, 5-8: "all" on the last line
+        lda #%11110100          ; (bit level - 1)
+:       lsr a
+        dex
+        bne :-
         lda #0
+        rol a
+        pha
+        bne :+
+        lda #<s_all
+        ldx #>s_all
+        jsr _say
+:       lda #20
+        sta _x_row
+        lda #9
+        sta _x_col
+        pla
+        tay
+        lda #<(s_l5 + 4)
+        ldx #>(s_l5 + 4)
+        cpy #0
+        beq :+
+        lda #<s_l5
+        ldx #>s_l5
+:       jsr _say
+        lda TED_SCROLLY         ; (fire on the logo)
+        and #$10
+        bne :+
+        lda #1
+        jsr picture_on
+:       lda #175 - 65
+        jsr fire_in
+:       lda _keys_irq
+        and #K_FIRE
+        beq :+
+        jsr _wait_tick
+        jmp :-
+:       rts
+
+; ship_pages(): a ship cleared, as the original's ($1272, $3816): 2000
+; points to count on, the next ship (no further than the 8th: $67); the
+; player's unit on the purple and the congratulations in green, three and
+; a half seconds, the points counted meanwhile (one each two pictures, as
+; there); then the next ship's start page
+_ship_pages:
+        ldx #10
+:       lda #200
+        jsr points
+        dex
+        bne :-
+        lda #SFX_COMPLETE
+        jsr _sound
+        lda _level
+        cmp #8
+        bcs :+
+        inc _level
+:
+        lda _pal_deck+4
+        sta _col_border
+        jsr _panel_frame
+        lda _pal_mc+5
+        ldx #3
+        ldy #7
+        jsr unit_page
+        lda #88
+        sta nn
+@wait:  lda _frames
+        clc
+        adc #2
+:       cmp _frames
+        bne :-
+        jsr _count_on
+        lda _score_changed
+        beq :+
+        jsr _panel_score
+:       dec nn
+        bne @wait
+:       lda _keys_irq           ; (fire let go first)
+        and #K_FIRE
+        bne :+
+        jmp start_page
+:       jsr _wait_tick
+        jmp :--
+
+; unit_page(A, X, Y): the player's unit, "Unit type 476 - Maintenance
+; robot" and lines X to Y of lines_*, in colour A
+unit_page:
+        sta ii
+        stx cc
+        sty rr2
+:       lda _ready
+        bne :-
+        jsr _eng_plain
+        lda _pal_deck+1
+        sta _col_deck
+        lda _d_type
         jsr pusha
         lda #12
         jsr pusha
         lda #2
         jsr _picture
-        lda _pal_mc+4
+        lda ii
         sta _x_attr
         lda #10
         sta _x_row
@@ -1293,10 +1408,27 @@ start_page:
         lda #<s_unit
         ldx #>s_unit
         jsr _say
-        lda #0
+        ldx _d_type             ; its number: class and two digits
+        lda _dr_class,x
+        ora #$30
+        sta num
+        lda _dr_num,x
+        ldx #$30
+:       cmp #10
+        bcc :+
+        sbc #10
+        inx
+        bne :-
+:       stx num+1
+        ora #$30
+        sta num+2
+        lda #<num
+        ldx #>num
+        jsr _say
+        lda _d_type
         jsr _unit_name
         jsr _say
-        ldx #0
+        ldx cc
 @line:  lda lines_row,x
         sta _x_row
         lda lines_col,x
@@ -1313,21 +1445,9 @@ start_page:
         pla
         tax
         inx
-        cpx #5
+        cpx rr2
         bne @line
-        lda TED_SCROLLY         ; (fire on the logo)
-        and #$10
-        bne :+
-        lda #1
-        jsr picture_on
-:       lda #175 - 65
-        jsr fire_in
-:       lda _keys_irq
-        and #K_FIRE
-        beq :+
-        jsr _wait_tick
-        jmp :-
-:       rts
+        rts
 
 ; title_run(): the title's rounds, until fire is pressed and let go
 _title_run:
@@ -1411,4 +1531,8 @@ _title_run:
         jsr _wait_tick
         jmp @out
 :       jsr _mus_stop
+        lda #1                  ; (a game starts in 001, on the first ship)
+        sta _level
+        lda #0
+        sta _d_type
         jmp start_page          ; (before the overlay's memory goes)

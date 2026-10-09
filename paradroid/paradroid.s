@@ -31,7 +31,7 @@
 
         .export _main, _wait_tick, _page_end, _mc_font
         .export _ticks, _late, _top_score, _low_score, _initials, last
-        .export s_colour, s_bw
+        .export s_colour, s_bw, _count_on, _ship_name
         .forceimport __STARTUP__        ; (cc65's start-up: main() is here)
 
         .import _frames, _ready, _keys_irq, _tick, _font_hi, _col_deck, _col_fig2
@@ -40,6 +40,7 @@
         .import _deck_colours, _deck_cleared, _ship_cleared, _new_ship, _rnd
         .import _lift_here, _player_spot, _lift_deck, _lift_bx, _lift_by
         .import _transfer_game, _ride_lift, _console_run, _title_run, _title_scores
+        .import _ship_pages
         .import _take_over, _transfer_lost, _burnt_out, _sound
         .import _panel_status, _panel_score, _win_clear, _picture, _say
         .import _sfx_tick, _move_player, _move_droids, _doors, _fig_place
@@ -53,6 +54,7 @@
         .import _d_x, _d_y, _d_vx, _d_vy, _d_type, _d_energy, _d_boom
         .import _deck, _level, _score, _alert, _alert_acc, _player_dead, _burn
         .import _transfer_mode, _touched, _score_changed, _flash, _deck_bg
+        .import _score_pend, points
         .import _hide_player, _wp_first, _wp_x, _wp_y, _pal_deck, _anim_s
         .import _roll, _pic_late, _pic_until, _x_attr, _x_row, _x_col
         .import pusha
@@ -97,7 +99,6 @@ s_cheese:   .byte "Cheese", 0
 s_colour:   .byte "Colour", 0
 s_bw:       .byte "Blk-White", 0
 s_continue: .byte "Continue", 0
-s_fleet:    .byte "Fleet", 0
 s_cleared:  .byte "Cleared", 0
 s_gameover: .byte "Game over", 0
         .segment "SFXCODE"      ; (run at $FC00 on, after the effects'
@@ -319,23 +320,25 @@ new_game:
         lda #1
         sta _level
         lda #0
-        ldx #3
+        ldx #4                  ; (and the points to count on)
 :       sta _score,x
         dex
         bpl :-
         sta _alert
         sta _player_dead
-        jsr _new_ship
-        lda #0
         sta _d_type
+; board(): a new ship boarded, as a game starts: the player on a deck
+; between 4 and 7 as the original's, on its first waypoint (the droids on
+; the ones after)
+board:  jsr _new_ship
         lda #64
         sta _d_energy
         sta _burn
         lda #0
         sta _alert_acc
-        jsr _rnd                ; a deck between 4 and 7, as the original
-        and #3                  ; starts, on its first waypoint (the
-        clc                     ; droids start on the ones after)
+        jsr _rnd
+        and #3
+        clc
         adc #4
         sta en_d
         lda #0
@@ -370,27 +373,57 @@ new_game:
         sta _d_y+1
         jmp _panel_score
 
-; the ship is clear: on to the next of the fleet, droids a class higher
-next_ship:
-        lda _level              ; (no more than 8, as the original's $67)
-        cmp #8
-        bcs :+
-        inc _level
-:
-        jsr _new_ship
-        lda #50
-        sta cnt
-:       jsr _wait_tick
-        dec cnt
-        bne :-
-        lda #0
-        sta lights_out
-        jsr _spawn_droids
-        jsr _pictures_deck
-        jsr _deck_colours
+; ship_end(): the ship cleared, as the original's ($1272): its two pages
+; (title.s), the next ship of the fleet boarded as a game starts - its
+; droids a class up, as far as 8 ($67) - the player in the droid it is in
+ship_end:
+        inc _hide_player
+        jsr title_ovl
+        jsr _ship_pages
+        dec _hide_player
+        jsr _pictures_fixed
+        jsr board               ; (the page still up)
+; beam(): the deck shown, the player beamed in, as a game starts
+beam:   lda _deck_bg
+        jsr _page_end
+        jsr _beam_in            ; (sfxcall.s)
+        lda _frames
+        sta last
         lda #<s_mobile
         ldx #>s_mobile
         jmp status
+
+; count_on(): one of the points to count on onto the score, as the
+; original's ($0A7D, once a tick)
+_count_on:
+        lda _score_pend
+        beq :+
+        dec _score_pend
+        inc _score_changed
+        lda #1
+        ldx #0
+        jmp add_score
+:       rts
+
+        .segment "HICODE"
+; ship_name(): A/X the name of the ship (level 1-8), the original's
+_ship_name:
+        ldx _level
+        lda name_at - 1,x
+        ldx #>names
+        rts
+names:
+n1:     .byte "Paradroid", 0
+n2:     .byte "Metahawk", 0
+n3:     .byte "Hewstromo", 0
+n4:     .byte "Graftgold", 0
+n5:     .byte "Blabgorius IV", 0
+n6:     .byte "Red Barchetta", 0
+n7:     .byte "Retta-beast", 0
+n8:     .byte "Itsnotardenuff", 0
+name_at:    .byte <n1, <n2, <n3, <n4, <n5, <n6, <n7, <n8
+        .assert >names = >n8, lderror, "ship names across a page"
+        .code
 
 ; pause(): the pause, as the original's ($3B7C): RUN/STOP, and all stands
 ; still and is quiet but the deck's turning characters and the droids'
@@ -555,7 +588,7 @@ play:   jsr play_init
         cmp #255
         beq @cons
         jsr lift
-        lda _deck
+@dark:  lda _deck
         jsr _deck_cleared
         sta lights_out
         jmp @again
@@ -593,6 +626,7 @@ play:   jsr play_init
         jsr transfer
         jsr play_init
 :       jsr _energy_tick
+        jsr _count_on
         lda _score_changed
         beq @flash
         jsr _panel_score
@@ -604,27 +638,21 @@ play:   jsr play_init
         beq @flash
         lda #1                  ; the deck cleared: 2 * 250, as the
         sta lights_out          ; original's ($17DC)
-        lda #<500
-        ldx #>500
-        jsr add_score
+        lda #250
+        jsr points
+        lda #250
+        jsr points
         jsr _deck_colours
         lda #SFX_CLEARED
         jsr _sound
-        jsr _ship_cleared
-        cmp #0
-        bne @fleet
         lda #<s_cleared
         ldx #>s_cleared
         jsr status
-        jmp @score
-@fleet: lda #<s_fleet           ; the ship too
-        ldx #>s_fleet
-        jsr status
-        lda #<2000
-        ldx #>2000
-        jsr add_score
-        jsr next_ship
-@score: jsr _panel_score
+        jsr _ship_cleared       ; the ship too: on to the next at once
+        cmp #0
+        beq @flash
+        jsr ship_end
+        jmp @dark
 @flash: lda #$71                ; the disruptor's flash
         ldx _flash
         bne :+
@@ -859,7 +887,7 @@ title:  lda #1
         lda over
         beq @first
         jsr terminated          ; (still up while the overlay is unpacked:
-        jsr @ovl                ; the day's scores and their initials are
+        jsr title_ovl           ; the day's scores and their initials are
         jsr _title_scores       ; taken there, over it, as the original's)
         lda cd
         jsr _page_end
@@ -872,14 +900,15 @@ title:  lda #1
         and #$EF
         sta $FF06
         cli
-        jsr @ovl
+        jsr title_ovl
 @run:   jsr _title_run
         lda #1
         sta over
         lda #0
         sta _hide_player
         jmp _pictures_fixed
-@ovl:   lda #<__OVL_START__     ; the title and the briefing (title.s), an
+title_ovl:
+        lda #<__OVL_START__     ; the title and the briefing (title.s), an
         sta _unp_dst            ; overlay kept packed, unpacked where the
         lda #>__OVL_START__     ; pictures' slots are: the title has no use
         sta _unp_dst+1          ; for them, they are made again for a game
@@ -898,15 +927,12 @@ _main:  jsr _eng_stack
         sta last
 @game:  jsr title
         jsr new_game            ; (the start page still up)
-        lda _deck_bg
-        jsr _page_end
-        jsr _beam_in            ; (sfxcall.s)
-        lda _frames
-        sta last
-        lda #<s_mobile
-        ldx #>s_mobile
-        jsr status
+        jsr beam
         jsr play
+        lda _score_pend         ; (all of them, for the day's scores)
+        ldx #0
+        stx _score_pend
+        jsr add_score
         lda #<s_gameover
         ldx #>s_gameover
         jsr status
