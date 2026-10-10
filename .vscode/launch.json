@@ -34,6 +34,17 @@
             "cwd": "${workspaceFolder}"
         },
         {
+            // Wie oben, nur in plus4emu (zeigt als einziger Emulator den
+            // "Schnee", den der echte TED beim Schreiben eines Farbregisters
+            // zeichnet). Nur fuer Programme mit run-plus4emu.sh (Paradroid,
+            // Stardew Pond).
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Plus/4: Aktive Datei bauen & in plus4emu starten",
+            "command": "PLUS4_EMU=plus4emu ${workspaceFolder}/.vscode/run-current.sh '${file}'",
+            "cwd": "${workspaceFolder}"
+        },
+        {
             // Paradroid zum Durchspielen: baut es (egal welche Datei aktiv
             // ist) und startet build/paradroid-god.prg - der Spieler ist
             // unsterblich - in Yape mit dem Gamepad (paradroid/run-yape.sh).

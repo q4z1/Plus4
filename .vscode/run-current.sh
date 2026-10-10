@@ -80,10 +80,21 @@ fi
 echo "Fertig: $OUT/$START.prg"
 
 # The emulator: VICE, or Yape with PLUS4_EMU=yape (the F5 configuration
-# "... in Yape"), whose TED is closer to the real chip. A program may bring
+# "... in Yape"), whose TED is closer to the real chip, or plus4emu with
+# PLUS4_EMU=plus4emu. A program may bring
 # its own run-yape.sh for that (Paradroid: the gamepad). Yape
 # looks for a relative file name in its own folder, so it gets the full
 # path; from VS Code's flatpak it is started on the host.
+if [ "$PLUS4_EMU" = plus4emu ]; then
+    # plus4emu (PLUS4_EMU=plus4emu): only for programs that bring a
+    # run-plus4emu.sh (Paradroid, Stardew Pond)
+    if [ -x "$DIR/run-plus4emu.sh" ]; then
+        echo "Starte ueber $DIR/run-plus4emu.sh ..."
+        exec "$DIR/run-plus4emu.sh" "$OUT/$START.prg"
+    fi
+    echo "Fehler: $NAME hat kein run-plus4emu.sh." >&2
+    exit 1
+fi
 if [ "$PLUS4_EMU" = yape ]; then
     if [ -x "$DIR/run-yape.sh" ]; then
         echo "Starte ueber $DIR/run-yape.sh ..."
