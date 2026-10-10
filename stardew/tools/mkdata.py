@@ -425,6 +425,7 @@ def read_rooms(tilesets):
         else:
             sys.exit(f'{path}:{i}: unknown line {line!r}')
     files = {}
+    starts = {}
     ids = {n: k for k, n in enumerate(order)}
     import forest
     import edges
@@ -472,7 +473,18 @@ def read_rooms(tilesets):
             else:
                 b[230 + k * 5] = 255
         files[n] = bytes(b)
-    return order, files
+        # where the test build's menu puts the farmer: the tile nearest the
+        # middle he can stand on (no wall, door or water); in the mine where
+        # the ladder lands, kept clear of rocks
+        if setname == 'mine' and not r['doors']:   # a floor, not the entrance
+            starts[n] = (9, 9)
+        else:
+            free = [(abs(x - 10) * 2 + abs(y - 5) * 3, x, y)
+                    for y in range(ROOM_H) for x in range(ROOM_W)
+                    if not tiles[torder[b[y * ROOM_W + x]]][2] & (FLAGS['solid'] | FLAGS['door'] | FLAGS['water'])
+                    and y < ROOM_H - 1]
+            starts[n] = min(free)[1:]
+    return order, files, starts
 
 
 # ---------------------------------------------------------------------------
@@ -659,7 +671,7 @@ def main():
         h.append(f'#define S_{cname(n)} {k}')
     h.append('')
 
-    rorder, rfiles = read_rooms(tilesets)
+    rorder, rfiles, rstarts = read_rooms(tilesets)
     h.append('/* rooms */')
     most = 0
     for k, n in enumerate(rorder):
@@ -667,6 +679,8 @@ def main():
         h.append(f'#define R_{cname(n)} {k}')
     h.append(f'#define N_ROOMS {len(rorder)}')
     h.append(f'#define ROOM_PACKED_MAX {most}')
+    h.append('#define ROOM_START_X { ' + ', '.join(str(rstarts[n][0]) for n in rorder) + ' }')
+    h.append('#define ROOM_START_Y { ' + ', '.join(str(rstarts[n][1]) for n in rorder) + ' }')
     h.append('')
     h.append('#endif')
     open(os.path.join(OUT, 'gen', 'data.h'), 'w').write('\n'.join(h) + '\n')

@@ -121,6 +121,7 @@ void show_room(void);
 void set_palette(void);
 unsigned int __fastcall__ load_file(const char *name, void *addr);
 void load_hud(void);
+void load_packed(const char *name, void *dst);
 unsigned char save_game(void);
 unsigned char load_game(void);
 
@@ -229,6 +230,13 @@ unsigned char fire_pressed(void);
 void wait_fire(void);
 unsigned char read_keys(void);
 extern unsigned char keys_now;
+extern unsigned char dbg_goto, dbg_floor, dbg_x, dbg_y;   /* room + 1: go there */
+
+/* the test build (build/stardew-test.d64): build.sh sets test_build, the
+   menu is testmenu.c, loaded from disk */
+extern unsigned char test_build, test_god, test_kit;
+extern unsigned char fire_down;             /* engine.s: fire held, down pushed */
+void test_menu(void);
 void new_day(unsigned char passed_out);
 void sfx(unsigned char kind);
 
@@ -294,6 +302,8 @@ void menu_on(void);
 void menu_off(void);
 void clear_screen(void);
 void frame_box(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1);
+void put(unsigned char col, unsigned char row, unsigned char code, unsigned char c);
+unsigned char menu_key(void);
 void inventory_menu(void);
 void shop_menu(void);
 void smith_menu(void);

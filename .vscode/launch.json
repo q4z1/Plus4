@@ -45,6 +45,31 @@
             "cwd": "${workspaceFolder}"
         },
         {
+            // Stardew Pond zum Testen: baut es (egal welche Datei aktiv ist)
+            // und startet build/stardew-test.d64 - nach dem Start und mit
+            // Feuer+runter ein Menue, das in jeden Raum, jede Minenetage,
+            // jede Jahreszeit und Stunde fuehrt (Gottmodus, volle Ausruestung).
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Stardew: Testumgebung (VICE)",
+            "command": "PLUS4_PRG=stardew-test ${workspaceFolder}/.vscode/run-current.sh '${workspaceFolder}/stardew/build.sh'",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Stardew: Testumgebung (Yape)",
+            "command": "PLUS4_EMU=yape PLUS4_PRG=stardew-test ${workspaceFolder}/.vscode/run-current.sh '${workspaceFolder}/stardew/build.sh'",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Stardew: Testumgebung (plus4emu)",
+            "command": "PLUS4_EMU=plus4emu PLUS4_PRG=stardew-test ${workspaceFolder}/.vscode/run-current.sh '${workspaceFolder}/stardew/build.sh'",
+            "cwd": "${workspaceFolder}"
+        },
+        {
             // Paradroid zum Durchspielen: baut es (egal welche Datei aktiv
             // ist) und startet build/paradroid-god.prg - der Spieler ist
             // unsterblich - in Yape mit dem Gamepad (paradroid/run-yape.sh).

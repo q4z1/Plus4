@@ -193,12 +193,19 @@ static void load_room(unsigned char id)
     unpack(p);
 }
 
+/* A packed file unpacked to dst, through the pictures' screens: the
+   screen must be off and is drawn afresh after it. */
+void load_packed(const char *name, void *dst)
+{
+    must_load(name, SCRATCH);
+    unp_dst = dst;
+    unpack(SCRATCH);
+}
+
 /* The toolbar's characters, once at the start. */
 void load_hud(void)
 {
-    must_load("hud", SCRATCH);
-    unp_dst = (unsigned char *)0xE000;
-    unpack(SCRATCH);
+    load_packed("hud", (void *)0xE000);
 }
 
 static char tname[8] = "tiles0";

@@ -66,7 +66,7 @@ static void textw(unsigned char col, unsigned char row, const char *s, unsigned 
     }
 }
 
-static void put(unsigned char col, unsigned char row, unsigned char code, unsigned char c)
+void put(unsigned char col, unsigned char row, unsigned char code, unsigned char c)
 {
     static unsigned int o;
     o = cell(col, row);
@@ -486,7 +486,7 @@ void frame_box(unsigned char x0, unsigned char y0, unsigned char x1, unsigned ch
 
 /* one key at a time: arrows, fire, the menu key */
 /* one key at a time; a direction held down repeats after 0.4 s */
-static unsigned char menu_key(void)
+unsigned char menu_key(void)
 {
     static unsigned char k, rep;
     for (;;) {

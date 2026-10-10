@@ -123,6 +123,22 @@ void sfx(unsigned char kind)
 unsigned char keys_now;                     /* keys down at the last read_keys */
 
 unsigned char dbg_goto, dbg_floor, dbg_x, dbg_y;   /* room + 1: go there */
+
+/* The test build: build.sh sets this byte in the program it packs into
+   build/stardew-test.d64 (the labels stay those of the game). */
+unsigned char test_build = 0;
+unsigned char test_god, test_kit;
+
+/* its menu (testmenu.c), a file of its own: loaded over the map image */
+static void test_enter(void)
+{
+    eng_blank();
+    load_packed("testmenu", (void *)0xE800);
+    clear_screen();
+    menu = 1;
+    eng_unblank();
+    test_menu();
+}
 unsigned char dbg_loops;                    /* pictures drawn */
 
 /* keys that went down since the last call; engine.s reads them in the
@@ -637,6 +653,8 @@ void main(void)
     enter_room(R_HOUSE, 5, 4);
     if (k && !e)
         hud_msg("no saved game");
+    if (test_build)
+        test_enter();
 
     last = frames;
     while (!game_over) {
@@ -655,6 +673,17 @@ void main(void)
 
         e = read_keys();
         k = keys_now;
+        if (fire_down) {                    /* fire held, down: the test menu */
+            fire_down = 0;
+            if (test_build) {
+                test_enter();
+                continue;
+            }
+        }
+        if (test_god) {
+            G.energy = MAX_ENERGY;
+            G.hp = MAX_HP;
+        }
 
         /* slots: , and . or fire held with left/right (engine.s kpoll) */
         if (e & K_PREV) {

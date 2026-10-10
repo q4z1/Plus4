@@ -43,7 +43,7 @@
         .export _key_row, _joy
         .export _snd_time
         .export _pool_left, _eng_stack
-        .export _keys_irq, _eng_keys, _dbg_keys
+        .export _keys_irq, _eng_keys, _dbg_keys, _fire_down
         .export _music, _eng_sfx, _sfx_lo, _sfx_hi, _sfx_noise, _sfx_len
         .import _mus_v1, _mus_v2, _mus_s1, _mus_s2, _ton_lo, _ton_hi
         .importzp sp
@@ -160,6 +160,7 @@ _dbg_keys:  .res 1              ; keys as if pressed, set by the tests
 kprev:      .res 1
 knew:       .res 1              ; keys that went down in this poll
 fstate:     .res 1              ; fire: 0 up, 1 held alone, 2 held and used
+_fire_down: .res 1              ; fire held and down pushed (the test build)
 kj1:        .res 1
 kj2:        .res 1
 kr:         .res 1
@@ -1814,7 +1815,10 @@ kpoll:  ldx #$FF
         lda combo,x
         ora keys_hit
         sta keys_hit
-        lda #2
+        cpx #2                  ; down on its own: noted apart
+        bne :+
+        stx _fire_down
+:       lda #2
         sta fstate
         lda knew
         and #$F0

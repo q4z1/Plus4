@@ -375,6 +375,7 @@ shows half the pond moved.
 | [mine.c](mine.c) | floors, rocks, ores, monsters, the sword |
 | [engine.s](engine.s) | raster interrupt, the two pictures, figures, water, keyboard and joysticks |
 | [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what exomizer packed |
+| [testmenu.c](testmenu.c) | the test build's menu: go anywhere |
 | [game.h](game.h) | what the parts share |
 | [stardew.cfg](stardew.cfg) | the memory layout |
 | [data/](data/) | tiles, icons, figures and rooms as text |
@@ -407,6 +408,32 @@ it in Yape ([run-yape.sh](run-yape.sh)) or plus4emu
 `EXOMIZER`) and `c1541` from VICE for the disk (inside the Flatpak sandbox
 it is taken from the host). It looks for cc65 in
 `~/.local/share/cc65-vs64/bin`, or in `CC65_BIN`.
+
+## The test build
+
+`build.sh` also makes `build/stardew-test.d64`: the same program with one
+byte set (`test_build`, so its labels are the game's), and on its disk one
+file more, its menu ([testmenu.c](testmenu.c)). The menu comes up right
+after the start, and whenever fire is held and the stick pushed down:
+
+![The test build's menu](screenshots/testmenu.png)
+
+It goes to any room - both halves of the farm, the farmhouse, the
+village and the upper village, the store, the smithy, the mountain, the
+mine's entrance, the villagers' houses, or any floor of the mine (left and
+right choose 1-30) - at the season and hour chosen, and god mode keeps
+health and energy full. The first time it also fills the backpack: gold
+tools, seeds, sprinklers, salad, ore and bars of every metal, an
+amethyst, and 50,000 gold. Fire+up goes back where it was.
+
+There is no room left in memory for the menu, so it is not in the
+program: it is loaded from the disk, packed like every file, over the map
+image (`$E800`), which the room it goes to draws afresh.
+
+In VS Code: *Stardew: Testumgebung (VICE)*, *(Yape)* or *(plus4emu)* in
+*Run and Debug*, whichever file is active.
+[tests/p4emu_testbuild.py](tests/p4emu_testbuild.py) drives it in
+plus4emu.
 
 ## Tests
 
