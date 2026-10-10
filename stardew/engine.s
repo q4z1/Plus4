@@ -1241,8 +1241,10 @@ col_base:   .byte 16, COL1+16, COL2+16
 ; drawn - those further down cover those further up
 ; ===========================================================================
 
-; fig_add: the figure in fa_x, fa_y, fa_s (sprite), fa_f (mirrored), fa_c
-; (colour) into the list, behind every one whose feet are as high or higher
+; fig_add: the figure in fa_x, fa_y, fa_s (sprite), fa_f (1 mirrored, +$80
+; drawn first of all: the cursor - a cell has one colour of its own, and a
+; figure sharing one with the cursor keeps its), fa_c (colour) into the
+; list, behind every one whose feet are as high or higher
 _fig_add:
         ldx _nfig
         cpx #MAXFIG
@@ -1252,16 +1254,20 @@ _fig_add:
         lda _fa_y
         sta fg_y,x
         lda _fa_f
+        and #1
         sta fg_f,x
         lda _fa_c
         sta fg_c,x
         ldy _fa_s
         tya
         sta fg_s,x
+        lda #0
+        bit _fa_f
+        bmi :+
         lda _fa_y
         clc
         adc _spr_h,y
-        sta fg_key,x
+:       sta fg_key,x
         sta z_t
         ldy _nfig
 @i:     dey

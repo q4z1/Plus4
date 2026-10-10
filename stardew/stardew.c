@@ -51,6 +51,7 @@ static unsigned char fx_spr, fx_x, fx_y, fx_t;
 #define SPEED_X 8                           /* 16ths of a pixel per frame */
 #define SPEED_Y 16                          /* a line is half a pixel wide */
 #define PLAYER_COL 0x5E                     /* the shirt: blue           */
+#define CURSOR_COL 0x3A                     /* red, dark edge: on path and grass */
 #define TICK 250                            /* frames per ten minutes    */
 
 
@@ -191,7 +192,7 @@ static void draw(void)
     /* the cursor on the tile in front, when holding something to use */
     it = G.inv[sel];
     if (it && target_x < RW && target_y < RH && !use_t)
-        fig(target_x << 3, target_y << 4, S_CURSOR, 0, 0);
+        fig(target_x << 3, target_y << 4, S_CURSOR, FIG_BEHIND, CURSOR_COL);
     figs_draw();
 }
 

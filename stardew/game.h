@@ -214,6 +214,7 @@ extern unsigned char hurt;                  /* frames the farmer blinks */
 extern const signed char dir_dx[4], dir_dy[4];
 
 extern unsigned char fa_x, fa_y, fa_s, fa_f, fa_c, nfig;
+#define FIG_BEHIND 0x80                     /* fa_f: drawn before all others */
 void fig_add(void);                         /* engine.s */
 void figs_draw(void);
 #define fig(x, y, s, f, c) \
