@@ -270,18 +270,24 @@ void hud_slots(void)
     hud_status();
 }
 
+/* The toolbar's right half is written field by field, every character of
+   it, never cleared first: cleared and written again, it flickered when
+   the picture was shown in between (every blow in the mine). */
 void hud_clock(void)
 {
     static unsigned char h;
     if (menu || hud_msg_time)
         return;
-    fill(25, 23, 15, ' ', 0);
     if (floor_no) {
-        text(25, 23, "floor", C_YELLOW);
+        textw(25, 23, "floor", C_YELLOW, 6);
         num(31, 23, floor_no, 2, C_YELLOW);
+        put(33, 23, ' ', 0);
     } else {
-        text(25, 23, season_name[G.season], C_YELLOW);
+        textw(25, 23, season_name[G.season], C_YELLOW, 4);
         num2(29, 23, G.day + 1, C_YELLOW);
+        put(31, 23, ' ', 0);
+        put(32, 23, G.rain ? '*' : ' ', C_CYAN);
+        put(33, 23, ' ', 0);
     }
     h = G.hour;
     if (h >= 24)
@@ -289,8 +295,7 @@ void hud_clock(void)
     num2(34, 23, h, C_WHITE);
     put(36, 23, ':', C_WHITE);
     num2(37, 23, G.minute, C_WHITE);
-    if (G.rain && !floor_no)
-        put(32, 23, '*', C_CYAN);
+    put(39, 23, ' ', 0);
 }
 
 /* a bar of five characters for v of 100: 0..20 pixels */
@@ -315,15 +320,15 @@ void hud_status(void)
     static unsigned char s;
     if (menu)
         return;
-    fill(25, 24, 15, ' ', 0);
     s = G.inv[sel];
-    if (hud_msg_time == 0 && s) {
-        /* how many of the selected item */
-        if (!IS_TOOL(s))
-            num(25, 24, G.cnt[sel], 2, C_WHITE);
-        else if (s == IT_CAN)
-            num(25, 24, G.water, 2, C_CYAN);
-    }
+    /* how many of the selected item, or how full the can is */
+    if (hud_msg_time == 0 && s && !IS_TOOL(s))
+        num(25, 24, G.cnt[sel], 2, C_WHITE);
+    else if (hud_msg_time == 0 && s == IT_CAN)
+        num(25, 24, G.water, 2, C_CYAN);
+    else
+        fill(25, 24, 2, ' ', 0);
+    put(27, 24, ' ', 0);
     if (floor_no) {
         put(28, 24, H_HEART, C_RED);
         bar(29, 24, G.hp);
@@ -340,8 +345,7 @@ void hud_msg(const char *s)
 {
     if (menu)
         return;
-    fill(25, 23, 15, ' ', 0);
-    text(25, 23, s, C_WHITE);
+    textw(25, 23, s, C_WHITE, 15);
     hud_msg_time = 100;
 }
 

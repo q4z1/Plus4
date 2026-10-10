@@ -277,7 +277,9 @@ Menus are drawn with the screen dark and shown whole as soon as they wait
 for a key: drawing one in C takes a moment, and it used to be seen growing
 line by line. And a list is written over field by field, never cleared and
 written again, so moving the marker in the store no longer makes it
-flicker.
+flicker - nor do the toolbar's bars at every blow in the mine
+([tests/p4emu_hud.py](tests/p4emu_hud.py) compares its lines picture by
+picture).
 
 ### Where the time goes
 
@@ -382,7 +384,7 @@ shows half the pond moved.
 | [tests/run_tests.py](tests/run_tests.py) | plays the game in a headless VICE and checks it (see below) |
 | [tests/vice.py](tests/vice.py) | starts VICE without a window and talks to its monitor |
 | [tests/p4emu.py](tests/p4emu.py) | plus4emu inside the test, with a whole 1541 |
-| [tests/p4emu_snow.py](tests/p4emu_snow.py), [p4emu_speed.py](tests/p4emu_speed.py), [p4emu_profile.py](tests/p4emu_profile.py), [p4emu_shots.py](tests/p4emu_shots.py), [p4emu_readme.py](tests/p4emu_readme.py) | snow, pictures per second, where the time goes, pictures, the README's pictures |
+| [tests/p4emu_snow.py](tests/p4emu_snow.py), [p4emu_speed.py](tests/p4emu_speed.py), [p4emu_profile.py](tests/p4emu_profile.py), [p4emu_shots.py](tests/p4emu_shots.py), [p4emu_readme.py](tests/p4emu_readme.py), [p4emu_hud.py](tests/p4emu_hud.py) | snow, pictures per second, where the time goes, pictures, the README's pictures, a flickering toolbar |
 | [tests/yape.py](tests/yape.py), [yape_split.py](tests/yape_split.py) | Yape without a window; the toolbar's line in Yape, picture by picture |
 | [run.sh](run.sh), [run-yape.sh](run-yape.sh), [run-plus4emu.sh](run-plus4emu.sh) | start the disk in VICE, Yape, plus4emu |
 
