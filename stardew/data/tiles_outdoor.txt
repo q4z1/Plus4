@@ -6,6 +6,8 @@
 ; col= one colour for all four cells, top,bottom, or top-left,top-right,bottom-left,
 ; bottom-right. same=TILE: the characters of TILE with other colours.
 ; flags: solid, water, till (the hoe works here), soil, wet, door, use.
+; in=farm or in=village: only the farm's or only the village's tile set has
+; the tile's characters (tools/mkdata.py). Both number the tiles alike.
 
 tile GRASS col=green1 flags=till
 ........
@@ -79,12 +81,285 @@ oooooxoo
 oooooooo
 o#oooooo
 
+; The path where grass meets it: made by tools/edges.py. tools/mkdata.py
+; puts them in for every '=' of a room by the sides open to the grass.
+
+tile PATH_N col=yellow2
+...o....
+o.xooo.o
+oooooo#o
+oooooooo
+o#oooooo
+ooooxooo
+oooooooo
+oooo#ooo
+oooooooo
+oxoooooo
+oooooo#o
+oooooooo
+ooo#oooo
+oooooxoo
+oooooooo
+o#oooooo
+
+tile PATH_S col=yellow2
+oooooooo
+ooxooooo
+oooooo#o
+oooooooo
+o#oooooo
+ooooxooo
+oooooooo
+oooo#ooo
+oooooooo
+oxoooooo
+oooooo#o
+oooooooo
+ooo#oooo
+oooooxoo
+o.oooo.o
+....o...
+
+tile PATH_NS col=yellow2
+...o....
+o.xooo.o
+oooooo#o
+oooooooo
+o#oooooo
+ooooxooo
+oooooooo
+oooo#ooo
+oooooooo
+oxoooooo
+oooooo#o
+oooooooo
+ooo#oooo
+oooooxoo
+o.oooo.o
+....o...
+
+tile PATH_W col=yellow2
+.ooooooo
+.oxooooo
+oooooo#o
+.ooooooo
+..oooooo
+.oooxooo
+.ooooooo
+oooo#ooo
+.ooooooo
+.xoooooo
+..oooo#o
+.ooooooo
+ooo#oooo
+.ooooxoo
+.ooooooo
+.#oooooo
+
+tile PATH_NW col=yellow2
+...o....
+..xooo.o
+oooooo#o
+.ooooooo
+..oooooo
+.oooxooo
+.ooooooo
+oooo#ooo
+.ooooooo
+.xoooooo
+..oooo#o
+.ooooooo
+ooo#oooo
+.ooooxoo
+.ooooooo
+.#oooooo
+
+tile PATH_SW col=yellow2
+.ooooooo
+.oxooooo
+oooooo#o
+.ooooooo
+..oooooo
+.oooxooo
+.ooooooo
+oooo#ooo
+.ooooooo
+.xoooooo
+..oooo#o
+.ooooooo
+ooo#oooo
+.ooooxoo
+..oooo.o
+....o...
+
+tile PATH_NSW col=yellow2
+...o....
+..xooo.o
+oooooo#o
+.ooooooo
+..oooooo
+.oooxooo
+.ooooooo
+oooo#ooo
+.ooooooo
+.xoooooo
+..oooo#o
+.ooooooo
+ooo#oooo
+.ooooxoo
+..oooo.o
+....o...
+
+tile PATH_E col=yellow2
+ooooooo.
+ooxoooo.
+oooooo#.
+oooooooo
+o#ooooo.
+ooooxo..
+ooooooo.
+oooo#oo.
+oooooooo
+oxooooo.
+oooooo#.
+oooooo..
+ooo#ooo.
+oooooxoo
+ooooooo.
+o#ooooo.
+
+tile PATH_NE col=yellow2
+...o....
+o.xooo..
+oooooo#.
+oooooooo
+o#ooooo.
+ooooxo..
+ooooooo.
+oooo#oo.
+oooooooo
+oxooooo.
+oooooo#.
+oooooo..
+ooo#ooo.
+oooooxoo
+ooooooo.
+o#ooooo.
+
+tile PATH_SE col=yellow2
+ooooooo.
+ooxoooo.
+oooooo#.
+oooooooo
+o#ooooo.
+ooooxo..
+ooooooo.
+oooo#oo.
+oooooooo
+oxooooo.
+oooooo#.
+oooooo..
+ooo#ooo.
+oooooxoo
+o.oooo..
+....o...
+
+tile PATH_NSE col=yellow2
+...o....
+o.xooo..
+oooooo#.
+oooooooo
+o#ooooo.
+ooooxo..
+ooooooo.
+oooo#oo.
+oooooooo
+oxooooo.
+oooooo#.
+oooooo..
+ooo#ooo.
+oooooxoo
+o.oooo..
+....o...
+
+tile PATH_WE col=yellow2
+.oooooo.
+.oxoooo.
+oooooo#.
+.ooooooo
+..ooooo.
+.oooxo..
+.oooooo.
+oooo#oo.
+.ooooooo
+.xooooo.
+..oooo#.
+.ooooo..
+ooo#ooo.
+.ooooxoo
+.oooooo.
+.#ooooo.
+
+tile PATH_NWE col=yellow2
+...o....
+..xooo..
+oooooo#.
+.ooooooo
+..ooooo.
+.oooxo..
+.oooooo.
+oooo#oo.
+.ooooooo
+.xooooo.
+..oooo#.
+.ooooo..
+ooo#ooo.
+.ooooxoo
+.oooooo.
+.#ooooo.
+
+tile PATH_SWE col=yellow2
+.oooooo.
+.oxoooo.
+oooooo#.
+.ooooooo
+..ooooo.
+.oooxo..
+.oooooo.
+oooo#oo.
+.ooooooo
+.xooooo.
+..oooo#.
+.ooooo..
+ooo#ooo.
+.ooooxoo
+..oooo..
+....o...
+
+tile PATH_NSWE col=yellow2
+...o....
+..xooo..
+oooooo#.
+.ooooooo
+..ooooo.
+.oooxo..
+.oooooo.
+oooo#oo.
+.ooooooo
+.xooooo.
+..oooo#.
+.ooooo..
+ooo#ooo.
+.ooooxoo
+..oooo..
+....o...
+
 ; Farm soil. Dry soil is light brown with dark furrows, wet soil is dark:
 ; both in the colours shared by the whole screen, so a figure standing on
 ; it can have the colour cell to itself (see engine.s). A wet tile is always
 ; the dry one plus one.
 
-tile SOIL col=red3 flags=soil
+tile SOIL col=red3 flags=soil in=farm
 .oooooo.
 oooooooo
 oxxooxxo
@@ -101,7 +376,7 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile SOIL_WET col=red1 flags=soil,wet
+tile SOIL_WET col=red1 flags=soil,wet in=farm
 .xxxxxx.
 xxxxxxxx
 x##xx##x
@@ -119,7 +394,7 @@ xx##xx##
 xxxxxxxx
 .xxxxxx.
 
-tile SEED col=white6,red3 flags=soil
+tile SEED col=white6,red3 flags=soil in=farm
 .oooooo.
 oooooooo
 oxxooxxo
@@ -136,7 +411,7 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile SEED_WET col=white6,red1 flags=soil,wet
+tile SEED_WET col=white6,red1 flags=soil,wet in=farm
 .xxxxxx.
 xxxxxxxx
 xxxxxxxx
@@ -154,7 +429,7 @@ xx##xx##
 xxxxxxxx
 .xxxxxx.
 
-tile SPROUT col=green4,red3 flags=soil
+tile SPROUT col=green4,red3 flags=soil in=farm
 .oooooo.
 oooooooo
 oxxooxxo
@@ -171,7 +446,7 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile SPROUT_WET col=green4,red1 flags=soil,wet
+tile SPROUT_WET col=green4,red1 flags=soil,wet in=farm
 .xxxxxx.
 xxxxxxxx
 xxxxxxxx
@@ -189,7 +464,7 @@ xx##xx##
 xxxxxxxx
 .xxxxxx.
 
-tile YOUNG col=green4,red3 flags=soil
+tile YOUNG col=green4,red3 flags=soil in=farm
 .oo##oo.
 o#o##o#o
 o##oo##o
@@ -206,7 +481,7 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile YOUNG_WET col=green4,red1 flags=soil,wet
+tile YOUNG_WET col=green4,red1 flags=soil,wet in=farm
 .xx##xx.
 x#x##x#x
 x##xx##x
@@ -226,7 +501,7 @@ xxxxxxxx
 
 ; Ripe crops: the plant fills the top half; the soil below shows wet or dry.
 
-tile PARSNIP col=white6,red3 flags=soil
+tile PARSNIP col=white6,red3 flags=soil in=farm
 x..xx..x
 x.x..x.x
 .x.xx.x.
@@ -243,9 +518,9 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile PARSNIP_WET top=PARSNIP bottom=SOIL_WET flags=soil,wet
+tile PARSNIP_WET top=PARSNIP bottom=SOIL_WET flags=soil,wet in=farm
 
-tile CAULI col=white7,red3 flags=soil
+tile CAULI col=white7,red3 flags=soil in=farm
 xx....xx
 x.####.x
 .######.
@@ -262,9 +537,9 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile CAULI_WET top=CAULI bottom=SOIL_WET flags=soil,wet
+tile CAULI_WET top=CAULI bottom=SOIL_WET flags=soil,wet in=farm
 
-tile TOMATO col=red4,red3 flags=soil
+tile TOMATO col=red4,red3 flags=soil in=farm
 x..x..x.
 .x#x#x..
 x###x##x
@@ -281,9 +556,9 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile TOMATO_WET top=TOMATO bottom=SOIL_WET flags=soil,wet
+tile TOMATO_WET top=TOMATO bottom=SOIL_WET flags=soil,wet in=farm
 
-tile MELON col=green5,red3 flags=soil
+tile MELON col=green5,red3 flags=soil in=farm
 x......x
 ..x..x..
 .xx##xx.
@@ -300,9 +575,9 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile MELON_WET top=MELON bottom=SOIL_WET flags=soil,wet
+tile MELON_WET top=MELON bottom=SOIL_WET flags=soil,wet in=farm
 
-tile PUMPKIN col=yellow5,red3 flags=soil
+tile PUMPKIN col=yellow5,red3 flags=soil in=farm
 x...xx.x
 .x..x..x
 x..xx..x
@@ -319,9 +594,9 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile PUMPKIN_WET top=PUMPKIN bottom=SOIL_WET flags=soil,wet
+tile PUMPKIN_WET top=PUMPKIN bottom=SOIL_WET flags=soil,wet in=farm
 
-tile EGGPLANT col=purple3,red3 flags=soil
+tile EGGPLANT col=purple3,red3 flags=soil in=farm
 x..xx..x
 .x.xx.x.
 x..##..x
@@ -338,9 +613,9 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile EGGPLANT_WET top=EGGPLANT bottom=SOIL_WET flags=soil,wet
+tile EGGPLANT_WET top=EGGPLANT bottom=SOIL_WET flags=soil,wet in=farm
 
-tile DEAD col=red3 flags=soil
+tile DEAD col=red3 flags=soil in=farm
 .oooooo.
 oooxoooo
 ooxoxooo
@@ -357,7 +632,7 @@ oooooooo
 ooxxooxx
 oooooooo
 .oooooo.
-tile DEAD_WET top=DEAD bottom=SOIL_WET flags=soil,wet
+tile DEAD_WET top=DEAD bottom=SOIL_WET flags=soil,wet in=farm
 
 ; ---- things on the farm --------------------------------------------------
 
@@ -379,7 +654,299 @@ x####.#x
 .xooxox.
 ..x..x..
 
-tile STUMP col=green1 flags=solid
+; A wood: made by tools/forest.py, edited from there on. tools/mkdata.py
+; puts these in for every 'T' of a room that has other trees next to it,
+; by which sides are open to the grass; a tree on its own stays a TREE.
+
+tile FOREST_IN_00 col=green1 flags=solid
+##x#####
+##.#####
+#..x###x
+#...xxx.
+..##xxx.
+..###..#
+#####..#
+########
+####..##
+##x...##
+##x...##
+##x..###
+##x.####
+##..####
+#...###.
+#...##..
+
+tile FOREST_IN_01 col=green1 flags=solid
+x.###x..
+..###x..
+#####x.#
+#####x##
+xx###x##
+.###x.x#
+.#xx...#
+.#x...##
+##x..###
+##x...##
+##x#..##
+##x...##
+##x...#x
+##x..##.
+#xx.###.
+xxx#####
+
+tile FOREST_IN_10 col=green1 flags=solid
+#####.##
+####x.##
+x###x.##
+xxxx.##x
+.xxx####
+##x#####
+##x####.
+##.###..
+#..##...
+...##..#
+...#x..#
+x.##x.##
+x#######
+x####.##
+.###..##
+.##...#x
+
+tile FOREST_IN_11 col=green1 flags=solid
+.#x..##x
+###x###x
+###x###x
+###x###x
+###x###x
+##..##..
+#...##..
+x...#x..
+x.###x.#
+x.###x.#
+x..##x##
+...##x##
+...#xx##
+.###xxx#
+.####.x#
+#####x#x
+
+tile FOREST_N_00 col=green1 flags=solid
+........
+........
+........
+.##...x.
+#.##.xx#
+..###..#
+#####..#
+########
+####..##
+##x...##
+##x...##
+##x..###
+##x.####
+##..####
+#...###.
+#...##..
+
+tile FOREST_N_10 col=green1 flags=solid
+........
+........
+........
+.xx...#.
+#xxx.###
+##x#####
+##x####.
+##.###..
+#..##...
+...##..#
+...#x..#
+x.##x.##
+x#######
+x####.##
+.###..##
+.##...#x
+
+tile FOREST_S_00 col=green1 flags=solid
+##x#####
+##.#####
+#..x###x
+#...xxx.
+..##xxx.
+..###..#
+#####..#
+########
+#xx#..x#
+xxox.xxx
+x.oxxx.x
+..oxx...
+..ox....
+..ox....
+..ox....
+..xx....
+
+tile FOREST_S_10 col=green1 flags=solid
+#####.##
+####x.##
+x###x.##
+xxxx.##x
+.xxx####
+##x#####
+##x####.
+##.###..
+#xx##.x.
+xxxx#xxx
+x..xxoxx
+....xox.
+.....ox.
+.....ox.
+.....ox.
+.....xx.
+
+tile FOREST_W_00 col=green1 flags=solid
+..x#####
+.#.#####
+.#.x###x
+.#..xxx.
+..##xxx.
+..###..#
+..###..#
+.#######
+.###..##
+.#x...##
+.#x...##
+..x..###
+..x.####
+..#.####
+.#..###.
+..#.##..
+
+tile FOREST_W_01 col=green1 flags=solid
+..###x..
+.####x..
+.####x.#
+.####x##
+..###x##
+..##x.x#
+..xx...#
+.#x...##
+.#x..###
+.#x...##
+.#x#..##
+..x...##
+..x...#x
+..x..##.
+.xx.###.
+..x#####
+
+tile FOREST_E_00 col=green1 flags=solid
+##x###x.
+##.###x.
+#..x#x..
+#...xx..
+..##xx..
+..###.x.
+#####.x.
+######x.
+####..x.
+##x..x..
+##x..x..
+##x..x..
+##x.##x.
+##..##x.
+#...##x.
+#...##x.
+
+tile FOREST_E_01 col=green1 flags=solid
+x.###xx.
+..###xx.
+#####x..
+#####x..
+xx###x..
+.###x.x.
+.#xx..x.
+.#x...x.
+##x..#x.
+##x..x..
+##x#.x..
+##x..x..
+##x...x.
+##x..#x.
+#xx.##x.
+xxx###x.
+
+tile FOREST_NW_00 col=green1 flags=solid
+........
+........
+........
+.##...x.
+..##.xx#
+..###..#
+..###..#
+.#######
+.###..##
+.#x...##
+.#x...##
+..x..###
+..x.####
+..#.####
+.#..###.
+..#.##..
+
+tile FOREST_NE_00 col=green1 flags=solid
+........
+........
+........
+.#x.....
+#.#x.x..
+..###.x.
+#####.x.
+######x.
+####..x.
+##x..x..
+##x..x..
+##x..x..
+##x.##x.
+##..##x.
+#...##x.
+#...##x.
+
+tile FOREST_SW_00 col=green1 flags=solid
+..x#####
+.#.#####
+.#.x###x
+.x..xxx.
+.x##xxx.
+..###..#
+..###..#
+.#######
+.xx#..x#
+.xox.xxx
+..oxxx.x
+..oxx...
+..ox....
+..ox....
+..ox....
+..xx....
+
+tile FOREST_SE_00 col=green1 flags=solid
+##x###x.
+##.###x.
+#..x#xx.
+#...xx..
+..##xx..
+..###.x.
+#####.x.
+######x.
+#xx#..x.
+xxox.xx.
+x.oxxx..
+..oxx...
+..ox....
+..ox....
+..ox....
+..xx....
+
+tile STUMP col=green1 flags=solid in=farm
 ........
 ........
 ..#.....
@@ -397,7 +964,7 @@ tile STUMP col=green1 flags=solid
 ..xxxx..
 ........
 
-tile BRANCH col=green1 flags=solid
+tile BRANCH col=green1 flags=solid in=farm
 ........
 ........
 ..#.....
@@ -505,7 +1072,7 @@ xxxxxxxx
 ######xx
 ########
 
-tile BIN col=red3,green1 flags=solid,use
+tile BIN col=red3,green1 flags=solid,use in=farm
 xxxxxxxx
 x######x
 x#xxxx#x
@@ -523,7 +1090,7 @@ xxxxxxxx
 ........
 ........
 
-tile SPRINKLER col=white5 flags=solid
+tile SPRINKLER col=white5 flags=solid in=farm
 ........
 ........
 .#......
@@ -742,7 +1309,7 @@ xoooooox
 xxxxxxxx
 ........
 
-tile SIGN_SHOP col=green5,green5,yellow5,yellow5 flags=solid,use
+tile SIGN_SHOP col=green5,green5,yellow5,yellow5 flags=solid,use in=village
 xxxxxxxx
 xoooooox
 xoo##oox
@@ -760,7 +1327,7 @@ ooxooxoo
 xxxxxxxx
 ........
 
-tile SIGN_SMITH col=white4 flags=solid,use
+tile SIGN_SMITH col=white4 flags=solid,use in=village
 xxxxxxxx
 xoooooox
 xo####ox
@@ -779,28 +1346,28 @@ xxxxxxxx
 ........
 
 ; roof colours of the other houses
-tile ROOF_L_B same=ROOF_L col=blue3
-tile ROOF_M_B same=ROOF_M col=blue3
-tile ROOF_R_B same=ROOF_R col=blue3
-tile EAVE_L_B same=EAVE_L col=blue3
-tile EAVE_M_B same=EAVE_M col=blue3
-tile EAVE_R_B same=EAVE_R col=blue3
-tile ROOF_L_P same=ROOF_L col=purple3
-tile ROOF_M_P same=ROOF_M col=purple3
-tile ROOF_R_P same=ROOF_R col=purple3
-tile EAVE_L_P same=EAVE_L col=purple3
-tile EAVE_M_P same=EAVE_M col=purple3
-tile EAVE_R_P same=EAVE_R col=purple3
-tile ROOF_L_G same=ROOF_L col=white2
-tile ROOF_M_G same=ROOF_M col=white2
-tile ROOF_R_G same=ROOF_R col=white2
-tile EAVE_L_G same=EAVE_L col=white2
-tile EAVE_M_G same=EAVE_M col=white2
-tile EAVE_R_G same=EAVE_R col=white2
+tile ROOF_L_B same=ROOF_L col=blue3 in=village
+tile ROOF_M_B same=ROOF_M col=blue3 in=village
+tile ROOF_R_B same=ROOF_R col=blue3 in=village
+tile EAVE_L_B same=EAVE_L col=blue3 in=village
+tile EAVE_M_B same=EAVE_M col=blue3 in=village
+tile EAVE_R_B same=EAVE_R col=blue3 in=village
+tile ROOF_L_P same=ROOF_L col=purple3 in=village
+tile ROOF_M_P same=ROOF_M col=purple3 in=village
+tile ROOF_R_P same=ROOF_R col=purple3 in=village
+tile EAVE_L_P same=EAVE_L col=purple3 in=village
+tile EAVE_M_P same=EAVE_M col=purple3 in=village
+tile EAVE_R_P same=EAVE_R col=purple3 in=village
+tile ROOF_L_G same=ROOF_L col=white2 in=village
+tile ROOF_M_G same=ROOF_M col=white2 in=village
+tile ROOF_R_G same=ROOF_R col=white2 in=village
+tile EAVE_L_G same=EAVE_L col=white2 in=village
+tile EAVE_M_G same=EAVE_M col=white2 in=village
+tile EAVE_R_G same=EAVE_R col=white2 in=village
 
 ; ---- village and mountain -----------------------------------------------
 
-tile BUSH col=green2 flags=solid
+tile BUSH col=green2 flags=solid in=village
 ........
 ..####..
 .##.###.
@@ -818,7 +1385,7 @@ x.####.x
 .xxxxxx.
 ........
 
-tile WELL col=white3,white3,white3,white3 flags=solid,water
+tile WELL col=white3,white3,white3,white3 flags=solid,water in=village
 ..xxxx..
 .xoooox.
 xo....ox
@@ -836,7 +1403,7 @@ x######x
 .xxxxxx.
 ........
 
-tile LAMP col=yellow7,green1 flags=solid
+tile LAMP col=yellow7,green1 flags=solid in=village
 ........
 ...xx...
 ..x##x..
@@ -854,7 +1421,7 @@ tile LAMP col=yellow7,green1 flags=solid
 .xxxxxx.
 ........
 
-tile BENCH col=green1 flags=solid
+tile BENCH col=green1 flags=solid in=village
 ........
 ........
 ........
@@ -872,7 +1439,7 @@ xxxxxxxx
 ........
 ........
 
-tile CLIFF col=white2 flags=solid
+tile CLIFF col=white2 flags=solid in=village
 x##x####
 ##x##x##
 #x####x#
@@ -890,7 +1457,7 @@ x#####x#
 #x#x#x##
 ##x###x#
 
-tile CLIFF_TOP col=white2 flags=solid
+tile CLIFF_TOP col=white2 flags=solid in=village
 ........
 .#......
 #.#.....
@@ -908,7 +1475,7 @@ x####x##
 #x#x##x#
 ##x##x##
 
-tile CAVE col=white2 flags=door
+tile CAVE col=white2 flags=door in=village
 x##x####
 ##xxxx##
 #xxxxxx#
@@ -926,7 +1493,7 @@ xoxxxxox
 xoxxxxox
 xoxxxxox
 
-tile BOARD col=white6,white6,green1,green1 flags=solid,use
+tile BOARD col=white6,white6,green1,green1 flags=solid,use in=village
 xxxxxxxx
 xoooooox
 xo####ox

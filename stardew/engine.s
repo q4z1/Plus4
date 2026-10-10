@@ -5,8 +5,16 @@
 ;
 ;   1. The raster interrupt. Two stops per picture: one inside the black
 ;      line between map and toolbar, where the toolbar gets its own
-;      character set and colours, and one below the picture, where a
+;      character set and colours, and one in the vertical blank, where a
 ;      finished picture is swapped in and the map's colours come back.
+;
+;      A real TED draws a pixel of colour $7F wherever one of its colour
+;      registers ($FF15-$FF19) is written while that colour is on the beam
+;      - even when the value is the same. So they are only ever written
+;      where nothing shows them: in the vertical blank (lines 251-268,
+;      not even the border is drawn), and the toolbar's in the black row,
+;      where every pixel is the cell's own black. The screen is switched
+;      on and off in the vertical blank too, never halfway down a picture.
 ;
 ;   2. Figures. The map is multicolour characters and does not change while
 ;      someone walks over it. Every figure is drawn into characters handed
@@ -24,6 +32,7 @@
         .macpack longbranch
 
         .export _eng_init, _eng_blank, _eng_unblank, _eng_fill, _eng_put
+        .export _eng_hide, _eng_show, _scr_hidden
         .export _eng_romfont, _eng_reset
         .export _r_begin, _r_fig, _r_done
         .export _frames, _back, _ready, _menu
@@ -39,6 +48,11 @@
         .import _mus_v1, _mus_v2, _mus_s1, _mus_s2, _ton_lo, _ton_hi
         .importzp sp
         .export _base_code, _base_attr
+        .export _fig_add, _figs_draw, _nfig
+        .export _water_n, _water_ab, _water_ph
+        .export _fa_x, _fa_y, _fa_s, _fa_f, _fa_c
+        .export _blocked_at, _bk_x, _bk_y
+        .import _spr_tab, _spr_h, _room, _mt_flag
 
 ; ---- TED ------------------------------------------------------------------
 
@@ -75,8 +89,9 @@ TILE_CHARS  = 176               ; codes 0..175 come from the tile set
 POOL        = TILE_CHARS        ; 176..255 are handed out per picture
 POOL_N      = 256 - POOL
 
-HUD_LINE    = 183               ; inside row 22, the black separator
-BOTTOM_LINE = 206               ; below the picture
+HUD_LINE    = 181               ; inside row 22 (lines 179-186), the black
+                                ; separator, past its DMA line
+VBL_LINE    = 251               ; vertical blank: lines 251-268 are not drawn
 
 ; ---- zero page ------------------------------------------------------------
 
@@ -120,8 +135,13 @@ cl_cur:     .res 1              ; cells noted so far in this picture
 z_scrhi:    .res 1              ; high bytes of the back buffer's codes,
 z_atthi:    .res 1              ; colours
 z_fonthi:   .res 1              ; and characters
-z_a0:       .res 3              ; pixels seen per column in this cell row
-z_h0:       .res 3              ; %11 pixels seen per column
+p_pf:       .res 2              ; the figure's pixel bits
+z_h2:       .res 1              ; its lines * 2
+z_s:        .res 1              ; its shift, 0..3 pixels
+z_xb:       .res 1              ; CB index of the cell's line 0
+z_fresh:    .res 1              ; cell_get: 1 a fresh pool character
+z_sx:       .res 1              ; shift, +4 if mirrored: the column masks
+z_fi:       .res 1              ; figs_draw: the figure being drawn
 
 ; ---- ordinary memory ------------------------------------------------------
 
@@ -138,6 +158,8 @@ _keys_irq:  .res 1              ; keys down now (K_... in game.h)
 keys_hit:   .res 1              ; keys that went down since eng_keys
 _dbg_keys:  .res 1              ; keys as if pressed, set by the tests
 kprev:      .res 1
+knew:       .res 1              ; keys that went down in this poll
+fstate:     .res 1              ; fire: 0 up, 1 held alone, 2 held and used
 kj1:        .res 1
 kj2:        .res 1
 kr:         .res 1
@@ -156,6 +178,9 @@ _sfx_len:   .res 1              ; and how many frames
 m_t:        .res 1
 front:      .res 1
 phase:      .res 1
+scr_want:   .res 1              ; $80 the screen to go off, 1 on, in the blank
+                                ; $40 off, the interrupt going on (eng_hide)
+_scr_hidden: .res 1             ; eng_hide's: off till eng_show
 
 _f_x:       .res 1              ; multicolour pixel of the left edge, 0..152
 _f_y:       .res 1              ; display line of the top line, 0..175
@@ -168,24 +193,37 @@ _put_attr:  .res 1
 
 next_code:  .res 1
 cl_n:       .res 2
+
+; behind the game state at $0800 (stardew.cfg)
+        .segment "LOWBSS"
 cl_lo0:     .res POOL_N         ; cells handed a character, picture 0
 cl_hi0:     .res POOL_N
 cl_lo1:     .res POOL_N         ; the same, picture 1
 cl_hi1:     .res POOL_N
+MAXFIG = 10
+_fa_x:      .res 1              ; fig_add: the figure to add
+_fa_y:      .res 1
+_fa_s:      .res 1
+_fa_f:      .res 1
+_fa_c:      .res 1
+_nfig:      .res 1              ; figures in this picture
+fg_x:       .res MAXFIG
+fg_y:       .res MAXFIG
+fg_s:       .res MAXFIG
+fg_f:       .res MAXFIG
+fg_c:       .res MAXFIG
+fg_key:     .res MAXFIG         ; the line below its feet
+fg_ord:     .res MAXFIG         ; the figures by fg_key: drawn in this order
+_bk_x:      .res 1              ; blocked_at: the figure's top left
+_bk_y:      .res 1
+        .bss
 
 fpx:        .res 3              ; per column: bit k = pixels in cell row k
 f11:        .res 3              ; per column: bit k = %11 pixels in cell row k
-
-; Three columns of a figure, its lines in the middle and 8 lines of nothing
-; either side, so the eight lines of any cell it touches can be read
-; without looking where the figure ends.
-COLSZ = 48
-cd0:        .res COLSZ
-cd1:        .res COLSZ
-cd2:        .res COLSZ
-cn0:        .res COLSZ
-cn1:        .res COLSZ
-cn2:        .res COLSZ
+dirty:      .res 3              ; per column: CB bytes not clean below line 0
+_water_n:   .res 1              ; pairs of water characters (world.c)
+_water_ab:  .res 24             ; left, right, the lines that are all water
+_water_ph:  .res 2              ; where the ripples are in each character set
 
 ; The map as it is without figures: codes and colours, 22 rows of 40. On
 ; a boundary of $400, so an offset's high byte can be ORed in.
@@ -197,14 +235,26 @@ BASEA = _base_attr
 
         .segment "TABLES"
         .align 256
-shr_tab:    .res 4*256          ; [sub][b]: b shifted right by sub pixels
-shl_tab:    .res 4*256          ; [sub][b]: what falls out into the next byte
+; [sub][b] for sub 1..3 (r_fig does not shift by 0): b shifted right by
+; sub pixels, and what falls out of it into the next byte
+shr1:       .res 3*256
+shl1:       .res 3*256
+shr_tab = shr1 - 256
+shl_tab = shl1 - 256
 nmaskof:    .res 256            ; %00 for every pixel that is not %00, else %11
 revmc:      .res 256            ; the four pixels in reverse order
-has11:      .res 256            ; not 0 if a pixel is %11
+
+        .segment "HITABLES"
+; Three columns of a figure, a byte of pixels and its mask (inverted) for
+; every line, 8 lines of nothing above and below: the eight lines of any
+; cell it touches can be read without looking where the figure ends.
+COL1 = 80
+COL2 = 160
+CB:         .res 256
+code_hi:    .res 256            ; code * 8, high byte
+        .segment "TABLES"
 dark11:     .res 256            ; the byte with its %11 pixels made %01
 code_lo:    .res 256            ; code * 8
-code_hi:    .res 256
 
         .rodata
 row_lo:     .repeat 25, R
@@ -233,10 +283,6 @@ _eng_init:
         ; sub 0..3 multicolour pixels = 0, 2, 4, 6 bits
         ldx #0
 @sh:    txa
-        sta shr_tab,x           ; sub 0: as it is, nothing spills
-        lda #0
-        sta shl_tab,x
-        txa
         lsr a
         lsr a
         sta shr_tab+256,x
@@ -300,8 +346,6 @@ _eng_init:
         sta nmaskof,x
         lda z_m1
         sta revmc,x
-        lda z_m2
-        sta has11,x
         txa                     ; %11 -> %01: clear the high bit of each
         asl a                   ; pair whose low bit is set as well
         sta z_t
@@ -329,18 +373,19 @@ _eng_init:
         beq :+
         jmp @sh
 :
-        ; the lines around a figure's columns: nothing, and see-through
-        ldx #7
+        ; the figures' columns: nothing, and see-through
+        ldx #0
 @pad:   lda #0
-        sta cd0,x
-        sta cd1,x
-        sta cd2,x
+        sta CB,x
         lda #$FF
-        sta cn0,x
-        sta cn1,x
-        sta cn2,x
-        dex
-        bpl @pad
+        sta CB+1,x
+        inx
+        inx
+        bne @pad
+        lda #0
+        sta dirty
+        sta dirty+1
+        sta dirty+2
 
         lda #0
         sta cl_n
@@ -367,7 +412,7 @@ _eng_init:
 
 nmi:    rti
 
-; eng_stack: cc65's stack to $F800-$FCFF. The start-up code puts it right
+; eng_stack: cc65's stack to $FB00-$FCFF. The start-up code puts it right
 ; after the program's memory, which here is the character sets. Called
 ; first thing in main(), which has nothing on the stack that it needs.
 _eng_stack:
@@ -379,9 +424,18 @@ _eng_stack:
 
 ; eng_blank: the screen off and no interrupt at all - for the disk. The
 ; KERNAL runs with the ROM switched in and would take our interrupt with its
-; own handler, so there must not be one.
+; own handler, so there must not be one. If the interrupt runs, it switches
+; the screen off itself, in the vertical blank: no picture is cut off
+; halfway, and the border goes black where nobody sees it being written.
 _eng_blank:
-        sei
+        lda TED_IRQEN
+        and #$02
+        beq @off
+        lda #$80
+        sta scr_want
+:       bit scr_want            ; the interrupt clears it once done
+        bmi :-
+@off:   sei
         lda #0
         sta TED_IRQEN
         lda TED_IRQ
@@ -395,8 +449,8 @@ _eng_blank:
         cli
         rts
 
-; eng_unblank: the TED set up for the game, the picture on screen shown,
-; the interrupt running.
+; eng_unblank: the TED set up for the game, the interrupt running; the
+; picture on screen shown from the next vertical blank on, colours first.
 _eng_unblank:
         sei
         lda #$98                ; 256 characters, multicolour, 40 columns
@@ -407,18 +461,38 @@ _eng_unblank:
         ldx front
         lda att_hi,x
         sta TED_VMBASE
-        jsr pal_top
         lda #0
+        sta _scr_hidden
+        lda #1
         sta phase
-        lda #HUD_LINE
+        sta scr_want
+        lda #VBL_LINE
         sta TED_RCMP
         lda #$02                ; raster interrupt, compare bit 8 = 0
         sta TED_IRQEN
         lda TED_IRQ
         sta TED_IRQ
-        lda #$1B                ; text, display on, 25 rows, y scroll 3
-        sta TED_SCROLLY
         cli
+:       lda scr_want            ; till it is on
+        bne :-
+        rts
+
+; eng_hide: the screen dark from the next vertical blank on, the
+; interrupt (music, keys) going on; eng_show: on again.
+_eng_hide:
+        lda #1
+        sta _scr_hidden
+        lda #$40
+        sta scr_want
+:       lda scr_want
+        bne :-
+        rts
+
+_eng_show:
+        lda #0
+        sta _scr_hidden
+        lda #1
+        sta scr_want
         rts
 
 ; A cold start: the game has used all of the machine.
@@ -477,12 +551,24 @@ irq:    pha
         sta TED_CHBASE
 :       lda #1
         sta phase
-        lda #BOTTOM_LINE
+        lda #VBL_LINE
         sta TED_RCMP
         jmp @out
 
 @bottom:
-        lda _ready
+        ; the vertical blank: nothing drawn, any register may be written
+        bit scr_want
+        bpl :+
+        lda #0                  ; the screen off: black, no more interrupts
+        sta TED_BORDER
+        lda TED_SCROLLY
+        and #$EF
+        sta TED_SCROLLY
+        lda #0
+        sta TED_IRQEN
+        sta scr_want
+        jmp @out
+:       lda _ready
         beq @same
         lda _back
         sta front
@@ -496,6 +582,18 @@ irq:    pha
         sta _ready
 @same:  inc _frames
         jsr pal_top
+        lda scr_want
+        beq @on
+        cmp #$40
+        bne :+
+        lda TED_SCROLLY         ; eng_hide: off
+        and #$EF
+        bne :++
+:       lda #$1B                ; text, display on, 25 rows, y scroll 3
+:       sta TED_SCROLLY
+        lda #0
+        sta scr_want
+@on:
         jsr kpoll
         jsr mplay
         lda _snd_time
@@ -514,7 +612,8 @@ irq:    pha
         pla
         rti
 
-; the top of the picture: map characters and colours, or menu ones
+; the top of the picture: map characters and colours, or menu ones. Only
+; ever in the vertical blank (see the top of this file).
 pal_top:
         lda _menu
         bne @m
@@ -716,130 +815,286 @@ _r_done:
         rts
 
 ; r_fig: one figure into the back buffer.
-;   f_src  2 bytes per line, f_h lines; pixels %00 are see-through
+;   f_src  the figure (tools/mkdata.py): f_h lines of 2 bytes, then a byte
+;          per line with a bit per pixel that is not %00 (bit 7 the left
+;          one), then one with a bit per pixel that is %11
 ;   f_x    multicolour pixel of the left edge (0..152)
 ;   f_y    display line of the top line (0..175)
+;   f_h    lines, up to 24
 ;   f_flip 1: mirrored
 ;   f_col  colour cell for cells where the figure has %11 pixels (0: none)
 ; Figures are drawn in order; a later one covers an earlier one.
+;
+; First the figure's two bytes a line are shifted into place, three columns
+; of a character each, with a mask beside every byte (CB). Then every cell
+; of the screen the figure has pixels in gets a character of the pool: the
+; map character under the figure through the mask, and the figure in.
 _r_fig:
-        ; --- the three columns, shifted into place ------------------------
+        lda _f_h
+        asl a
+        sta z_h2                ; bytes of data: 2 a line
+        lda _f_src              ; the pixel bits after the data
+        clc
+        adc z_h2
+        sta p_pf
+        lda _f_src+1
+        adc #0
+        sta p_pf+1
         lda _f_x
         and #3
-        tax
+        sta z_s
+        ldx _f_flip
+        beq :+
+        ora #4
+:       sta z_sx
+        lda z_s
+        jeq @s0
+
+        ; --- shifted by 1-3 pixels: three columns ----------------------------
         clc
         adc #>shr_tab
-        sta p_shr+1
-        txa
-        clc
+        sta @r0+2
+        sta @r1+2
+        sta @r0f+2
+        sta @r1f+2
+        lda z_s
         adc #>shl_tab
-        sta p_shl+1
+        sta @l0+2
+        sta @l1+2
+        sta @l0f+2
+        sta @l1f+2
+        ldy #0
+        lda _f_flip
+        jne @pf
+@p:     lda (_f_src),y          ; the left byte
+        tax
+@l0:    lda shl_tab,x           ; what spills into column 1
+        sta CB+COL1+16,y
+@r0:    lda shr_tab,x           ; its own share: column 0
+        sta CB+16,y
+        tax
+        lda nmaskof,x
+        sta CB+17,y
+        iny
+        lda (_f_src),y          ; the right byte (Y odd now)
+        sta z_t
+        tax
+@l1:    lda shl_tab,x           ; what spills into column 2
+        sta CB+COL2+15,y
+        tax
+        lda nmaskof,x
+        sta CB+COL2+16,y
+        ldx z_t
+@r1:    lda shr_tab,x           ; and into column 1
+        ora CB+COL1+15,y
+        sta CB+COL1+15,y
+        tax
+        lda nmaskof,x
+        sta CB+COL1+16,y
+        iny
+        cpy z_h2
+        bne @p
+@p3:    ldx #2                  ; three columns written
+        jmp @tail
+
+        ; the same mirrored: the right byte reversed is the left one
+@pf:    iny
+        lda (_f_src),y
+        tax
+        lda revmc,x
+        tax
+@l0f:   lda shl_tab,x
+        sta CB+COL1+15,y
+@r0f:   lda shr_tab,x
+        sta CB+15,y
+        tax
+        lda nmaskof,x
+        sta CB+16,y
+        dey
+        lda (_f_src),y
+        tax
+        lda revmc,x
+        sta z_t
+        tax
+@l1f:   lda shl_tab,x
+        sta CB+COL2+16,y
+        tax
+        lda nmaskof,x
+        sta CB+COL2+17,y
+        ldx z_t
+@r1f:   lda shr_tab,x
+        ora CB+COL1+16,y
+        sta CB+COL1+16,y
+        tax
+        lda nmaskof,x
+        sta CB+COL1+17,y
+        iny
+        iny
+        cpy z_h2
+        bne @pf
+        beq @p3
+
+        ; --- not shifted: two columns, the bytes as they are ----------------
+@s0:    ldy #0
+        lda _f_flip
+        bne @qf
+@q:     lda (_f_src),y
+        sta CB+16,y
+        tax
+        lda nmaskof,x
+        sta CB+17,y
+        iny
+        lda (_f_src),y
+        sta CB+COL1+15,y
+        tax
+        lda nmaskof,x
+        sta CB+COL1+16,y
+        iny
+        cpy z_h2
+        bne @q
+@q2:    ldx #1
+        bne @tail
+@qf:    iny                     ; mirrored
+        lda (_f_src),y
+        tax
+        lda revmc,x
+        sta CB+15,y
+        tax
+        lda nmaskof,x
+        sta CB+16,y
+        dey
+        lda (_f_src),y
+        tax
+        lda revmc,x
+        sta CB+COL1+16,y
+        tax
+        lda nmaskof,x
+        sta CB+COL1+17,y
+        iny
+        iny
+        cpy z_h2
+        bne @qf
+        beq @q2
+
+        ; --- below the figure, 8 lines of nothing in every column written:
+        ; a cell is drawn whole, whatever of it the figure leaves out. What
+        ; was dirty before further down is cleared, the rest stays clean.
+@tail:  stx z_c
+@tc:    ldx z_c
+        lda dirty,x
+        cmp z_h2
+        bcc @tn                 ; nothing dirty below this figure
+        beq @tn
+        tay                     ; from the dirty end back down to the figure
+        lda col_base,x
+        sta @tz+1
+        ora #1
+        sta @tf+1
+@tl:    dey
+        dey
         lda #0
-        sta p_shr
-        sta p_shl
-        sta z_si
+@tz:    sta CB+16,y
+        lda #$FF
+@tf:    sta CB+17,y
+        cpy z_h2
+        bne @tl
+        ldx z_c
+@tn:    lda z_h2
+        sta dirty,x
+        dec z_c
+        bpl @tc
+
+        ; --- which cells: the pixel bits ORed over each cell row, then cut
+        ; into the three columns by the shift ---------------------------------
+        lda #0
         sta fpx
         sta fpx+1
         sta fpx+2
         sta f11
         sta f11+1
         sta f11+2
-        sta z_a0
-        sta z_a0+1
-        sta z_a0+2
-        sta z_h0
-        sta z_h0+1
-        sta z_h0+2
+        lda #1
+        sta z_rbit
         lda _f_y
         and #7
         sta z_ly0
-        sta z_lr
-        lda #1
-        sta z_rbit
-        ldx #0
-@line:  ldy z_si
-        lda (_f_src),y
-        sta z_b0
+        eor #7                  ; lines in the first cell row: 8 - ly0
+        clc
+        adc #1
+        sta z_t                 ; end of this row (line index)
+        ldy #0
+@row:   cpy _f_h
+        jcs @rowend
+        lda z_t
+        cmp _f_h
+        bcc :+
+        lda _f_h
+:       sta z_t
+        sty z_i
+        lda #0                  ; pixels in the row
+:       ora (p_pf),y
         iny
-        lda (_f_src),y
-        sta z_b1
-        iny
-        sty z_si
-        lda _f_flip
-        beq @nf
-        ldy z_b0
-        lda revmc,y
-        pha
-        ldy z_b1
-        lda revmc,y
-        sta z_b0
-        pla
-        sta z_b1
-@nf:    ; the pixels, shifted into three columns; a column's mask is read
-        ; off its own pixels, since %00 is exactly what is see-through
-        ldy z_b0
-        lda (p_shr),y
-        sta cd0+8,x
-        tay
-        ora z_a0
-        sta z_a0
-        lda nmaskof,y
-        sta cn0+8,x
-        lda has11,y
-        ora z_h0
-        sta z_h0
-        ldy z_b0
-        lda (p_shl),y
-        sta z_t
-        ldy z_b1
-        lda (p_shr),y
-        ora z_t
-        sta cd1+8,x
-        tay
-        ora z_a0+1
-        sta z_a0+1
-        lda nmaskof,y
-        sta cn1+8,x
-        lda has11,y
-        ora z_h0+1
-        sta z_h0+1
-        ldy z_b1
-        lda (p_shl),y
-        sta cd2+8,x
-        tay
-        ora z_a0+2
-        sta z_a0+2
-        lda nmaskof,y
-        sta cn2+8,x
-        lda has11,y
-        ora z_h0+2
-        sta z_h0+2
-        ; the next line; the next cell row every 8
-        inc z_lr
-        lda z_lr
-        cmp #8
-        bne :+
-        jsr fold
+        cpy z_t
+        bne :-
+        sta z_m0
+        lda p_pf                ; %11 pixels in the row: h further on
+        clc
+        adc _f_h
+        sta p_a
+        lda p_pf+1
+        adc #0
+        sta p_a+1
+        ldy z_i
         lda #0
-        sta z_lr
-        asl z_rbit
-:       inx
-        cpx _f_h
-        jne @line
-        jsr fold
-        ; 8 lines of nothing after the figure
-        ldy #8
-@tail:  lda #0
-        sta cd0+8,x
-        sta cd1+8,x
-        sta cd2+8,x
-        lda #$FF
-        sta cn0+8,x
-        sta cn1+8,x
-        sta cn2+8,x
-        inx
-        dey
-        bne @tail
+:       ora (p_a),y
+        iny
+        cpy z_t
+        bne :-
+        sta z_m1
+        ldx z_sx
+        lda z_m0
+        and colm0,x
+        beq :+
+        lda z_rbit
+        ora fpx
+        sta fpx
+:       lda z_m0
+        and colm1,x
+        beq :+
+        lda z_rbit
+        ora fpx+1
+        sta fpx+1
+:       lda z_m0
+        and colm2,x
+        beq :+
+        lda z_rbit
+        ora fpx+2
+        sta fpx+2
+:       lda z_m1
+        and colm0,x
+        beq :+
+        lda z_rbit
+        ora f11
+        sta f11
+:       lda z_m1
+        and colm1,x
+        beq :+
+        lda z_rbit
+        ora f11+1
+        sta f11+1
+:       lda z_m1
+        and colm2,x
+        beq :+
+        lda z_rbit
+        ora f11+2
+        sta f11+2
+:       asl z_rbit
+        lda z_t
+        clc
+        adc #8
+        sta z_t
+        jmp @row
+@rowend:
 
         ; --- the columns onto the screen, cell by cell ----------------------
         lda _f_y
@@ -865,29 +1120,17 @@ _r_fig:
         sta z_fp
         lda f11,x
         sta z_f11
-        ; column data from line -ly0: (p_d),y is the cell's line y
-        lda #8
+        ; the column's lines for the first cell: from line -ly0 on
+        lda z_ly0
+        asl a
+        eor #$FF
         sec
-        sbc z_ly0
-        clc
-        adc col_d_lo,x
-        sta p_d
-        lda col_d_hi,x
-        adc #0
-        sta p_d+1
-        lda #8
-        sec
-        sbc z_ly0
-        clc
-        adc col_n_lo,x
-        sta p_n
-        lda col_n_hi,x
-        adc #0
-        sta p_n+1
+        adc col_base,x          ; base - 2*ly0
+        sta z_xb
         lda z_row0
         sta z_row
 @cell:  lsr z_fp
-        jcc @skip
+        bcc @skip
         lda z_row
         cmp #MAP_ROWS
         jcs @nextc
@@ -899,31 +1142,17 @@ _r_fig:
         ; colour.
         lda z_f11
         lsr a
-        bcc @mask
+        bcc @plain
         lda _f_col
-        beq @mask
-        .repeat 8, L
-        ldy #L
-        lda (p_dst),y
-        tax
-        lda dark11,x
-        sta (p_dst),y
-        .endrepeat
-@mask:  ; mask and pixels into the character, all 8 lines
-        .repeat 8, L
-        ldy #L
-        lda (p_dst),y
-        and (p_n),y
-        ora (p_d),y
-        sta (p_dst),y
-        .endrepeat
-        ; the colour cell, where the figure has %11 pixels
-        lda z_f11
-        lsr a
-        bcc @skip
-        lda _f_col
-        beq @skip
-        lda z_oh
+        beq @plain
+        lda z_fresh
+        beq :+
+        jsr dark_copy           ; the map character, darkened
+        jmp :++
+:       jsr dark_here           ; a character that already has a figure
+:       ldx z_xb
+        jsr blend_here
+        lda z_oh                ; the colour cell
         ora z_atthi
         sta p_scr+1
         lda z_ol
@@ -931,22 +1160,21 @@ _r_fig:
         ldy #0
         lda _f_col
         sta (p_scr),y
+        jmp @skip
+@plain: ldx z_xb
+        lda z_fresh
+        beq :+
+        jsr blend_copy
+        jmp @skip
+:       jsr blend_here
 @skip:  lsr z_f11
         lda z_fp
         beq @nextc
         inc z_row
-        lda p_d
+        lda z_xb
         clc
-        adc #8
-        sta p_d
-        bcc :+
-        inc p_d+1
-:       lda p_n
-        clc
-        adc #8
-        sta p_n
-        jcc @cell
-        inc p_n+1
+        adc #16
+        sta z_xb
         jmp @cell
 @nextc: inc z_c
         lda z_c
@@ -954,36 +1182,288 @@ _r_fig:
         jcc @col
         rts
 
-; the cell row just finished: its bit into fpx and f11 where the columns
-; had pixels, and the accumulators cleared. Keeps X.
-fold:   ldy #2
-@f:     lda z_a0,y
-        beq @e
-        lda z_rbit
-        ora fpx,y
-        sta fpx,y
-        lda z_h0,y
-        beq @e
-        lda z_rbit
-        ora f11,y
-        sta f11,y
-@e:     lda #0
-        sta z_a0,y
-        sta z_h0,y
-        dey
-        bpl @f
+; The four ways a cell gets the figure; X is the column's line 0 of this
+; cell in CB, (p_dst) the character drawn into, (p_src) the map character.
+
+; the map character through the mask, the figure in: a fresh cell
+blend_copy:
+        .repeat 8, L
+        ldy #L
+        lda (p_src),y
+        and CB+2*L+1,x
+        ora CB+2*L,x
+        sta (p_dst),y
+        .endrepeat
         rts
 
-col_d_lo:   .byte <cd0, <cd1, <cd2
-col_d_hi:   .byte >cd0, >cd1, >cd2
-col_n_lo:   .byte <cn0, <cn1, <cn2
-col_n_hi:   .byte >cn0, >cn1, >cn2
+; the same in a character drawn into already
+blend_here:
+        .repeat 8, L
+        ldy #L
+        lda (p_dst),y
+        and CB+2*L+1,x
+        ora CB+2*L,x
+        sta (p_dst),y
+        .endrepeat
+        rts
+
+; the map character with its %11 made dark (%01)
+dark_copy:
+        .repeat 8, L
+        ldy #L
+        lda (p_src),y
+        tax
+        lda dark11,x
+        sta (p_dst),y
+        .endrepeat
+        rts
+
+dark_here:
+        .repeat 8, L
+        ldy #L
+        lda (p_dst),y
+        tax
+        lda dark11,x
+        sta (p_dst),y
+        .endrepeat
+        rts
+
+; the pixel bits of the columns: pixel p lands on p + shift; column 0 is
+; positions 0-3, column 1 4-7, column 2 8-11 (bit 7 = pixel 0). Mirrored,
+; pixel p lands on 7 - p + shift: the same bits reversed.
+colm0:      .byte $F0, $E0, $C0, $80,  $0F, $07, $03, $01
+colm1:      .byte $0F, $1E, $3C, $78,  $F0, $78, $3C, $1E
+colm2:      .byte $00, $01, $03, $07,  $00, $80, $C0, $E0
+col_base:   .byte 16, COL1+16, COL2+16
+
+; ===========================================================================
+; The figures of a picture: collected, sorted by where their feet are,
+; drawn - those further down cover those further up
+; ===========================================================================
+
+; fig_add: the figure in fa_x, fa_y, fa_s (sprite), fa_f (mirrored), fa_c
+; (colour) into the list, behind every one whose feet are as high or higher
+_fig_add:
+        ldx _nfig
+        cpx #MAXFIG
+        bcs @r
+        lda _fa_x
+        sta fg_x,x
+        lda _fa_y
+        sta fg_y,x
+        lda _fa_f
+        sta fg_f,x
+        lda _fa_c
+        sta fg_c,x
+        ldy _fa_s
+        tya
+        sta fg_s,x
+        lda _fa_y
+        clc
+        adc _spr_h,y
+        sta fg_key,x
+        sta z_t
+        ldy _nfig
+@i:     dey
+        bmi @put
+        ldx fg_ord,y
+        lda fg_key,x
+        cmp z_t
+        bcc @put
+        beq @put
+        txa                     ; further down: one on
+        sta fg_ord+1,y
+        jmp @i
+@put:   iny
+        lda _nfig
+        sta fg_ord,y
+        inc _nfig
+@r:     rts
+
+; figs_draw: the picture - the map back where figures were, the figures
+_figs_draw:
+        jsr water
+        jsr _r_begin
+        lda #0
+        sta z_fi
+@l:     ldy z_fi
+        cpy _nfig
+        bcs @done
+        ldx fg_ord,y
+        lda fg_x,x
+        sta _f_x
+        lda fg_y,x
+        sta _f_y
+        lda fg_f,x
+        sta _f_flip
+        lda fg_c,x
+        sta _f_col
+        ldy fg_s,x
+        lda _spr_h,y
+        sta _f_h
+        tya
+        asl a
+        tay
+        lda _spr_tab,y
+        sta _f_src
+        lda _spr_tab+1,y
+        sta _f_src+1
+        jsr _r_fig
+        inc z_fi
+        jmp @l
+@done:  jmp _r_done
+
+; water: the ripples on, one pixel every 8 frames. Only in the character
+; set of the picture being drawn - the one on screen is not touched, so
+; no picture shows half the water moved - and that one catches up when
+; it is next drawn into.
+water:
+        lda _water_n
+        beq @r
+        lda _frames
+        lsr a
+        lsr a
+        lsr a
+        and #7
+        sta z_s
+        ldx _back
+@step:  lda _water_ph,x
+        cmp z_s
+        beq @r
+        clc
+        adc #1
+        and #7
+        sta _water_ph,x
+        lda font_hi,x
+        sta z_fonthi
+        lda _water_n
+        sta z_lr
+        ldy #0                  ; every pair a pixel to the right, around
+@pair:  sty z_i
+        lda _water_ab+2,y       ; which lines: bit 7 line 7 .. bit 0 line 0
+        sta z_t
+        ldx _water_ab,y
+        lda code_lo,x
+        sta p_a
+        lda code_hi,x
+        ora z_fonthi
+        sta p_a+1
+        ldx _water_ab+1,y
+        lda code_lo,x
+        sta p_b
+        lda code_hi,x
+        ora z_fonthi
+        sta p_b+1
+        ldy #7
+@line:  asl z_t
+        bcc @skip               ; (grass in it: the shore's top)
+        lda (p_a),y
+        sta z_m0
+        lda (p_b),y
+        sta z_m1
+        lsr a                   ; the right byte's last bit round to the left
+        ror z_m0
+        ror z_m1
+        lsr a
+        ror z_m0
+        ror z_m1
+        lda z_m0
+        sta (p_a),y
+        lda z_m1
+        sta (p_b),y
+@skip:  dey
+        bpl @line
+        ldy z_i
+        iny
+        iny
+        iny
+        dec z_lr
+        bne @pair
+        ldx _back
+        jmp @step
+@r:     rts
+
+; blocked_at: 1 if a figure at bk_x, bk_y (top left, pixels and lines)
+; would stand on something solid. Its feet are a box 6 pixels wide and
+; 4 lines high at the bottom of its 16 lines; off the room is solid too.
+RW = 20
+RH = 11
+_blocked_at:
+        lda _bk_x
+        clc
+        adc #1
+        lsr a
+        lsr a
+        lsr a
+        sta z_m0                ; left column
+        lda _bk_x
+        clc
+        adc #6
+        lsr a
+        lsr a
+        lsr a
+        cmp #RW
+        bcs @yes
+        sta z_m1                ; right column
+        lda _bk_y
+        clc
+        adc #15
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        cmp #RH
+        bcs @yes
+        sta z_m2                ; bottom row
+        lda _bk_y
+        clc
+        adc #12
+        lsr a
+        lsr a
+        lsr a
+        lsr a                   ; top row
+        jsr @row
+        bne @yes
+        lda z_m2
+        cmp z_t
+        beq @no
+        jsr @row
+        bne @yes
+@no:    lda #0
+        tax
+        rts
+@yes:   lda #1
+        ldx #0
+        rts
+@row:   sta z_t                 ; row * 20: both corners' flags, solid?
+        asl a
+        asl a
+        sta z_i
+        asl a
+        asl a
+        clc
+        adc z_i
+        sta z_i
+        adc z_m0
+        tay
+        ldx _room,y
+        lda _mt_flag,x
+        sta z_lr
+        lda z_i
+        clc
+        adc z_m1
+        tay
+        ldx _room,y
+        lda _mt_flag,x
+        ora z_lr
+        and #1
+        rts
 
 ; cell_get: the character of cell (z_row, z_col) in the back buffer, for
 ; drawing into; p_dst points at its 8 bytes, z_ol/z_oh is the cell's
 ; offset. A cell still showing its map character is handed a character of
-; the pool with a copy of the map character in it. Carry set if the pool
-; is empty.
+; the pool (z_fresh = 1, p_src = the map character, to be drawn through
+; the mask); else z_fresh = 0. Carry set if the pool is empty.
 cell_get:
         ldx z_row
         lda row_lo,x
@@ -1023,11 +1503,8 @@ cell_get:
         lda code_hi,x
         ora z_fonthi
         sta p_dst+1
-        .repeat 8, L
-        ldy #L
-        lda (p_src),y
-        sta (p_dst),y
-        .endrepeat
+        lda #1
+        sta z_fresh
         clc
         rts
 @have:  tax
@@ -1036,6 +1513,8 @@ cell_get:
         lda code_hi,x
         ora z_fonthi
         sta p_dst+1
+        lda #0
+        sta z_fresh
         clc
         rts
 @none:  sec
@@ -1308,9 +1787,49 @@ kpoll:  ldx #$FF
         eor #$FF
         stx kprev
         and _keys_irq
+        and #$EF                ; fire: see below
+        sta knew
+        ; Everything is to be done with a joystick of one button. Fire on
+        ; its own counts when it is let go. Held, a direction makes it
+        ; something else: left and right the previous and next item, up the
+        ; backpack or out of a menu - and then it does not count as fire,
+        ; nor the direction as one.
+        lda _keys_irq
+        and #16
+        beq @fup
+        lda fstate
+        bne :+
+        lda #1                  ; fire pressed: on its own so far
+        sta fstate
+:       lda knew
+        and #$0F
+        beq @add
+        tax
+        lda combo,x
+        ora keys_hit
+        sta keys_hit
+        lda #2
+        sta fstate
+        lda knew
+        and #$F0
+        sta knew
+        jmp @add
+@fup:   lda fstate              ; fire let go: was it on its own?
+        cmp #1
+        bne :+
+        lda #16
+        ora keys_hit
+        sta keys_hit
+:       lda #0
+        sta fstate
+@add:   lda knew
         ora keys_hit
         sta keys_hit
         rts
+
+; fire held and a direction pressed (up 1, down 2, left 4, right 8): left
+; is previous, right next, up the menu key
+combo:  .byte 0, 128, 0, 128, 32, 32, 32, 32, 64, 64, 64, 64, 32, 32, 32, 32
 
 ; a row of the matrix (A), read twice: the first read is the value written
 krow:   sta KEY_ROW

@@ -230,27 +230,28 @@ static void hurt_player(unsigned char k)
     hud_status();
 }
 
-/* a step of one pixel for a monster that respects the rock */
-static void mstep(unsigned char k, signed char dx, signed char dy)
+/* a step of monster ms_k by ms_dx, ms_dy that respects the rock (slimes)
+   - the arguments in statics, not on cc65's stack: it runs often */
+static unsigned char ms_k;
+static signed char ms_dx, ms_dy;
+
+static void mstep(void)
 {
     static unsigned char x, y;
-    x = mx[k] + dx;
-    y = my[k] + dy;
+    x = mx[ms_k] + ms_dx;
+    y = my[ms_k] + ms_dy;
     if (x > 152 || y > 160)
         return;
-    if (mk[k] == MK_SLIME && blocked(x, y))
+    if (mk[ms_k] == MK_SLIME && blocked(x, y))
         return;
-    mx[k] = x;
-    my[k] = y;
+    mx[ms_k] = x;
+    my[ms_k] = y;
 }
 
 void mine_update(unsigned char n)
 {
     static unsigned char k, s, r, ox, oy;
     static signed char dx, dy;
-    if (hurt) {
-        hurt = hurt > n ? hurt - n : 0;
-    }
     for (k = 0; k < nmon; ++k) {
         if (mflash[k])
             mflash[k] = mflash[k] > n ? mflash[k] - n : 0;
@@ -304,10 +305,15 @@ void mine_update(unsigned char n)
         r = s;                              /* steps this frame */
         ox = mx[k];
         oy = my[k];
+        ms_k = k;
         while (s--) {
-            mstep(k, dx, 0);
-            mstep(k, 0, dy);
-            mstep(k, 0, dy);
+            ms_dx = dx;
+            ms_dy = 0;
+            mstep();
+            ms_dx = 0;
+            ms_dy = dy;
+            mstep();
+            mstep();
         }
         if (mk[k] == MK_SLIME && r && ox == mx[k] && oy == my[k] && !mwand[k]) {
             r = rnd();
@@ -362,7 +368,10 @@ void mine_sword(unsigned char tx, unsigned char ty)
         sfx(SFX_HIT);
         mflash[k] = 12;
         /* knocked back */
-        mstep(k, dir_dx[pdir] << 2, dir_dy[pdir] << 3);
+        ms_k = k;
+        ms_dx = dir_dx[pdir] << 2;
+        ms_dy = dir_dy[pdir] << 3;
+        mstep();
         if (mhp[k] > d) {
             mhp[k] -= d;
             continue;

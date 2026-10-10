@@ -58,7 +58,8 @@ farmhouse on the morning of the first day of spring.
   ladder down is under one of the rocks. Slimes hop at you, bats flutter,
   and further down ghosts drift through the rock. The lift at the entrance
   goes to every fifth floor you have reached.
-- **Energy and time.** Every tool costs energy; food gives it back. A day
+- **Energy and time.** Every tool costs energy; food gives it back, and
+  your health with it - the only way to heal in the mine. A day
   runs from six in the morning to two at night, about ten minutes. Going to
   bed ends it and saves the game. Staying up until two, or being knocked out
   in the mine, costs a tenth of your money.
@@ -87,17 +88,22 @@ farmhouse on the morning of the first day of spring.
 
 **Controls**
 
-| | |
-| --- | --- |
-| Joystick in either port, or the cursor keys | walk |
-| Fire, `Space` or `Return` | use what is in your hand on the tile in front of you (marked by the white corners); talk; harvest; open a door or a shop |
-| `,` `.` | previous / next item in the toolbar |
-| Hold fire and push left or right | previous / next item, with the joystick alone |
-| `I` | the backpack: all 16 slots, moving items around, friendships. `I` or `Esc` also leaves every menu |
+Everything goes with a joystick of one button; the keyboard is not needed.
+
+| Joystick | Keys | |
+| --- | --- | --- |
+| push | cursor keys | walk; in menus, choose |
+| tap fire | `Space`, `Return` | use what is in your hand on the tile in front of you (marked by the white corners); talk; harvest; open a door or a shop; in menus, take what is chosen |
+| hold fire, push left or right | `,` `.` | previous / next item in the toolbar |
+| hold fire, push up | `I`, `Esc` | the backpack (all 16 slots, moving items around, friendships); in any menu: out of it |
+
+Fire counts when it is let go, and not if the stick was pushed while it
+was held. A question (*go to bed?*) is answered by pushing left or right to
+*yes* or *no* and fire.
 
 In the toolbar, the number left of the money is how many of the selected
-item you carry, or how full the watering can is. `E` is your energy; in the
-mine the heart shows your health instead of the money.
+item you carry, or how full the watering can is. The bar after `E` is your
+energy; in the mine the heart and its bar are your health.
 
 ![Otto's store](screenshots/store.png)
 ![The backpack](screenshots/backpack.png)
@@ -112,14 +118,21 @@ is different everywhere, and it has to remember the farm between sessions.
 
 ### Rooms from the disk
 
-The game runs from a `.d64`. The program is 31 KB; everything else is a
-file of its own on the disk and is loaded when it is needed:
+The game runs from a `.d64`. The program is 38 KB; everything else is a
+file of its own on the disk and is loaded when it is needed. Every file is
+packed by [exomizer](https://bitbucket.org/magli143/exomizer), the program
+as a whole too (it unpacks itself when it starts):
 
-| File | | |
-| --- | --- | --- |
-| `hud` | 2 KB | the toolbar's character set: icons, frames, hearts |
-| `tiles0`..`tiles2` | 0.5–2 KB | tile sets: outside, inside, mine |
-| `room00`..`room13` | 250 bytes | one room each: 20 × 11 tiles, colours, exits, doors |
+| File | unpacked | on the disk | |
+| --- | --- | --- | --- |
+| `stardew` | 38 KB | 19 KB | the program |
+| `hud` | 2 KB | 0.5 KB | the toolbar's character set: letters, icons, frames |
+| `tiles0`..`tiles3` | 0.6–2.4 KB | 0.4–1.2 KB | tile sets: the farm, inside, the mine, the village |
+| `room00`..`room13` | 250 bytes | 70–130 bytes | one room each: 20 × 11 tiles, colours, exits, doors |
+
+On a real 1541 the KERNAL loads about 400 bytes a second, so the packing
+roughly halves every wait: `LOAD` took the program 88 seconds and now 50
+(measured in plus4emu, which emulates the whole drive).
 
 A room is one screen of 20 × 11 tiles. A tile is 2 × 2 multicolour
 characters, 8 × 16 pixels, and walking off the edge of a room or through a
@@ -136,8 +149,19 @@ The first versions of the files were too slow on a real 1541 — a tile set
 took six seconds, and going in and out of the farmhouse loads one each
 time. So the files hold only what is used: a tile set is only the
 characters it has and a table as long as its tiles, a room fits in a single
-disk block. And a tile set, once loaded, stays in memory. Rooms still come
-off the disk every time.
+disk block. And everything stays in memory once it has been loaded, packed
+as it came off the disk: the tile sets, and the rooms in a pool of 896
+bytes (they are 70–130 bytes each; when the pool is full it starts afresh).
+Going back into a room costs no disk at all, only the moment it takes to
+unpack it: the farm a second time comes up in 0.4 seconds instead of 3.8.
+[unpack.s](unpack.s) is exomizer's own decruncher
+([exodecrunch.s](exodecrunch.s)), as in Paradroid.
+
+The program is meant to grow, and the next room only needs a file. Four
+tile sets keep the characters apart: the farm and the village number the
+outdoor tiles alike - the game's `T_...` names hold in both - but each has
+only the characters of the tiles it uses (crops on the farm, roofs, signs
+and lamps in the village), so each has its own 176 to spend.
 
 ### Figures that are see-through
 
@@ -188,7 +212,28 @@ and hitting the gap between two lines exactly is not possible from an
 interrupt. So the switch happens inside a row that looks the same before
 and after: row 22 is one character code in a black colour cell, all its
 pixels `%11`, and that code is solid `%11` in both character sets. Whenever
-the writes land, the row stays black.
+the writes land, the row stays black. The interrupt comes two lines into
+the row, after its DMA line, so even Yape's TED, which leaves the
+processor less time than VICE's, is done long before the toolbar's first
+line.
+
+### No snow
+
+A real TED draws a pixel of colour `$7F`, a pale green, wherever one of its
+colour registers (`$FF15`-`$FF19`) is written while the beam draws that
+colour - even when the value written is the same. VICE and Yape do not
+show it; plus4emu does, and so does every Plus/4 on a television. The
+first version wrote the map's colours and the border every picture, in
+line 206, in the border below the picture: a dot of snow in the bottom
+border in every picture, reported on Plus/4 World.
+
+Now the colour registers are written only where nothing shows them: the
+map's colours, the border and the switch back from the toolbar in the
+vertical blank (lines 251-268, where not even the border is drawn), the
+toolbar's in its black row. The screen is switched on and off in the
+vertical blank too, never halfway down a picture.
+[tests/p4emu_snow.py](tests/p4emu_snow.py) counts snow in every picture on
+the title, in the house, on the farm, in the village and in the mine.
 
 Menus — the store, the smith, the backpack, the title — show the toolbar's
 character set on the whole screen.
@@ -223,21 +268,49 @@ and notes every key that goes down. The game collects those notes when it
 gets round to it. Before, it read the keys itself, and a short tap while it
 was busy - drawing a menu takes a moment in C - was simply never seen.
 
+The same place turns one button into four: fire on its own is noted when
+it is let go, and a direction pushed while fire is held is noted as the
+previous or next item or the menu key instead - and then neither the fire
+nor the direction counts. The game and every menu just see keys.
+
+Menus are drawn with the screen dark and shown whole as soon as they wait
+for a key: drawing one in C takes a moment, and it used to be seen growing
+line by line. And a list is written over field by field, never cleared and
+written again, so moving the marker in the store no longer makes it
+flicker.
+
 ### Where the time goes
 
-Measured in VICE, pictures per second (the screen shows 50):
+Measured in plus4emu ([tests/p4emu_speed.py](tests/p4emu_speed.py)),
+pictures per second (the screen shows 50), walking about:
 
-| | |
-| --- | --- |
-| farmhouse, farm, village, standing or walking | 50 |
-| mine, floor 3: one monster | 25 |
-| mine, floor 13: three monsters | 25 |
-| mine, floor 23: four monsters | 16–19 (the floors are random) |
+| | before | now |
+| --- | --- | --- |
+| farmhouse, farm, village | 50 | 50 |
+| mine, floor 3: one monster | 25 | 50 |
+| mine, floor 13: three monsters | 21 | 28 |
+| mine, floor 23: four monsters | 16 | 24.5 |
 
-A figure costs roughly 4,500 cycles, about a quarter of what a picture
-leaves the program. Movement counts in frames, not in pictures, so the game
-runs at the same speed however many there are; fewer pictures only make
-the steps larger.
+Movement counts in frames, not in pictures, so the game runs at the same
+speed however many there are; fewer pictures only make the steps larger.
+
+A figure cost about 7,000 cycles, a third of what a picture leaves the
+program. [tests/p4emu_profile.py](tests/p4emu_profile.py) samples
+plus4emu's program counter every few microseconds and puts every sample
+down to its function: 70 % of the mine's time went into drawing figures,
+5 % into sorting them in C. What changed:
+
+- which cells a figure has pixels in, and `%11` pixels, comes from two
+  bytes per line that tools/mkdata.py works out (a bit per pixel), ORed
+  over a cell row and cut into columns by the shift - no longer gathered
+  pixel by pixel while shifting;
+- a figure is shifted with tables whose page is written into the code, in
+  one pass for all three columns; one that need not be shifted is copied;
+  a mirrored one is read mirrored, not first copied;
+- a fresh cell gets the map's character through the mask in one pass,
+  where it was copied, then darkened, then masked;
+- the figures' list, its sorting and the loop that draws them, and the
+  check whether feet stand on something solid, are assembler now.
 
 What made it faster, found with a sampling profiler over VICE's monitor:
 
@@ -270,6 +343,24 @@ tiles, and checks that a tile set stays within its 176 characters. With
 files, to look at without an emulator. The rooms are text as well, in
 [data/rooms.txt](data/rooms.txt), a character per tile.
 
+Some of the pictures were made by small programs and then pasted into the
+text, where they can be edited by hand:
+
+- [tools/forest.py](tools/forest.py): the wood around the farm and the
+  village - leaf clusters lit from the top left on a canvas that tiles
+  without a seam, in four variants, with edges towards the grass (trunks
+  and a shadow on the south side). The light in the leaves is the
+  background colour, so the wood turns orange in autumn and white in winter
+  with the grass. A room still says `T`; mkdata picks the tile by which
+  neighbours are trees.
+- [tools/edges.py](tools/edges.py): the path where grass meets it, a
+  ragged edge on the open sides - fifteen tiles, twelve characters.
+- [tools/logo.py](tools/logo.py): the title's letters.
+
+Water ripples: every eight frames the water's characters move a pixel,
+only in the character set of the picture being drawn, so no picture ever
+shows half the pond moved.
+
 ## Files
 
 | | |
@@ -280,31 +371,40 @@ files, to look at without an emulator. The rooms are text as well, in
 | [ui.c](ui.c) | toolbar, conversations, store, smith, lift, notice board, backpack, title |
 | [town.c](town.c) | the villagers |
 | [mine.c](mine.c) | floors, rocks, ores, monsters, the sword |
-| [engine.s](engine.s) | raster interrupt, the two pictures, figures, keyboard and joysticks |
+| [engine.s](engine.s) | raster interrupt, the two pictures, figures, water, keyboard and joysticks |
+| [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what exomizer packed |
 | [game.h](game.h) | what the parts share |
 | [stardew.cfg](stardew.cfg) | the memory layout |
 | [data/](data/) | tiles, icons, figures and rooms as text |
-| [tools/mkdata.py](tools/mkdata.py) | makes the disk files and `build/gen/` from `data/` |
+| [tools/mkdata.py](tools/mkdata.py) | makes the disk files (packed) and `build/gen/` from `data/` |
+| [tools/forest.py](tools/forest.py), [edges.py](tools/edges.py), [logo.py](tools/logo.py) | how the wood, the path's edges and the title's letters were made |
 | [build.sh](build.sh) | builds `build/stardew.prg` and `build/stardew.d64` |
 | [tests/run_tests.py](tests/run_tests.py) | plays the game in a headless VICE and checks it (see below) |
 | [tests/vice.py](tests/vice.py) | starts VICE without a window and talks to its monitor |
-| [run.sh](run.sh) | starts VICE with the disk |
+| [tests/p4emu.py](tests/p4emu.py) | plus4emu inside the test, with a whole 1541 |
+| [tests/p4emu_snow.py](tests/p4emu_snow.py), [p4emu_speed.py](tests/p4emu_speed.py), [p4emu_profile.py](tests/p4emu_profile.py), [p4emu_shots.py](tests/p4emu_shots.py), [p4emu_readme.py](tests/p4emu_readme.py) | snow, pictures per second, where the time goes, pictures, the README's pictures |
+| [tests/yape.py](tests/yape.py), [yape_split.py](tests/yape_split.py) | Yape without a window; the toolbar's line in Yape, picture by picture |
+| [run.sh](run.sh), [run-yape.sh](run-yape.sh), [run-plus4emu.sh](run-plus4emu.sh) | start the disk in VICE, Yape, plus4emu |
 
 ## Building and running
 
-From the repository root, with any of the `.c` files active, `F5` builds
-and starts it: the root's run script hands the build to
+From the repository root, with any of Stardew Pond's files active, `F5`
+builds and starts it: the root's run script hands the build to
 [build.sh](build.sh) and the start to [run.sh](run.sh), which boots the
-disk. Without an editor:
+disk in VICE. The configurations *... in Yape* and *... in plus4emu* (chosen
+at the top of *Run and Debug*; `F5` stays with the one chosen last) boot
+it in Yape ([run-yape.sh](run-yape.sh)) or plus4emu
+([run-plus4emu.sh](run-plus4emu.sh)). Without an editor:
 
 ```sh
 ./build.sh
 ~/.local/share/cc65-vs64/bin/xplus4 -autostart build/stardew.d64
 ```
 
-`build.sh` needs Python 3 for the data and `c1541` from VICE for the disk
-(inside the Flatpak sandbox it is taken from the host). It looks for cc65
-in `~/.local/share/cc65-vs64/bin`, or in `CC65_BIN`.
+`build.sh` needs Python 3 for the data, exomizer 3 (next to cc65, or
+`EXOMIZER`) and `c1541` from VICE for the disk (inside the Flatpak sandbox
+it is taken from the host). It looks for cc65 in
+`~/.local/share/cc65-vs64/bin`, or in `CC65_BIN`.
 
 ## Tests
 
@@ -322,8 +422,22 @@ jump into rooms (`dbg_goto`) instead of walking there. They cover farming
 and the night, shipping, the store and the smith, upgraded tools,
 sprinklers, the change of season, presents, the villagers' houses, the
 notice board, the mine and its lift, fainting, passing out at two, music,
-and a saved game coming back. VICE runs inside a headless gamescope, so no
-window appears. A failed test leaves a screenshot in `build/test/`.
+a saved game coming back, and the joystick alone. VICE runs inside a
+headless gamescope, so no window appears. A failed test leaves a
+screenshot in `build/test/`.
+
+Two more emulators check what VICE cannot: plus4emu, run inside the test
+through its library ([tests/p4emu.py](tests/p4emu.py), set up as in
+[Paradroid](../paradroid/README.md)), shows the TED's snow and emulates the
+whole 1541, so it also measures loading times; Yape's TED is the closest
+to the chip's timing:
+
+```sh
+tests/p4emu_snow.py           # snow in any picture, and how long the loads take
+tests/p4emu_speed.py          # pictures per second in the house, on the farm, in the mine
+tests/p4emu_profile.py MINE_A 23   # where the time goes on floor 23
+tests/yape_split.py           # the toolbar's line in Yape, picture by picture
+```
 
 The game saves to the disk it runs from. Rebuilding makes a new disk and
 with it an empty save.

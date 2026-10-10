@@ -51,6 +51,21 @@ void text_both(unsigned char col, unsigned char row, const char *s, unsigned cha
     text(col, row, s, c);
 }
 
+/* text in a field of w characters, the rest blank: written over whatever
+   was there in one go, never cleared first - a line that is cleared and
+   written again flickers if the picture is shown in between */
+static void textw(unsigned char col, unsigned char row, const char *s, unsigned char c,
+                  unsigned char w)
+{
+    static unsigned int o;
+    static const char *p;
+    o = cell(col, row);
+    for (p = s; w; --w, ++o) {
+        SCR0[o] = SCR1[o] = *p ? scode(*p++) : ' ';
+        ATT0[o] = ATT1[o] = c;
+    }
+}
+
 static void put(unsigned char col, unsigned char row, unsigned char code, unsigned char c)
 {
     static unsigned int o;
@@ -278,9 +293,26 @@ void hud_clock(void)
         put(32, 23, '*', C_CYAN);
 }
 
+/* a bar of five characters for v of 100: 0..20 pixels */
+static void bar(unsigned char col, unsigned char row, unsigned char v)
+{
+    static unsigned char k, px, c;
+    c = v > 50 ? C_BAR_G : v > 20 ? C_BAR_Y : C_BAR_R;
+    px = v / 5;
+    for (k = 0; k < 5; ++k, ++col) {
+        if (px >= 4) {
+            put(col, row, H_BAR4, c);
+            px -= 4;
+        } else {
+            put(col, row, H_BAR0 + px, c);
+            px = 0;
+        }
+    }
+}
+
 void hud_status(void)
 {
-    static unsigned char s, c;
+    static unsigned char s;
     if (menu)
         return;
     fill(25, 24, 15, ' ', 0);
@@ -294,14 +326,13 @@ void hud_status(void)
     }
     if (floor_no) {
         put(28, 24, H_HEART, C_RED);
-        num(29, 24, G.hp, 3, C_WHITE);
+        bar(29, 24, G.hp);
     } else {
         put(28, 24, '$', C_YELLOW);
         num(29, 24, G.money, 5, C_YELLOW);
     }
-    c = G.energy < 20 ? C_RED : C_GREEN;
-    put(35, 24, 'e' - 0x40, c);
-    num(36, 24, G.energy, 3, c);
+    put(34, 24, 'e' - 0x40, G.energy < 20 ? C_RED : C_GREEN);
+    bar(35, 24, G.energy);
 }
 
 /* a message in place of the clock, for two seconds */
@@ -372,20 +403,35 @@ void say(const char *who, const char *s)
     hud_all();
 }
 
-/* a question in the toolbar: fire says yes, I or Esc no */
+/* a question in the toolbar: yes or no, chosen with left and right (or
+   up and down) and fire; fire+up or I says no at once */
 unsigned char ask(const char *s)
 {
-    static unsigned char k;
+    static unsigned char k, yes;
     fill(0, 23, 40, ' ', 0);
     fill(0, 24, 40, ' ', 0);
     text(0, 23, s, C_WHITE);
-    text(0, 24, "fire: yes   i: no", C_GREY);
-    do {
-        wait_frames(1);
-        k = read_keys();
-    } while (!(k & (K_FIRE | K_MENU)));
+    yes = 1;
+    for (;;) {
+        put(1, 24, yes ? H_SEL_L : ' ', C_WHITE);
+        text(3, 24, "yes", yes ? C_YELLOW : C_GREY);
+        put(8, 24, yes ? ' ' : H_SEL_L, C_WHITE);
+        text(10, 24, "no", yes ? C_GREY : C_YELLOW);
+        do {
+            wait_frames(1);
+            k = read_keys();
+        } while (!k);
+        if (k & K_MENU) {
+            yes = 0;
+            break;
+        }
+        if (k & K_FIRE)
+            break;
+        if (k & 15)
+            yes ^= 1;
+    }
     hud_all();
-    return (k & K_FIRE) != 0;
+    return yes;
 }
 
 /* ----------------------------------------------------------------------
@@ -400,10 +446,14 @@ void clear_screen(void)
     memset(ATT1, C_WHITE, 1000);
 }
 
+/* A menu is drawn with the screen dark and shown whole when it waits
+   for the first key (read_keys): drawing it in C takes a moment, and it
+   would be seen growing line by line. */
 void menu_on(void)
 {
     while (ready)
         ;
+    eng_hide();
     clear_screen();
     menu = 1;
 }
@@ -418,15 +468,15 @@ void menu_off(void)
 void frame_box(unsigned char x0, unsigned char y0, unsigned char x1, unsigned char y1)
 {
     static unsigned char y;
-    put(x0, y0, H_FR_TL, C_GREY);
-    put(x1, y0, H_FR_TR, C_GREY);
-    put(x0, y1, H_FR_BL, C_GREY);
-    put(x1, y1, H_FR_BR, C_GREY);
-    fill(x0 + 1, y0, x1 - x0 - 1, H_FR_H, C_GREY);
-    fill(x0 + 1, y1, x1 - x0 - 1, H_FR_H, C_GREY);
+    put(x0, y0, H_FR_TL, C_FRAME);
+    put(x1, y0, H_FR_TR, C_FRAME);
+    put(x0, y1, H_FR_BL, C_FRAME);
+    put(x1, y1, H_FR_BR, C_FRAME);
+    fill(x0 + 1, y0, x1 - x0 - 1, H_FR_H, C_FRAME);
+    fill(x0 + 1, y1, x1 - x0 - 1, H_FR_H, C_FRAME);
     for (y = y0 + 1; y < y1; ++y) {
-        put(x0, y, H_FR_V, C_GREY);
-        put(x1, y, H_FR_V, C_GREY);
+        put(x0, y, H_FR_V, C_FRAME);
+        put(x1, y, H_FR_V, C_FRAME);
     }
 }
 
@@ -452,9 +502,10 @@ static unsigned char menu_key(void)
     }
 }
 
+/* a line inside the box of frame_box(1, ., 38, .): not its frame */
 static void clear_line(unsigned char row)
 {
-    fill(1, row, 38, ' ', C_WHITE);
+    fill(2, row, 36, ' ', C_WHITE);
 }
 
 /* ---- the inventory -------------------------------------------------- */
@@ -512,10 +563,10 @@ void inventory_menu(void)
             put(9 + k, 17 + i, G.friend[i] >= (k + 1) * 50 ? H_HEART : H_HEART0, C_RED);
     }
     text(22, 17, "deepest floor", C_GREY);
-    num(36, 17, G.deepest, 2, C_WHITE);
+    num(35, 17, G.deepest, 2, C_WHITE);
     text(22, 18, "earned", C_GREY);
-    num(29, 18, G.earned, 7, C_WHITE);
-    text(3, 22, "fire: move item   i: close", C_GREY);
+    num(30, 18, G.earned, 7, C_WHITE);
+    text(3, 22, "fire: move item   fire+up: close", C_GREY);
     cur = sel;
     held = 0;
     for (;;) {
@@ -574,9 +625,31 @@ static void money_line(void)
     num(28, 2, G.money, 7, C_YELLOW);
 }
 
+/* one line of the shop's list, as wide as the box: what, how many, price */
+static void shop_line(unsigned char row, unsigned char it, unsigned char n,
+                      unsigned int price)
+{
+    textw(4, row, item_name[it], price ? C_WHITE : C_GREY, 18);
+    if (n)
+        num(22, row, n, 2, C_GREY);
+    else
+        fill(22, row, 2, ' ', 0);
+    fill(24, row, 4, ' ', 0);
+    if (price) {
+        num(28, row, price, 5, C_YELLOW);
+        put(33, row, 'g' - 0x40, C_YELLOW);
+    } else
+        fill(28, row, 6, ' ', 0);
+}
+
+static unsigned int buy_price(unsigned char it)
+{
+    return IS_SEED(it) ? seed_price[it - IT_S_PARSNIP + 1] : 120;
+}
+
 void shop_menu(void)
 {
-    static unsigned char buy[4], nb, cur, k, i, it, tab, row;
+    static unsigned char buy[4], nb, cur, k, i, it, tab, row, n, redraw;
     menu_on();
     frame_box(1, 1, 38, 21);
     nb = 0;
@@ -584,53 +657,53 @@ void shop_menu(void)
         if (crop_season[i] == G.season)
             buy[nb++] = IT_S_PARSNIP + i - 1;
     buy[nb++] = IT_SALAD;
+    text(2, 22, "fire: trade  left/right: buy or sell", C_GREY);
+    text(2, 23, "fire+up: leave the shop", C_GREY);
     cur = 0;
     tab = 0;
+    redraw = 1;
     for (;;) {
-        for (row = 3; row < 21; ++row)
-            clear_line(row);
-        text(3, 2, tab ? "otto buys" : "otto sells", C_YELLOW);
-        money_line();
-        if (!tab) {
-            for (i = 0; i < nb; ++i) {
-                it = buy[i];
-                row = 4 + i * 3;
-                icon(4, row, it);
-                text(8, row, item_name[it], C_WHITE);
-                num(28, row, IS_SEED(it) ? seed_price[it - IT_S_PARSNIP + 1] : 120, 5, C_YELLOW);
-                put(33, row, 'g' - 0x40, C_YELLOW);
-                put(2, row, i == cur ? H_SEL_L : ' ', C_WHITE);
-            }
-        } else {
-            for (i = 0; i < N_SLOTS; ++i) {
-                it = G.inv[i];
-                row = 3 + i;
-                if (row > 20)
-                    break;
-            }
-            /* inventory, one line each */
-            for (i = 0; i < N_SLOTS && i < 17; ++i) {
-                it = G.inv[i];
-                row = 3 + i;
-                put(2, row, i == cur ? H_SEL_L : ' ', C_WHITE);
-                if (it && item_price[it]) {
-                    text(4, row, item_name[it], C_WHITE);
-                    num(22, row, G.cnt[i], 2, C_GREY);
-                    num(28, row, item_price[it], 5, C_YELLOW);
+        /* the whole list only when it is another one; after a trade the
+           lines are written over, field by field */
+        if (redraw == 1) {
+            for (row = 3; row < 21; ++row)
+                clear_line(row);
+            textw(3, 2, tab ? "otto buys" : "otto sells", C_YELLOW, 12);
+        }
+        if (redraw) {
+            if (!tab) {
+                for (i = 0; i < nb; ++i) {
+                    it = buy[i];
+                    row = 4 + i * 3;
+                    icon(4, row, it);
+                    text(8, row, item_name[it], C_WHITE);
+                    num(28, row, buy_price(it), 5, C_YELLOW);
                     put(33, row, 'g' - 0x40, C_YELLOW);
-                } else if (it) {
-                    text(4, row, item_name[it], C_GREY);
+                }
+            } else {
+                for (i = 0; i < N_SLOTS && i < 17; ++i) {
+                    it = G.inv[i];
+                    n = it && item_price[it] ? G.cnt[i] : 0;
+                    shop_line(3 + i, it, n, it ? item_price[it] : 0);
                 }
             }
+            redraw = 0;
         }
-        text(2, 22, "fire: trade  left/right: buy or sell", C_GREY);
-        text(2, 23, "i: leave the shop", C_GREY);
+        money_line();
+        /* the marker */
+        if (!tab)
+            for (i = 0; i < nb; ++i)
+                put(2, 4 + i * 3, i == cur ? H_SEL_L : ' ', C_WHITE);
+        else
+            for (i = 0; i < N_SLOTS && i < 17; ++i)
+                put(2, 3 + i, i == cur ? H_SEL_L : ' ', C_WHITE);
         k = menu_key();
         if (k & K_MENU)
             break;
         if (k & (K_LEFT | K_RIGHT)) {
             tab ^= 1;
             cur = 0;
+            redraw = 1;
         }
         if (k & K_UP && cur)
             --cur;
@@ -639,9 +712,9 @@ void shop_menu(void)
         if (k & K_FIRE) {
             if (!tab) {
                 it = buy[cur];
-                if (pay(IS_SEED(it) ? seed_price[it - IT_S_PARSNIP + 1] : 120)) {
+                if (pay(buy_price(it))) {
                     if (!give(it, 1)) {
-                        G.money += IS_SEED(it) ? seed_price[it - IT_S_PARSNIP + 1] : 120;
+                        G.money += buy_price(it);
                         sfx(SFX_BAD);
                     }
                 }
@@ -654,6 +727,7 @@ void shop_menu(void)
                         G.shipped |= 1 << (it - IT_PARSNIP);
                     take(it, 1);
                     sfx(SFX_BUY);
+                    redraw = 2;
                 }
             }
         }
@@ -674,13 +748,13 @@ void smith_menu(void)
     static unsigned int price;
     menu_on();
     frame_box(1, 1, 38, 21);
+    text(3, 2, "karl the smith", C_YELLOW);
+    text(2, 22, "fire: order   fire+up: leave", C_GREY);
     cur = 0;
     for (;;) {
-        for (row = 3; row < 21; ++row)
-            clear_line(row);
-        text(3, 2, "karl the smith", C_YELLOW);
         money_line();
-        /* 0..2 smelting, 3..7 tools, 8 sprinkler */
+        /* 0..2 smelting, 3..7 tools, 8 sprinkler: written over, not
+           cleared, so nothing flickers */
         for (i = 0; i < 3; ++i) {
             row = 4 + i;
             put(2, row, i == cur ? H_SEL_L : ' ', C_WHITE);
@@ -695,12 +769,12 @@ void smith_menu(void)
             put(2, row, (i + 3) == cur ? H_SEL_L : ' ', C_WHITE);
             lv = G.lvl[i];
             if (lv >= 3) {
-                text(4, row, tool_word[i], C_GREY);
-                text(12, row, "is gold", C_GREY);
+                textw(4, row, tool_word[i], C_GREY, 8);
+                textw(12, row, "is gold", C_GREY, 23);
                 continue;
             }
-            text(4, row, metal_word[lv + 1], C_WHITE);
-            text(11, row, tool_word[i], C_WHITE);
+            textw(4, row, metal_word[lv + 1], C_WHITE, 7);
+            textw(11, row, tool_word[i], C_WHITE, 8);
             text(19, row, "3 bars", C_GREY);
             num(28, row, upgrade_price[lv + 1], 5, C_YELLOW);
             put(33, row, 'g' - 0x40, C_YELLOW);
@@ -718,7 +792,6 @@ void smith_menu(void)
         text(19, 17, "fe", C_GREY);
         num(22, 17, count_of(IT_BAR_G), 2, C_YELLOW);
         text(25, 17, "au", C_GREY);
-        text(2, 22, "fire: order   i: exit", C_GREY);
         k = menu_key();
         if (k & K_MENU)
             break;
@@ -777,6 +850,7 @@ void lift_menu(void)
     menu_on();
     frame_box(10, 4, 29, 18);
     text(12, 5, "the lift", C_YELLOW);
+    text(12, 17, "fire+up: stay", C_GREY);
     cur = 0;
     for (;;) {
         for (i = 0; i < n; ++i) {
@@ -830,7 +904,7 @@ void board_menu(void)
             text(6, 14, "fire: hand them over", C_GREEN);
         }
     }
-    text(6, 17, "i: back", C_GREY);
+    text(6, 17, "fire+up: back", C_GREY);
     for (;;) {
         k = menu_key();
         if (k & K_MENU)
@@ -935,7 +1009,7 @@ void year_end(void)
     reckon(11, "tool upgrades", tools, 100);
     reckon(12, "requests", G.quests, 200);
     reckon(13, "crops shipped", kinds, 150);
-    fill(29, 14, 6, H_FR_H, C_GREY);
+    fill(29, 14, 6, H_FR_H, C_FRAME);
     text(5, 15, "score", C_YELLOW);
     num(28, 15, score, 7, C_YELLOW);
     k = 0;
@@ -960,25 +1034,49 @@ void year_end(void)
 
 unsigned char title_menu(void)
 {
-    static unsigned char cur, k;
+    static unsigned char cur, k, i, x;
+    static const char logo[] = "stardew pond";
+    static const unsigned char crops[6] = {
+        IT_PARSNIP, IT_CAULI, IT_TOMATO, IT_MELON, IT_PUMPKIN, IT_EGGPLANT
+    };
     menu_on();
-    frame_box(2, 2, 37, 20);
-    text(14, 5, "stardew pond", C_YELLOW);
+    frame_box(1, 1, 38, 20);
+    /* the name in big letters (tools/logo.py) */
+    for (i = 0, x = 8; logo[i]; ++i, x += 2) {
+        if (logo[i] == ' ')
+            continue;
+        k = IC_LOGO_S;
+        switch (logo[i] & 0x7F) {
+        case 'T' & 0x7F: k = IC_LOGO_T; break;
+        case 'A' & 0x7F: k = IC_LOGO_A; break;
+        case 'R' & 0x7F: k = IC_LOGO_R; break;
+        case 'D' & 0x7F: k = IC_LOGO_D; break;
+        case 'E' & 0x7F: k = IC_LOGO_E; break;
+        case 'W' & 0x7F: k = IC_LOGO_W; break;
+        case 'P' & 0x7F: k = IC_LOGO_P; break;
+        case 'O' & 0x7F: k = IC_LOGO_O; break;
+        case 'N' & 0x7F: k = IC_LOGO_N; break;
+        }
+        put(x, 3, icon_code[k][0], icon_col[k][0]);
+        put(x + 1, 3, icon_code[k][1], icon_col[k][1]);
+        put(x, 4, icon_code[k][2], icon_col[k][2]);
+        put(x + 1, 4, icon_code[k][3], icon_col[k][3]);
+    }
     text(10, 7, "after stardew valley", C_WHITE);
-    text(9, 8, "by concernedape (2016)", C_WHITE);
-    text(5, 10, "a proof of concept in c for the", C_GREY);
-    text(11, 11, "commodore plus/4", C_GREY);
-    icon(6, 4, IT_PARSNIP);
-    icon(32, 4, IT_PUMPKIN);
-    text(10, 22, "joystick or cursor keys", C_GREY);
-    text(6, 23, "space/fire: use   , .: tool", C_GREY);
-    text(6, 24, "i: backpack   hold fire+left/right", C_GREY);
+    text(9, 8, "by concernedape (2016)", C_GREY);
+    for (i = 0; i < 6; ++i)
+        icon(9 + i * 4, 10, crops[i]);
+    text(5, 18, "a proof of concept in c for the", C_GREY);
+    text(11, 19, "commodore plus/4", C_GREY);
+    text(4, 22, "fire: use      fire+left/right: tool", C_GREY);
+    text(4, 23, "fire+up: backpack, or out of a menu", C_GREY);
+    text(4, 24, "(keys: cursor, space, , . and i)", C_GREY);
     cur = 0;
     for (;;) {
-        put(12, 14, cur == 0 ? H_SEL_L : ' ', C_WHITE);
-        text(14, 14, "new game", C_WHITE);
-        put(12, 16, cur == 1 ? H_SEL_L : ' ', C_WHITE);
-        text(14, 16, "continue", C_WHITE);
+        put(13, 14, cur == 0 ? H_SEL_L : ' ', C_WHITE);
+        text(15, 14, "new game", cur == 0 ? C_YELLOW : C_WHITE);
+        put(13, 16, cur == 1 ? H_SEL_L : ' ', C_WHITE);
+        text(15, 16, "continue", cur == 1 ? C_YELLOW : C_WHITE);
         k = menu_key();
         if (k & (K_UP | K_DOWN))
             cur ^= 1;

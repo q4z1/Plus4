@@ -53,7 +53,6 @@ static unsigned char fx_spr, fx_x, fx_y, fx_t;
 #define PLAYER_COL 0x5E                     /* the shirt: blue           */
 #define TICK 250                            /* frames per ten minutes    */
 
-static const unsigned char row20[RH] = { 0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200 };
 
 void place_player(unsigned char tx, unsigned char ty)
 {
@@ -64,29 +63,6 @@ void place_player(unsigned char tx, unsigned char ty)
     subx = suby = 0;
     use_t = 0;
     fx_t = 0;
-}
-
-/* The feet: a box 6 pixels wide and 4 lines high at the bottom of the
-   figure. Anything solid under it stops the farmer. */
-unsigned char blocked(unsigned char x, unsigned char y)
-{
-    static unsigned char l, r, t, b;
-    static const unsigned char *p;
-    l = x;  ++l;     l >>= 3;
-    r = x;  r += 6;  r >>= 3;
-    t = y;  t += 12; t >>= 4;
-    b = y;  b += 15; b >>= 4;
-    if (r >= RW || b >= RH)
-        return 1;
-    p = room + row20[t];
-    if ((mt_flag[p[l]] | mt_flag[p[r]]) & F_SOLID)
-        return 1;
-    if (b != t) {
-        p = room + row20[b];
-        if ((mt_flag[p[l]] | mt_flag[p[r]]) & F_SOLID)
-            return 1;
-    }
-    return 0;
 }
 
 /* ======================================================================
@@ -152,6 +128,8 @@ unsigned char dbg_loops;                    /* pictures drawn */
    interrupt, so none is lost while the program is busy */
 unsigned char read_keys(void)
 {
+    if (scr_hidden)                         /* a menu drawn: on with it */
+        eng_show();
     keys_now = keys_irq;
     return eng_keys();
 }
@@ -171,39 +149,6 @@ void wait_fire(void)
 /* ======================================================================
  * Figures: collected, sorted by where their feet are, drawn
  * ==================================================================== */
-
-#define MAXFIG 10
-static unsigned char fg_x[MAXFIG], fg_y[MAXFIG], fg_s[MAXFIG], fg_f[MAXFIG];
-static unsigned char fg_c[MAXFIG], fg_key[MAXFIG];
-static unsigned char nfig;
-
-unsigned char fa_x, fa_y, fa_s, fa_f, fa_c;
-
-void fig_add(void)
-{
-    static unsigned char k, key;
-    if (nfig >= MAXFIG)
-        return;
-    key = fa_y + spr_h[fa_s];
-    /* insertion by the bottom line */
-    k = nfig;
-    while (k && fg_key[k - 1] > key) {
-        fg_x[k] = fg_x[k - 1];
-        fg_y[k] = fg_y[k - 1];
-        fg_s[k] = fg_s[k - 1];
-        fg_f[k] = fg_f[k - 1];
-        fg_c[k] = fg_c[k - 1];
-        fg_key[k] = fg_key[k - 1];
-        --k;
-    }
-    fg_x[k] = fa_x;
-    fg_y[k] = fa_y;
-    fg_s[k] = fa_s;
-    fg_f[k] = fa_f;
-    fg_c[k] = fa_c;
-    fg_key[k] = key;
-    ++nfig;
-}
 
 static const unsigned char use_spr[4] = { S_P_USE_DOWN, S_P_USE_UP, S_P_USE_SIDE, S_P_USE_SIDE };
 
@@ -234,7 +179,7 @@ static unsigned char target_x, target_y;    /* the tile in front */
 
 static void draw(void)
 {
-    static unsigned char k, it;
+    static unsigned char it;
     nfig = 0;
     player_fig();
     if (floor_no)
@@ -247,17 +192,7 @@ static void draw(void)
     it = G.inv[sel];
     if (it && target_x < RW && target_y < RH && !use_t)
         fig(target_x << 3, target_y << 4, S_CURSOR, 0, 0);
-    r_begin();
-    for (k = 0; k < nfig; ++k) {
-        f_x = fg_x[k];
-        f_y = fg_y[k];
-        f_src = spr_tab[fg_s[k]];
-        f_h = spr_h[fg_s[k]];
-        f_flip = fg_f[k];
-        f_col = fg_c[k];
-        r_fig();
-    }
-    r_done();
+    figs_draw();
 }
 
 /* ======================================================================
@@ -428,14 +363,14 @@ static unsigned char use_tile(unsigned char tx, unsigned char ty)
     static unsigned char t, s;
     t = tile_at(tx, ty);
     s = room[RM_SET];
-    if (s == 0) {
+    if (OUTDOOR(s)) {
         switch (t) {
         case T_BIN: ship(); return 1;
         case T_SIGN_SHOP: hud_msg("otto's store"); return 1;
         case T_SIGN_SMITH: hud_msg("karl, smith"); return 1;
         case T_BOARD: board_menu(); return 1;
         }
-    } else if (s == 1) {
+    } else if (s == TS_INDOOR) {
         switch (t) {
         case I_BED_TOP:
         case I_BED_BOT:
@@ -469,7 +404,7 @@ static unsigned char use_tile(unsigned char tx, unsigned char ty)
 static unsigned char wild_action(unsigned char tx, unsigned char ty)
 {
     static unsigned char t, it;
-    if (room[RM_SET] != 0)
+    if (!OUTDOOR(room[RM_SET]))
         return 0;
     t = tile_at(tx, ty);
     it = G.inv[sel];
@@ -530,9 +465,13 @@ static void act(void)
         done = 1;
     }
     if (!done && item_food[it]) {
+        /* food gives energy, and health: the mine has no other way */
         G.energy += item_food[it];
         if (G.energy > MAX_ENERGY)
             G.energy = MAX_ENERGY;
+        G.hp += item_food[it];
+        if (G.hp > MAX_HP)
+            G.hp = MAX_HP;
         take(it, 1);
         sfx(SFX_EAT);
         hud_msg("yum!");
@@ -663,7 +602,7 @@ static void faint(void)
 
 void main(void)
 {
-    static unsigned char last, n, k, e, held_fire, cycled;
+    static unsigned char last, n, k, e;
 
     eng_stack();                            /* see engine.s */
 
@@ -672,8 +611,7 @@ void main(void)
         dev = 8;
     eng_init();
     eng_blank();
-    while (!load_file("hud", (void *)0xE000))
-        ;
+    load_hud();
     eng_romfont();
     pal_hud[0] = 0x19;                      /* dark wood */
     pal_hud[1] = 0x00;
@@ -685,16 +623,21 @@ void main(void)
     for (;;) {                              /* a game, and after it the next */
     k = title_menu();
     rs ^= frames | (frames << 8);           /* the time spent at the title */
-    if (k == 0 || !load_game())
+    e = 0;
+    if (k == 0 || !(e = load_game()))
         new_game();
+    /* nothing of the last game's mine: no monsters at home */
+    floor_no = 0;
+    nmon = 0;
+    hurt = 0;
     menu = 0;
     game_over = 0;
     pdir = D_DOWN;
     enter_room(R_HOUSE, 5, 4);
+    if (k && !e)
+        hud_msg("no saved game");
 
     last = frames;
-    held_fire = 0;
-    cycled = 0;
     while (!game_over) {
         /* the logic runs while the last picture waits to be shown */
         n = frames - last;
@@ -712,11 +655,7 @@ void main(void)
         e = read_keys();
         k = keys_now;
 
-        /* slots: , and . or fire held with left/right */
-        if (held_fire && (e & (K_LEFT | K_RIGHT))) {
-            e |= (e & K_LEFT) ? K_PREV : K_NEXT;
-            cycled = 1;
-        }
+        /* slots: , and . or fire held with left/right (engine.s kpoll) */
         if (e & K_PREV) {
             sel = (sel - 1) & 15;
             row2 = sel & 8;
@@ -736,24 +675,23 @@ void main(void)
         target_x = px;  target_x += 4;  target_x >>= 3;  target_x += dir_dx[pdir];
         target_y = py;  target_y += 13; target_y >>= 4; target_y += dir_dy[pdir];
 
-        if (e & K_FIRE) {
-            held_fire = 1;
-            cycled = 0;
-        }
-        if (held_fire && !(k & K_FIRE)) {
-            held_fire = 0;
-            if (!cycled && !use_t)
-                act();
-        }
+        /* fire counts when it is let go, and not if a direction was
+           pushed meanwhile (engine.s): it was another item then */
+        if ((e & K_FIRE) && !use_t)
+            act();
 
         if (use_t)
             use_t = use_t > n ? use_t - n : 0;
-        else if (!held_fire)
+        else if (!(k & K_FIRE))
             walk(n, k);
         else
             moving = 0;
         if (fx_t)
             fx_t = fx_t > n ? fx_t - n : 0;
+        /* after a blow the farmer blinks for a while - wherever he is: a
+           count left standing outside the mine kept him invisible */
+        if (hurt)
+            hurt = hurt > n ? hurt - n : 0;
 
         if (hud_msg_time) {
             if (hud_msg_time > n)

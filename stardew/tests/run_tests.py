@@ -391,7 +391,8 @@ def sprinkler_waters_neighbours(g):
     wet = [g.farm(1, x, y) for x, y in ((5, 8), (7, 8), (6, 9), (6, 7))]
     check(all(t == T['T_SOIL_WET'] for t in wet), f'next to it: {wet}, want wet')
     if not g.get('rain'):
-        check(g.farm(1, 9, 8) == T['T_SOIL'], 'further away stays dry')
+        # (an empty dry tile may turn back to grass overnight: not wet is all)
+        check(g.farm(1, 9, 8) != T['T_SOIL_WET'], 'further away stays dry')
 
 
 @test
@@ -448,6 +449,59 @@ def store_buys_and_sells(g):
     check(g.get('money') == 180, f'money {g.get("money")}, want 180')
     check(g.count(I['IT_S_PARSNIP']) == seeds + 1, 'one packet more')
     g.press('menu', 0.1, 0.4)
+
+
+@test
+def joystick_only(g):
+    """Everything with one button: fire+right the next item, fire+up the
+    backpack and out of it again, and a question answered with left/right."""
+    g.morning()
+    g.goto('HOUSE', 5, 4, 'down')
+    g.settle()
+    g.poke('sel', 0)
+    g.poke('row2', 0)
+    g.keys('fire')
+    g.run(0.1)
+    g.keys('fire', 'right')                 # held: right is the next item
+    g.run(0.1)
+    g.keys()
+    g.run(0.2)
+    check(g.peek('sel') == 1, f'slot {g.peek("sel")} after fire+right, want 1')
+    check(g.peek('menu') == 0, 'fire+right must not open anything')
+    g.keys('fire')
+    g.run(0.1)
+    g.keys('fire', 'up')                    # the backpack
+    g.run(0.1)
+    g.keys()
+    g.run(0.3)
+    check(g.peek('menu') == 1, 'fire+up did not open the backpack')
+    g.keys('fire')
+    g.run(0.1)
+    g.keys('fire', 'up')                    # and out again
+    g.run(0.1)
+    g.keys()
+    g.run(0.5)
+    check(g.peek('menu') == 0, 'fire+up did not close the backpack')
+    # the bed: "no" chosen with the stick, then fire
+    g.goto('HOUSE', 5, 4, 'left')
+    g.settle()
+    day = g.get('day')
+    g.act()
+    g.press('right', 0.1, 0.2)              # "no"
+    g.press('fire', 0.1, 0.5)
+    check(g.get('day') == day and not g.dark(), 'answered "no" and slept anyway')
+
+
+@test
+def blinking_ends_outside_the_mine(g):
+    """Hurt in the mine and up the ladder: the blinking still ends (it
+    used to stop counting outside the mine, the farmer invisible)."""
+    g.morning()
+    g.goto('HOUSE', 5, 4, 'down')
+    g.settle()
+    g.poke('hurt', 60)
+    g.run(1.6)
+    check(g.peek('hurt') == 0, f'hurt still {g.peek("hurt")} in the house')
 
 
 @test
@@ -680,7 +734,10 @@ def save_and_continue(g):
     g.sleep()
     want = {f: g.get(f) for f in ('day', 'season', 'money', 'energy')}
     farm = g.v.mem(g.G + g.fields['farm'][0], 512)
-    g.run(4)                               # the drive writes its last block
+    g.run(2)
+    # VICE keeps the drive's current track and writes it into the image
+    # only when the head moves on or the disk is taken out: out with it
+    g.v.cmd('detach 8')
     g.stop()
     g.v = Vice(os.path.join(ROOT, 'build', 'stardew.d64'), OUT)
     g.start(cont=True)

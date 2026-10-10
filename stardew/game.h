@@ -26,6 +26,9 @@ extern unsigned char base_code[1024], base_attr[1024];
 void eng_stack(void);
 void eng_init(void);
 void eng_blank(void);
+void eng_hide(void);                        /* screen off, interrupt on */
+void eng_show(void);
+extern unsigned char scr_hidden;
 void eng_unblank(void);
 void eng_fill(void);
 void __fastcall__ eng_put(unsigned off);
@@ -42,6 +45,11 @@ extern unsigned char dbg_keys;            /* tests: keys as if pressed */
 extern unsigned char music;               /* SONG_..., 0 = silence     */
 extern unsigned char sfx_lo, sfx_hi, sfx_noise, sfx_len;
 void eng_sfx(void);                       /* an effect on voice 2      */
+extern unsigned char water_n;             /* rippling pairs of characters */
+extern unsigned char water_ab[24];        /* left, right, lines (bits)    */
+extern unsigned char water_ph[2];         /* their place in each set      */
+extern unsigned char *unp_dst;            /* unpack.s: where to         */
+void __fastcall__ unpack(const unsigned char *src);   /* exomizer's raw */
 
 /* made by tools/mkdata.py (build/gen/sprites.s) */
 extern const unsigned char *const spr_tab[];
@@ -85,7 +93,12 @@ extern unsigned char mt_flag[128];          /* what a tile is              */
 
 #define RW 20                               /* tiles across */
 #define RH 11                               /* tiles down   */
-#define RM_SET    220
+#define RM_SET    220                      /* TS_...: */
+#define TS_FARM    0
+#define TS_INDOOR  1
+#define TS_MINE    2
+#define TS_VILLAGE 3                        /* the farm's tiles, numbered alike */
+#define OUTDOOR(s) ((s) == TS_FARM || (s) == TS_VILLAGE)
 #define RM_PAL    221
 #define RM_EXIT   225                       /* N S E W      */
 #define RM_FLAGS  229
@@ -106,7 +119,8 @@ void set_tile(unsigned char tx, unsigned char ty, unsigned char t);
 void enter_room(unsigned char id, unsigned char tx, unsigned char ty);
 void show_room(void);
 void set_palette(void);
-unsigned char __fastcall__ load_file(const char *name, void *addr);
+unsigned int __fastcall__ load_file(const char *name, void *addr);
+void load_hud(void);
 unsigned char save_game(void);
 unsigned char load_game(void);
 
@@ -143,7 +157,7 @@ unsigned char item_colour(unsigned char item);
  * The game state: everything a save file holds ($0800, see stardew.cfg)
  * ==================================================================== */
 
-#define SAVE_MAGIC 0x5D
+#define SAVE_MAGIC 0x5E                    /* 0x5D: before the sum */
 #define N_NPC 3
 
 struct game {
@@ -172,12 +186,14 @@ struct game {
     unsigned char quest_done;
     unsigned char quests;           /* requests fulfilled this year    */
     unsigned char shipped;          /* bit per crop kind ever sold     */
-    unsigned char spare[14];
+    unsigned char sum;              /* save_game: all bytes add up to 0 */
+    unsigned char spare[13];
     unsigned char farm[2][256];     /* the two farm rooms as they are  */
     unsigned char crop[2][RW * RH]; /* crop kind 1..6 per tile         */
     unsigned char age[2][RW * RH];  /* days it has grown               */
 };
 extern struct game G;
+extern unsigned char nmon;                  /* mine.c: monsters on this floor */
 
 #define MAX_ENERGY 100
 #define MAX_HP 100
@@ -197,12 +213,15 @@ extern unsigned char hurt;                  /* frames the farmer blinks */
 
 extern const signed char dir_dx[4], dir_dy[4];
 
-extern unsigned char fa_x, fa_y, fa_s, fa_f, fa_c;
-void fig_add(void);
+extern unsigned char fa_x, fa_y, fa_s, fa_f, fa_c, nfig;
+void fig_add(void);                         /* engine.s */
+void figs_draw(void);
 #define fig(x, y, s, f, c) \
     (fa_x = (x), fa_y = (y), fa_s = (s), fa_f = (f), fa_c = (c), fig_add())
 void place_player(unsigned char tx, unsigned char ty);
-unsigned char blocked(unsigned char x, unsigned char y);
+extern unsigned char bk_x, bk_y;
+unsigned char blocked_at(void);             /* engine.s */
+#define blocked(x, y) (bk_x = (x), bk_y = (y), blocked_at())
 unsigned char rnd(void);
 void wait_frames(unsigned char n);
 unsigned char fire_pressed(void);
@@ -250,6 +269,11 @@ unsigned char crop_tile(unsigned char f, unsigned char i);
 #define C_RED    0x52
 #define C_GREEN  0x55
 #define C_CYAN   0x63
+/* multicolour cells (bit 3), for the frame's grain and the bars */
+#define C_FRAME  0x3F
+#define C_BAR_G  0x5D
+#define C_BAR_Y  0x6F
+#define C_BAR_R  0x4A
 
 extern unsigned char hud_msg_time;
 

@@ -275,8 +275,8 @@ static unsigned char water_at(unsigned char f, unsigned char i)
 {
     static unsigned char t;
     t = G.farm[f][i];
-    if (is_soil(t))
-        G.farm[f][i] = t | 1;              /* dry tiles are even */
+    if (is_soil(t))                        /* a wet tile is the dry one + 1 */
+        G.farm[f][i] = T_SOIL + ((unsigned char)(t - T_SOIL) | 1);
     return 0;
 }
 

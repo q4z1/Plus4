@@ -4,9 +4,14 @@
  *
  * Every room is one screen of 20 x 11 tiles and a file of its own on the
  * disk (tools/mkdata.py, data/rooms.txt). A tile is four characters from
- * the room's tile set, which is a file as well and is only loaded when it
- * changes. The two farm rooms are loaded once, for a new game, and after
- * that live in the game state, because the farmer changes them.
+ * the room's tile set, which is a file as well. The two farm rooms are
+ * loaded once, for a new game, and after that live in the game state,
+ * because the farmer changes them.
+ *
+ * Every file is packed by exomizer (unpack.s). Tile sets and rooms stay in
+ * memory as they came off the disk, packed: each is loaded once, and after
+ * that walking in and out of a house or along the village costs no disk at
+ * all, only the moment it takes to unpack it.
  */
 #include <cbm.h>
 #include <string.h>
@@ -19,12 +24,26 @@ unsigned char mt_attr[512];
 unsigned char mt_flag[128];
 #pragma bss-name (pop)
 
-/* The tile sets as they came off the disk. Each is loaded the first time
-   it is needed and kept: going in and out of the farmhouse would
-   otherwise cost seconds of disk every time. */
-static unsigned char ts0[TILES0_SIZE], ts1[TILES1_SIZE], ts2[TILES2_SIZE];
-static unsigned char *const ts_buf[3] = { ts0, ts1, ts2 };
-static unsigned char ts_have[3];
+/* The tile sets as they came off the disk, packed. Each is loaded the
+   first time it is needed and kept. */
+static unsigned char ts0[TILES0_PACKED], ts1[TILES1_PACKED], ts2[TILES2_PACKED];
+static unsigned char ts3[TILES3_PACKED];
+static unsigned char *const ts_buf[4] = { ts0, ts1, ts2, ts3 };
+static unsigned char ts_have[4];
+
+/* The rooms likewise, one after the other in a pool. When it is full it
+   starts again from empty: the rooms come off the disk again as they are
+   needed. */
+#define RC_POOL 0x380
+#pragma bss-name (push, "ROOMPOOL")
+static unsigned char rc_pool[RC_POOL];
+#pragma bss-name (pop)
+static unsigned int rc_used;
+static unsigned char *rc_at[N_ROOMS];
+
+/* Where a file is unpacked: the two pictures' screens, which are drawn
+   afresh after every load anyway (the screen is off meanwhile). */
+#define SCRATCH ((unsigned char *)0xD000)
 
 unsigned char room_id;
 unsigned char floor_no;
@@ -126,37 +145,68 @@ void show_room(void)
 
 /* Load a file to addr; the screen must be off (eng_blank), because the
    KERNAL does the work with its own interrupt handler in place. Tries a
-   few times, then gives up. */
-unsigned char __fastcall__ load_file(const char *name, void *addr)
+   few times, then gives up: 0. Else the number of bytes loaded. */
+unsigned int __fastcall__ load_file(const char *name, void *addr)
 {
     static unsigned char k;
+    static unsigned int n;
     static const char *nm;
     static void *ad;
     nm = name;
     ad = addr;
     for (k = 0; k < 3; ++k) {
-        pal_map[3] = 0;
-        if (cbm_load(nm, dev, ad))
-            return 1;
+        n = cbm_load(nm, dev, ad);
+        if (n)
+            return n;
     }
     return 0;
 }
 
+/* The same, until it works: a red border while there is no disk. */
+static unsigned int must_load(const char *name, void *addr)
+{
+    static unsigned int n;
+    while (!(n = load_file(name, addr)))
+        *(volatile unsigned char *)0xFF19 = 0x32;
+    return n;
+}
+
 static char fname[8] = "room00";
 
+/* room id into room[]: from the pool, or off the disk into the pool */
 static void load_room(unsigned char id)
 {
-    fname[4] = '0' + id / 10;
-    fname[5] = '0' + id % 10;
-    while (!load_file(fname, room))
-        *(volatile unsigned char *)0xFF19 = 0x32;   /* red border: no disk */
+    static unsigned char *p;
+    p = rc_at[id];
+    if (!p) {
+        if (rc_used > RC_POOL - ROOM_PACKED_MAX) {
+            memset(rc_at, 0, sizeof(rc_at));
+            rc_used = 0;
+        }
+        p = rc_pool + rc_used;
+        fname[4] = '0' + id / 10;
+        fname[5] = '0' + id % 10;
+        rc_used += must_load(fname, p);
+        rc_at[id] = p;
+    }
+    unp_dst = room;
+    unpack(p);
+}
+
+/* The toolbar's characters, once at the start. */
+void load_hud(void)
+{
+    must_load("hud", SCRATCH);
+    unp_dst = (unsigned char *)0xE000;
+    unpack(SCRATCH);
 }
 
 static char tname[8] = "tiles0";
 
-/* A tile set file: number of characters, number of tiles, the characters,
-   then codes, colours and flags, each as long as there are tiles. The
-   characters go into both map character sets, the rest into mt_*. */
+/* A tile set, unpacked: number of characters, number of tiles, the
+   characters, then codes, colours and flags, each as long as there are
+   tiles. The characters go into both map character sets, the rest into
+   mt_*. */
 static void unpack_tiles(const unsigned char *p)
 {
     static unsigned char nc, nt, k;
@@ -173,6 +223,10 @@ static void unpack_tiles(const unsigned char *p)
     for (k = 0; k < 4; ++k, p += nt)
         memcpy(mt_attr + (k << 7), p, nt);
     memcpy(mt_flag, p, nt);
+    p += nt;
+    water_n = *p++;                 /* the water's characters (engine.s) */
+    memcpy(water_ab, p, water_n * 3);
+    water_ph[0] = water_ph[1] = 0;  /* both sets as they came */
 }
 
 /* Go to room id, the farmer standing on tile tx, ty. The screen goes dark
@@ -191,11 +245,12 @@ void enter_room(unsigned char id, unsigned char tx, unsigned char ty)
     if (s != cur_set) {
         if (!ts_have[s]) {
             tname[5] = '0' + s;
-            while (!load_file(tname, ts_buf[s]))
-                *(volatile unsigned char *)0xFF19 = 0x32;
+            must_load(tname, ts_buf[s]);
             ts_have[s] = 1;
         }
-        unpack_tiles(ts_buf[s]);
+        unp_dst = SCRATCH;
+        unpack(ts_buf[s]);
+        unpack_tiles(SCRATCH);
         cur_set = s;
     }
     if (floor_no && (room[RM_FLAGS] & RF_MINE))
@@ -220,23 +275,48 @@ void farm_new(void)
     memset(G.age, 0, sizeof(G.age));
 }
 
+/* the bytes of the game state added up */
+static unsigned char save_sum(void)
+{
+    static unsigned char s;
+    static const unsigned char *p;
+    s = 0;
+    for (p = (const unsigned char *)&G; p != (const unsigned char *)(&G + 1); ++p)
+        s += *p;
+    return s;
+}
+
 /* The save file: the game state as it is, one file. The old one is
-   scratched first; the 1541's save-with-replace is not to be trusted. */
+   scratched first; the 1541's save-with-replace is not to be trusted.
+   Then the drive's status is read: that waits until it has really written
+   the file's last block and its directory entry - else, with nothing to
+   load next (the house comes from memory), the file stays open on the
+   disk until the drive is next spoken to, and switching off loses it. */
 unsigned char save_game(void)
 {
     static unsigned char r;
+    static char st[2];
     eng_blank();
     G.magic = SAVE_MAGIC;
+    G.sum = 0;
+    G.sum = -save_sum();
     cbm_open(15, dev, 15, "s0:save");
     cbm_close(15);
     r = cbm_save("save", dev, &G, sizeof(G));
-    return r == 0;
+    st[0] = 0;
+    if (cbm_open(15, dev, 15, "") == 0) {
+        cbm_read(15, st, 2);
+        cbm_close(15);
+    }
+    return r == 0 && st[0] == '0' && st[1] == '0';
 }
 
+/* A save that does not add up is not played: a fast loader once brought
+   one back broken. */
 unsigned char load_game(void)
 {
     static unsigned int n;
     eng_blank();
     n = cbm_load("save", dev, &G);
-    return n == sizeof(G) && G.magic == SAVE_MAGIC;
+    return n == sizeof(G) && G.magic == SAVE_MAGIC && save_sum() == 0;
 }

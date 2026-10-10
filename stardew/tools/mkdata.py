@@ -21,7 +21,9 @@ files (needs PIL), to look at without an emulator.
 """
 import os
 import re
+import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -161,10 +163,12 @@ FLAGS = {'solid': 1, 'water': 2, 'till': 4, 'soil': 8, 'wet': 16,
 
 
 def read_tileset(name):
-    """data/tiles_<name>.txt -> (charset, tiles[name] = (codes, attrs, flag))"""
+    """data/tiles_<name>.txt -> (tiles[name] = (chars, attrs, flag, sets), order)
+
+    chars: the four characters' bytes (top left, top right, bottom left,
+    bottom right); sets: the tile sets it belongs to (in=farm,village), None
+    for all of them. Codes are handed out per tile set (tile_set())."""
     path = os.path.join(DATA, f'tiles_{name}.txt')
-    cs = CharSet(0, TILE_CHARS, path)
-    cs.add([0xFF] * 8)               # code 0: the separator row, all %11
     tiles = {}
     order = []
     for head, pic, ln in blocks(path):
@@ -175,25 +179,25 @@ def read_tileset(name):
         for f in o.get('flags', '').split(','):
             if f:
                 flag |= FLAGS[f]
+        sets = set(o['in'].split(',')) if 'in' in o else None
         if kind == 'tile':
             tname = head[1]
             if 'top' in o:             # top half of one tile, bottom half of another
                 a, b = tiles[o['top']], tiles[o['bottom']]
-                tiles[tname] = (a[0][:2] + b[0][2:], a[1][:2] + b[1][2:], flag)
+                tiles[tname] = (a[0][:2] + b[0][2:], a[1][:2] + b[1][2:], flag, sets)
                 order.append(tname)
                 continue
             if 'same' in o:            # the characters of another tile, other colours
                 src = tiles[o['same']]
-                codes = src[0]
-                pic = None
+                chars = src[0]
             else:
                 if len(pic) != 16:
                     fail(where, f'tile {tname}: {len(pic)} lines, not 16')
-                codes = [cs.add(c) for c in cells_of(pic_bytes(pic, where), 2, 2)]
+                chars = [tuple(c) for c in cells_of(pic_bytes(pic, where), 2, 2)]
             attrs = colour_grid(o, 'col', 4, where)
             if 'flags' not in o and 'same' in o:
                 flag = tiles[o['same']][2]
-            tiles[tname] = (codes, attrs, flag)
+            tiles[tname] = (chars, attrs, flag, sets)
             order.append(tname)
         elif kind == 'big':
             # big NAME WxH: W*H tiles cut from one picture, named NAME_x_y,
@@ -208,29 +212,76 @@ def read_tileset(name):
             solid = o.get('solid')
             for ty in range(h):
                 for tx in range(w):
-                    codes, attrs = [], []
+                    chars, attrs = [], []
                     for cy in range(2):
                         for cx in range(2):
                             gx, gy = tx * 2 + cx, ty * 2 + cy
-                            codes.append(cs.add([rows[gy * 8 + l][gx] for l in range(8)]))
+                            chars.append(tuple(rows[gy * 8 + l][gx] for l in range(8)))
                             attrs.append(cols[gy * 2 * w + gx])
                     f = flag
                     if solid is not None:
                         # solid=rows from the top that are solid, e.g. solid=2
                         f = flag | (1 if ty >= h - int(solid) or solid == 'all' else 0)
                     tn = f'{tname}_{tx}_{ty}'
-                    tiles[tn] = (codes, attrs, f)
+                    tiles[tn] = (chars, attrs, f, sets)
                     order.append(tn)
         else:
             fail(where, f'unknown block {kind!r}')
     if len(order) > MAX_TILES:
         sys.exit(f'{path}: {len(order)} tiles, at most {MAX_TILES}')
-    return cs, tiles, order
+    return tiles, order
+
+
+def tile_set(name, tiles, order, setname):
+    """The characters of the tiles that belong to tile set setname, codes
+    handed out to them; the others keep their number but get no
+    characters (code 0) - the two outdoor sets number their tiles alike, so
+    the game's T_... names hold in both. -> (charset, tiles[name] =
+    (codes, attrs, flag))"""
+    cs = CharSet(0, TILE_CHARS, f'tile set {setname}')
+    cs.add([0xFF] * 8)               # code 0: the separator row, all %11
+    out = {}
+    for t in order:
+        chars, attrs, flag, sets = tiles[t]
+        if sets is None or setname in sets:
+            out[t] = ([cs.add(c) for c in chars], attrs, flag)
+        else:
+            out[t] = ([0] * 4, [0] * 4, 1)
+    return cs, out
+
+
+def water_pairs(cs, tiles, order):
+    """The characters that ripple (engine.s water): of every water tile,
+    the halves - two characters side by side - as (left, right, lines):
+    lines a bit for each line (bit 0 the top one) without a pixel of the
+    background - the shore's top half moves only where it is water. They
+    must not be anybody else's."""
+    pairs = []
+    for t in order:
+        codes, attrs, flag = tiles[t]
+        if not flag & FLAGS['water'] or codes == [0] * 4:
+            continue
+        for a, b in ((codes[0], codes[1]), (codes[2], codes[3])):
+            ca, cb = cs.chars[a - cs.first], cs.chars[b - cs.first]
+            lines = sum(1 << l for l in range(8)
+                        if all(((v >> s) & 3) for v in (ca[l], cb[l]) for s in (0, 2, 4, 6)))
+            if lines and (a, b, lines) not in pairs:
+                pairs.append((a, b, lines))
+    for t in order:
+        codes, attrs, flag = tiles[t]
+        if not flag & FLAGS['water'] and codes != [0] * 4:
+            for a, b, lines in pairs:
+                if a in codes or b in codes:
+                    sys.exit(f'{cs.name}: water character in tile {t}, which is not water')
+    if len(pairs) > 8:
+        sys.exit(f'{cs.name}: {len(pairs)} pairs of water characters, at most 8')
+    return pairs
 
 
 def tileset_file(cs, tiles, order):
     """nchars, ntiles, the characters, then per quarter the codes, per
-    quarter the colours, and the flags, each ntiles long."""
+    quarter the colours, and the flags, each ntiles long; then the number
+    of rippling pairs of characters and the pairs."""
     n = len(order)
     out = bytearray([len(cs.chars), n])
     for c in cs.chars:
@@ -240,6 +291,10 @@ def tileset_file(cs, tiles, order):
     for k in range(4):
         out += bytes(tiles[t][1][k] for t in order)
     out += bytes(tiles[t][2] for t in order)
+    pairs = water_pairs(cs, tiles, order)
+    out.append(len(pairs))
+    for a, b, lines in pairs:
+        out += bytes([a, b, lines])
     return bytes(out)
 
 
@@ -311,6 +366,11 @@ def read_sprites():
 
 ROOM_W, ROOM_H = 20, 11
 
+# the tile sets by number (a room's byte 220), and which tile file each is
+# made from: a room "set outdoor" gets the farm's if it is a farm room
+SETS = ['farm', 'indoor', 'mine', 'village']
+SET_OF = {'outdoor': ['farm', 'village'], 'indoor': ['indoor'], 'mine': ['mine']}
+
 
 def read_rooms(tilesets):
     """data/rooms.txt: every room in one file."""
@@ -366,17 +426,39 @@ def read_rooms(tilesets):
             sys.exit(f'{path}:{i}: unknown line {line!r}')
     files = {}
     ids = {n: k for k, n in enumerate(order)}
+    import forest
+    import edges
     for n in order:
         r = rooms[n]
         ts = r['set']
-        sid = ['outdoor', 'indoor', 'mine'].index(ts)
-        _, tiles, torder = tilesets[ts]
+        setname = ts if ts != 'outdoor' else ('farm' if r['flags'] & 1 else 'village')
+        sid = SETS.index(setname)
+        _, tiles, torder = tilesets[setname]
         b = bytearray(250)
-        for y, row in enumerate(r['grid']):
+        grid = r['grid']
+
+        def is_tree(x, y, grid=grid, ts=ts):
+            # off the room the wood goes on
+            if not (0 <= x < ROOM_W and 0 <= y < ROOM_H):
+                return True
+            return legend[ts].get(grid[y][x]) == 'TREE'
+
+        def is_path(x, y, grid=grid, ts=ts):
+            # off the room, and at a door or a bridge, the path goes on
+            if not (0 <= x < ROOM_W and 0 <= y < ROOM_H):
+                return True
+            return legend[ts].get(grid[y][x]) in ('PATH', 'DOOR', 'WATER', 'SHORE', 'CAVE')
+        for y, row in enumerate(grid):
             for x, ch in enumerate(row):
                 tn = legend[ts].get(ch)
                 if tn is None:
                     sys.exit(f'room {n}: no tile for {ch!r} in legend {ts}')
+                if tn == 'TREE':                # one of a wood: forest.py
+                    tn = forest.pick(is_tree, x, y) or tn
+                elif tn == 'PATH':              # grass at its sides: edges.py
+                    tn = edges.pick(is_path, x, y) or tn
+                if tiles[tn][2] == 1 and tiles[tn][0] == [0] * 4:
+                    sys.exit(f'room {n}: tile {tn} is not in tile set {setname}')
                 b[y * ROOM_W + x] = torder.index(tn)
         b[220] = sid
         b[221:225] = bytes(r['pal'])
@@ -478,6 +560,22 @@ def write_prg(path, data, addr=0):
         f.write(bytes([addr & 0xFF, addr >> 8]) + data)
 
 
+EXOMIZER = os.environ.get('EXOMIZER', os.path.join(
+    os.environ.get('CC65_BIN', os.path.expanduser('~/.local/share/cc65-vs64/bin')), 'exomizer'))
+
+
+def write_packed(name, data):
+    """A file for the disk, packed by exomizer ("raw": unpack.s unpacks it
+    forwards, to wherever the game wants it). Returns the packed size."""
+    with tempfile.TemporaryDirectory() as tmp:
+        src, dst = os.path.join(tmp, 'in'), os.path.join(tmp, 'out')
+        open(src, 'wb').write(data)
+        subprocess.run([EXOMIZER, 'raw', '-q', '-o', dst, src], check=True)
+        packed = open(dst, 'rb').read()
+    write_prg(os.path.join(OUT, 'disk', name), packed, 0)
+    return len(packed)
+
+
 def main():
     preview = '--preview' in sys.argv
     os.makedirs(os.path.join(OUT, 'disk'), exist_ok=True)
@@ -485,21 +583,29 @@ def main():
     h = ['/* generated by tools/mkdata.py - do not edit */', '#ifndef DATA_H',
          '#define DATA_H', '']
 
+    # Four tile sets: the farm and the village share one numbering of the
+    # outdoor tiles (T_...), each with the characters of its own tiles.
     tilesets = {}
-    for k, name in enumerate(['outdoor', 'indoor', 'mine']):
-        cs, tiles, order = read_tileset(name)
-        tilesets[name] = (cs, tiles, order)
-        tf = tileset_file(cs, tiles, order)
-        write_prg(os.path.join(OUT, 'disk', f'TILES{k}'), tf, 0)
-        h.append(f'#define TILES{k}_SIZE {len(tf)}')
+    for name in ('outdoor', 'indoor', 'mine'):
+        tiles, order = read_tileset(name)
         pre = {'outdoor': 'T_', 'indoor': 'I_', 'mine': 'M_'}[name]
-        h.append(f'/* tile set {k}: {name}, {len(cs.chars)} characters, {len(order)} tiles */')
+        h.append(f'/* {name} tiles: {len(order)} */')
         for i, n in enumerate(order):
             h.append(f'#define {pre}{cname(n)} {i}')
         h.append('')
+        for setname in SET_OF[name]:
+            k = SETS.index(setname)
+            cs, stiles = tile_set(name, tiles, order, setname)
+            tilesets[setname] = (cs, stiles, order)
+            tf = tileset_file(cs, stiles, order)
+            n = write_packed(f'TILES{k}', tf)
+            h.append(f'#define TILES{k}_SIZE {len(tf)}    /* {setname}, {len(cs.chars)} characters */')
+            h.append(f'#define TILES{k}_PACKED {n}')
+        h.append('')
 
     font, icons, iorder = read_hud()
-    write_prg(os.path.join(OUT, 'disk', 'HUD'), bytes(font), 0xE000)
+    n = write_packed('HUD', bytes(font))
+    h.append(f'#define HUD_PACKED {n}')
     h.append('/* toolbar characters */')
     for n in iorder:
         h.append(f'#define H_{cname(n)} {icons[n][0][0]}')
@@ -520,9 +626,19 @@ def main():
     s.append('_spr_h:')
     s.append('        .byte ' + ', '.join(str(len(r)) for _, r in sprites))
     for n, rows in sprites:
+        # the lines (2 bytes each), then for engine.s's r_fig a byte a line
+        # with a bit for every pixel that is not %00, and one for every
+        # pixel that is %11 (bit 7 the left pixel)
         s.append(f'spr_{n}:')
         for r in rows:
             s.append('        .byte ' + ', '.join(f'${b:02X}' for b in r))
+        px, p11 = [], []
+        for r in rows:
+            pix = [(r[k // 4] >> (6 - 2 * (k % 4))) & 3 for k in range(8)]
+            px.append(sum(128 >> k for k in range(8) if pix[k]))
+            p11.append(sum(128 >> k for k in range(8) if pix[k] == 3))
+        s.append('        .byte ' + ', '.join(f'${b:02X}' for b in px))
+        s.append('        .byte ' + ', '.join(f'${b:02X}' for b in p11))
     # icon code and colour tables
     s.append('        .export _icon_code, _icon_col')
     s.append('_icon_code:')
@@ -545,10 +661,12 @@ def main():
 
     rorder, rfiles = read_rooms(tilesets)
     h.append('/* rooms */')
+    most = 0
     for k, n in enumerate(rorder):
-        write_prg(os.path.join(OUT, 'disk', f'ROOM{k:02d}'), rfiles[n], 0)
+        most = max(most, write_packed(f'ROOM{k:02d}', rfiles[n]))
         h.append(f'#define R_{cname(n)} {k}')
     h.append(f'#define N_ROOMS {len(rorder)}')
+    h.append(f'#define ROOM_PACKED_MAX {most}')
     h.append('')
     h.append('#endif')
     open(os.path.join(OUT, 'gen', 'data.h'), 'w').write('\n'.join(h) + '\n')
@@ -595,7 +713,8 @@ def make_preview(tilesets, font, icons, iorder, sprites, rorder, rfiles):
     from PIL import Image
     pdir = os.path.join(OUT, 'preview')
     os.makedirs(pdir, exist_ok=True)
-    pals = {'outdoor': [colour('green3'), colour('brown0'), colour('orange5')],
+    pals = {'farm': [colour('green3'), colour('brown0'), colour('orange5')],
+            'village': [colour('green3'), colour('brown0'), colour('orange5')],
             'indoor': [colour('brown4'), colour('brown0'), colour('orange5')],
             'mine': [colour('brown1'), colour('black0'), colour('orange5')]}
     for name, (cs, tiles, order) in tilesets.items():
@@ -611,7 +730,7 @@ def make_preview(tilesets, font, icons, iorder, sprites, rorder, rfiles):
     # rooms, as the game shows them
     for k, n in enumerate(rorder):
         b = rfiles[n]
-        name = ['outdoor', 'indoor', 'mine'][b[220]]
+        name = SETS[b[220]]
         cs, tiles, order = tilesets[name]
         pal = list(b[221:224])
         img = Image.new('RGB', (320 * 2, 176 * 2), (0, 0, 0))

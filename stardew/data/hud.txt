@@ -2,7 +2,9 @@
 ; digits (copied at start-up), everything here goes from code 64 on.
 ; Icons are 2x2 multicolour characters like tiles: . background (dark
 ; wood), x black, o light brown, # the colour of the cell.
-; char NAME hires=1: one character in two colours, # set.
+; char NAME: one multicolour character, 4 pixels wide; with hires=1 one
+; in two colours, 8 wide, # set. The title's letters (LOGO_*) are made by
+; tools/logo.py.
 
 icon HOE col=white5
 ........
@@ -422,82 +424,301 @@ char HEART0 hires=1
 ...#....
 ........
 
-char BLOCK hires=1
-########
-########
-########
-########
-########
-########
-########
-########
+; The frame of the menus: a wooden beam, multicolour (o the wood, x its
+; edges, # grain in the cell's colour).
 
-char FR_TL hires=1
-........
-........
-........
-...#####
-...#....
-...#....
-...#....
-...#....
+char FR_TL
+....
+....
+.xxx
+xooo
+xo##
+xooo
+xoox
+xoox
 
-char FR_TR hires=1
-........
-........
-........
-####....
-...#....
-...#....
-...#....
-...#....
+char FR_TR
+....
+....
+xxx.
+ooox
+##ox
+ooox
+xoox
+xoox
 
-char FR_BL hires=1
-...#....
-...#....
-...#....
-...#####
-........
-........
-........
-........
+char FR_BL
+xoox
+xoox
+xoox
+xooo
+xo##
+xooo
+.xxx
+....
 
-char FR_BR hires=1
-...#....
-...#....
-...#....
-####....
-........
-........
-........
-........
+char FR_BR
+xoox
+xoox
+xoox
+ooox
+##ox
+ooox
+xxx.
+....
 
-char FR_H hires=1
-........
-........
-........
-########
-........
-........
-........
-........
+char FR_H
+....
+....
+xxxx
+oooo
+#o##
+oooo
+xxxx
+....
 
-char FR_V hires=1
-...#....
-...#....
-...#....
-...#....
-...#....
-...#....
-...#....
-...#....
+char FR_V
+xoox
+xo#x
+xoox
+xoox
+xoox
+x#ox
+xoox
+xoox
 
-char HALF hires=1
-####....
-####....
-####....
-####....
-####....
-####....
-####....
-####....
+; Energy and health: a bar of five characters, each 0..4 pixels full in
+; the cell's colour.
+
+char BAR0
+....
+xxxx
+xxxx
+xxxx
+xxxx
+xxxx
+xxxx
+....
+
+char BAR1
+....
+xxxx
+#xxx
+#xxx
+#xxx
+#xxx
+xxxx
+....
+
+char BAR2
+....
+xxxx
+##xx
+##xx
+##xx
+##xx
+xxxx
+....
+
+char BAR3
+....
+xxxx
+###x
+###x
+###x
+###x
+xxxx
+....
+
+char BAR4
+....
+xxxx
+####
+####
+####
+####
+xxxx
+....
+
+; The title's letters: made by tools/logo.py.
+
+icon LOGO_S col=yellow7,yellow7,yellow5,yellow5
+.xxxxxx.
+.x####x.
+xxoooox.
+x#xxxxx.
+x#x.....
+x#x.....
+xoxxxx..
+xx###x..
+.xoooxx.
+.xxxx#x.
+....x#x.
+....x#x.
+xxxxxox.
+x####xx.
+xoooox..
+xxxxxx..
+
+icon LOGO_T col=yellow7,yellow7,yellow5,yellow5
+xxxxxxx.
+x#####x.
+xoo#oox.
+xxx#xxx.
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..x#x...
+..xox...
+..xxx...
+
+icon LOGO_A col=yellow7,yellow7,yellow5,yellow5
+.xxxxx..
+.x###x..
+xxoooxx.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#xxx#x.
+x#####x.
+x#ooo#x.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+xox.xox.
+xxx.xxx.
+
+icon LOGO_R col=yellow7,yellow7,yellow5,yellow5
+xxxxxx..
+x####x..
+x#oooxx.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#xxxox.
+x####xx.
+x#o#ox..
+x#x#xx..
+x#xoxx..
+x#xx#x..
+x#xxoxx.
+x#xxx#x.
+xox.xox.
+xxx.xxx.
+
+icon LOGO_D col=yellow7,yellow7,yellow5,yellow5
+xxxxx...
+x###x...
+x#ooxx..
+x#xx#x..
+x#xxoxx.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#xxxox.
+x#xx#xx.
+x#xxox..
+x###xx..
+xooox...
+xxxxx...
+
+icon LOGO_E col=yellow7,yellow7,yellow5,yellow5
+xxxxxxx.
+x#####x.
+x#oooox.
+x#xxxxx.
+x#x.....
+x#x.....
+x#xxxx..
+x####x..
+x#ooox..
+x#xxxx..
+x#x.....
+x#x.....
+x#xxxxx.
+x#####x.
+xooooox.
+xxxxxxx.
+
+icon LOGO_W col=yellow7,yellow7,yellow5,yellow5
+xxx.xxx.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#xxx#x.
+x#x#x#x.
+x#x#x#x.
+x#x#x#x.
+x#xox#x.
+x##x##x.
+x#oxo#x.
+x#xxx#x.
+xox.xox.
+xxx.xxx.
+
+icon LOGO_P col=yellow7,yellow7,yellow5,yellow5
+xxxxxx..
+x####x..
+x#oooxx.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#xxxox.
+x####xx.
+x#ooox..
+x#xxxx..
+x#x.....
+x#x.....
+x#x.....
+x#x.....
+xox.....
+xxx.....
+
+icon LOGO_O col=yellow7,yellow7,yellow5,yellow5
+.xxxxx..
+.x###x..
+xxoooxx.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+xoxxxox.
+xx###xx.
+.xooox..
+.xxxxx..
+
+icon LOGO_N col=yellow7,yellow7,yellow5,yellow5
+xxx.xxx.
+x#x.x#x.
+x#xxx#x.
+x##xx#x.
+x#oxx#x.
+x#x#x#x.
+x#xox#x.
+x#xx##x.
+x#xxo#x.
+x#xxx#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+x#x.x#x.
+xox.xox.
+xxx.xxx.
+
