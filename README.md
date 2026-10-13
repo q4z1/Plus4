@@ -8,6 +8,13 @@ This is a playground, not a library: each subfolder is a self-contained program,
 from a three-line "hello world" to a full arcade game. The point is to find out how
 far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 7501.
 
+## How this was made
+
+Ideas, design and direction come from decades of programming experience; the
+implementation made intensive use of AI ([Claude](https://claude.ai) by
+Anthropic). That is part of the experiment: how far a 1984 machine can be
+pushed when an experienced programmer puts an AI to work on it.
+
 ## What's in here
 
 | Folder | What it is |
