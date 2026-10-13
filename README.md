@@ -11,8 +11,7 @@ far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 75
 ## How this was made
 
 Ideas, design and direction come from decades of programming experience; the
-implementation made intensive use of AI ([Claude](https://claude.ai) by
-Anthropic). That is part of the experiment: how far a 1984 machine can be
+implementation made intensive use of AI ([Claude](https://claude.ai) by Anthropic). That is part of the experiment: how far a 1984 machine can be
 pushed when an experienced programmer puts an AI to work on it.
 
 ## What's in here
