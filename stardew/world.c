@@ -14,6 +14,7 @@
  * all, only the moment it takes to unpack it.
  */
 #include <cbm.h>
+#include <device.h>
 #include <string.h>
 #include "game.h"
 
@@ -44,6 +45,23 @@ static unsigned char *rc_at[N_ROOMS];
 /* Where a file is unpacked: the two pictures' screens, which are drawn
    afresh after every load anyway (the screen is off meanwhile). */
 #define SCRATCH ((unsigned char *)0xD000)
+
+/* Where a save is read back, to see that it is on the disk as it is
+   here: the map image, drawn afresh after the night (the screens hold
+   the morning page then). */
+#define CHECKBUF ((unsigned char *)0xE800)
+
+/* The fast loader's Plus/4 half (fastload.s), which the boot program
+   (boot.s) leaves at $0600 if the drive runs the other half: then every
+   file goes through it, and the saves as well - the drive answers to
+   nothing else. Else the boot clears its mark, and the KERNAL does it. */
+#define FL_LOAD  ((unsigned int (*)(void))0x0600)
+#define FL_SAVE  ((unsigned char (*)(void))0x0603)
+#define FL_MARK  ((const unsigned char *)0x0606)
+#define FL_NAME  (*(const char **)0x060A)
+#define FL_ADDR  (*(void **)0x060C)
+static const unsigned char fl_mark[4] = { 0x53, 0x50, 0x46, 0x4C };   /* SPFL */
+static unsigned char fl_on;
 
 unsigned char room_id;
 unsigned char floor_no;
@@ -143,9 +161,19 @@ void show_room(void)
  * The disk
  * -------------------------------------------------------------------- */
 
+/* The drive the game came from, and whether it runs the fast loader */
+void disk_init(void)
+{
+    dev = getcurrentdevice();
+    if (dev < 8)
+        dev = 8;
+    fl_on = !memcmp(FL_MARK, fl_mark, 4);
+}
+
 /* Load a file to addr; the screen must be off (eng_blank), because the
-   KERNAL does the work with its own interrupt handler in place. Tries a
-   few times, then gives up: 0. Else the number of bytes loaded. */
+   KERNAL does the work with its own interrupt handler in place (and the
+   fast loader wants no interrupt either). Tries a few times, then gives
+   up: 0. Else the number of bytes loaded. */
 unsigned int __fastcall__ load_file(const char *name, void *addr)
 {
     static unsigned char k;
@@ -155,7 +183,14 @@ unsigned int __fastcall__ load_file(const char *name, void *addr)
     nm = name;
     ad = addr;
     for (k = 0; k < 3; ++k) {
-        n = cbm_load(nm, dev, ad);
+        if (fl_on) {
+            FL_NAME = nm;
+            FL_ADDR = ad;
+            n = FL_LOAD();
+            if (n)
+                n -= (unsigned int)ad;
+        } else
+            n = cbm_load(nm, dev, ad);
         if (n)
             return n;
     }
@@ -293,8 +328,14 @@ static unsigned char save_sum(void)
     return s;
 }
 
-/* The save file: the game state as it is, one file. The old one is
-   scratched first; the 1541's save-with-replace is not to be trusted.
+/* The save file: the game state as it is, one file.
+
+   With the fast loader it is written into the file the disk came with
+   (tools/mkd64.py makes it as long as the game state), and then read back
+   and compared: the drive's own checks end at the sector.
+
+   Else the KERNAL saves it. The old one is scratched first; the 1541's
+   save-with-replace is not to be trusted.
    Then the drive's status is read: that waits until it has really written
    the file's last block and its directory entry - else, with nothing to
    load next (the house comes from memory), the file stays open on the
@@ -307,6 +348,13 @@ unsigned char save_game(void)
     G.magic = SAVE_MAGIC;
     G.sum = 0;
     G.sum = -save_sum();
+    if (fl_on) {
+        FL_NAME = "save";
+        FL_ADDR = &G;
+        return FL_SAVE()
+            && load_file("save", CHECKBUF) == sizeof(G)
+            && !memcmp(CHECKBUF, &G, sizeof(G));
+    }
     cbm_open(15, dev, 15, "s0:save");
     cbm_close(15);
     r = cbm_save("save", dev, &G, sizeof(G));
@@ -324,6 +372,6 @@ unsigned char load_game(void)
 {
     static unsigned int n;
     eng_blank();
-    n = cbm_load("save", dev, &G);
+    n = load_file("save", &G);
     return n == sizeof(G) && G.magic == SAVE_MAGIC && save_sum() == 0;
 }

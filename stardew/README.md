@@ -125,25 +125,30 @@ as a whole too (it unpacks itself when it starts):
 
 | File | unpacked | on the disk | |
 | --- | --- | --- | --- |
-| `stardew` | 38 KB | 19 KB | the program |
+| `stardew` | | 1.5 KB | the boot program and the fast loader (below) |
+| `game` | 38 KB | 19 KB | the program |
 | `hud` | 2 KB | 0.5 KB | the toolbar's character set: letters, icons, frames |
 | `tiles0`..`tiles3` | 0.6–2.4 KB | 0.4–1.2 KB | tile sets: the farm, inside, the mine, the village |
 | `room00`..`room13` | 250 bytes | 70–130 bytes | one room each: 20 × 11 tiles, colours, exits, doors |
+| `save` | 1.5 KB | 1.5 KB | the saved game; empty on a new disk |
 
 On a real 1541 the KERNAL loads about 400 bytes a second, so the packing
-roughly halves every wait: `LOAD` took the program 88 seconds and now 50
-(measured in plus4emu, which emulates the whole drive).
+roughly halves every wait: `LOAD` took the program 88 seconds and then 50
+(measured in plus4emu, which emulates the whole drive). The fast loader
+halves it again.
 
 A room is one screen of 20 × 11 tiles. A tile is 2 × 2 multicolour
 characters, 8 × 16 pixels, and walking off the edge of a room or through a
 door loads the room behind it. The three mine floors are cave shapes on the
 disk; the rocks, ores and monsters are put in when you climb down.
 
-Loading goes through the KERNAL, which on the Plus/4 needs the ROM switched
-in. With the ROM in, the processor takes its interrupts from the ROM's
-vectors, not the game's, so for the time of a load the TED's interrupt is
-switched off and the screen with it: the picture goes dark while a room
-comes in. Everything the game shows is set up again afterwards.
+Without the fast loader, loading goes through the KERNAL, which on the
+Plus/4 needs the ROM switched in. With the ROM in, the processor takes its
+interrupts from the ROM's vectors, not the game's, so for the time of a
+load the TED's interrupt is switched off and the screen with it: the
+picture goes dark while a room comes in. Everything the game shows is set
+up again afterwards. The fast loader is happy with that too: with the
+screen off the processor runs at its full speed.
 
 The first versions of the files were too slow on a real 1541 — a tile set
 took six seconds, and going in and out of the farmhouse loads one each
@@ -157,7 +162,45 @@ unpack it: the farm a second time comes up in 0.4 seconds instead of 3.8.
 [unpack.s](unpack.s) is exomizer's own decruncher
 ([exodecrunch.s](exodecrunch.s)), as in Paradroid.
 
-The program is meant to grow, and the next room only needs a file. Four
+The program is meant to grow, and the next room only needs a file.
+
+### A fast loader
+
+The disk's first file is not the game but a small boot program
+([boot.s](boot.s)), which `LOAD"*",8` and `RUN` start as before. It asks
+the drive what it is. A 1541 (any model, also a 1570 or 1571) gets the
+drive half of a fast loader written into its memory ([drive.s](drive.s));
+the Plus/4 half ([fastload.s](fastload.s)) goes to `$0600`, which neither
+the KERNAL nor the game uses. The boot loads the game with it, and the game
+then loads every room and tile set with it. The loader is
+[Train Schedule's](../trainschedule/README.md): Siz's way of doing it, one
+bit per edge of the clock line, every wait with twice the time it needs,
+and the drive reading the disk through its own DOS. Disks for it are
+written by [tools/mkd64.py](tools/mkd64.py), which spaces a file's sectors
+the way the loader can keep up with.
+
+Measured in plus4emu, from switching on:
+
+| | KERNAL | fast loader |
+| --- | --- | --- |
+| to the title | 59.5 s | 30.5 s |
+| a new game (the farmhouse) | 5.2 s | 4.1 s |
+| the farm, the village, the mine | 3.8, 5.1, 3.3 s | 2.1, 3.1, 2.4 s |
+
+The rooms gain less than the program: every load reads the directory first,
+and a room is a single block.
+
+Any other drive - a 1551, a 1581, an SD2IEC - loads the KERNAL's way, as
+before. The boot program first puts the KERNAL's vectors back (`RESTOR`):
+a fast loader left in memory, such as SJL264 for an SD2IEC, points `LOAD`
+into memory the boot program uses.
+
+Once the drive runs the fast loader, it answers nothing else, not even the
+KERNAL's `SAVE`. So the fast loader saves as well: it writes into the
+`save` file the disk comes with, sector by sector, through the drive's own
+DOS - the file keeps its place and its length, only what it holds changes.
+Then the game reads it back and compares it with what it saved.
+ Four
 tile sets keep the characters apart: the farm and the village number the
 outdoor tiles alike - the game's `T_...` names hold in both - but each has
 only the characters of the tiles it uses (crops on the farm, roofs, signs
@@ -245,7 +288,9 @@ one structure: the date, money, the backpack, tool levels, friendships, and
 the two farm rooms with what grows where. It lives at `$0800`, where the
 Plus/4's own text screen would be. That place is chosen: the KERNAL saves
 with the ROM switched in, and anything above `$8000` it would read from the
-ROM instead of the RAM beneath.
+ROM instead of the RAM beneath. With the fast loader the drive writes it
+into the `save` file on the disk (above); without it the KERNAL scratches
+the old file and saves a new one.
 
 ### Music
 
@@ -375,16 +420,20 @@ shows half the pond moved.
 | [mine.c](mine.c) | floors, rocks, ores, monsters, the sword |
 | [engine.s](engine.s) | raster interrupt, the two pictures, figures, water, keyboard and joysticks |
 | [unpack.s](unpack.s), [exodecrunch.s](exodecrunch.s) | unpacking what exomizer packed |
+| [boot.s](boot.s) | the disk's first program: which drive, the fast loader into it, the game |
+| [drive.s](drive.s), [fastload.s](fastload.s) | the fast loader's halves: in the 1541, in the Plus/4 |
 | [testmenu.c](testmenu.c) | the test build's menu: go anywhere |
 | [game.h](game.h) | what the parts share |
 | [stardew.cfg](stardew.cfg) | the memory layout |
 | [data/](data/) | tiles, icons, figures and rooms as text |
 | [tools/mkdata.py](tools/mkdata.py) | makes the disk files (packed) and `build/gen/` from `data/` |
+| [tools/mkd64.py](tools/mkd64.py) | writes the `.d64`, the files' sectors spaced for the fast loader |
 | [tools/forest.py](tools/forest.py), [edges.py](tools/edges.py), [logo.py](tools/logo.py) | how the wood, the path's edges and the title's letters were made |
 | [build.sh](build.sh) | builds `build/stardew.prg` and `build/stardew.d64` |
 | [tests/run_tests.py](tests/run_tests.py) | plays the game in a headless VICE and checks it (see below) |
 | [tests/vice.py](tests/vice.py) | starts VICE without a window and talks to its monitor |
 | [tests/p4emu.py](tests/p4emu.py) | plus4emu inside the test, with a whole 1541 |
+| [tests/p4emu_fastload.py](tests/p4emu_fastload.py) | the fast loader in plus4emu: loading, saving, continuing |
 | [tests/p4emu_snow.py](tests/p4emu_snow.py), [p4emu_speed.py](tests/p4emu_speed.py), [p4emu_profile.py](tests/p4emu_profile.py), [p4emu_shots.py](tests/p4emu_shots.py), [p4emu_readme.py](tests/p4emu_readme.py), [p4emu_hud.py](tests/p4emu_hud.py) | snow, pictures per second, where the time goes, pictures, the README's pictures, a flickering toolbar |
 | [tests/yape.py](tests/yape.py), [yape_split.py](tests/yape_split.py) | Yape without a window; the toolbar's line in Yape, picture by picture |
 | [run.sh](run.sh), [run-yape.sh](run-yape.sh), [run-plus4emu.sh](run-plus4emu.sh) | start the disk in VICE, Yape, plus4emu |
@@ -404,9 +453,8 @@ it in Yape ([run-yape.sh](run-yape.sh)) or plus4emu
 ~/.local/share/cc65-vs64/bin/xplus4 -autostart build/stardew.d64
 ```
 
-`build.sh` needs Python 3 for the data, exomizer 3 (next to cc65, or
-`EXOMIZER`) and `c1541` from VICE for the disk (inside the Flatpak sandbox
-it is taken from the host). It looks for cc65 in
+`build.sh` needs Python 3 for the data and the disk, and exomizer 3 (next
+to cc65, or `EXOMIZER`). It looks for cc65 in
 `~/.local/share/cc65-vs64/bin`, or in `CC65_BIN`.
 
 ## The test build
@@ -442,6 +490,7 @@ plus4emu.
 tests/run_tests.py            # all of them, about two minutes
 tests/run_tests.py sleep      # the ones with "sleep" in their name
 tests/run_tests.py -l         # the list
+tests/run_tests.py --1541     # all of them with a 1541: through the fast loader
 ```
 
 The tests play the game the way a player would - keys go in through a byte
@@ -458,11 +507,13 @@ screenshot in `build/test/`.
 Two more emulators check what VICE cannot: plus4emu, run inside the test
 through its library ([tests/p4emu.py](tests/p4emu.py), set up as in
 [Paradroid](../paradroid/README.md)), shows the TED's snow and emulates the
-whole 1541, so it also measures loading times; Yape's TED is the closest
+whole 1541, so it also measures loading times and tries the fast loader on
+a drive that is all there - its DOS, its processor, the disk turning; Yape's TED is the closest
 to the chip's timing:
 
 ```sh
 tests/p4emu_snow.py           # snow in any picture, and how long the loads take
+tests/p4emu_fastload.py       # the fast loader: load, save, continue from the saved disk
 tests/p4emu_speed.py          # pictures per second in the house, on the farm, in the mine
 tests/p4emu_profile.py MINE_A 23   # where the time goes on floor 23
 tests/yape_split.py           # the toolbar's line in Yape, picture by picture

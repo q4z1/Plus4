@@ -119,6 +119,7 @@ void set_tile(unsigned char tx, unsigned char ty, unsigned char t);
 void enter_room(unsigned char id, unsigned char tx, unsigned char ty);
 void show_room(void);
 void set_palette(void);
+void disk_init(void);
 unsigned int __fastcall__ load_file(const char *name, void *addr);
 void load_hud(void);
 void load_packed(const char *name, void *dst);

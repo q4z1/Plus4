@@ -21,7 +21,6 @@
  * are loaded when they are needed; tools/mkdata.py makes them from the text
  * files in data/.
  */
-#include <device.h>
 #include <string.h>
 #include "game.h"
 
@@ -623,9 +622,7 @@ void main(void)
 
     eng_stack();                            /* see engine.s */
 
-    dev = getcurrentdevice();
-    if (dev < 8)
-        dev = 8;
+    disk_init();
     eng_init();
     eng_blank();
     load_hud();

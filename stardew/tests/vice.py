@@ -2,8 +2,8 @@
 
 VICE runs inside a headless gamescope, so there is no window and nothing
 takes the keyboard focus away from whoever is working at the machine. It
-listens on a port of its own (not VICE's default), and only the process
-started here is ever stopped.
+listens on a port of its own (not VICE's default). Every emulator still
+running is ended before one is started (kill_emulators).
 
 Inside a Flatpak sandbox (VS Code as a Flatpak) VICE and gamescope are on
 the host and are reached through flatpak-spawn; files VICE is to load must
@@ -15,6 +15,8 @@ import shutil
 import socket
 import subprocess
 import time
+
+from onetest import kill_other_tests
 
 PORT = 6579
 
@@ -28,10 +30,37 @@ def _host(cmd):
     return ['flatpak-spawn', '--host'] + cmd if ON_HOST else cmd
 
 
+def _emulator_pids():
+    out = subprocess.run(_host(['pgrep', '-x', 'xplus4|x64sc']),
+                         capture_output=True, text=True).stdout
+    return out.split()
+
+
+def kill_emulators(others=True):
+    """End every emulator still running, before a new one is started: one
+    left over (a test cut short) would keep the monitor port, and the next
+    test would talk to it, running an old program. SIGTERM first, and what
+    is still there after two seconds gets SIGKILL. Other tests still
+    running go first (onetest.py): one test at a time."""
+    if others:
+        kill_other_tests()
+    for sig in ('-TERM', '-KILL'):
+        pids = _emulator_pids()
+        if not pids:
+            return
+        subprocess.run(_host(['kill', sig] + pids))
+        for _ in range(20):
+            time.sleep(0.1)
+            if not _emulator_pids():
+                return
+    raise RuntimeError('emulators still running: %s' % _emulator_pids())
+
+
 class Vice:
     settle = 0.02            # after a prompt, how long to wait for more output
 
-    def __init__(self, image, workdir, warp=True, wav=None):
+    def __init__(self, image, workdir, warp=True, wav=None, drive=None):
+        kill_emulators()
         os.makedirs(workdir, exist_ok=True)
         self.pidfile = os.path.join(workdir, 'vice.pid')
         if os.path.exists(self.pidfile):
@@ -44,6 +73,8 @@ class Vice:
             args += ['+sound']
         if warp:
             args += ['-warp']
+        if drive:               # the drive at 8: 1541 or 1551 (the default)
+            args += ['-drive8type', str(drive)]
         args += ['-autostart', os.path.abspath(image)]
         inner = ' '.join("'" + a.replace("'", "'\\''") + "'" for a in args)
         if ON_HOST or shutil.which('gamescope'):
@@ -125,3 +156,6 @@ class Vice:
             self.proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.proc.kill()
+        # (killing the shell does not always end the emulator under
+        # gamescope; only one test runs at a time, so any left is this one)
+        kill_emulators(others=False)

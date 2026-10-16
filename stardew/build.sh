@@ -6,6 +6,11 @@
 # menu (testmenu.c) as a file on the disk. Everything on the disk is packed by
 # exomizer: the files by tools/mkdata.py (the game unpacks them, unpack.s),
 # the program as a whole here (it unpacks itself when it is started).
+#
+# The disk's first file is the boot program, "stardew" (boot.s): it starts
+# the fast loader (drive.s, fastload.s) if the drive is a 1541, and loads
+# the game, "game", with it or with the KERNAL. Then "save", the save file,
+# as long as the game state: the fast loader writes into it (world.c).
 set -e
 cd "$(dirname "$0")"
 # not while a test runs: it would go on with the new files under it
@@ -49,26 +54,45 @@ $EXOMIZER raw -q -o build/testmenu.exo build/testmenu.bin
 printf '\000\350' | cat - build/testmenu.exo > build/disk/TESTMENU
 echo "build/testmenu.bin: $(stat -c%s build/testmenu.bin) bytes, packed $(stat -c%s build/testmenu.exo)"
 
-# The disk. c1541 comes with VICE; inside a Flatpak sandbox it is on the host.
-if command -v c1541 >/dev/null 2>&1; then
-    C1541=c1541
-else
-    C1541="flatpak-spawn --host c1541"
-fi
+# The boot program, with the fast loader's two halves, and where the packed
+# game starts: the number its BASIC line SYSes to
+printf '%s\n' 'MEMORY { RAM: start = $0000, size = $10000, file = %O; }' \
+    'SEGMENTS { CODE: load = RAM, type = rw; }' > build/raw.cfg
+for f in drive fastload; do
+    $B/cl65 -t none -C build/raw.cfg -o build/$f.bin $f.s
+done
+START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open(sys.argv[1], "rb").read()[:40]).group(1)))' build/stardew.prg)
+$B/cl65 -t none -g -C build/raw.cfg --asm-define GAMESTART=$START -Ln build/boot.lbl -o build/boot.prg boot.s
+echo "boot: $(stat -c%s build/boot.prg) bytes, drive code $(stat -c%s build/drive.bin), loader $(stat -c%s build/fastload.bin)"
+
+# The save file as the disk brings it: its load address, the game state's
+# length of zeros (no saved game: the mark is not there)
+python3 - <<'EOF2'
+lbl = open('build/stardew.lbl').read().split()
+at = lambda name: int(lbl[lbl.index(name) - 1], 16)
+run, size = at('.__SAVEDATA_RUN__'), at('.__SAVEDATA_SIZE__')
+open('build/disk/SAVE', 'wb').write(bytes([run & 255, run >> 8]) + bytes(size))
+EOF2
+
+# The disk, its files a few sectors further apart than the DOS would put
+# them, for the fast loader (tools/mkd64.py, trainschedule's). The game
+# further still: the boot loads it with the screen on, when the TED leaves
+# the CPU less time.
+INTERLEAVE=${INTERLEAVE:-15}
+GAME_INTERLEAVE=${GAME_INTERLEAVE:-20}
 disk() {         # disk <d64> <program> [more files from build/disk]
     d64=$1
     prg=$2
     shift 2
-    set -- -format "stardew pond,sp" d64 "$d64" -write "$prg" stardew \
-           -write build/disk/HUD hud "$@"
+    set -- stardew=build/boot.prg game@$GAME_INTERLEAVE="$prg" \
+           hud=build/disk/HUD "$@"
     for f in build/disk/TILES* build/disk/ROOM*; do
-        set -- "$@" -write "$f" "$(basename "$f" | tr 'A-Z' 'a-z')"
+        set -- "$@" "$(basename "$f" | tr 'A-Z' 'a-z')=$f"
     done
-    rm -f "$d64"
-    $C1541 "$@" >/dev/null
+    python3 tools/mkd64.py "$d64" "stardew pond" sp $INTERLEAVE "$@" \
+        save=build/disk/SAVE
 }
-disk build/stardew.d64 build/stardew.prg
-disk build/stardew-test.d64 build/stardew-test.prg -write build/disk/TESTMENU testmenu
 echo "build/stardew.d64:"
-$C1541 -attach build/stardew.d64 -list 2>/dev/null | tail -n +1
+disk build/stardew.d64 build/stardew.prg
+disk build/stardew-test.d64 build/stardew-test.prg testmenu=build/disk/TESTMENU >/dev/null
 echo "build/stardew-test.d64: the same, the program with its test menu"

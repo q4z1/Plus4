@@ -4,6 +4,9 @@
     tests/run_tests.py            all tests
     tests/run_tests.py sleep ship only the tests whose names contain a word
     tests/run_tests.py -l         list the tests
+    tests/run_tests.py --1541     with a 1541 instead of VICE's 1551: the
+                                  game then loads and saves through the
+                                  fast loader (boot.s)
 
 Build first (./build.sh). The tests drive the game the way a player does -
 keys go in through dbg_keys, which the game reads as if they were pressed -
@@ -26,6 +29,8 @@ ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, 'build', 'test')
 sys.path.insert(0, HERE)
 from vice import Vice  # noqa: E402
+
+DRIVE = '1541' if '--1541' in sys.argv else None
 
 
 # ---------------------------------------------------------------------------
@@ -82,7 +87,7 @@ class Game:
         self.lab = read_labels()
         self.d = read_defines()
         self.it, self.fields = read_game_h()
-        self.v = Vice(os.path.join(ROOT, 'build', 'stardew.d64'), OUT)
+        self.v = Vice(os.path.join(ROOT, 'build', 'stardew.d64'), OUT, drive=DRIVE)
         self.G = self.lab['_G']
 
     # ---- memory ------------------------------------------------------------
@@ -739,7 +744,7 @@ def save_and_continue(g):
     # only when the head moves on or the disk is taken out: out with it
     g.v.cmd('detach 8')
     g.stop()
-    g.v = Vice(os.path.join(ROOT, 'build', 'stardew.d64'), OUT)
+    g.v = Vice(os.path.join(ROOT, 'build', 'stardew.d64'), OUT, drive=DRIVE)
     g.start(cont=True)
     for f, v in want.items():
         check(g.get(f) == v, f'{f} {g.get(f)}, saved {v}')
