@@ -70,6 +70,25 @@
             "cwd": "${workspaceFolder}"
         },
         {
+            // Train Schedule zum Testen: baut es samt Testbau und startet
+            // build/trainschedule-test.d64 - direkt in eine Karte oder direkt
+            // in die Kartenauswahl, die Karten gesperrt wie im neuen Spiel
+            // oder alle offen (trainschedule/tests/start.sh). Beides wird
+            // beim Start abgefragt.
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Train Schedule: Testumgebung (Yape)",
+            "command": "${workspaceFolder}/trainschedule/tests/start.sh ${input:tsWhere} ${input:tsLocks} yape",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "Train Schedule: Testumgebung (VICE)",
+            "command": "${workspaceFolder}/trainschedule/tests/start.sh ${input:tsWhere} ${input:tsLocks} vice",
+            "cwd": "${workspaceFolder}"
+        },
+        {
             // Paradroid zum Durchspielen: baut es (egal welche Datei aktiv
             // ist) und startet build/paradroid-god.prg - der Spieler ist
             // unsterblich - in Yape mit dem Gamepad (paradroid/run-yape.sh).
@@ -78,6 +97,23 @@
             "name": "Paradroid: unsterblich in Yape (Gamepad)",
             "command": "PLUS4_EMU=yape PLUS4_PRG=paradroid-god ${workspaceFolder}/.vscode/run-current.sh '${workspaceFolder}/paradroid/build.sh'",
             "cwd": "${workspaceFolder}"
+        }
+    ],
+    "inputs": [
+        {
+            // Train Schedule: wohin der Testbau startet
+            "id": "tsWhere",
+            "type": "pickString",
+            "description": "Train Schedule: wohin?",
+            "options": ["choose", "1", "2"],
+            "default": "choose"
+        },
+        {
+            "id": "tsLocks",
+            "type": "pickString",
+            "description": "Train Schedule: Karten gesperrt (wie neues Spiel) oder alle offen?",
+            "options": ["locked", "open"],
+            "default": "locked"
         }
     ]
 }

@@ -1,0 +1,228 @@
+; Music: two voices, the TED's two squares, played by the interrupt once a
+; picture (50 a second), so the tempo does not depend on how busy the game
+; is. tools/mkmusic.py makes each song what the player reads (music.inc):
+; the title's the disk's file "music", a map's part of the map's file
+; (tools/mklevel.py: "music NAME" in data/<map>.txt). tools/song2wav.py
+; plays one into a .wav.
+;
+;   song NAME          a song, which loops
+;   volume N           its volume, 0-8 (the TED has one for both voices)
+;   pattern NAME       a part played more than once, written once: the v1/v2
+;                      lines after it are its two voices, till the next
+;                      pattern or main (tools/mkmusic.py finds what comes
+;                      again by itself too, and packs it)
+;   main               back to the song's own voices
+;   v1 / v2 NOTES      notes of voice 1 (tune) and voice 2 (accompaniment),
+;                      appended line by line
+;   NOTE[:LEN[.|~]]    A2 .. B7 with # or b, r = rest; LEN in 50ths of a
+;                      second, the last one given if left out; a . after it
+;                      plays the note staccato, for half its length, a ~
+;                      tied, to its end (a note falls silent two frames
+;                      before it: a short grace note would be a click and
+;                      a gap). | is a bar line and means nothing. @NAME plays that
+;                      voice's part of a pattern.
+;
+; The TED cannot go lower than about A2 (110 Hz). In the game voice 2
+; gives way to sound effects while they play (engine.s).
+
+; ---- the title and the choice of a map ---------------------------------
+; Johann Strauss I, Radetzky March, Op. 228 (1848): the march without its
+; trio - the introduction, the first part, the second, and the first again
+; to its end (D.S. al Fine), 52 bars, a minim = 104. The tune as Strauss
+; wrote it, the grace notes as a picture each; under it a march's oom-pah,
+; the bass on the beat and a note of the chord after it.
+
+song radetzky
+volume 6
+v1 D6:7 D6 D6:15. D6:7 D6 D6:15. F#6:14. E6:15. D6:21. C#6:7. B5:8 A#5:7
+v1 B5:7. C#6 D6:15. E6:14. A5:42. G5:1 F#5:8. F5:7. F#5:13. G5:1 F#5:7. F5:8.
+v1 F#5:12. G5:2 F#5:7. F5 F#5:15. E5:14. D5:13. G5:2 F#5:7. F5 F#5:13. G5:2
+v1 F#5:7. F5 F#5:13. G5:1 F#5:8. F5:7. F#5:14. B5:15. A5:14. A5:7. F#5:8. G5:14.
+v1 B5 A5:15. A5:7. E5 F#5:15. B5:14. A5 A5:8. F#5:7. E5:14. C#6:15 D5:14.
+v1 B5:15 E5:14. A5:7 G#5 A5:8. B5:7. A5 G5 F#5:13. G5:2 F#5:7. F5
+v1 F#5:13. G5:2 F#5:7. F5 F#5:14. E5:15. D5:13. G5:1 F#5:7. F5:8. F#5:12. G5:2
+v1 F#5:7. F5:8. F#5:12. G5:2 F#5:7. F5 F#5:15. B5:14. A5:15. A5:7. F#5 G#5:15.
+v1 F#6:14. E6:43 E6:15. D6:28 C#6:22 B5:7 A5:8. G5:7. F#5 E5 D5:15 D5:14
+v1 D5:13 E6:1 D6:8. C#6:7. D6:13. E6:1 D6:7. C#6:8. D6:12. E6:2 D6:7. C#6:8.
+v1 D6:14. G6 B5:13. E6:2 D6:7. C#6 D6:13. E6:2 D6:7. C#6 D6:13. E6:1
+v1 D6:8. C#6:7. D6:14. F#6:15. A5:14. A4:4~ A5:11. A5:28 G5:15. A4:4~ B5:10. B5:29
+v1 A5:15. F#5:4~ D6:10. C#6:14. C#6:8 B5:7 A5:14. G5:15. B5:14. C#6:7 A5:8 G5:14.
+v1 E5 A5:29 G5:15. A4:4~ B5:10. B5:29 A5:29. C#6:14. C#6:7 A#5:8 B5:14. D6
+v1 C#6:15. C#6:7 A#5 B5:15. D6:14. F#6:15 F#6:7 F#6 F#6:14 F#6:8 F#6:7 F#6:14
+v1 F#6:7 F#6:8 F#6:14 F#6:7 F#6:8 C#6:12 G5:2 F#5:7. F5 F#5:13. G5:2 F#5:7.
+v1 E5 F#5:13. G5:2 F#5:7. F5 F#5:13. G5:1 F#5:8. E5:7. F#5:13. G5:1 F#5:8.
+v1 F5:7. F#5:13. G5:1 F#5:7. F5:8. F#5:14. E5 D5:13. G5:2 F#5:7. F5 F#5:13.
+v1 G5:2 F#5:7. F5 F#5:13. G5:2 F#5:7. F5 F#5:14. B5:15. A5:14. A5:7. F#5:8.
+v1 G5:14. B5:15. A5:14. A5:7. E5 F#5:15. B5:14. A5:15. A5:7. F#5 E5:15. C#6:14
+v1 D5:14. B5:15 E5:14. A5:7 G#5:8 A5:7. B5 A5 G5 F#5:13. G5:2 F#5:7.
+v1 F5 F#5:13. G5:2 F#5:7. F5 F#5:15. E5:14. D5:13. G5:1 F#5:8. F5:7. F#5:13.
+v1 G5:1 F#5:7. F5:8. F#5:12. G5:2 F#5:7. F5:8. F#5:14. B5 A5:15. A5:7. F#5
+v1 G#5:15. F#6:14. E6:43 E6:15. D6:29 C#6:21 B5:7 A5:8. G5:7. F#5 E5 D5:15
+v1 D5:14 D5:29.
+v2 D3:14. A3:15. D3:14. A3:15. D3:14. A3:15. D3:14. A3 E3:15. G#3:14. E3:15. G#3:14. A3:15. C#4:14. A3 C#4:15.
+v2 D3:14. A3:15. D3:14. A3 D3:15. A3:14. D3:15. A3:14. D3:15. A3:14. D3 A3:15. D3:14. A3:15. D3:14. A3:15.
+v2 G3:14. D4 A3:15. C#4:14. D3:15. A3:14. D3 A3:15. A3:14. C#4:15. G3:14. D4:15. A3:14. C#4 A3:15. C#4:14.
+v2 D3:15. A3:14. D3:15. A3:14. D3 A3:15. D3:14. A3:15. D3:14. A3:15. D3:14. A3 D3:15. A3:14. D3:15. A3:14.
+v2 E3:15. G#3:14. A3 C#4:15. A3:14. C#4:15. D3:14. A3 A3:15. C#4:14. A3:15. C#4:14. D3:15. A3:14. D3 A3:15.
+v2 D3:14. A3:15. D3:14. A3:15. G3:14. D4 D3:15. A3:14. D3:15. A3:14. D3 A3:15. D3:14. A3:15. D3:14. A3:15.
+v2 D3:14. A3 A3:15. C#4:14. G3:15. D4:14. D3:15. A3:14. A3 C#4:15. A3:14. C#4:15. A3:14. C#4:15. A3:14. C#4
+v2 A3:15. C#4:14. A3:15. C#4:14. G3:15. D4:14. D3 A3:15. F#3:14. C#4:15. B3:14. F#4 F#3:15. C#4:14. B3:15. F#4:14.
+v2 D3:15. A3:14. D3 A3:15. D3:14. A3:15. D3:14. A3:15. A3:14. C#4 A3:15. C#4:14. D3:15. A3:14. D3 A3:15.
+v2 D3:14. A3:15. D3:14. A3:15. D3:14. A3 D3:15. A3:14. D3:15. A3:14. D3:15. A3:14. D3 A3:15. D3:14. A3:15.
+v2 G3:14. D4:15. A3:14. C#4 D3:15. A3:14. D3:15. A3:14. A3:15. C#4:14. G3 D4:15. A3:14. C#4:15. A3:14. C#4
+v2 D3:15. A3:14. D3:15. A3:14. D3:15. A3:14. D3 A3:15. D3:14. A3:15. D3:14. A3:15. D3:14. A3 D3:15. A3:14.
+v2 E3:15. G#3:14. A3 C#4:15. A3:14. C#4:15. D3:14. A3:15. A3:14. C#4 A3:15. C#4:14. D3:15. A3:14. D3:15. A3:14.
+
+; ---- Riesa ----------------------------------------------------------------
+; Charles Zeuner, Rail Road Waltz, for the piano forte (Boston: Oliver
+; Ditson, 1835), the waltz without its trio, as its repeats play it: A A B
+; A B A, 48 bars, Allegro (a crotchet 18 pictures). The tune as Zeuner wrote
+; it; under it the waltz's oom-pah-pah from his left hand's chords. As loud
+; as the title's; its voice 2 gives way to sound effects.
+
+song railroad
+volume 6
+
+pattern A                       ; bars 1-7
+v1 B4:9 A4 G#4 A4 D5 F#5 | A5:18 F#5:9 D5 A4:18 | B4:9 A4 G#4 A4 E5 G5
+v1 A5:18 G5:9 E5 A4:18 | E5:9 D5 C#5 D5 F#5 A5 | G5:9 D5 G5 B5 D6:18
+v1 A4:18 C#5:9 E5 A5:18
+v2 D3:18 F#4:18. A4 | D3:18 F#4:18. A4 | A2:18 C#4:18. G4 | A2:18 C#4:18. G4
+v2 D3:18 F#4:18. C5 | G3:18 B3:18. D4 | A2:18 C#4:18. G4 | D3:18 F#4:18. A4
+
+pattern B                       ; bars 9-15
+v1 F#5:9 E5 D#5 E5 A5 C#6 | E6:9 C#6 A5 C#6 E6 r | D6:9 B5 F#5 B5 D6 r
+v1 C#6:9 A5 E5 A5 C#6 r | F#5:9 E5 D#5 E5 A5 C#6 | E6:9 C#6 A5 C#6 E6 C#6
+v1 D6:9 B5 G#5 E5 D5 B4
+v2 A2:18 C#4:18. E4 | A2:18 C#4:18. E4 | E3:18 G#3:18. D4 | A2:18 C#4:18. E4
+v2 A2:18 C#4:18. E4 | A2:18 C#4:18. E4 | E3:18 G#3:18. D4 | A2:18 C#4:18. E4
+
+main                            ; bar 8 and 16 with the notes leading on
+v1 @A D5:36 F#4:9 G4 | @A D5:36 C#5:9 D5 | @B A4:36 F#4:9 G4
+v1 @A D5:36 C#5:9 D5 | @B A4:36 F#4:9 G4 | @A D5:36 F#4:9 G4
+v2 @A @A @B @A @B @A
+
+
+; ---- Alessandria ----------------------------------------------------------
+; Gioachino Rossini, Il barbiere di Siviglia (1816), the overture's Allegro
+; con brio, a crotchet 150 (a semiquaver 5 pictures): the first theme in E
+; minor and its answer, a run down onto D, the crescendo in G major to its
+; cadence, which leads into the theme again as in the overture. 65 bars,
+; 104 s. Voice 1 the violins (the cellos' answer an octave up, the flutes'
+; and oboes' tune in the crescendo), voice 2 the cellos and basses, the
+; basses an octave up where the TED cannot go so low.
+
+song barbiere
+volume 6
+v1 r:50 B5:10. B5:10. B5:10. C6:10 B5:10 r:40 B5:10. B5:10. C6:10 B5:10 r:30
+v1 B5:10. B5:10. B5:10. C6:10 D6:3~ C6:2 B5:5 r:10 A5:10. A5:10 B5:3~ A5:2
+v1 G5:5 r:10 F#5:10. G5:5 r:5 E5:10. E5:30 G5:10. G5:10. G5:10. F#5:10 E5:20.
+v1 G5:10. F#5:10 E5:20. G5:10. B5:10 F#5:10. F#5:30. F#5:10. G5:10. A5:10. A5:10 G5:10
+v1 G5:3~ F#5:2 E5:15 E5:3~ D5:2 C5:15 C5:3~ B4:2 A#4:15 B4:20 B4:30 E5:10.
+v1 D5:10. C5:5 r:25 B4:30 E5:10. D5:10. C5:5 r:25 D5:10. C5:10. B4:10. E5:10.
+v1 D5:10. C5:5 r:25 C5:3~ B4:2 A4:15 B4:3~ A4:2 G4:15 A4:3~ G4:2 F#4:10
+v1 r:120 r:15 B5:10. B5:10. B5:10. C6:10 B5:10 r:40 B5:10. B5:10. C6:10 B5:10
+v1 r:30 B5:10. B5:10. B5:10. C6:10 D6:3~ C6:2 B5:5 r:10 A5:10. A5:10 B5:3~
+v1 A5:2 G5:5 r:10 F#5:10. G5:5 r:5 E5:10. E5:30 G5:10. F#5:10. E5:10. D5:10
+v1 E6:10 D6:30 C6:10. B5:10. A5:10. B5:10 C6:10 B5:30 A5:10. G5:10. F#5:10. B5:3~
+v1 A5:2 G5:15 G5:3~ F#5:2 E5:15 E5:3~ D5:2 C5:15 C5:3~ B4:2 A4:15 G4:3~
+v1 A4:2 B4:15 B4:3~ A4:2 G4:15 F#4:3~ G4:2 A4:15 A4:3~ G4:2 F#4:15 A5:10.
+v1 G5:10. F#5:10. F5:10. E5:10. D#5:10. D5:10. C#5:10. C5:10. B4:10. A#4:10. A4:10. G#4:10.
+v1 G4:10. F#4:10. E4:10. D4:5 r:75 G5:40 A5:20 B5:20. G5:40 A5:20 B5:20 D6:40
+v1 C6:20 B5:20 A#5:20 B5:20 A5:20 B5:20 B5:40 C6:20 D6:20 B5:40 C6:20 D6:20
+v1 F#6:40 E6:20 D6:20 C#6:20 D6:20 C6:20 D6:20 B4:10 B4:10 B4:10 B4:10 B4:10
+v1 B4:10 C5:5 B4:5 A4:5 B4:5 C5:10 C5:10 C5:10 C5:10 C5:10 C5:10 D5:5
+v1 C5:5 B4:5 C5:5 D5:10 D5:10 D5:10 D5:10 D5:15 E5:3~ F#5:2 G5:10 G5:10.
+v1 G5:10 F#5:10. F#5:10 E5:10. E5:10 D5:10. D5:10 C5:10. B4:10 G5:10 G5:10 G5:10
+v1 G5:10 G5:10 A5:5 G5:5 F#5:5 G5:5 A5:10 A5:10 A5:10 A5:10 A5:10 A5:10
+v1 B5:5 A5:5 G5:5 A5:5 B5:10 B5:10 B5:10 B5:10 B5:15 C6:3~ D6:2 E6:10
+v1 E6:10. E6:10 D6:10. D6:10 C6:10. C6:10 B5:10. B5:10 A5:10. B5:10 B5:10 B5:10
+v1 B5:10 B5:10 B5:10 C6:5 B5:5 A5:5 B5:5 C6:10 C6:10 C6:10 C6:10 C6:10
+v1 C6:10 D6:5 C6:5 B5:5 C6:5 D6:10 D6:10 D6:10 D6:10 D6:15 E6:3~ F#6:2
+v1 G6:10 G6:10. G6:10 F#6:10. F#6:10 E6:10. E6:10 D6:10. D6:10 C6:10. B5:15 D6:1
+v1 E6:2 F#6:2 G6:10 G6:10. F#6:10. E6:10. D6:10. C6:10. B5:15 D6:1 E6:2 F#6:2
+v1 G6:10 G6:10. F#6:10. E6:10. D6:10. C6:10. B5:15 D6:1 E6:2 F#6:2 G6:10 G6:10.
+v1 F#6:10. E6:10. D6:10. C6:10. B5:15 D6:1 E6:2 F#6:2 G6:10 G6:10. F#6:10. E6:10.
+v1 D6:10. C6:10. B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5
+v1 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5
+v1 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C#6:5 C#6:5
+v1 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5
+v1 C#6:5 C#6:5 D6:5 D6:5 D6:5 D6:5 B5:5 B5:5 B5:5 B5:5 C6:5 C6:5
+v1 C6:5 C6:5 A5:5 A5:5 A5:5 A5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5
+v1 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 B5:5 C6:5 C6:5
+v1 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5 C6:5
+v1 C6:5 C6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5
+v1 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 C#6:5 D6:5 D6:5 D6:5 D6:5 B5:5 B5:5
+v1 B5:5 B5:5 C6:5 C6:5 C6:5 C6:5 A5:5 A5:5 A5:5 A5:5 B5:20 C6:20
+v1 B5:20 A5:20 B5:20 C6:20 B5:20 A5:20 B5:20 C6:20 B5:20 A5:20 G5:15 r:45
+v1 C5:20 B4:15 r:45 A4:20 G4:15 r:45 F#4:20 E4:15 r:45 D#4:20 E4:15 r:65
+v2 E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20.
+v2 E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20.
+v2 D#3:20. D#3:20. D#3:20. D#3:20. E3:20. E3:20. C3:20. C3:20. B2:20. B3:30 E4:10. D4:10.
+v2 C4:5 r:25 B3:30 E4:10. D4:10. C4:5 r:25 D4:10. C4:10. B3:10. E4:10. D4:10.
+v2 C4:5 r:25 C4:3~ B3:2 A3:15 B3:3~ A3:2 G3:15 A3:3~ G3:2 F#3:15 E3:20.
+v2 E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20.
+v2 E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. E3:20. F#3:20.
+v2 F#3:20. F#3:20. F#3:20. G3:20. G3:20. D#3:20. D#3:20. E3:20. E3:20. A3:20. A3:20. B3:20.
+v2 B3:20. B2:20. B2:10 r:120 r:50 D3:10. D3:10. D3:10. D3:10. D3:10. D3:10. D3:10.
+v2 D3:10. G3:10. D3:10. G3:10. D3:10. G3:10. D3:10. G3:10. D3:10. G3:10. D3:10. G3:10.
+v2 D3:10. G3:10. D3:10. G3:10. D3:10. F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10
+v2 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 G3:10
+v2 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10
+v2 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10
+v2 D3:10 F#3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10
+v2 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 G3:10
+v2 D3:10 G3:10 D3:10 G3:10 D3:10 A3:10 D3:10 A3:10 D3:10 F#3:10 D3:10 F#3:10
+v2 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 F#3:10 D3:10 F#3:10
+v2 D3:10 F#3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10
+v2 D3:10 A3:10 D3:10 A3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 G3:10
+v2 D3:10 G3:10 D3:10 G3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10 D3:10 F#3:10
+v2 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 G3:10 D3:10 A3:10 D3:10 A3:10
+v2 D3:10 F#3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 B3:10 D3:10 A3:10 D3:10 F#3:10
+v2 D3:10 G3:10 D3:10 B3:10 D3:10 A3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 B3:10
+v2 D3:10 A3:10 D3:10 F#3:10 D3:10 G3:10 D3:10 B3:10 D3:10 A3:10 D3:10 F#3:10
+v2 D3:10 G3:15 B3:1 C4:2 D4:2 E4:10 D4:10. C4:10. B3:10. A3:10. G3:10. F#3:15
+v2 A3:1 B3:2 C4:2 D4:10 C4:10. B3:10. A3:10. G3:10. F#3:10. E3:15 F#3:1 G3:2
+v2 A3:2 A#3:10 A3:10. G3:10. F#3:10. G3:10. A#3:10. D3:20 D3:20 D3:20 D3:20 G3:15
+v2 B3:1 C4:2 D4:2 E4:10 D4:10. C4:10. B3:10. A3:10. G3:10. F#3:15 A3:1 B3:2
+v2 C4:2 D4:10 C4:10. B3:10. A3:10. G3:10. F#3:10. E3:15 F#3:1 G3:2 A3:2 A#3:10
+v2 A3:10. G3:10. F#3:10. G3:10. A#3:10. E3:20 E3:20 E3:20 E3:20 G3:20 C3:20 D3:20
+v2 D3:20 G3:20 C3:20 D3:20 D3:20 G3:20 C3:20 D3:20 D3:20 A3:15 r:45 F#3:20
+v2 D3:15 r:45 D#3:20 E3:15 r:45 A3:20 B3:15 r:45 B2:20 E3:20. E3:20. E3:20.
+v2 E3:20.
+
+; ---- Smiths Falls -----------------------------------------------------------
+; N.S. Smith, The C.P.R. Lancers (Toronto: I. Suckling & Sons, 1887), No. 1,
+; Spiritoso: the 6/8 fanfare to Fine, its answer, the 2/4 part in E flat,
+; and round again, as its D.C. goes - 24 bars, a dotted crotchet (and the
+; 2/4's crotchet) 24 pictures. The tune as Smith wrote it, grace notes a
+; picture each; under it the fanfare an octave down, then an oom-pah from
+; the left hand's bass and chords, the bass an octave up where the TED
+; cannot go so low.
+
+song cprlancers
+volume 6
+
+pattern A                       ; bars 1-8, to Fine
+v1 Bb5:24 D6:16 Bb5:8 | F5:24 Bb5:16 F5:8 | D5:24 F5:16 D5:8 | Bb4:24 r:16 Bb5:8.
+v1 A5:24 r:16 C6:8. | Bb5:24 r:16 D5:8. | C5:8 D5 Eb5 F5 G5 A5 | Bb5:16 r:8 Bb6:16. r:8
+v2 Bb3:24 D4:16 Bb3:8 | F3:24 Bb3:16 F3:8 | D3:24 F3:16 D3:8 | Bb2:16 D4:8. D4:16. D4:8.
+v2 F3:16 Eb4:8. Eb4:16. Eb4:8. | Bb2:16 D4:8. D4:16. D4:8. | F3:16 Eb4:8. Eb4:16. Eb4:8.
+v2 Bb3:16. r:8 Bb2:16. r:8
+
+pattern B1                      ; bars 9-10 and 13-14
+v1 G5:1 A5:1 Bb5:14 D6:8 C6:16 Bb5:8 | A5:16 G5:8 F#5:16 G5:8
+v2 Bb2:16 D4:8. D4:16. D4:8. | Eb3:16 C4:8. C4:16. C4:8.
+
+main
+v1 @A
+v2 @A
+v1 @B1 | A5:16 G5:8 C5:16 G5:8 | F5:40 r:8
+v2 @B1 | F3:16 Eb4:8. Eb4:16. Eb4:8. | Bb2:16 D4:8. D4:16. D4:8.
+v1 @B1 | Eb6:24 F5:8 G5 A5 | Bb5:16 r:8 Bb5:16. r:8
+v2 @B1 | F3:16 Eb4:8. Eb4:16. Eb4:8. | Bb3:16. r:8 Bb2:16. r:8
+; 2/4, a quaver 12 pictures
+v1 G5:12 G5 Ab5 Bb5 | Bb5:36 G5:6 Eb5 | C6:12 D6 Eb6 C6 | Bb5:36 Bb5:6 C6
+v1 Bb5:12 Ab5 Ab5 Ab5:6 Bb5 | Ab5:12 F5 F5 F5 | Bb5:12 Ab5 G5 F5 | Eb5:12. r Eb6:12. r
+v2 Eb3:12 Bb3:12. Bb3 Bb3 | Eb3:12 Bb3:12. Bb3 Bb3 | Ab3:12 Eb4:12. Eb4 Eb4 | Eb3:12 Bb3:12. Bb3 Bb3
+v2 Bb2:12 Ab3:12. Ab3 Ab3 | Bb2:12 Ab3:12. Ab3 Ab3 | Bb2:12 D4:12. Ab3 D4 | Eb3:12. r Eb3:12. r

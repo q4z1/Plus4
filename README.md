@@ -1,18 +1,38 @@
 # Plus/4 Playground
 
-A workbench for writing C — with a little 6502 assembly where it matters — for the
-**Commodore Plus/4**, built with [cc65](https://cc65.github.io/) and run in
-[VICE](https://vice-emu.sourceforge.io/).
+A workbench for programming the **Commodore Plus/4**, built with
+[cc65](https://cc65.github.io/) and run in [VICE](https://vice-emu.sourceforge.io/).
+It began as C with a little 6502 assembly where it mattered; the newest games
+are written in assembly alone.
 
 This is a playground, not a library: each subfolder is a self-contained program,
-from a three-line "hello world" to a full arcade game. The point is to find out how
-far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 7501.
+from a three-line "hello world" to a full arcade game. The point was to find out how
+far plain C gets you on a 1984 machine with 64 KB, no sprites, and a 1.76 MHz 7501 —
+see [below](#from-c-to-assembly) for where that turned out to end.
 
 ## How this was made
 
 Ideas, design and direction come from decades of programming experience; the
 implementation made intensive use of AI ([Claude](https://claude.ai) by Anthropic). That is part of the experiment: how far a 1984 machine can be
 pushed when an experienced programmer puts an AI to work on it.
+
+## From C to assembly
+
+The first programs — Pac-Man, Phoenix, Demon Attack, Stardew Pond — are C,
+compiled with cc65, with assembly only for the few routines that run on every
+frame. The newest ones, [Paradroid](paradroid/README.md) and
+[trainschedule](trainschedule/README.md), contain no C at all. Both started
+out in C and were moved to assembly one file at a time, each step checked
+against the C it replaced.
+
+Speed was not the main reason; memory was. cc65 produces a good deal more code
+than the same routine written by hand, and its runtime and software stack want
+their share as well. On a machine whose 64 KB also have to hold the screen, the
+character sets and the KERNAL's work areas, that runs out quickly once a game
+carries real data — decks, droids, maps, timetables, music. In assembly,
+Paradroid fits into a single `.prg` that loads nothing after the start, and
+trainschedule went from 44 to 29 KB in memory: 15 KB more room for what is
+still to come.
 
 ## What's in here
 
@@ -24,6 +44,7 @@ pushed when an experienced programmer puts an AI to work on it.
 | [pacman/](pacman/README.md) | A complete Pac-Man: full-screen 40×24 maze, four ghosts with distinct AI, power pills, levels, lives, TED sound. ~1500 lines of C plus two assembly routines. |
 | [phoenix/](phoenix/README.md) | A rebuild of the Atari 2600 **Phoenix**: all five waves, the force field, the mothership, two-voice sound with the arcade melodies, and a starfield that scrolls pixel by pixel. |
 | [stardew/](stardew/README.md) | **Stardew Pond**, a small farming game modelled on **Stardew Valley** by ConcernedApe: a farm, a village with a store and a smith, three villagers, a mine with thirty floors. Runs from a `.d64` and loads its rooms and tile sets as it goes; figures walk see-through over any background; the game is saved to the disk. |
+| [trainschedule/](trainschedule/README.md) | A signal box game after **Rail Route** by bitrich: trains run to a timetable, and you set their routes from signal to signal so that each stops at the right platform on time. Three maps, Riesa, Alessandria and Smiths Falls - easy, medium, hard - each with its own music; trains that move a pixel at a time, a departure board in extended colour mode, a fast loader for the 1541. Work in progress. |
 | [pokerth/](pokerth/README.md) | Work in progress: a [PokerTH](https://github.com/pokerth/pokerth) client. TLS, protobuf and authentication are handled by a proxy on a PC, which hands the Plus/4 a protocol small enough to parse in 6502. Logging in and watching a lobby works; the Plus/4 end is next. |
 
 ### The games
@@ -36,6 +57,8 @@ pushed when an experienced programmer puts an AI to work on it.
 | **[Demon Attack](demonattack/README.md)** — frame for frame the 2600 game, compared automatically with the original running in an emulator. What the Phoenix clone could leave out, this one cannot: a colour on every line, pixel-exact collisions, the original's exact timing. The README is about how. | **[Stardew Pond](stardew/README.md)** — after Stardew Valley by ConcernedApe: farming, a village and a mine, one screen per room, each room a file on the disk that is loaded when the farmer walks in. Figures with a mask over whatever is behind them, a toolbar with a character set of its own, and a save file. |
 | [![Paradroid](paradroid/screenshots/deck.png)](paradroid/README.md) | [![Paradroid: transfer](paradroid/screenshots/transfer.png)](paradroid/README.md) |
 | **[Paradroid](paradroid/README.md)** — the C64 classic, deck by deck from the original's data. The TED cannot change its vertical scroll under a status panel the way the C64 does; setting back two of its internal counters in the middle of the picture does it instead. The droids switch the cells they cover to multicolour over the hires deck. | The transfer game: twelve wires a side, pulses, a column of lights to win. |
+| [![trainschedule](trainschedule/screenshots/riesa.png)](trainschedule/README.md) | [![trainschedule: overview](trainschedule/screenshots/alessandria.png)](trainschedule/README.md) |
+| **[trainschedule](trainschedule/README.md)** — a signal box after Rail Route: set the routes, keep the timetable. Every character a train covers is made afresh from the track beneath it, so the trains glide over switches and diagonals a pixel at a time while the map scrolls a cell at a time. | Alessandria in the overview: a junction, single track between the stations, trains that turn round. |
 
 The Plus/4 has no sprites at all, so all the games build their figures out
 of characters that are rewritten as the figures move — and each does it its
@@ -278,3 +301,4 @@ Each program lists its own; see the README in its folder.
 | [Paradroid](paradroid/README.md) | joystick in either port, or cursor keys; fire (or space, `CTRL`, `C=`) with a direction shoots, held without one transfers, held on a lift or before a console opens it; `Run/Stop` pauses |
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
 | [Stardew Pond](stardew/README.md) | joystick in either port, or cursor keys; fire or space uses what is in your hand; `,` `.` pick an item; `I` the backpack |
+| [trainschedule](trainschedule/README.md) | joystick in either port, or cursor keys and space; fire on a signal and then on its destination sets a route; fire held with a direction is a command (up: overview, left/right: speed, down: next timetable); `F1` music |

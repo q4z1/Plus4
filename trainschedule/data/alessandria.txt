@@ -1,0 +1,123 @@
+# Alessandria: the industrial triangle of the north - Turin, Milan, Genoa - and
+# the stations between and beyond. Alessandria is the junction in the
+# middle: the line from Turin comes in at its west end, the lines to Milan
+# and to Genoa leave at its east end, and a chord past it (Tortona's, in
+# reality) takes trains from Genoa to Milan without it. Only its middle
+# platform reaches both lines. Turin, Genoa and Monza are where the trains
+# come from and go to; Milan is a through station, Monza a stop on the line
+# north to Switzerland. Nine trains, thirty stops; some turn round.
+name ALESSANDRIA
+about INDUSTRIAL TRIANGLE OF NORTH ITALY
+level MEDIUM
+music barbiere                  # Rossini, Il barbiere di Siviglia (data/music.txt)
+size 40 16
+
+# Turin, two platforms, and the line to Alessandria
+track 0,5 4,5
+track 0,6 4,6
+track 4,5 5,5 6,6
+track 4,6 6,6
+track 6,6 8,6 12,10
+
+# Alessandria's west throat
+track 12,10 13,10 14,9 15,9
+track 13,10 15,10
+track 12,10 13,11 15,11
+
+# Alessandria, three platforms
+track 15,9 20,9
+track 15,10 20,10
+track 15,11 20,11
+
+# its east throat: platform 1 to Milan, 3 to Genoa, 2 to either
+track 20,9 22,9 23,8
+track 20,10 21,10 22,9
+track 21,10 22,11
+track 20,11 22,11
+track 22,11 24,13
+
+# the line to Milan, and the chord from the Genoa line to it
+track 23,8 26,8
+track 23,12 23,9 24,8
+
+# Genoa, two platforms
+track 24,13 25,14 27,14
+track 25,14 26,15 27,15
+track 27,14 32,14
+track 27,15 32,15
+
+# Milan's west throat, three platforms, its east throat
+track 26,8 27,7 29,7
+track 26,8 29,8
+track 27,8 28,9 29,9
+track 29,7 34,7
+track 29,8 34,8
+track 29,9 34,9
+track 34,7 35,7 36,6
+track 34,8 35,8 36,7 36,6
+track 34,9 35,9 36,8 36,7
+
+# north to Monza, two platforms
+track 36,6 37,5
+track 37,5 37,3
+track 37,5 38,4 38,3
+track 37,3 37,0
+track 38,3 38,0
+
+signal 4,5 E
+signal 4,6 E
+signal 15,9 W
+signal 15,10 W
+signal 15,11 W
+signal 20,9 E
+signal 20,10 E
+signal 20,11 E
+signal 27,14 W
+signal 27,15 W
+signal 29,7 W
+signal 29,8 W
+signal 29,9 W
+signal 34,7 E
+signal 34,8 E
+signal 34,9 E
+signal 37,3 S
+signal 38,3 S
+portal 0,5
+portal 0,6
+portal 32,14
+portal 32,15
+portal 37,0
+portal 38,0
+
+station 1 0,4 TURIN
+platform 1 1 0,5 4,5
+platform 1 2 0,6 4,6
+station 2 12,12 ALESSANDRIA
+platform 2 1 15,9 20,9
+platform 2 2 15,10 20,10
+platform 2 3 15,11 20,11
+station 3 27,13 GENOA
+platform 3 1 27,14 32,14
+platform 3 2 27,15 32,15
+station 4 29,6 MILAN
+platform 4 1 29,7 34,7
+platform 4 2 29,8 34,8
+platform 4 3 29,9 34,9
+station 5 31,2 MONZA
+platform 5 1 37,0 37,3
+platform 5 2 38,0 38,3
+
+start 07:00
+# Single track between the stations: trains meet only in them - at Milan,
+# at Alessandria, at the ends. What makes it harder than Riesa: the
+# junction (a train for Genoa must not be put on platform 1, nor one for
+# Milan on 3), the chord, and the trains that turn round.
+train IC 501 I 160 6 : 1/1 07:01 07:02, 2/1 07:04 07:05, 4/1 07:07 07:08, 5/1 07:10 07:11
+train R 210 R 120 4 : 3/1 07:02 07:03, 2/3 07:05 07:06, 1/2 07:08 07:09
+train R 220 R 120 4 : 5/1 07:02 07:03, 4/3 07:05 07:09, 2/2 07:11 07:12, 3/2 07:14 07:15
+train IC 601 I 160 6 : 3/2 07:04 07:05, 4/2 07:08 07:09, 5/2 07:11 07:12
+train R 230 R 120 4 : 1/1 07:09 07:10, 2/1 07:12 07:14, 1/2 07:16 07:17
+train C 240 C 120 4 : 5/1 07:13 07:14, 4/1 07:16 07:18, 5/2 07:20 07:21
+train IC 502 I 160 6 : 5/2 07:15 07:16, 4/2 07:18 07:19, 2/1 07:21 07:22, 1/1 07:24 07:25
+train R 250 R 120 4 : 3/1 07:16 07:17, 2/3 07:19 07:21, 3/2 07:23 07:24
+train IC 602 I 160 6 : 1/1 07:18 07:19, 2/2 07:21 07:22, 3/1 07:24 07:25
