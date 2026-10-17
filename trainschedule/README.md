@@ -341,7 +341,19 @@ the middle of the cell to its edge - so a straight track, a bend, a switch
 or a crossing is the half tracks put together, plus a signal's lamp, a
 platform's edge or the end of the line. A level gets a character for each
 combination it has, made when it loads. Lines are 2 pixels wide and placed
-so that they run on into the next cell, the diagonals too.
+so that they run on into the next cell, the diagonals too. A switch in a
+route shows the way it is set in the route's green, its other leg grey,
+whole and in hires - multicolour would make the diagonals twice as
+coarse. A hires character has one colour, though, and close up the legs
+going up from a junction share their characters with the track across
+it. So the TED is made to fetch a character row's colours a second time,
+after its sixth line: the raster interrupt sets the vertical scroll so
+that this line counts as a row's first, with the second colour written in
+for it, and puts both back. The legs going up have one colour, the track
+across the other, the legs going down the row below. Only rows with such
+a switch in view get it - in Smiths Falls, the busiest map, none in most
+pictures and never more than three - at a little over 1 % of a picture
+each.
 
 **The pointer** is moved and drawn by the raster interrupt, every picture,
 like a sprite - however busy the game is, it never stops or jumps. The

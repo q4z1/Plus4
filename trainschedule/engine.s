@@ -893,6 +893,11 @@ irq:    pha
         beq @vbl
         lda _eng_mode
         bne @title
+        lda irq_at              ; a band of the map's (bands_vbl)
+        cmp #BOARD_IRQ
+        beq :+
+        jsr band
+        jmp @out
         ; the game: the departure board in extended colour - the top two
         ; bits of a character's code choose its background, the board's
         ; blue among them ($FF18) - and so without multicolour. Switched in
@@ -983,6 +988,9 @@ irq:    pha
 :       inc _frames
         jsr kpoll
         jsr ptr_irq
+        jsr bands_vbl           ; (after the pointer: it is on screen now)
+        cli                     ; the music may wait for the first band's
+                                ; interrupt: nothing of theirs in common
         lda mus_sfx             ; a sound effect's next step
         beq :+
         dec mus_sfx
@@ -1920,6 +1928,7 @@ r2_put: sta (dst),y
         stx r2_k
         tax
         lda _q_deco,x
+        and #1
         beq :+
         lda r2_a
         and #8
@@ -2663,3 +2672,204 @@ tk_ramp:
         .byte $65, $65, $6C, $6C, $63, $63, $53, $53
         .byte $43, $43, $53, $53, $63, $63, $6C, $6C
         .byte $65, $65, $6F, $6F, $6A, $6A, $67, $67
+
+; ---------------------------------------------------------------------------
+; The bands: close up, a set switch's top quarter may have one colour in
+; its lines 0-5 and another in 6-7 (map.s, path_split) - the screen's
+; colours have the first. In that character row the TED fetches the
+; colours a second time, in line 5, with the second written in for it:
+; vshift ($FF06) set so that line 5 counts as a row's first, the pixel
+; row counter going on as it was and the same row of characters fetched
+; again (it moves on in line 6). Back to 3 in line 6, the colours as they
+; were for the next picture. A row's line 0 is raster line 8 * row + 4.
+;
+; map.s's list (bands_make) has the places by row; the vertical blank
+; sets the first row's interrupt (bands_vbl), each row's the next one's
+; (band). It comes in late, in the row's line 5 (the TED holds the CPU in
+; lines 3 and 4, its fetches). Each place is written only where the screen
+; still shows its character - under the pointer or the cursor too, not
+; under a train. Late more than to line 8 (a sei of the main loop's) the
+; row is left as it is for that picture rather than have the TED fetch at
+; the wrong time.
+; ---------------------------------------------------------------------------
+        .import bd_act, bd_ng, bd_col, bd_code, bd_b, bd_grow, bd_gfirst
+        .import bd_gend, _zoom
+
+C_PTR  = 240                    ; the pointer's characters (C_POINTER)
+C_CUR  = 248                    ; the cursor's (C_CURSOR)
+
+        .segment "BANDS"        ; (trainschedule.cfg)
+ba_a:       .res 48             ; a place's colour on screen (both sets)
+ba_on:      .res 48             ; 1: lines 6-7's written
+        .bss
+bg_i:       .res 1              ; the row now (map.s's index)
+bg_stop:    .res 1              ; and past the last one
+bv_base:    .res 1              ; the screen shown: its colours' page
+bn_set:     .res 1              ; the row's line 4 (band_at)
+bn_t:       .res 1              ; and line 0
+bn_v:       .res 1              ; $FF06 with vshift 1
+bn_e:       .res 1
+bu_x:       .res 1
+        .code
+
+; bands_vbl: the first row's interrupt, if any
+bands_vbl:
+        lda _eng_mode
+        bne @none
+        lda _zoom
+        cmp #2
+        bne @none
+        ldx bd_act
+        lda bd_ng,x
+        beq @none
+        sta bg_stop
+        lda #0                  ; set 1: its rows from 8 on (map.s BD_ROWS)
+        cpx #0
+        beq :+
+        lda #8
+:       sta bg_i
+        clc
+        adc bg_stop
+        sta bg_stop
+        lda TED_VMBASE
+        and #$F8
+        sta bv_base
+        jmp band_at
+@none:  rts
+
+; band_at: the interrupt for row bg_i, in the line before its first
+; (8 * row + 3), where the TED fetches the row's colours. A row whose line
+; is gone already is left out (an interrupt set for it would come in the
+; next picture, before the vertical blank's).
+band_at:
+        ldx bg_i
+        lda bd_grow,x
+        asl a
+        asl a
+        asl a
+        clc
+        adc #3
+        tay
+        lda TED_RHI             ; in the vertical blank (from 200 on):
+        lsr a                   ; the picture's to come
+        bcs @set
+        lda TED_RLO
+        cmp #200
+        bcs @set
+        sty bn_set
+        cmp bn_set
+        bcc @set
+        inc bg_i                ; gone
+        lda bg_i
+        cmp bg_stop
+        bcc band_at
+        ldy #BOARD_IRQ
+        bne @irq
+@set:   iny                     ; what band needs first, ready
+        sty bn_t
+        tya
+        clc
+        adc #4
+        sta bn_set
+        lda TED_SCROLLY
+        and #$F8
+        ora #$01
+        sta bn_v
+        dey
+@irq:   sty irq_at
+        sty TED_RCMP
+        rts
+
+; band: the interrupt for row bg_i. vshift 1 first, for line 5 - written
+; in lines 4 to 8, never in line 9 itself (the TED would fetch then, part
+; of the row from what is on the bus) - then the colours: in by line 9,
+; when the TED takes them (one later shows lines 0-5's colour this
+; picture)
+band:   lda TED_RLO             ; (the row's colours fetched: never into
+        cmp bn_t                ; them)
+        bcc band
+        cmp bn_set
+        jcs @next               ; too late: as it is this picture
+        lda bn_v
+        sta TED_SCROLLY
+        ldx bg_i
+        ldy bd_grow,x
+        lda rowlo,y             ; its colours, its characters
+        sta ip1
+        sta ip2
+        lda rowhi,y
+        clc
+        adc bv_base
+        sta ip1+1
+        ora #$04
+        sta ip2+1
+        lda bd_gend,x
+        sta bn_e
+        lda bd_gfirst,x
+        tax
+@b:     ldy bd_col,x            ; lines 6-7's colour in, where the screen
+        lda (ip2),y             ; still shows that character
+        cmp bd_code,x
+        beq @in
+        cmp #C_PTR
+        bcc @not
+        jsr band_under
+        cmp bd_code,x
+        bne @not
+@in:    lda (ip1),y
+        sta ba_a,x
+        and #$08                ; (multicolour under the pointer, cursor)
+        ora bd_b,x
+        sta (ip1),y
+        lda #1
+        bne :+
+@not:   lda #0
+:       sta ba_on,x
+        inx
+        cpx bn_e
+        bne @b
+        inc bn_set              ; vshift back to 3 in line 6, before 7
+        inc bn_set              ; fetches the next row's colours
+        lda TED_SCROLLY
+        ora #$03
+        tay
+:       lda TED_RLO
+        cmp bn_set
+        bcc :-
+        sty TED_SCROLLY
+        ldx bg_i                ; the screen's colours again
+        lda bd_gfirst,x
+        tax
+@u:     lda ba_on,x
+        beq :+
+        ldy bd_col,x
+        lda ba_a,x
+        sta (ip1),y
+:       inx
+        cpx bn_e
+        bne @u
+@next:  inc bg_i
+        lda bg_i
+        cmp bg_stop
+        jcc band_at
+        lda #BOARD_IRQ
+        sta irq_at
+        sta TED_RCMP
+        rts
+
+; band_under: what the pointer's or the cursor's character A covers -
+; their places are their characters' lowest two bits. Keeps X, Y.
+band_under:
+        stx bu_x
+        cmp #C_CUR
+        bcs @cur
+        and #3
+        tax
+        lda p_under,x
+        cmp #C_CUR
+        bcc @back
+@cur:   and #3
+        tax
+        lda cu_under,x
+@back:  ldx bu_x
+        rts

@@ -24,6 +24,7 @@
         .export _sel_x, _sel_y, _sel_alt, _clock_txt
 
         .import level_load, code_kind, code_mc, view_draw, view_cell, set_zoom
+        .import bands_make, bd_dirty
         .import cell_screen, view_set, cellp, cf_m, cf_d, cf_mc, cs_o
         .importzp mc, mo, lp
         .import _map_w, _map_h, _code_mask, _code_deco, _zoom
@@ -2647,7 +2648,10 @@ _main:  lda $FF06
         sta mn_shown
         sta mn_shown+1
 
-@loop:  lda _frames
+@loop:  lda bd_dirty             ; the bands of set switches (map.s)
+        beq :+
+        jsr bands_make
+:       lda _frames
         ldx _dbg_n              ; (the tests' pictures are counted, not
         beq :+                  ; waited for)
         txa

@@ -31,6 +31,8 @@
         .export level_load, code_for, view_draw, view_cell, set_zoom
         .export cell_screen, view_set, cell_mark, cell_route, cell_under
         .export cellp, grey_of, vc_keep
+        .export bands_make, bd_dirty, bd_act, bd_ng, bd_col, bd_code, bd_b
+        .export bd_grow, bd_gfirst, bd_gend
         .export code_kind, code_mc, cf_m, cf_d, cf_mc, cs_o, cr_a, cr_b, bitv
         .exportzp mc, ma, mo, lp, fp
 
@@ -40,7 +42,7 @@
         .import _grey
         .import glyphs_make, _sg_top, _sg_bot, _sg_col, sign_of
         .import _strip, _lamp, _bar, _gate, _digit, _mc_of, _tk_edge
-        .import _strip2, _lamp2, _bar2, _gate2, _tk2_edge
+        .import _strip2, _lamp2, _bar2, _gate2, _tk2_edge, _strip2v
 
         .segment "GAMEZP": zeropage
 mc:     .res 2                  ; a cell's place in MAP_CODE (cellp)
@@ -86,10 +88,12 @@ _lv_perfect: .res 2
 _lv_trains: .res 2              ; the trains in the level data
 _lv_ntrains: .res 1
 _q4:        .res (C_LAST + 1 - C_FIRST) * 4     ; close up: a kind's quarters
-; close up, by character: 1 for a quarter with nothing but a platform's
-; edge and number in it. It shows in the track's grey whatever the colour of
-; its cell (a route's, a signal's) - the track it goes with keeps to the
-; other quarters (tools/mklevel.py).
+; close up, by character: bit 0 for a quarter in the track's grey whatever
+; the colour of its cell (a route's, a signal's): one with nothing but a
+; platform's edge and number in it - the track it goes with keeps to the
+; other quarters (tools/mklevel.py) - or a set switch's other legs. Bit 1:
+; a set switch's top quarter whose lines 6-7 have the other colour, cell's
+; or grey (path_split; the bands, engine.s).
 _q_deco:    .res 256
 _pool_first: .res 1             ; the first character for the trains
 st_lx:      .res MAX_STATIONS   ; the stations' labels
@@ -125,6 +129,9 @@ mk_nx:      .res 1
 mk_ny:      .res 1
 mk_qs:      .res 1              ; the quarters with something in, before
 mk_qd:      .res 1              ; the edge; those with only it
+mk_qg:      .res 1              ; a set switch's grey ones (lines 0-5)
+mk_qb:      .res 1              ; and those of two colours (regions)
+mk_w:       .res 1              ; quarters: grey wanted (0 or 1)
 qo_m:       .res 1
 t_strip:    .res 2              ; the glyph tables of the size now (make)
 t_lamp:     .res 2
@@ -134,7 +141,11 @@ px_b:       .res 1
 px_o:       .res 1
 ps_a:       .res 1
 ps_b:       .res 1
+ps_w:       .res 1
 ps_t:       .res 1
+rg_w:       .res 1
+rg_o:       .res 1
+rg_c:       .res 6
 pk_m:       .res 1              ; path_kind's bits, ways, and the two as one
 pk_a:       .res 1
 pk_b:       .res 1
@@ -190,8 +201,9 @@ _code_mask: .res 256            ; level - the title picture is drawn over
 _code_deco: .res 256            ; them
         .segment "HIBSS"
 ; For a switch in a route: the kind showing the way it is set - that way
-; in the cell's own colour, its other leg grey (multicolour, engine.s sets
-; multicolour 2 grey). code_path: the way, a + 16 * b, or 255 for an
+; hires in the route's colour, its other legs grey only in quarters
+; without it, else left out (path_split).
+; code_path: the way, a + 16 * b, or 255 for an
 ; ordinary kind.
 _code_path: .res 256
 
@@ -221,6 +233,11 @@ mk_tabs:    .word _strip, _lamp, _bar, _gate
 ; the side of its edge, clear of the track (and of a train on it)
 num_x:      .byte 10, 10, 10, 3
 num_y:      .byte 10, 9, 1, 9
+; a set switch's parts close up (regions): first byte, last + 1, the
+; horizontal leg in it (its bit)
+rg_s:       .byte 0, 6, 8, 14, 16, 24
+rg_e:       .byte 6, 8, 14, 16, 24, 32
+rg_h:       .byte 0, $10, 0, $01, 0, 0
 
         .code
 
@@ -445,6 +462,8 @@ make:   ldx #0                  ; the tables of the size now
         sta mk_deco
         lda #0
         sta mk_dst
+        sta mk_qg
+        sta mk_qb
         ldy #63
 :       sta cellbuf,y
         dey
@@ -543,9 +562,10 @@ make:   ldx #0                  ; the tables of the size now
         cmp #1
         beq :+
         jsr qocc                ; the quarters with only the edge in them
-        lda mk_qs
+        lda mk_qs               ; - or a set switch's other legs: grey
         eor #$FF
         and qo_m
+        ora mk_qg
         sta mk_qd
         jmp quarters
 :
@@ -646,8 +666,19 @@ quarters:
         tax
         bne @look
         lda #32                 ; nothing: the space
-        bne @put
-@look:  lda #C_FIRST
+        jmp @put
+@look:  ldy mk_q                ; its q_deco, as the one found has
+        lda mk_qb               ; to have it: 1 grey, 2 two colours
+        and bitv,y
+        beq :+
+        lda #2
+:       sta mk_w
+        lda mk_qd
+        and bitv,y
+        beq :+
+        inc mk_w
+:
+        lda #C_FIRST
         sta mk_k
         jsr fontp
 @cmp:   lda mk_k
@@ -664,7 +695,11 @@ quarters:
         dex
         dey
         bpl :-
-        lda mk_k
+        ldx mk_k
+        lda _q_deco,x
+        cmp mk_w
+        bne @next
+        txa
         jmp @put
 @next:  lda fp
         clc
@@ -688,21 +723,16 @@ quarters:
         dex
         dey
         bpl :-
-        lda next_q
+        ldx next_q
+        lda mk_w
+        sta _q_deco,x
+        txa
         jsr grey_of
         lda next_q
         inc next_q
 @put:   ldy mk_q
         sta (qp),y
-        cmp #C_FIRST
-        bcc :+
-        tax
-        lda mk_qd
-        and bitv,y
-        beq :+
-        lda #1
-        sta _q_deco,x
-:       inc mk_q
+        inc mk_q
         lda mk_q
         cmp #4
         jne @q
@@ -771,61 +801,186 @@ orbuf:  ldx mk_sh
         bpl :-
         rts
 
-; path_split: a set switch (kind mk_c, bits mk_mask): its way %11 (the
-; cell's own colour), the rest %10, in cellbuf
+; path_split: a set switch (kind mk_c, bits mk_mask), hires, in cellbuf:
+; its way in the cell's own colour, the other legs grey. A hires character
+; has one colour, but the TED can fetch a character row's colours again
+; after its sixth line (engine.s, the bands): close up, a top quarter has
+; one colour in its lines 0-5 - the legs going up - and one in 6-7, the
+; horizontal track's (regions). The overview has the way only.
 path_split:
         ldx mk_c
         lda _code_path,x
         and #15
         sta ps_a
+        tay
         lda _code_path,x
         lsr a
         lsr a
         lsr a
         lsr a
         sta ps_b
-        lda #0
-        ldy #31
-:       sta cellbuf+32,y
-        dey
-        bpl :-
-        settb t_strip
+        tax
+        lda bitv,x
+        ora bitv,y
+        sta ps_w                ; the way's bits
         lda #0
         sta mk_d
-@d:     ldx mk_d
+@d:     settb t_strip
+        ldx mk_d
         lda mk_mask
         and bitv,x
         beq @nd
-        lda #32                 ; the other leg to cellbuf + 32
-        cpx ps_a
-        beq @way
-        cpx ps_b
-        bne @leg
-@way:   lda #0
-@leg:   sta mk_dst
-        txa
-        jsr orbuf
+        lda #0                  ; the way to cellbuf, the other legs close
+        sta mk_dst              ; up to cellbuf + 32, in the overview
+        lda ps_w                ; nowhere
+        and bitv,x
+        bne :+
+        lda mk_n
+        cmp #32
+        bne @nd
+        lda #32
+        sta mk_dst
+:       lda mk_n
+        cmp #32
+        bne @plain
+        ; close up, north or south a pixel aside, clear of a diagonal leg
+        ; at its side, which has that column of characters to itself
+        ldy #0                  ; (strip2v: N left, N right, S left, S right)
+        cpx #2
+        bne @s
+        lda mk_mask
+        and #$02                ; north-east: north to the left
+        bne @v
+        iny
+        lda mk_mask
+        and #$08                ; north-west: to the right
+        bne @v
+        beq @plain
+@s:     cpx #6
+        bne @plain
+        ldy #3
+        lda mk_mask
+        and #$20                ; south-west: south to the right
+        bne @v
+        dey
+        lda mk_mask
+        and #$80                ; south-east: to the left
+        beq @plain
+@v:     lda #<_strip2v
+        sta tb
+        lda #>_strip2v
+        sta tb+1
+        tya
+        jmp @or
+@plain: txa
+@or:    jsr orbuf
 @nd:    inc mk_d
         lda mk_d
         cmp #8
         bne @d
         lda #0
         sta mk_dst
-        ldy mk_n
-        dey
-@mix:   ldx cellbuf,y
-        lda _mc_of,x
-        sta ps_t
-        ldx cellbuf+32,y
-        lda ps_t
-        eor #$FF
-        and _mc_of,x
-        and #$AA
-        ora ps_t
-        sta cellbuf,y
-        dey
-        bpl @mix
+        lda mk_n
+        cmp #32
+        beq regions
         rts
+
+; regions: close up, the six parts of a set switch's cell that each have a
+; colour of their own - top left lines 0-5 and 6-7, top right the same,
+; bottom left, bottom right - from the way in cellbuf and the other legs
+; in cellbuf + 32. A part's colour: its horizontal leg's (lines 6-7, the
+; leg there), else the way's if it is in it, else grey. Grey takes the
+; other legs in too, the way's few pixels next to them (where they meet)
+; with them; the way's colour leaves them out. Then each quarter's bits:
+; mk_qg the grey ones (lines 0-5), mk_qb those of two colours.
+regions:
+        ldx #5
+@r:     lda #0
+        sta rg_w
+        sta rg_o
+        ldy rg_s,x
+:       lda cellbuf,y
+        ora rg_w
+        sta rg_w
+        lda cellbuf+32,y
+        ora rg_o
+        sta rg_o
+        iny
+        tya
+        cmp rg_e,x
+        bne :-
+        lda rg_w
+        ora rg_o
+        bne :+
+        lda #$FF                ; nothing in it
+        bne @put
+:       lda rg_h,x
+        and mk_mask
+        beq @way
+        and ps_w
+        beq @grey
+        bne @own
+@way:   lda rg_w
+        bne @own
+@grey:  ldy rg_s,x
+:       lda cellbuf+32,y
+        ora cellbuf,y
+        sta cellbuf,y
+        iny
+        tya
+        cmp rg_e,x
+        bne :-
+        lda #1
+        bne @put
+@own:   lda #0
+@put:   sta rg_c,x
+        dex
+        bpl @r
+        ldy #0
+        lda rg_c
+        ldx rg_c+1
+        jsr rg_q
+        iny
+        lda rg_c+2
+        ldx rg_c+3
+        jsr rg_q
+        iny
+        lda rg_c+4
+        tax
+        jsr rg_q
+        iny
+        lda rg_c+5
+        tax
+        jsr rg_q
+        lda #0
+        ldy #31
+:       sta cellbuf+32,y
+        dey
+        bpl :-
+        rts
+
+; rg_q: quarter Y's colours, A in its lines 0-5, X in 6-7 (0 the cell's,
+; 1 grey, $FF nothing there), to mk_qg and mk_qb. Keeps Y.
+rg_q:   cmp #$FF
+        bne :+
+        txa                     ; nothing on top: as below
+:       cpx #$FF
+        bne :+
+        tax                     ; nothing below: as on top
+:       sta rg_w
+        stx rg_o
+        cmp #1
+        bne :+
+        lda bitv,y
+        ora mk_qg
+        sta mk_qg
+:       lda rg_w
+        cmp rg_o
+        beq :+
+        lda bitv,y
+        ora mk_qb
+        sta mk_qb
+:       rts
 
 ; px2: close up, pixel X, Y of cellbuf set (C set) or cleared
 px2:    php
@@ -930,6 +1085,181 @@ q4p:    sec
         adc #>_q4
         sta qp+1
         rts
+
+; ---- the bands ----------------------------------------------------------------
+
+; Close up, a set switch's top quarters may have two colours, one in lines
+; 0-5 and one in 6-7 (path_split): the screen's colours have the first,
+; and the interrupt has the TED fetch the row's colours again for its
+; lines 6-7 with the second in (engine.s, band). Here, its list: by
+; screen row (top first), for each such quarter in view its column, its
+; character and the colour of its lines 6-7 - in two sets, the one the
+; interrupt reads (bd_act) and the one made afresh (bands_make).
+
+BD_MAX = 24                     ; a set's places
+BD_ROWS = 8                     ; and rows
+BD_PER = 3                      ; places a row: what the interrupt has time
+                                ; for (engine.s)
+
+        .bss                    ; (cleared at the start: bd_ng 0)
+bd_dirty:   .res 1              ; 1: the list to be made again
+bd_act:     .res 1              ; the set the interrupt reads, 0 or 1
+bd_ng:      .res 2              ; each set's rows
+        .segment "BANDS"        ; (trainschedule.cfg)
+bd_col:     .res 2 * BD_MAX     ; the place's column
+bd_code:    .res 2 * BD_MAX     ; the character
+bd_b:       .res 2 * BD_MAX     ; the colour of its lines 6-7
+bd_grow:    .res 2 * BD_ROWS    ; a row's screen row
+bd_gfirst:  .res 2 * BD_ROWS    ; its places: from
+bd_gend:    .res 2 * BD_ROWS    ; to (not with)
+        .bss
+bm_set:     .res 1
+bm_i:       .res 1
+bm_iend:    .res 1
+bm_g:       .res 1
+bm_gbase:   .res 1
+bm_gend:    .res 1
+bm_y:       .res 1
+bm_x:       .res 1
+bm_r:       .res 1
+bm_col:     .res 1
+bm_ch:      .res 1
+bm_b:       .res 1
+bm_gx:      .res 1
+        .code
+
+; bands_make: the list for the view as it is, handed to the interrupt
+bands_make:
+        lda #0
+        sta bd_dirty
+        sta bm_i
+        sta bm_g
+        lda bd_act
+        eor #1
+        sta bm_set
+        beq :+
+        lda #BD_MAX
+        sta bm_i
+        lda #BD_ROWS
+        sta bm_g
+:       lda bm_g
+        sta bm_gbase
+        clc
+        adc #BD_ROWS
+        sta bm_gend
+        lda bm_i
+        clc
+        adc #BD_MAX
+        sta bm_iend
+        lda _zoom
+        cmp #2
+        bne @hand
+        lda #0
+        sta bm_y
+@row:   lda bm_y
+        cmp _view_ch
+        beq @hand
+        lda bm_y
+        clc
+        adc _view_y
+        tay
+        ldx _view_x
+        jsr cellp
+        lda bm_y
+        asl a
+        clc
+        adc _view_sy
+        adc #VIEW_TOP
+        sta bm_r
+        ldy #0
+@cell:  cpy _view_cw
+        beq @nrow
+        lda (mc),y
+        tax
+        lda _code_path,x
+        cmp #255
+        beq @next
+        sty bm_x
+        lda (ma),y
+        and #$77
+        sta bm_col
+        txa
+        jsr q4p
+        ldy #0
+        jsr bm_quarter
+        iny
+        jsr bm_quarter
+        ldy bm_x
+@next:  iny
+        bne @cell
+@nrow:  inc bm_y
+        jmp @row
+@hand:  lda bm_g
+        sec
+        sbc bm_gbase
+        ldx bm_set
+        sei
+        sta bd_ng,x
+        stx bd_act
+        cli
+        rts
+
+; bm_quarter: top quarter Y (0, 1) of the set switch at bm_x on the list,
+; if it has two colours. Keeps Y.
+bm_quarter:
+        lda (qp),y
+        tax
+        lda _q_deco,x
+        and #2
+        beq @rts
+        stx bm_ch
+        lda _q_deco,x           ; lines 6-7: the cell's colour under grey,
+        and #1                  ; grey under the cell's
+        beq :+
+        lda bm_col
+        jmp :++
+:       lda #COL_TRACK
+:       sta bm_b
+        ldx bm_g                ; its row: begun already, or new
+        cpx bm_gbase
+        beq @new
+        lda bd_grow-1,x
+        cmp bm_r
+        beq @old
+@new:   cpx bm_gend
+        beq @rts                ; (no room: one colour)
+        lda bm_r
+        sta bd_grow,x
+        lda bm_i
+        sta bd_gfirst,x
+        sta bd_gend,x
+        inc bm_g
+        inx
+@old:   lda bd_gend-1,x         ; room in the row?
+        sec
+        sbc bd_gfirst-1,x
+        cmp #BD_PER
+        bcs @rts
+        lda bm_i
+        cmp bm_iend
+        beq @rts
+        stx bm_gx
+        tax
+        lda bm_ch
+        sta bd_code,x
+        lda bm_b
+        sta bd_b,x
+        tya                     ; its column
+        clc
+        adc bm_x
+        adc bm_x
+        adc _view_sx
+        sta bd_col,x
+        inc bm_i
+        ldx bm_gx
+        lda bm_i
+        sta bd_gend-1,x
+@rts:   rts
 
 ; ---- the level --------------------------------------------------------------
 
@@ -1691,6 +2021,7 @@ cell_screen:
 vputq:  sta _vp_c
         tay
         lda _q_deco,y
+        and #1
         beq :+
         lda vc_a                ; (a multicolour cell's grey is %10)
         and #8
@@ -1943,6 +2274,8 @@ cell2:  ldx c2_x
 
 ; view_draw: the whole view afresh, from the map (no trains)
 view_draw:
+        lda #1                  ; the bands afresh for it
+        sta bd_dirty
         lda _scrn
         clc
         adc #VIEW_TOP * 40
@@ -2098,6 +2431,8 @@ cm_look:
         lda cm_occ
         cmp #OCC_ROUTE
         beq @kind
+        lda #1                  ; a set switch no more: the bands afresh
+        sta bd_dirty
         lda _code_mask,x
         sta cf_m
         lda _code_deco,x
@@ -2188,8 +2523,10 @@ cell_route:
         jsr path_kind
         ldy #0
         sta (mc),y
-        lda #COL_ROUTE | 8      ; multicolour
+        lda #COL_ROUTE
         sta (ma),y
+        lda #1                  ; the bands afresh
+        sta bd_dirty
         ldx cr_x
         ldy cr_y
         jmp view_cell

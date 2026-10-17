@@ -33,7 +33,7 @@ import sys
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import mkmusic                          # noqa: E402
 
-SONG_MAX = 2048                         # game.inc: SONG_MAX
+SONG_MAX = 1536                         # game.inc: SONG_MAX
 LOAD_MAX = 3072                         # front.s: SCRATCH, 3 KB
 
 DIRS = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"]
@@ -330,6 +330,11 @@ def tables2():
     thin = [0.75 if d & 1 else 1.0 for d in range(8)]
     out["strip2"] = [cell16(p for p in ALL16 if half2(d, *p, thin[d]) is not None)
                      for d in range(8)]
+    # North and south a pixel to the left and to the right, all in one
+    # column of characters: in a set switch, clear of a diagonal leg next to
+    # them, which takes the other column (map.s, path_split)
+    out["strip2v"] = [cell16((x + dx, y) for x, y in ALL16 if half2(d, x, y, thin[d]) is not None)
+                      for d in (2, 6) for dx in (-1, 1)]
     out["tk2_edge"] = [[cell16(p for p in ALL16 if (s := half2(d, *p, 3.0)) is not None
                                and s >= N2 - k) for k in range(N2 + 1)] for d in range(8)]
     lamp = []

@@ -1025,6 +1025,7 @@ spawn:  ldx #0
         sta _r_hid,x
         lda #S_RUN
         sta _r_state,x
+        jsr quiet_ahead
         jsr stop_point
         ; come in as fast as it can and still stop in time
 @fast:  lda sw_v
@@ -1241,13 +1242,66 @@ head_under:
         jmp cell_under
 @rts:   rts
 
+; quiet_ahead: a train come onto the map: the way in it was given, to the
+; next signal (run_on), is the game's, not a route set - it looks free,
+; and is the train's (mo) all the same. hide_ahead leaves it be, so it is
+; never green.
+quiet_ahead:
+        ldx s
+        lda _r_head,x
+        sta hd_k
+@cell:  ldx s
+        lda hd_k
+        cmp _r_end,x
+        beq @rts
+        clc
+        adc #1
+        and #RING - 1
+        tay
+        inc hd_k
+        lda (rxp),y
+        cmp #OUT
+        beq @cell
+        sta hd_x
+        lda (ryp),y
+        sta hd_y
+        tay
+        ldx hd_x
+        lda #OCC_FREE
+        jsr cell_mark
+        ldx hd_x
+        ldy hd_y
+        jsr cellp
+        ldy #0
+        lda #OCC_ROUTE
+        sta (mo),y
+        jmp @cell
+@rts:   rts
+
 ; hide_ahead: arrived - the rest of the route it came in on, to the next
 ; signal, looks free (grey) from now on, its front's cell as behind it; it
 ; is still the train's (mo), so nothing else changes. Routes it has taken
 ; beyond that signal stay green: it has not been on them yet. show_ahead
 ; brings the green back.
 hide_ahead:
-        jsr head_under
+        ldx s                   ; its front's cell not green: the way in
+        lda _r_head,x           ; it was given (quiet_ahead), nothing to
+        and #RING - 1           ; hide and show again
+        tay
+        lda (rxp),y
+        cmp #OUT
+        beq :+
+        tax
+        lda (ryp),y
+        tay
+        jsr cellp
+        ldy #0
+        lda (ma),y
+        and #$77
+        cmp #COL_ROUTE
+        beq :+
+        rts
+:       jsr head_under
         ldx s
         lda #1
         sta _r_hid,x
@@ -1278,6 +1332,14 @@ hide_ahead:
         ldy hd_y
         jsr signal_at
         cmp #255
+        bne @rts
+        ldx hd_x                ; green at all? (a train's way in is not:
+        ldy hd_y                ; quiet_ahead)
+        jsr cellp
+        ldy #0
+        lda (ma),y
+        and #$77
+        cmp #COL_ROUTE
         bne @rts
         inc hd_k
         ldx hd_x
@@ -3044,6 +3106,7 @@ trains_draw:
         jsr q4at
         tax                     ; (a platform's edge alone: grey)
         lda _q_deco,x
+        and #1
         beq :+
         lda _vp_a
         and #8
