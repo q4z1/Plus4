@@ -253,7 +253,7 @@ mk_tabs:    .word _strip, _lamp, _bar, _gate
             .word _strip2, _lamp2, _bar2, _gate2
 ; where a platform's number goes close up, by the axis of its track: on
 ; the side of its edge, clear of the track (and of a train on it)
-num_x:      .byte 10, 10, 10, 3
+num_x:      .byte 10, 10, 10, 2       ; (even: its pixels two wide in pairs)
 num_y:      .byte 10, 9, 1, 9
 ; a set switch's parts close up (regions): first byte, last + 1, the
 ; horizontal leg in it (its bit)
@@ -650,7 +650,7 @@ make:   ldx #0                  ; the tables of the size now
         jsr px2
         inc mk_i
         lda mk_i
-        cmp #5
+        cmp #7
         bne :-
         inc mk_k
         lda mk_k
@@ -668,12 +668,22 @@ make:   ldx #0                  ; the tables of the size now
         sta mk_t                ; its pixels, from bit 7
         lda #0
         sta mk_i
-@px:    asl mk_t
-        bcc :+
-        lda mk_nx
+@px:    asl mk_t            ; two pixels wide, from an even column: the
+        bcc :+              ; same in multicolour, where a train's band
+        lda mk_i            ; makes the character so (engine.s)
+        asl a
         clc
-        adc mk_i
+        adc mk_nx
+        sta mk_g
         tax
+        lda mk_ny
+        clc
+        adc mk_k
+        tay
+        sec
+        jsr px2
+        ldx mk_g
+        inx
         lda mk_ny
         clc
         adc mk_k
