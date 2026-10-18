@@ -1949,6 +1949,9 @@ autopilot:
 ; ---- the clock ----------------------------------------------------------------
 
 trains_reset:
+        lda #0                  ; the free list made afresh (pool_check),
+        sta fl_end              ; even for the same map: it lies under the
+                                ; font of the choice of a map ($D800)
         lda #S_FREE
         ldx #SLOTS - 1
 :       sta _r_state,x

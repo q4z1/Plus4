@@ -20,7 +20,7 @@
         .export _mus_start, _mus_quiet, _mus_song, _eng_keepirq
         .export _mus_off, _mus_toggle, _tk_start, _tk_on, _eng_choice
         .export _eng_sfx, _sfx_arrive, _sfx_leave
-        .export _eng_font2
+        .export _eng_font2, _kheld2
         .importzp sp, ptr1, ptr2, ptr3, ptr4
 
 TED_SCROLLY = $FF06
@@ -101,7 +101,8 @@ _frames:    .res 1
 _keys:      .res 1              ; K_... (game.h) down now
 hits:       .res 1              ; pressed since eng_hits last asked
 hits2:      .res 1              ; the same for more keys: Z 1
-kprev2:     .res 1
+_kheld2:    .res 1              ; the second byte's keys down (and Help 16, F1
+                                ; 32)
 knew:       .res 1
 fstate:     .res 1              ; fire: 0 up, 1 down on its own, 2 a command
 kr2:        .res 1
@@ -1077,7 +1078,8 @@ rl_v:   lda #VBL_LINE
 ;
 ; K_ bits (game.h): up 1, down 2, left 4, right 8, fire 16, + 32, - 64,
 ; L 128. Joystick 1 or 2, cursor keys; fire is also Space and Return.
-; F1 turns the music off and on, here, wherever the game is.
+; F1 turns the music off and on, here, wherever the game is. Help is
+; only held (kheld2 16): the choice of a map opens its page by it (help.s).
 ; ---------------------------------------------------------------------------
 kpoll:  ldx #$FF
         stx KEY_ROW
@@ -1192,12 +1194,13 @@ kpoll:  ldx #$FF
         lda #8
         ora kr2
         sta kr2
-:       lda #$FE                ; F1 4, as 16 here (not a joystick line)
-        jsr krow
-        and #$10
+:       lda #$FE                ; F1 4, as 32 here, Help 3, as 16 (not
+        jsr krow                ; joystick lines)
+        and #$18
+        asl a
         ora kr2
         sta kr2
-        lda kprev2
+        lda _kheld2
         eor #$FF
         and kr2
         tax
@@ -1205,11 +1208,11 @@ kpoll:  ldx #$FF
         ora hits2
         sta hits2
         txa
-        and #$10
+        and #$20
         beq :+
         jsr _mus_toggle
 :       lda kr2
-        sta kprev2
+        sta _kheld2
         lda #$FE                ; return 1
         jsr krow
         and #$02
@@ -2572,12 +2575,13 @@ bg_k:       .res 1              ; its place in bo
 bv_base:    .res 1              ; the screen shown: its colours' page
 bn_t:       .res 1              ; the row's line 0
 bn_r:       .res 1              ; its line p: vshift back
-bn_pre:     .res 1              ; the row band_back made ready, or $FF
 bn_nx:      .res 1              ; the row it goes on with, or $FF
 bv_scr:     .res 1              ; $FF06 without vshift
 bn_e:       .res 1
 bu_x:       .res 1
-        .bss
+        .bss                    ; (outside a level BANDS is the overlay's:
+bn_pre:     .res 1              ; the interrupt sets this one in any mode)
+                                ; the row band_back made ready, or $FF
 bn_cur:     .res 1              ; band_cur's
 br_k:       .res 1              ; band_resolve's
 br_e:       .res 1

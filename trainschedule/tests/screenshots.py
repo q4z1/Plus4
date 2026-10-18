@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The README's pictures, made anew in plus4emu from the disk: the title,
-the choice of a map, Riesa with trains at its platforms, a train's
+the choice of a map, its page of help, Riesa with trains at its platforms, a train's
 timetable, the overview, the end of a level, and then Alessandria and
 Smiths Falls in the overview. The autopilot plays (as the tests do). Writes screenshots/*.png; run from trainschedule/.
 """
@@ -43,13 +43,29 @@ def main():
 
     try:
         # the title, the game ready (its own interrupt and the march on)
-        wait(lambda: p.peek('eng_mode') == 1 and p.mem(p.sym('mus_song'), 2) == bytes([0, 0xE8]))
+        # (the ticker starting: the map list loaded, "press fire" up)
+        wait(lambda: p.peek('eng_mode') == 1 and p.mem(p.sym('mus_song'), 2) == bytes([0, 0xE8])
+             and p.peek('tk_on') == 1)
         p.run_for(1)
         shot('title.png')
         fire()
         wait(lambda: p.peek('eng_mode') == 2)
         p.run_for(1.5)
         shot('maps.png')
+        cm_sel = p.lab['cm_sel']                 # up to the bulb, its page
+        while p.mem(cm_sel)[0] != 255:
+            p.set('dbg_keys', 1)
+            p.run_for(0.2)
+            p.set('dbg_keys', 0)
+            p.run_for(0.2)
+        fire()
+        p.run_for(0.5)
+        shot('help.png')
+        fire()                                   # closed, down to Riesa
+        p.set('dbg_keys', 2)
+        p.run_for(0.2)
+        p.set('dbg_keys', 0)
+        p.run_for(0.5)
         fire()
         wait(lambda: p.peek('ptr_on') == 1)
         p.set('autopilot_on', 1)

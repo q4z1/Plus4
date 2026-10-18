@@ -55,6 +55,8 @@ AREA_NAMES = {
     "XB": "tables (XBSS)", "HIM": "kinds of cell, level_buf",
     "HI0": "trains' rings", "HI3": "route search, code_path",
     "HI1": "draw list 1", "HI2": "draw list 2", "STK": "small variables",
+    "OVL": "overlay, outside a level: choice, help",
+    "OVLB": "overlay's variables, outside a level",
 }
 
 # Files on the disk (build.sh)
@@ -65,6 +67,7 @@ FILE_NAMES = {
     "music": "title's song",
     "game": "the game (packed)",
     "maps": "map list",
+    "help": "choice of a map, page of help (packed)",
 }
 
 CODE_SEGS = {"STARTUP", "LOWCODE", "CODE", "ONCE"}

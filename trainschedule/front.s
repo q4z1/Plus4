@@ -9,6 +9,11 @@
 ; (boot.s, fastload.s) if the drive runs its other half, else by the
 ; KERNAL, as in Stardew Pond.
 ;
+; The choice of a map itself is an overlay (trainschedule.cfg: OVL), in a
+; file of its own, "help", with the page of help its bulb opens (help.s):
+; loaded to $B000 before the choice - the song, the bands and the
+; characters' copy there belong to a level, which is not on then.
+;
 ; The KERNAL needs $07D8-$07E7 to load (measured for Paradroid); the game
 ; keeps routes there, so those 16 bytes are kept from the start and put
 ; back before every load.
@@ -18,6 +23,7 @@
 
         .export _level_buf, disk_init, title, choose_map, load_map
         .export catalogue, unlock_next, _unlocked, map_song
+        .export cm_sel, show_maps, help_read
 
         .import _eng_blank, _eng_unblank, _eng_irqon, _eng_hits, _eng_text, _txt_o
         .import _txt_col, _eng_romfont, _eng_bmtext, _title_credits
@@ -25,6 +31,7 @@
         .import _eng_keepirq, _mus_start, _mus_quiet, _mus_song, _mus_off
         .import _mus_toggle, _unpack, _unp_dst, _scrn, _colr, _ptr_on
         .import _tk_start, _tk_on, _eng_choice
+        .import help_hits, bulb_place
 
 SCRATCH = $E000                 ; packed files, 3 KB: the trains' rings and
                                 ; the route search's tables, free here
@@ -39,6 +46,10 @@ FL_NAME  = $FA07
 FL_ADDR  = $FA09
 KERNAL_LOAD_RAM = $07D8         ; what the KERNAL needs to load
 MAX_LIST = 7                    ; maps in the list: rows 6, 8 ... 18
+OVL_ADDR = $B000                ; the overlay (trainschedule.cfg)
+OVL_TITLE = $EC00               ; and where it comes packed (build.sh: 3 KB)
+OVL_LEVEL = $C000
+BULB_MARK = 35                  ; the column of the bulb's mark (help.s)
 
         .segment "GAMEZP": zeropage
 fp1:    .res 2                  ; a text of the catalogue
@@ -48,6 +59,9 @@ ld_name: .res 2                 ; load's file name
 dev:        .res 1              ; the drive
 kernal_07d8: .res 16
 title_song: .res 1              ; 1: the title's song is there (its file)
+help_ok:    .res 1              ; 1: the overlay is there (its file)
+cat_ok:     .res 1              ; 1: the catalogue is there, loaded early
+help_read:  .res 1              ; 1: the page of help has been read
 fl_on:      .res 1              ; the fast loader runs
 nmaps:      .res 1
 ld_addr:    .res 2              ; load's: where to, the name's length
@@ -80,10 +94,14 @@ n_music:    .byte "music", 0
 n_title_b:  .byte "title.b", 0
 n_title_m:  .byte "title.m", 0
 n_map:      .byte "map0", 0, 0  ; (the number put in)
+n_help:     .byte "help", 0
         .assert * < $8000, error, "file names under the ROM: the KERNAL cannot read them"
 
         .rodata
-; and text on screen: screen codes
+bit_of:     .byte 1, 2, 4, 8, 16, 32, 64, 128
+
+        .segment "OVLDATA"      ; (the overlay)
+; text on screen: screen codes
 .repeat 26, I
         .charmap $41 + I, $01 + I
 .endrepeat
@@ -93,10 +111,14 @@ locked:     .byte "LOCKED: GET A STAR ON THE MAP ABOVE", 0
 lock_body:  .byte LOCK_CODE, LOCK_CODE + 1, 0
 lock_shut:  .byte LOCK_CODE + 2, LOCK_CODE + 3, 0
 lock_open:  .byte LOCK_CODE + 4, LOCK_CODE + 5, 0
-bit_of:     .byte 1, 2, 4, 8, 16, 32, 64, 128
+help_t1:    .byte "HOW TO PLAY, AND ALL THE KEYS", 0
+help_t2:    .byte "FIRE TO READ IT - OR PRESS HELP", 0
+music_t:    .byte "< MUSIC ON  >  F1", 0
+.repeat 26, I
+        .charmap $41 + I, $41 + I
+.endrepeat
 
         .data
-music_t:    .byte "< MUSIC ON  >  F1", 0
 ; the maps that can be chosen, a bit each (map 1: bit 0); a star on one
 ; opens the next (unlock_next). The test build sets it (tests/start.sh).
 _unlocked:  .byte 1
@@ -195,17 +217,19 @@ load:   ldy #$FF                ; the name's length
         jsr load
 .endmacro
 
-; load_packed: file ld_name to SCRATCH, unpacked to A/X
+; load_packed: file ld_name to SCRATCH, unpacked to A/X; load_packed_at:
+; to ld_addr
 load_packed:
+        ldy #<SCRATCH
+        sty ld_addr
+        ldy #>SCRATCH
+        sty ld_addr+1
+load_packed_at:
         sta _unp_dst
         stx _unp_dst+1
-        lda #<SCRATCH
-        sta ld_addr
-        lda #>SCRATCH
-        sta ld_addr+1
         jsr load
-        lda #<SCRATCH
-        ldx #>SCRATCH
+        lda ld_addr
+        ldx ld_addr+1
         jmp _unpack
 
 ; the screen for text again: the first of the two, empty
@@ -296,7 +320,13 @@ title:  lda #0
         sta _eng_mode
         jsr _eng_unblank
 @shown: jsr music
-        lda #<_title_ready
+        lda fl_on               ; the fast loader: the catalogue and the
+        beq :+                  ; overlay now, "loading" still on the
+        jsr catalogue           ; title and the ticker not yet running
+        inc cat_ok
+        lda #>OVL_TITLE
+        jsr overlay
+:       lda #<_title_ready
         ldx #>_title_ready
         jsr _eng_bmtext
         jsr _tk_start
@@ -307,6 +337,8 @@ title:  lda #0
         rts
 
 ; ---- choosing a map ----------------------------------------------------------------
+
+        .segment "OVLCODE"      ; (the overlay, but for is_open and catalogue)
 
 ; put_at: the text at A/X to row Y, column cm_k, in colour txt_col
 put_at: pha
@@ -363,11 +395,13 @@ mtext:  stx sm_i
         sta fp1+1
         rts
 
+        .code
 ; is_open: Z clear if map X (0 on) can be chosen
 is_open:
         lda bit_of,x
         and _unlocked
         rts
+        .segment "OVLCODE"
 
 ; put_row: sm_line to row Y, all 40 columns, in colour txt_col
 put_row:
@@ -393,8 +427,16 @@ put_text:
         jmp put_row
 
 ; show_maps: the list, the one chosen (cm_sel) marked, a lock by each,
-; shut or open, and about the one chosen
+; shut or open, and about the one chosen - or the bulb (cm_sel 255), the
+; mark beside it
 show_maps:
+        lda #32
+        ldx cm_sel
+        bpl :+
+        lda #$3E                ; >
+:       sta $F400 + 1 * 40 + BULB_MARK
+        lda #COL_HUD
+        sta $F000 + 1 * 40 + BULB_MARK
         lda #0
         sta cm_i
 @map:   lda cm_i
@@ -463,7 +505,22 @@ show_maps:
 @next:  inc cm_i
         jmp @map
 @about: ldx cm_sel
-        ldy #1
+        bpl @map1
+        lda #<help_t1
+        sta fp1
+        lda #>help_t1
+        sta fp1+1
+        ldy #20
+        lda #COL_LABEL
+        jsr put_text
+        lda #<help_t2
+        sta fp1
+        lda #>help_t2
+        sta fp1+1
+        ldy #21
+        lda #COL_DIM
+        jmp put_text
+@map1:  ldy #1
         jsr mtext
         ldy #20
         lda #COL_LABEL
@@ -504,6 +561,7 @@ show_music:
         ldx #>music_t
         jmp put_at
 
+        .code
 ; catalogue: the catalogue off the disk (to SCRATCH): nmaps, and each
 ; map's texts in map_text. The screen goes off for it - but not on the
 ; title with the fast loader there, which loads with our interrupt
@@ -563,6 +621,7 @@ catalogue:
 :       sta cm_n
         rts
 
+        .segment "OVLCODE"
 ; choice_screen: the second screen ($F000/$F400) empty, the one written
 ; to; its last row the ticker's characters
 choice_screen:
@@ -597,20 +656,11 @@ choice_screen:
         bpl :-
         rts
 
-; choose_map: the catalogue off the disk, and a map chosen from it: its
-; number, 1 on (in A). Drawn on the second screen while the title (or the
-; screen off) is still shown, and then shown in one go, the ticker running
-; on through it; a locked map cannot be taken.
-choose_map:
-        lda #0
-        sta _ptr_on
-        jsr catalogue
-        lda _eng_mode           ; from the game (the screen off now): the
-        bne :+                  ; choice's mode before it is drawn - else
-        lda #2                  ; its rows from 19 on are the board's
-        sta _eng_mode           ; (eng_text), the ticker's characters
-:       jsr music
-        lda _tk_on
+; choice: the choice itself (choose_map). Drawn on the second screen while
+; the title (or the screen off) is still shown, and then shown in one go,
+; the ticker running on through it; a locked map cannot be taken. Above
+; the first map, the bulb: the page of help (help.s).
+choice: lda _tk_on
         bne :+
         jsr _tk_start
 :       jsr choice_screen
@@ -641,11 +691,13 @@ choose_map:
         stx cm_sel
         bne @last
 :       jsr show_maps
+        jsr bulb_place
         jsr _eng_choice
         jsr _eng_hits
         lda #255
         sta cm_m
 @loop:  jsr _eng_hits
+        jsr help_hits           ; (the bulb's, and the page's)
         sta cm_h
         and #K_LEFT | K_RIGHT
         beq :+
@@ -682,6 +734,52 @@ choose_map:
         txa
         rts
 
+        .code
+; choose_map: the catalogue off the disk, and a map chosen from it: its
+; number, 1 on (in A) - by the overlay, loaded first if it is not there
+; (after the title's song: from a level, its song is at $B000 till then)
+choose_map:
+        lda #0
+        sta _ptr_on
+        lda cat_ok              ; (loaded on the title already)
+        bne :+
+        jsr catalogue
+:       lda #0
+        sta cat_ok
+        ldx #>OVL_TITLE         ; (where the overlay comes packed: from
+        lda _eng_mode           ; the title, the trains' draw list, unused
+        bne :+                  ; yet; from a level, its characters)
+        ldx #>OVL_LEVEL
+        lda #2                  ; from the game (the screen off now): the
+        sta _eng_mode           ; choice's mode before it is drawn - else
+:       stx cm_m                ; its rows from 19 on are the board's
+        jsr music               ; (eng_text), the ticker's characters
+        lda cm_m
+        jsr overlay
+        jmp choice
+
+; overlay: the overlay, if it is not there, unpacked from page A
+overlay:
+        ldx help_ok
+        bne @rts
+        sta ld_addr+1
+        lda _tk_on              ; (the ticker held meanwhile: the loader
+        pha                     ; misses fewer sectors)
+        lda #0
+        sta _tk_on
+        sta ld_addr
+        lda #<n_help
+        sta ld_name
+        lda #>n_help
+        sta ld_name+1
+        lda #<OVL_ADDR
+        ldx #>OVL_ADDR
+        jsr load_packed_at
+        pla
+        sta _tk_on
+        inc help_ok
+@rts:   rts
+
 ; unlock_next: after a star on the map played, the next one open; C set if
 ; it was not open before (and there is one)
 unlock_next:
@@ -712,6 +810,7 @@ load_map:
         jsr _mus_quiet
         lda #0                  ; the level takes its memory
         sta title_song
+        sta help_ok
         jsr _eng_blank
         loadto n_map, SCRATCH
         lda #<(SCRATCH + 2)

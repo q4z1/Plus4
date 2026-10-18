@@ -1,0 +1,64 @@
+# The page of help: the bulb in the choice of a map opens it (help.s,
+# tools/mkhelp.py). Lines starting with '#' and a space are comments; '='
+# starts a heading; ':' a line as it is (the keys); an empty line is an
+# empty row; other lines are text, run together and broken at the page's
+# width (34). [KEY] is a key, on a key cap. Upper case only on screen; not
+# @ [ ] # $ % (their characters are the page's frame).
+
+= HOW TO PLAY
+:[UP] [DOWN] READ ON  [FIRE] CLOSE
+
+You run the signal box. Trains come in at the edges of the map and run to
+a timetable. Set their routes from signal to signal, so that each of them
+stops at the right platform, on time.
+
+= ROUTES
+Move the frame onto a signal and press fire: the signals a route from it
+can go to start blinking. Fire on one of them, and the route is set - it
+turns green, and the next train to come up to the signal takes it. Routes
+can be set ahead, one after the other.
+
+Fire on the signal of a route to take it back, and choose another or none
+- even when a train has taken it, as long as the train has not passed the
+signal and can still stop.
+
+A train at a platform turns round: set a route from the signal behind it.
+
+= THE SCORE
+10 points for every stop. Fewer for every minute late, for the wrong
+platform, for stopping at a red signal and for braking before one.
+
+70 per cent of a map's points earn a star - and a star opens the next map.
+
+= THE BOARD
+At the foot of the map a small book: the trains, where each is going next
+and whether it is on time. Fire on a train for its timetable.
+
+= JOYSTICK AND KEYS
+Fire counts when it is let go. Held, with the stick pushed, it is a
+command.
+
+Move the frame
+:  [STICK]        [CURSOR KEYS]
+Choose, set, take back
+:  [FIRE]         [SPACE] [RETURN]
+A train's timetable
+:  [FIRE] ON THE TRAIN
+The next train's, the one before
+:  [FIRE]+[DOWN]  [.] [,]
+Close the timetable
+:  [FIRE] ON AN EMPTY PLACE  [ESC]
+Close up or the whole map
+:  [FIRE]+[UP]    [Z]
+Faster: pause, x1, x3, x10
+:  [FIRE]+[RIGHT] [+]
+Slower
+:  [FIRE]+[LEFT]  [-]
+Music off and on
+:  [LEFT] [RIGHT] IN THE MAPS  [F1]
+At the end: again, or another map
+:  [LEFT] [RIGHT], [FIRE]  [L]
+This page
+:  THE BULB, [FIRE]  [HELP]
+
+Have a good journey!

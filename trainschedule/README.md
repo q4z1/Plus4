@@ -124,6 +124,16 @@ off steam; one leaving whistles and puffs away.
 joystick it is left or right in the choice of a map, which shows which it
 is.
 
+**How to play.** A bulb glows at the top right of the choice of a map,
+hopping now and then, until it has been read: up from the first map, then
+fire - or the Plus/4's `Help` key - opens a page with how the game is
+played and every key and joystick move. It is a small book like the board
+in the game, longer than the screen: the stick scrolls it by the pixel,
+faster the longer it is held, and lets it run out when let go. Fire closes
+it, and the bulb stays dark from then on.
+
+![How to play](screenshots/help.png)
+
 **Unlocking.** At first only Riesa is open. A star on a map - 70 per cent
 of its points or more - opens the next one: the end of the level says so,
 and the choice of a map has it chosen already. The lock beside each map
@@ -151,6 +161,8 @@ is.
 | Title picture: on | fire | `Space` or `Return` |
 | Choose a map | up / down, then fire | cursor keys, `Space` or `Return` |
 | Music off / on | left / right in the choice of a map | `F1`, anywhere |
+| How to play, all the keys | up to the bulb, fire | `Help`, in the choice of a map |
+| Read on, close it | up / down; fire | cursor keys; `Space`, `Return`, `Esc` or `Help` |
 | At the end: play again or another map | left / right, then fire | the same, or `L` for another |
 
 A frame round a cell shows the cell fire acts on. A tap on the stick (or
@@ -225,11 +237,18 @@ left stick and A button are the joystick). On the disk:
 | `title.b`, `title.m` | the title picture, packed: the bitmap and its colours |
 | `music` | the title's music: the Radetzky March |
 | `maps` | the catalogue: each map's name and how hard it is, a line about it, its facts |
+| `help` | the choice of a map and the page of help, packed: loaded before the choice |
 | `map1`, `map2` ... | a map each: its music, its track and its timetable |
 
 The maps are text, in [data/](data/), made into these files by
 [tools/mklevel.py](tools/mklevel.py) along with the pixel tables the
-characters are drawn from. The title picture is a PNG,
+characters are drawn from. So is the page of help,
+[data/help.txt](data/help.txt), by [tools/mkhelp.py](tools/mkhelp.py),
+with the bulb. The choice of a map and that page are an overlay
+([help.s](help.s), part of [front.s](front.s)): outside a level the
+memory of the map's song and the switches' bands is free, and the
+overlay is loaded there - on the title already, while it says "loading",
+with the fast loader. The title picture is a PNG,
 [data/start.png](data/start.png), made into the TED's bitmap by
 [tools/mkpicture.py](tools/mkpicture.py). The station signs' letters and
 the flap digits are drawn, pixel by pixel, in
