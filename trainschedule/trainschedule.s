@@ -16,7 +16,16 @@
 
         .macpack longbranch
         .include "game.inc"
-        .forceimport __STARTUP__        ; (cc65's start-up: main() is here)
+        .import zerobss
+
+; The start, where the program's BASIC line SYSes to: not cc65's, no C
+; here - the ROM out, the variables cleared. The interrupt stays the boot
+; program's (boot.s) till eng_init.
+        .segment "STARTUP"
+        cld
+        sta $FF3F
+        jsr zerobss
+        jmp _main
 
         .export _main, _clock_s, score_event, _loops
         .export _cur_x, _cur_y, _clock_f, _speed_i, _score
@@ -43,9 +52,9 @@
         .import _tt_arr, _tt_plat, _tt_pts, _train_blink, _autopilot_on
         .import ev_why, ev_pts, ev_late, ev_wrong, ev_st, ev_rec
         .import disk_init, title, choose_map, load_map, _level_buf, map_song
-        .import catalogue, unlock_next
+        .import catalogue, unlock_next, text_screen
         .export _test_map
-        .import _eng_init, _eng_hits, _eng_hits2, _eng_romfont
+        .import _eng_init, _eng_hits, _eng_hits2
         .import _eng_vmbase, _eng_font2, _eng_dark, _eng_show, _eng_text, _txt_o, _txt_col, _frames, _dbg_n
         .import _eng_mode, _title_bg, _title_mc, _title_split, _scrn, _colr
         .import _vput, _vget, _vp_o, _vp_c, _vp_a, _vg_a
@@ -2338,10 +2347,14 @@ fire:   ldx _cur_x
 
 ; level_start: the level from the start. The screen is dark while it is
 ; made - its characters, the head row, the board, the map - and comes on
-; with all of it there
+; with all of it there. Loaded first, "loading" stays up till the map is
+; drawn: on the first screen, the one the map goes on (front.s)
 level_start:
+        lda _eng_mode
+        cmp #3
+        beq :+
         jsr _eng_dark
-        lda #<_level_buf
+:       lda #<_level_buf
         sta lp
         lda #>_level_buf
         sta lp+1
@@ -2412,6 +2425,9 @@ level_start:
         jsr frame_draw
         jsr board_head
         jsr board
+        lda #0                  ; (no longer loading)
+        sta _eng_mode
+        jsr _eng_dark
         jsr view_centre
         jsr _eng_show
         lda map_song            ; the map's music, which came with it
@@ -2647,20 +2663,8 @@ _main:  lda $FF06
         adc #3
         sta _title_split
         jmp @go
-@text:  ldx #0
-:       lda #32
-        sta $0C00,x
-        sta $0D00,x
-        sta $0E00,x
-        sta $0F00-24,x
-        lda #COL_BG
-        sta $0800,x
-        sta $0900,x
-        sta $0A00,x
-        sta $0B00-24,x
-        inx
-        bne :-
-        jsr _eng_romfont
+@text:  lda #$08
+        jsr text_screen
 @go:    jsr disk_init
         jsr _eng_init
         lda #1

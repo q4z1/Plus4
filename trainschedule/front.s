@@ -23,14 +23,14 @@
 
         .export _level_buf, disk_init, title, choose_map, load_map
         .export catalogue, unlock_next, _unlocked, map_song
-        .export cm_sel, show_maps, help_read
+        .export cm_sel, show_maps, help_read, text_screen
 
         .import _eng_blank, _eng_unblank, _eng_irqon, _eng_hits, _eng_text, _txt_o
         .import _txt_col, _eng_romfont, _eng_bmtext, _title_credits
         .import _title_ready, _eng_mode, _title_bg, _title_mc, _title_split
         .import _eng_keepirq, _mus_start, _mus_quiet, _mus_song, _mus_off
         .import _mus_toggle, _unpack, _unp_dst, _scrn, _colr, _ptr_on
-        .import _tk_start, _tk_on, _eng_choice
+        .import _tk_start, _tk_on, _eng_choice, _eng_loading, _eng_clear
         .import help_hits, bulb_place
 
 SCRATCH = $E000                 ; packed files, 3 KB: the trains' rings and
@@ -232,30 +232,18 @@ load_packed_at:
         ldx ld_addr+1
         jmp _unpack
 
-; the screen for text again: the first of the two, empty
+; the screen for text again: the one at page A ($08: $0800/$0C00, $F0:
+; $F000/$F400), empty, written to (not shown: eng_vmbase shows it)
 text_screen:
-        lda #$0C
-        sta _scrn+1
-        lda #$08
         sta _colr+1
-        lda #0
-        sta _scrn
-        sta _colr
-        lda #$08
-        sta $FF14
+        ora #$04
+        sta _scrn+1
+        and #<~$04
         ldx #0
-:       lda #32
-        sta $0C00,x
-        sta $0D00,x
-        sta $0E00,x
-        sta $0F00-24,x          ; (1000 bytes: to $0FE7)
-        lda #COL_BG
-        sta $0800,x
-        sta $0900,x
-        sta $0A00,x
-        sta $0B00-24,x
-        inx
-        bne :-
+        stx _scrn
+        stx _colr
+        ldx #COL_BG
+        jsr _eng_clear
         jmp _eng_romfont
 
 ; ---- the title ---------------------------------------------------------------------
@@ -741,22 +729,26 @@ choice: lda _tk_on
 choose_map:
         lda #0
         sta _ptr_on
-        lda cat_ok              ; (loaded on the title already)
-        bne :+
-        jsr catalogue
-:       lda #0
-        sta cat_ok
         ldx #>OVL_TITLE         ; (where the overlay comes packed: from
         lda _eng_mode           ; the title, the trains' draw list, unused
         bne :+                  ; yet; from a level, its characters)
         ldx #>OVL_LEVEL
-        lda #2                  ; from the game (the screen off now): the
-        sta _eng_mode           ; choice's mode before it is drawn - else
-:       stx cm_m                ; its rows from 19 on are the board's
-        jsr music               ; (eng_text), the ticker's characters
+:       stx cm_m
+        lda cat_ok              ; (loaded on the title already)
+        bne :+
+        jsr _eng_loading        ; else "loading" meanwhile (on the first
+                                ; screen: the choice is drawn on the second)
+        jsr catalogue
+:       lda #0
+        sta cat_ok
+        jsr music
         lda cm_m
         jsr overlay
-        jmp choice
+        ldx _eng_mode           ; loading: the choice's mode before it is
+        dex                     ; drawn - else its rows from 19 on are the
+        beq :+                  ; board's (eng_text), the ticker's
+        stx _eng_mode           ; characters (3 - 1); the title stays 1
+:       jmp choice
 
 ; overlay: the overlay, if it is not there, unpacked from page A
 overlay:
@@ -811,6 +803,7 @@ load_map:
         lda #0                  ; the level takes its memory
         sta title_song
         sta help_ok
+        jsr _eng_loading        ; "loading" meanwhile, on the first screen
         jsr _eng_blank
         loadto n_map, SCRATCH
         lda #<(SCRATCH + 2)
@@ -833,10 +826,9 @@ load_map:
         lda #<_level_buf
         ldx #>_level_buf
         jsr copy
-        jsr text_screen
-        lda #0
-        sta _eng_mode
-        jmp _eng_irqon          ; (the screen dark till the level is drawn)
+        lda #$F0                ; the level made on the second: its view
+        jsr text_screen         ; goes on the first (level_start), when
+        jmp _eng_irqon          ; loading is over
 
 ; copy: cp_n bytes from fp1 on to A/X (fp1 left after them)
 copy:   sta ld_name             ; (the name's pointer: free after a load)

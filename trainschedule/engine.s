@@ -20,7 +20,7 @@
         .export _mus_start, _mus_quiet, _mus_song, _eng_keepirq
         .export _mus_off, _mus_toggle, _tk_start, _tk_on, _eng_choice
         .export _eng_sfx, _sfx_arrive, _sfx_leave
-        .export _eng_font2, _kheld2
+        .export _eng_font2, _kheld2, _eng_loading, _eng_clear
         .importzp sp, ptr1, ptr2, ptr3, ptr4
 
 TED_SCROLLY = $FF06
@@ -74,7 +74,8 @@ _colr:      .word $0800
 want_vm:    .res 1              ; for $FF14 in the next vertical blank, 0: none
 want_ch:    .res 1              ; the characters' page there, 0: as they are
 want_off:   .res 1              ; the screen off in the next vertical blank
-_eng_mode:  .res 1              ; 0 text, 1 the title's bitmap
+_eng_mode:  .res 1              ; 0 text, 1 the title's bitmap, 2 the
+                                ; choice of a map, 3 loading (eng_loading)
 _title_bg:  .res 1              ; its colours: background, multicolour 1
 _title_mc:  .res 1
 _title_split: .res 1            ; the raster line its hires part starts at
@@ -188,30 +189,22 @@ _eng_init:
 nmi:    rti
 
 ; show_on, in the vertical blank: the screen on, as text (the game), as
-; the multicolour bitmap at $C000 (the title, _eng_mode 1), or as text in
+; the multicolour bitmap at $C000 (the title, _eng_mode 1), as text in
 ; the characters at $D800 (the choice of a map, _eng_mode 2: the ticker's
-; strip is its characters 192-231)
+; strip is its characters 192-231), or in the ROM's own (loading, 3)
 show_on:
         lda #0
         sta want_on
         lda TED_BMBASE
-        and #$C3                ; characters from RAM, bitmap base cleared
+        and #$C3                ; bitmap base cleared
         ldx _eng_mode
-        cpx #1
-        bne :+
-        ora #$30                ; the bitmap at $C000
-:       sta TED_BMBASE
+        ora bm_of,x             ; characters from RAM but when loading
+        sta TED_BMBASE
         lda TED_CHBASE
         and #$03
-        ora #$C0
-        cpx #2
-        bne :+
-        ora #$18                ; $D800
-:       sta TED_CHBASE
-        cpx #2
-        bne :+
-        jsr font_d800
-:       lda #COL_BG
+        ora ch_of,x
+        sta TED_CHBASE
+        lda #COL_BG
         sta TED_BORDER
         ldx _eng_mode
         cpx #1
@@ -225,8 +218,8 @@ show_on:
         rts
 @text:  lda TED_CTRL2           ; multicolour (cells with colour bit 3) in
         ora #$10                ; the game; the choice of a map has none,
-        cpx #2                  ; the ticker's colours need all 16
-        bne :+
+        cpx #2                  ; the ticker's colours need all 16 (nor
+        bcc :+                  ; has loading)
         and #<~$10
 :       sta TED_CTRL2
         lda #COL_BG
@@ -239,7 +232,15 @@ show_on:
         sta $FF18
         lda #$1B                ; text, display on, 25 rows, y scroll 3
         sta TED_SCROLLY
-        rts
+        cpx #2                  ; the choice's characters last: the colours
+        bne :+                  ; written in the blank, before the beam is
+        jmp font_d800           ; in the picture - a real TED draws a pixel
+:       rts                     ; where one is written while it shows
+; per mode: $FF12 - the title's bitmap at $C000, loading's characters in
+; the ROM; $FF13 - the characters: the game's, the choice's at $D800, the
+; ROM's (its lower case from code 128 on: 256 characters)
+bm_of:  .byte 0, $30, 0, $04
+ch_of:  .byte $C0, $C0, $D8, $D0
 
 ; show_off, in the vertical blank: the screen off, the border black
 show_off:
@@ -253,11 +254,15 @@ show_off:
 
 ; eng_blank: the screen off and no interrupt at all - for the disk: the
 ; KERNAL loads with the ROM in and its own interrupt handler (Stardew
-; Pond's way). The screen goes off in a vertical blank.
+; Pond's way). The screen goes off in a vertical blank - but for loading
+; (eng_mode 3), which needs no interrupt to be seen: it stays.
 _eng_blank:
+        ldx _eng_mode
         lda TED_IRQEN
         and #$02
         beq @off
+        cpx #3
+        beq :+
         lda #1
         sta want_off
 :       lda want_off
@@ -273,10 +278,12 @@ _eng_blank:
         sta TED_IRQEN
         lda TED_IRQ
         sta TED_IRQ
+        cpx #3
+        beq :+
         lda TED_SCROLLY
         and #$EF
         sta TED_SCROLLY
-        cli
+:       cli
         rts
 
 ; eng_unblank: our interrupt running again, the screen on from the next
@@ -317,6 +324,76 @@ _eng_dark:
 :       lda want_off
         bne :-
         rts
+
+; eng_clear: the screen at page A ($08: colours $0800, characters $0C00;
+; $F0: $F000, $F400) all spaces, in colour X
+_eng_clear:
+        sta dst+1
+        ora #$04
+        sta src+1
+        ldy #0
+        sty dst
+        sty src
+        txa
+        ldx #4
+@p:     sta (dst),y
+        pha
+        lda #32
+        sta (src),y
+        pla
+        iny
+        bne @p
+        inc dst+1
+        inc src+1
+        dex
+        bne @p
+        rts
+
+; eng_loading: "loading ..." in the middle of the first screen, in the
+; ROM's characters, as on the title (boot.s) - the dots a wave going
+; through them (ld_dots), while files are loaded and a level is made
+; behind it. The first screen: below the ROM, which the KERNAL loads with
+; and the TED then reads the screen from. On from the next vertical blank
+; but one, dark till then: the level's bands undone in the first (eng_mode
+; 3 has none).
+LD_AT   = 12 * 40 + 15          ; (the title's column)
+_eng_loading:
+        jsr _eng_dark
+        lda #3
+        sta _eng_mode
+        jsr _eng_dark
+        lda #$08
+        sta want_vm
+        ldx #FOOT
+        jsr _eng_clear
+        ldy #10
+:       lda ld_text,y
+        sta $0C00 + LD_AT,y
+        dey
+        bpl :-
+        jmp _eng_show
+ld_text:                        ; (lower case: the ROM's second 128)
+        .byte $8C, $8F, $81, $84, $89, $8E, $87, $20, $2E, $2E, $2E
+
+; ld_dots, in the vertical blank while loading: each dot's luminance from
+; ld_lum, a step every 4 pictures, a dot 4 steps behind the one before it
+ld_dots:
+        lda _frames
+        lsr a
+        lsr a
+        ldx #2
+:       and #15
+        tay
+        lda ld_lum,y
+        sta $0800 + LD_AT + 8,x
+        tya
+        clc
+        adc #4
+        dex
+        bpl :-
+        rts
+ld_lum: .byte $21, $21, $21, $21, $21, $21, $21, $21
+        .byte $31, $41, $51, $61, $61, $51, $41, $31
 
 ; eng_hits: the keys pressed since the last call, and none from then on
 _eng_hits:
@@ -1006,6 +1083,10 @@ irq:    pha
         beq :+
         jsr tk_tick
         jsr tk_colours
+:       lda _eng_mode
+        cmp #3
+        bne :+
+        jsr ld_dots
 :       inc _frames
         jsr bands_vbl           ; the bands' interrupts may come in from
         cli                     ; here on: the keys, the pointer and the
@@ -1933,8 +2014,10 @@ _eng_text:
         adc _colr+1
         sta src+1
         lda #0                  ; in the game the board's rows (19 on) on
-        ldx _eng_mode           ; the board's blue: extended colour 3
-        bne @bg
+        ldx _eng_mode           ; the board's blue: extended colour 3 -
+        dex                     ; also while loading, the level made
+        cpx #2                  ; behind it (eng_mode 3)
+        bcc @bg
         ldx _txt_o+1
         cpx #>(BOARD_ROW * 40)
         bcc @bg
