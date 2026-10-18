@@ -226,9 +226,9 @@ show_on:
 :       sta TED_CTRL2
         lda #COL_BG
         sta TED_BG
-        lda #COL_MC1            ; multicolour 1: green, the pointer and a
+        lda #COL_MC1            ; multicolour 1: green, the cursor and a
         sta $FF16               ; route in front of a train, in its cells
-        lda #COL_MC2            ; multicolour 2: grey, its edge, and the leg
+        lda #COL_MC2            ; multicolour 2: grey, the leg
         sta $FF17               ; of a set switch not in the route
         lda #COL_BOARD          ; extended colour 3: the board's blue (1 its
         sta $FF18               ; white, 2 its rows', from row 18)
@@ -324,17 +324,12 @@ _eng_hits:
 
 ; eng_vmbase(v): show the screen at v ($08: $0800/$0C00, $F0: $F000/$F400)
 ; from the next vertical blank on, and wait for it - in the characters at
-; $C000 again, should eng_font2 have shown their copy. The pointer, locked
-; while the screen was drawn, is drawn on it in that blank: the interrupt
-; switches screens before it draws.
+; $C000 again, should eng_font2 have shown their copy.
 _eng_vmbase:
         ldx #>FONT
         sei
         sta want_vm
         stx want_ch
-        jsr _ptr_forget
-        lda #0
-        sta _ptr_lock
         cli
 :       lda want_vm
         bne :-
@@ -539,7 +534,8 @@ _mus_toggle:
 ; eng_bmtext(lines): text into the title picture's hires part, in the
 ; ROM's characters (the set with lower case), as boot.s writes it: lines of
 ; the cell to start at (a word, 0 ends them), screen codes, $FF and a
-; colour to change the colour, 0 to end the line. The ROM is in for a
+; colour to change the colour, LOWER to set the rest of the line a pixel
+; lower, 0 to end the line. The ROM is in for a
 ; character's eight bytes at a time, so the interrupt never waits long.
 _eng_bmtext:
         sta ptr1
@@ -621,7 +617,7 @@ _eng_bmtext:
 :       inc ptr3
         bne @char
         inc ptr3+1
-        bne @char
+        jmp @char
 @done:  rts
 @next:  ldy #0                  ; the next byte of the text, Z for 0
         lda (ptr1),y
@@ -986,11 +982,11 @@ irq:    pha
         jsr tk_tick
         jsr tk_colours
 :       inc _frames
-        jsr kpoll
-        jsr ptr_irq
-        jsr bands_vbl           ; (after the pointer: it is on screen now)
-        cli                     ; the music may wait for the first band's
-                                ; interrupt: nothing of theirs in common
+        jsr bands_vbl           ; the bands' interrupts may come in from
+        cli                     ; here on: the keys, the pointer and the
+        jsr kpoll               ; music may wait for them, nothing of
+        jsr ptr_irq             ; theirs in common
+        jsr band_resolve
         lda mus_sfx             ; a sound effect's next step
         beq :+
         dec mus_sfx
@@ -1258,7 +1254,9 @@ _tz_q:      .res 1              ; characters a cell: 1 or 4
 _tz_n1:     .res 1              ; steps of a half + 1: 5 or 9
 _tz_sh:     .res 1              ; table entry size as a shift: 3 or 5
 _tz_edge:   .res 2
+        .segment "XBSS"         ; (trainschedule.cfg: made before read)
 _fl:        .res 256            ; the free list: characters for trains
+        .bss
 _fl_n:      .res 1
 _tc_short:  .res 1              ; a character left out: none to be had
 _dl_n:      .res 1
@@ -1276,7 +1274,9 @@ ts_size:    .res 1
 ed_lo:      .res 8 * 9          ; tk_edge[d][s] for the size, each d and s,
 ed_hi:      .res 8 * 9          ; d's from ed_d[d] on
 ed_d:       .res 8
+        .segment "XBSS"
 ix_tab:     .res 256            ; the bytes of a cell a half track in
+        .bss
 ix_end:     .res 8              ; direction d may touch: from d * 32 to
 ix_q:       .res 8              ; ix_end[d]; its characters, a bit each
 cband:      .res 32             ; the band (0 but while a cell is made)
@@ -1940,33 +1940,29 @@ r2_put: sta (dst),y
         rts
 
 ; ===========================================================================
-; The pointer, moved and drawn in the interrupt: an arrow that goes a pixel
-; at a time whatever the main loop is busy with, like a sprite. Its tip is
-; at map pixel ptr_x, ptr_y; vorg_x, vorg_y is where the map's pixel 0, 0
-; would be on screen. It is drawn in four characters of its own (two sets,
-; taking turns) over what the screen shows; what they cover is kept in
-; ptr_under / ptr_ucol.
+; The pointer, moved in the interrupt: a place on the map that goes a pixel
+; at a time whatever the main loop is busy with, faster the longer the
+; stick is held. Its tip is at map pixel ptr_x, ptr_y; vorg_x, vorg_y is
+; where the map's pixel 0, 0 would be on screen. It is not drawn: the frame
+; round the cell its tip is in (the cursor) shows where it is. When the
+; stick is let go, the tip goes to the middle of its cell, so that the next
+; cell is as far away in each direction.
 ;
-; The main loop writes and reads the view through vput / vget: a cell under
-; the pointer is not written but becomes what is under the pointer, and the
-; interrupt lays the pointer over it again - so the pointer never goes away
-; for a picture and nothing is lost under it. ptr_lock stops the interrupt
-; drawing while the view is drawn afresh.
+; The main loop writes and reads the view through vput / vget: a place
+; under the cursor is not written but becomes what is under the cursor.
 ; ===========================================================================
         .export _ptr_x, _ptr_y, _ptr_w, _ptr_h, _vorg_x, _vorg_y
-        .export _ptr_on, _ptr_lock, _ptr_dirty, _ptr_forget
+        .export _ptr_on
         .export _vput, _vget, _vp_o, _vp_c, _vp_a, _vg_a
-        .import _ptr_data, _ptr_mask, _mc_of
-
-C_POINTER = 240
-COL_PTR   = $71
+        .import _mc_of
 
         .segment "ENGZP": zeropage
 ip1:        .res 2              ; the interrupt's own pointers
 ip2:        .res 2
-ip3:        .res 2
-ip4:        .res 2
 vp:         .res 2              ; vput's
+bp1:        .res 2              ; the bands' (band may come in while
+bp2:        .res 2              ; band_resolve works: ip1, ip2 are its)
+mcp:        .res 2              ; band_mc's colours
 
         .bss
 _ptr_x:     .res 2
@@ -1976,33 +1972,15 @@ _ptr_h:     .res 2
 _vorg_x:    .res 2
 _vorg_y:    .res 2
 _ptr_on:    .res 1
-_ptr_lock:  .res 1
-_ptr_dirty: .res 1
 _vp_o:      .res 2
 _vp_c:      .res 1
 _vp_a:      .res 1
 _vg_a:      .res 1
 p_held:     .res 1
 p_step:     .res 1
-p_set:      .res 1
-p_valid:    .res 4
-p_olo:      .res 4
-p_ohi:      .res 4
-p_code:     .res 4
-p_under:    .res 4
-p_ucol:     .res 4
-p_sx:       .res 2
-p_sy:       .res 2
-p_c0:       .res 1
-p_r0:       .res 1
-p_hx:       .res 1
-p_hy:       .res 1
-p_i:        .res 1
-p_b:        .res 1
 p_v:        .res 1
         .code
 
-arrow:  .byte $80, $C0, $E0, $F0, $F8, $E0, $B0, $18
 rowlo:  .repeat 25, R
         .byte <(R*40)
         .endrepeat
@@ -2010,18 +1988,7 @@ rowhi:  .repeat 25, R
         .byte >(R*40)
         .endrepeat
 
-; ptr_forget: the pointer's characters are gone (the view was drawn afresh)
-_ptr_forget:
-        lda #0
-        sta p_valid
-        sta p_valid+1
-        sta p_valid+2
-        sta p_valid+3
-        lda #1
-        sta _ptr_dirty
-        rts
-
-; in the interrupt, after the keys: move, and draw if anything changed
+; in the interrupt, after the keys: move
 ptr_irq:
         lda _ptr_on
         bne :+
@@ -2032,25 +1999,49 @@ ptr_irq:
         lda _keys
         and #$0F
         bne @move
-@still:
+@still: lda p_held              ; let go: to the middle of its cell, 16
+        beq @rts                ; pixels close up, 8 in the overview
         lda #0
         sta p_held
-        jmp @draw
+        ldx #$F0
+        ldy #$08
+        lda _zoom
+        cmp #1
+        bne :+
+        ldx #$F8
+        ldy #$04
+:       stx p_step
+        sty p_v
+        lda _ptr_x
+        and p_step
+        ora p_v
+        sta _ptr_x
+        lda _ptr_y
+        and p_step
+        ora p_v
+        sta _ptr_y
+@rts:   rts
 @move:  ldx p_held              ; a pixel, 2 after 12 pictures, 4 after 30
-        cpx #250
-        bcs :+
+        cpx #250                ; - the first time from the middle of the
+        bcs :+                  ; cell into the next: a tap, a cell on
         inx
         stx p_held
 :       lda #1
-        cpx #12
-        bcc :+
+        cpx #1
+        bne :+
+        lda #9                  ; (half a cell and a pixel: 9, 5)
+        ldy _zoom
+        cpy #1
+        bne @step
+        lda #5
+        bne @step
+:       cpx #12
+        bcc @step
         lda #2
         cpx #30
-        bcc :+
+        bcc @step
         lda #4
-:       sta p_step
-        lda #1
-        sta _ptr_dirty
+@step:  sta p_step
         lda _keys
         and #8                  ; right
         beq @nr
@@ -2109,7 +2100,7 @@ ptr_irq:
         sta _ptr_y+1
 @nd:    lda _keys
         and #1                  ; up
-        beq @draw
+        beq @end
         lda _ptr_y
         sec
         sbc p_step
@@ -2117,264 +2108,17 @@ ptr_irq:
         lda _ptr_y+1
         sbc #0
         sta _ptr_y+1
-        bcs @draw
+        bcs @end
         lda #0
         sta _ptr_y
         sta _ptr_y+1
-@draw:  lda _ptr_lock
-        bne :+
-        lda _ptr_dirty
-        beq :+
-        jsr p_hide
-        jsr p_show
-        lda #0
-        sta _ptr_dirty
-:       rts
-
-; the screen at offset (X: slot) into ip1 (characters) and ip2 (colours)
-p_at:   lda p_olo,x
-        sta ip1
-        sta ip2
-        lda p_ohi,x
-        clc
-        adc _scrn+1
-        sta ip1+1
-        lda p_ohi,x
-        clc
-        adc _colr+1
-        sta ip2+1
-        rts
-
-; off the screen: what it covered back, where the screen still shows it
-p_hide: ldx #3
-@slot:  lda p_valid,x
-        beq @next
-        lda #0
-        sta p_valid,x
-        jsr p_at
-        ldy #0
-        lda (ip1),y
-        cmp p_code,x
-        bne @next
-        lda p_under,x
-        sta (ip1),y
-        lda p_ucol,x
-        sta (ip2),y
-@next:  dex
-        bpl @slot
-        rts
-
-; on the screen at the pointer's place, in the view's rows (2-17)
-p_show: lda _vorg_x             ; screen pixel of the tip
-        clc
-        adc _ptr_x
-        sta p_sx
-        lda _vorg_x+1
-        adc _ptr_x+1
-        sta p_sx+1
-        bmi @out
-        cmp #>320
-        bcc :+
-        bne @out
-        lda p_sx
-        cmp #<320
-        bcs @out
-:       lda _vorg_y
-        clc
-        adc _ptr_y
-        sta p_sy
-        lda _vorg_y+1
-        adc _ptr_y+1
-        bne @out                ; above or far below
-        lda p_sy
-        cmp #VIEW_TOP * 8
-        bcc @out
-        cmp #18*8
-        bcs @out
-        and #7
-        sta p_hy
-        lda p_sy
-        lsr a
-        lsr a
-        lsr a
-        sta p_r0
-        lda p_sx                ; the multicolour pixel it starts at in
-        lsr a                   ; its character: (sx / 2) & 3
-        and #3
-        sta p_hx
-        lda p_sx+1
-        lsr a
-        lda p_sx
-        ror a
-        lsr a
-        lsr a
-        sta p_c0
-        lda p_set
-        eor #4
-        sta p_set
-        lda #0
-        sta p_i
-@char:  jsr p_char
-        inc p_i
-        lda p_i
-        cmp #4
-        bne @char
-@out:   rts
-
-; character p_i of the pointer: row p_r0 + i / 2, column p_c0 + i % 2
-p_char: ldx p_i
-        lda p_i
-        lsr a
-        clc
-        adc p_r0
-        cmp #18                 ; below the view
-        jcs @no
-        tay
-        lda p_i
-        and #1
-        clc
-        adc p_c0
-        cmp #40
-        jcs @no
-        clc
-        adc rowlo,y
-        sta p_olo,x
-        lda rowhi,y
-        adc #0
-        sta p_ohi,x
-        jsr p_at
-        ldy #0
-        lda (ip1),y
-        sta p_under,x
-        lda (ip2),y
-        sta p_ucol,x
-        txa
-        clc
-        adc #C_POINTER
-        adc p_set
-        sta p_code,x
-        ; the glyph: what is under it, and the arrow's lines over it
-        lda p_under,x
-        jsr irq_font
-        sta ip3+1
-        stx ip3
-        ldx p_i
-        lda p_code,x
-        jsr irq_font
-        sta ip4+1
-        stx ip4
-        lda #0
-        sta p_b
-@line:  lda p_i                 ; pointer line (i / 2) * 8 + b - hy
-        and #2
-        asl a
-        asl a
-        clc
-        adc p_b
-        sec
-        sbc p_hy
-        cmp #9
-        bcs @blank
-        sta p_v                 ; table index ((shift * 9 + line) * 2 + side
-        lda p_hx
-        asl a
-        asl a
-        asl a
-        adc p_hx                ; shift * 9
-        adc p_v
-        asl a
-        sta p_v
-        lda p_i
-        and #1
-        ora p_v
-        tax
-        jsr p_base
-        and _ptr_mask,x
-        ora _ptr_data,x
-        jmp @put
-@blank: jsr p_base
-@put:   ldy p_b
-        sta (ip4),y
-        inc p_b
-        lda p_b
-        cmp #8
-        bne @line
-        ; on screen
-        ldx p_i
-        jsr p_at
-        ldy #0
-        lda p_code,x
-        sta (ip1),y
-        lda p_ucol,x            ; multicolour, %11 in the cell's own colour
-        and #$F7
-        ora #$08
-        sta (ip2),y
-        lda #1
-        sta p_valid,x
-        rts
-@no:    lda #0
-        sta p_valid,x
-        rts
-
-; line p_b of what is under pointer character p_i, in multicolour: made
-; so from hires, or as it is if it is multicolour already (the frame)
-p_base: ldy p_b
-        lda (ip3),y
-        sty p_v
-        ldy p_i
-        pha
-        lda p_ucol,y
-        and #$08
-        bne @mc
-        pla
-        tay
-        lda _mc_of,y
-        rts
-@mc:    pla
-        rts
-
-; A = code -> A = high byte, X = low byte of $C000 + code * 8 (for the
-; interrupt: font_at's tmp2 belongs to the main loop)
-irq_font:
-        ldx #0
-        stx p_v
-        asl a
-        rol p_v
-        asl a
-        rol p_v
-        asl a
-        rol p_v
-        tax
-        lda p_v
-        clc
-        adc #$C0
-        rts
+@end:   rts
 
 ; vput: character vp_c in colour vp_a at screen offset vp_o - or, if the
-; cursor or the pointer covers that place, under it
+; cursor covers that place, under it
 _vput:  ldx _cu_n
         jne cu_put
-vput_:  sei
-        ldx #3
-@slot:  lda p_valid,x
-        beq @next
-        lda p_olo,x
-        cmp _vp_o
-        bne @next
-        lda p_ohi,x
-        cmp _vp_o+1
-        bne @next
-        lda _vp_c
-        sta p_under,x
-        lda _vp_a
-        sta p_ucol,x
-        lda #1
-        sta _ptr_dirty
-        cli
-        rts
-@next:  dex
-        bpl @slot
-        lda _vp_o
+vput_:  lda _vp_o
         sta vp
         lda _vp_o+1
         clc
@@ -2389,45 +2133,30 @@ vput_:  sei
         sta vp+1
         lda _vp_a
         sta (vp),y
-        cli
         rts
 
 ; eng_below: wait till the beam is below the map (rows 2-17: lines 19-146,
-; a row's first line being row * 8 + 3) - what is put on screen then is in
-; the next picture whole
+; a row's first line being row * 8 + 3) and well before the vertical blank
+; - what is put on screen then is in the next picture whole, and the blank
+; sees it (band_resolve). Past line 170: the next picture's.
         .export _eng_below
 _eng_below:
 :       lda TED_RHI
         lsr a
-        bcs @rts                ; (256 or more)
+        bcs :-                  ; (256 or more)
         lda TED_RLO
+        cmp #171
+        bcs :-
+:       lda TED_RLO
         cmp #18 * 8 + 3
         bcc :-
-@rts:   rts
+        rts
 
-; vget: what is at screen offset vp_o, the cursor and the pointer not
-; counted: the character in A, its colour in vg_a
+; vget: what is at screen offset vp_o, the cursor not counted: the
+; character in A, its colour in vg_a
 _vget:  ldx _cu_n
         jne cu_get
-vget_:  sei
-        ldx #3
-@slot:  lda p_valid,x
-        beq @next
-        lda p_olo,x
-        cmp _vp_o
-        bne @next
-        lda p_ohi,x
-        cmp _vp_o+1
-        bne @next
-        lda p_ucol,x
-        sta _vg_a
-        lda p_under,x
-        ldx #0
-        cli
-        rts
-@next:  dex
-        bpl @slot
-        lda _vp_o
+vget_:  lda _vp_o
         sta vp
         lda _vp_o+1
         clc
@@ -2442,18 +2171,23 @@ vget_:  sei
         sta vp+1
         lda (vp),y
         ldx #0
-        cli
         rts
 
 ; ---------------------------------------------------------------------------
-; The cursor, the corners round the cell pointed at, is a layer between the
-; map and the pointer: whatever is put where it is goes under it and is on
+; The cursor, the corners round the cell pointed at, is a layer over the
+; map: whatever is put where it is goes under it and is on
 ; screen with the corners over it at once - never a moment without them,
 ; however often a train there is drawn again. Each of its places (cu_n, 1
 ; or 4) has two characters, C_CURSOR + i and C_CURSOR + 4 + i, taking turns,
-; so the one shown is never the one drawn into.
+; so the one shown is never the one drawn into. Close up, where its corners
+; are in a bottom quarter of hires, they are hires too, in what is there:
+; where that is thin in their lines (2 pixels a line at most: nothing, a
+; diagonal), a band (map.s, cu_bands) gives those lines the cursor's green
+; - till it does, in a picture or so, they have the track's colour; where
+; it is more (a sign, a platform's edge) they are cut into it in its own
+; colour. Elsewhere the place is multicolour, the corners in multicolour 1.
 ; ---------------------------------------------------------------------------
-        .export _cu_add, _cu_clear, _cu_forget, _cu_n, _cu_m
+        .export _cu_add, _cu_clear, _cu_forget, _cu_n, _cu_m, _cu_low, cu_lowp
 
 C_CURSOR = 248                  ; (game.inc)
 
@@ -2470,6 +2204,11 @@ cu_set:     .res 4              ; 0 or 4: the character shown
 cu_i:       .res 1
 cu_t:       .res 1
 cu_buf:     .res 8
+cu_lowp:    .res 4              ; 1: in a bottom quarter, close up
+_cu_low:    .res 1              ; cu_add's: the place's cu_lowp
+cu_hr:      .res 1              ; cu_glyph's: 1 hires
+cu_band:    .res 4              ; 1: hires, its band green (cu_bands)
+cu_bt:      .res 1              ; (cu_glyph's)
         .code
 
 ; vput at one of the cursor's places: under it
@@ -2482,11 +2221,19 @@ cu_put: dex
         cmp _vp_o+1
         bne cu_put
         lda _vp_c
-        sta cu_under,x
+        cmp cu_under,x
+        bne @new
+        lda _vp_a
+        cmp cu_ucol,x
+        bne @new
+        rts                     ; as it is already
+@new:   lda _vp_c               ; another character or colour: drawn
+        sta cu_under,x          ; again, and its band made again
         lda _vp_a
         sta cu_ucol,x
         jsr cu_glyph
-        jmp vput_
+        jsr vput_
+        jmp cu_bands
 
 cu_get: dex
         jmi vget_
@@ -2507,10 +2254,10 @@ _cu_add:
         jsr _vget
         ldx _cu_n
         sta cu_under,x
-        sta _vp_c
+        lda _cu_low
+        sta cu_lowp,x
         lda _vg_a
         sta cu_ucol,x
-        sta _vp_a
         lda _vp_o
         sta cu_olo,x
         lda _vp_o+1
@@ -2520,7 +2267,8 @@ _cu_add:
         lda _cu_m+1
         sta cu_mhi,x
         inc _cu_n
-        jmp _vput               ; now with the corners over it
+        jsr cu_glyph            ; now with the corners over it (its band:
+        jmp vput_               ; cu_bands, once all are there)
 
 ; cu_clear: what is under the cursor on screen again
 _cu_clear:
@@ -2546,9 +2294,10 @@ _cu_forget:
         sta _cu_n
         rts
 
-; cu_glyph: place X's other character, as the pointer: multicolour, what
-; is under it in its own colour, the corners in white (multicolour 1);
-; that character in vp_c, its colour in vp_a
+; cu_glyph: place X's other character, what is under it with the corners
+; over it: hires close up where hires is under them in a bottom quarter,
+; else multicolour (what is under it in its own colour, the corners in
+; multicolour 1); that character in vp_c, its colour in vp_a
 cu_glyph:
         stx cu_i
         lda cu_set,x
@@ -2557,41 +2306,77 @@ cu_glyph:
         lda cu_under,x
         jsr cu_font
         ldx cu_i
+        ldy #0
+        sty cu_hr
+        tya
+        sta cu_band,x
         ldy #7
         lda cu_ucol,x
         and #$08
-        bne @mc
-@hi:    lda (vp),y
+        bne @raw                ; multicolour under it: as it is
+        lda cu_lowp,x
+        sta cu_hr
+        bne @raw                ; hires: as it is too
+@cv:    lda (vp),y              ; else made multicolour
         tax
         lda _mc_of,x
         sta cu_buf,y
         dey
-        bpl @hi
+        bpl @cv
         bmi @corners
-@mc:    lda (vp),y
+@raw:   lda (vp),y
         sta cu_buf,y
         dey
-        bpl @mc
+        bpl @raw
+        ldx cu_i                ; hires: thin in lines 5-7? (a line with
+        lda cu_hr               ; its two lowest pixels taken away empty)
+        beq @corners
+        ldy #5
+@thin:  lda cu_buf,y
+        beq :+
+        sec
+        sbc #1
+        and cu_buf,y
+        sta cu_t
+        beq :+
+        sec
+        sbc #1
+        and cu_t
+        bne @corners
+:       iny
+        cpy #8
+        bne @thin
+        inc cu_band,x
 @corners:
         ldx cu_i
+        lda cu_band,x
+        sta cu_bt
         lda cu_mlo,x
         sta vp
         lda cu_mhi,x
         sta vp+1
         ldy #7
-@px:    lda (vp),y
-        tax
+@px:    lda (vp),y              ; (the corners' pixels in pairs, as wide
+        tax                     ; in hires as in multicolour)
         lda _mc_of,x
         sta cu_t
+        ldx cu_hr
+        bne @hp
         eor #$FF
         and cu_buf,y
         sta cu_buf,y
         lda cu_t
         and #$55
-        ora cu_buf,y
-        sta cu_buf,y
+@or:    ora cu_buf,y
+@put:   sta cu_buf,y
         dey
         bpl @px
+        bmi @font
+@hp:    ldx cu_bt               ; hires: over thin, or cut into more
+        bne @or
+        eor cu_buf,y
+        jmp @put
+@font:
         ldx cu_i
         txa
         clc
@@ -2606,9 +2391,13 @@ cu_glyph:
         bpl :-
         ldx cu_i
         lda cu_ucol,x
+        ldy cu_hr
+        bne :+
         ora #$08
-        sta _vp_a
+:       sta _vp_a
         rts
+
+        .export cu_olo, cu_ohi, cu_under, cu_ucol, cu_band
 
 ; cu_font: character A in the font at vp
 cu_font:
@@ -2642,8 +2431,8 @@ FOOT    = $61                   ; light grey
 _title_credits:
         .word 17 * 40 + 14
         .byte $FF, CREDIT, "by ", $FF, NAME, "q4z1", $FF, CREDIT, " 2026", 0
-        .word 18 * 40 + 14
-        .byte "(and Claude)", 0
+        .word 18 * 40 + 15
+        .byte "(& Claude)", 0
         .word 0
 _title_ready:
         .word 20 * 40 + 10
@@ -2674,202 +2463,497 @@ tk_ramp:
         .byte $65, $65, $6F, $6F, $6A, $6A, $67, $67
 
 ; ---------------------------------------------------------------------------
-; The bands: close up, a set switch's top quarter may have one colour in
-; its lines 0-5 and another in 6-7 (map.s, path_split) - the screen's
-; colours have the first. In that character row the TED fetches the
-; colours a second time, in line 5, with the second written in for it:
-; vshift ($FF06) set so that line 5 counts as a row's first, the pixel
-; row counter going on as it was and the same row of characters fetched
-; again (it moves on in line 6). Back to 3 in line 6, the colours as they
-; were for the next picture. A row's line 0 is raster line 8 * row + 4.
+; The bands: a set switch's character may have one colour above a line and
+; another below it (map.s: close up its top quarters at line 6, in the
+; overview at line 3) - the screen's colours have the first. In that
+; character row the TED fetches the colours a second time, in the line
+; before (line p: 5 or 2), with the second written in for it: vshift
+; ($FF06) set so that line p counts as a row's first, the pixel row counter
+; going on as it was and the same row of characters fetched again (it moves
+; on in line 6). Back to 3 in line p, the colours as they were for the
+; next picture. A row's line 0 is raster line 8 * row + 4.
 ;
 ; map.s's list (bands_make) has the places by row; the vertical blank
 ; sets the first row's interrupt (bands_vbl), each row's the next one's
-; (band). It comes in late, in the row's line 5 (the TED holds the CPU in
-; lines 3 and 4, its fetches). Each place is written only where the screen
-; still shows its character - under the pointer or the cursor too, not
-; under a train. Late more than to line 8 (a sei of the main loop's) the
-; row is left as it is for that picture rather than have the TED fetch at
-; the wrong time.
+; (band_at). First the places still on screen (band): their character
+; there - under the cursor too, not under a train - and
+; colour now. Then, once the TED has fetched the row's colours in its line
+; -1 (it holds the CPU in lines -1 and 0), vshift and the second colours,
+; by line p. Late (a sei of the main loop's), the row is left as it is
+; for that picture rather than have the TED fetch at the wrong time.
 ; ---------------------------------------------------------------------------
-        .import bd_act, bd_ng, bd_col, bd_code, bd_b, bd_grow, bd_gfirst
-        .import bd_gend, _zoom
+        .import bd_act, bd_ng, bd_col, bd_code, bd_b, bd_grow, bd_gp
+        .import bd_gfirst, bd_gend, bd_a, bd_olo, bd_ohi, _zoom
+        .import bd_t, bd_irq, bd_late, bd_r, bd_vs, cb_next, cb_vact, cb_ng
+        .import cu_bands
 
-C_PTR  = 240                    ; the pointer's characters (C_POINTER)
-C_CUR  = 248                    ; the cursor's (C_CURSOR)
+C_CUR  = 248                    ; the cursor's characters (C_CURSOR)
+BD_ROWS = 12                    ; (map.s): a set's rows, then all the rows
+BD_GR  = 2 * BD_ROWS + 4        ; and places, the cursor's two pairs too
+BD_PL  = 2 * 24 + 8
 
-        .segment "BANDS"        ; (trainschedule.cfg)
-ba_a:       .res 48             ; a place's colour on screen (both sets)
-ba_on:      .res 48             ; 1: lines 6-7's written
-        .bss
+        .segment "BANDS"        ; (all set before they are read)
 bg_i:       .res 1              ; the row now (map.s's index)
-bg_stop:    .res 1              ; and past the last one
+bg_k:       .res 1              ; its place in bo
 bv_base:    .res 1              ; the screen shown: its colours' page
-bn_set:     .res 1              ; the row's line 4 (band_at)
-bn_t:       .res 1              ; and line 0
-bn_v:       .res 1              ; $FF06 with vshift 1
+bn_t:       .res 1              ; the row's line 0
+bn_r:       .res 1              ; its line p: vshift back
+bn_pre:     .res 1              ; the row band_back made ready, or $FF
+bv_scr:     .res 1              ; $FF06 without vshift
 bn_e:       .res 1
 bu_x:       .res 1
+        .bss
+bn_cur:     .res 1              ; band_cur's
+br_k:       .res 1              ; band_resolve's
+br_e:       .res 1
+bd_q:       .res BD_PL          ; a place's character on screen (map.s's
+bd_w:       .res BD_PL          ; places: both sets, the cursor's) and its
+                                ; colour to write
+bg_lo:      .res BD_GR          ; a row's colours on screen (map.s's
+bg_hi:      .res BD_GR          ; rows), band_resolve's for band
+bg_t:       .res BD_GR          ; writing till this line
+bg_vs:      .res BD_GR          ; $FF06 for its fetch
+bo:         .res 14             ; the rows this picture, top first: the
+bg_n:       .res 1              ; set's and the cursor's, merged
+bo_a:       .res 1              ; (bands_vbl's)
+bo_ai:      .res 1
+bo_b:       .res 1
+bo_bi:      .res 1
+
+        .segment "BANDS"
+        .bss
+bf_none:    .res 1
+        .export pd_n
+pd_n:       .res 1              ; rows whose colours wait to be put back
+pd_g:       .res 14
         .code
 
-; bands_vbl: the first row's interrupt, if any
+; bands_vbl: the rows of this picture - the set's (bands_make) and the
+; cursor's (cu_bands), top first - and the first one's interrupt, if any
 bands_vbl:
+        jsr band_undo           ; (from the screen shown till now)
+        lda #$FF
+        sta bn_pre
+        lda cb_next             ; the cursor's rows as cu_bands made them
+        sta cb_vact             ; last
+        ldy #0
         lda _eng_mode
-        bne @none
-        lda _zoom
-        cmp #2
-        bne @none
+        bne @end
         ldx bd_act
         lda bd_ng,x
-        beq @none
-        sta bg_stop
-        lda #0                  ; set 1: its rows from 8 on (map.s BD_ROWS)
+        sta bo_a
+        lda #0                  ; set 1: its rows from 12 on
         cpx #0
         beq :+
-        lda #8
-:       sta bg_i
-        clc
-        adc bg_stop
-        sta bg_stop
+        lda #BD_ROWS
+:       sta bo_ai
+        ldx cb_vact
+        lda cb_ng,x
+        sta bo_b
+        txa                     ; the cursor's: 24 + 2 * pair
+        asl a
+        adc #2 * BD_ROWS
+        sta bo_bi
+@m:     lda bo_a
+        ora bo_b
+        beq @end
+        lda bo_b
+        beq @a
+        lda bo_a
+        beq @b
+        ldx bo_ai
+        lda bd_grow,x
+        ldx bo_bi
+        cmp bd_grow,x
+        bcc @a
+        beq @a
+@b:     lda bo_bi
+        sta bo,y
+        inc bo_bi
+        dec bo_b
+        iny
+        bne @m
+@a:     lda bo_ai
+        sta bo,y
+        inc bo_ai
+        dec bo_a
+        iny
+        bne @m
+@end:   sty bg_n
+        tya
+        beq @none
+        lda #0
+        sta bg_k
+        lda bo
+        sta bg_i
         lda TED_VMBASE
         and #$F8
         sta bv_base
-        jmp band_at
+        lda TED_SCROLLY
+        and #$F8
+        sta bv_scr
+        jsr band_at
+        bcc @none
+        jmp band                ; (its time now already)
 @none:  rts
 
-; band_at: the interrupt for row bg_i, in the line before its first
-; (8 * row + 3), where the TED fetches the row's colours. A row whose line
-; is gone already is left out (an interrupt set for it would come in the
-; next picture, before the vertical blank's).
+; band_at: the interrupt for row bg_i, in its line -3 (8 * row + 1) - its
+; lines worked out before (map.s, bm_lines). C set: its time has come already (or will within a
+; line), band now - rows one under the other leave no time for the
+; interrupt to come and go. A row too late is left out.
 band_at:
         ldx bg_i
-        lda bd_grow,x
-        asl a
-        asl a
-        asl a
-        clc
-        adc #3
-        tay
         lda TED_RHI             ; in the vertical blank (from 200 on):
         lsr a                   ; the picture's to come
         bcs @set
         lda TED_RLO
         cmp #200
         bcs @set
-        sty bn_set
-        cmp bn_set
-        bcc @set
-        inc bg_i                ; gone
-        lda bg_i
-        cmp bg_stop
+        cmp bd_late,x
+        bcs @gone               ; too late (a second row of bands in the
+                                ; same row: after the first, by its line)
+        adc #1                  ; (C clear)
+        cmp bd_irq,x
+        bcc @set                ; more than a line to come
+        rts                     ; (C set) band now
+@gone:  inc bg_k
+        ldx bg_k
+        cpx bg_n
+        bcs :+
+        lda bo,x
+        sta bg_i
         bcc band_at
-        ldy #BOARD_IRQ
+:       lda #BOARD_IRQ
         bne @irq
-@set:   iny                     ; what band needs first, ready
-        sty bn_t
-        tya
+@set:   lda bd_irq,x
+@irq:   sta irq_at
+        sta TED_RCMP
         clc
-        adc #4
-        sta bn_set
-        lda TED_SCROLLY
-        and #$F8
-        ora #$01
-        sta bn_v
-        dey
-@irq:   sty irq_at
-        sty TED_RCMP
         rts
 
-; band: the interrupt for row bg_i. vshift 1 first, for line 5 - written
-; in lines 4 to 8, never in line 9 itself (the TED would fetch then, part
-; of the row from what is on the bus) - then the colours: in by line 9,
-; when the TED takes them (one later shows lines 0-5's colour this
-; picture)
-band:   lda TED_RLO             ; (the row's colours fetched: never into
-        cmp bn_t                ; them)
-        bcc band
-        cmp bn_set
-        jcs @next               ; too late: as it is this picture
-        lda bn_v
-        sta TED_SCROLLY
-        ldx bg_i
+; band: the interrupt for row bg_i
+band:   ldx bg_i
+        lda bd_gp,x
+        cmp #4
+        jcc fast
+        lda bg_t,x              ; all of it before the wait, made in the
+        sta bn_t                ; blank (band_resolve) - or in the row
+        jsr band_ip             ; before's band_back (band_go): a row right
+band_go:                        ; under another's band has less than three
+        lda bd_r,x              ; lines for its writes
+        sta bn_r
+        lda #$FF
+        sta bn_pre
+        ldy bg_vs,x
+:       lda TED_RLO             ; the row's colours fetched: never into
+        cmp bd_t,x              ; them
+        bcc :-
+        cmp bd_late,x
+        jcs band_next           ; too late: as it is this picture
+        sty TED_SCROLLY         ; vshift first, then the colours
+        lda bd_gfirst,x
+        tax
+@b:     lda TED_RLO
+        cmp bn_t
+        bcs @end
+        ldy bd_col,x            ; the second colours in, by line p - 1,
+        lda (bp2),y             ; where the screen shows what it did in
+        cmp bd_q,x              ; the blank (band_resolve)
+        bne @nb
+        lda bd_w,x
+        sta (bp1),y
+@nb:    inx
+        cpx bn_e
+        bne @b
+@end:   jmp band_back
+
+; band_resolve: in the vertical blank: for each place of the set in use,
+; the character the screen shows there now and the colour to write - its
+; own, under the cursor the colour of its kind (band_mc); bd_q 0 where the
+; place's character is not there (a train's over it). The interrupts may
+; come in meanwhile: other pointers (ip1, ip2).
+band_resolve:
+        lda #0
+        sta br_k
+@g:     ldx br_k
+        cpx bg_n
+        jcs @rts
+        lda bo,x
+        tax
         ldy bd_grow,x
-        lda rowlo,y             ; its colours, its characters
+        lda rowlo,y
         sta ip1
         sta ip2
+        sta mcp
+        sta bg_lo,x
         lda rowhi,y
         clc
         adc bv_base
         sta ip1+1
+        sta mcp+1
+        sta bg_hi,x
         ora #$04
         sta ip2+1
+        lda bv_scr              ; the row's $FF06 for its fetch, and till
+        ora bd_vs,x             ; where the colours may be written: line
+        sta bg_vs,x             ; p - 1 for a fetch in 5 - from then on
+        lda bd_late,x           ; the wait for line p (band_back), to put
+        ldy bd_gp,x             ; vshift back as soon as the TED lets go,
+        cpy #5                  ; before the next row's fetch in p + 2.
+        bcs :+                  ; For one in 4 (and 2) till p (the next
+        adc #1                  ; row's comes in p + 3). (C clear)
+:       sta bg_t,x
+        jsr band_cur
         lda bd_gend,x
-        sta bn_e
+        sta br_e
         lda bd_gfirst,x
         tax
-@b:     ldy bd_col,x            ; lines 6-7's colour in, where the screen
-        lda (ip2),y             ; still shows that character
+@p:     ldy bd_col,x
+        lda (ip2),y
+        sta bd_q,x
+        bit bn_cur
+        bmi @cur
         cmp bd_code,x
-        beq @in
-        cmp #C_PTR
-        bcc @not
-        jsr band_under
-        cmp bd_code,x
-        bne @not
-@in:    lda (ip1),y
-        sta ba_a,x
-        and #$08                ; (multicolour under the pointer, cursor)
-        ora bd_b,x
-        sta (ip1),y
-        lda #1
+        bne @alt
+@b:     lda bd_b,x
+@w:     sta bd_w,x
+@n:     inx
+        cpx br_e
+        bne @p
+        inc br_k
+        jmp @g
+@rts:   rts
+@cur:   jsr band_curq           ; the cursor's: its green where its
+        bcs @b                  ; character is, over hires
+        lda #0
+        sta bd_q,x
+        beq @n
+@alt:   jsr band_mc
+        bcs :+
+        lda #0                  ; (not there)
+        sta bd_q,x
+        beq @n
+:       ora bd_b,x
+        jmp @w
+
+; band_ip: row X's colours at bp1, its characters at bp2 (as band_resolve
+; found them for the screen shown), its places' end in bn_e. Keeps X.
+band_ip:
+        lda bg_lo,x
+        sta bp1
+        sta bp2
+        lda bg_hi,x
+        sta bp1+1
+        ora #$04
+        sta bp2+1
+        lda bd_gend,x
+        sta bn_e
+        rts
+
+; fast: a fetch in line 2 - the TED holds the CPU till the start of line 0
+; or 1, leaving it less than a line: here by line -1, the row's pointers
+; set, then the two writes each where the screen still shows its
+; character (under the cursor: left as it is). The wait
+; ends at the start of line 0 or 1 (vshift in line 2 itself: the TED
+; would fetch then, from what is on the bus).
+fast:   lda TED_RLO
+        cmp bd_t,x
+        jcs band_next
+        jsr band_ip
+        ldy bg_vs,x
+        lda bd_t,x
+        sta bn_t
+        lda bd_gfirst,x
+        tax
+:       lda TED_RLO
+        cmp bn_t
+        bcc :-
+        sty TED_SCROLLY
+        ldy bd_col,x
+        lda (bp2),y
+        cmp bd_q,x
         bne :+
-@not:   lda #0
-:       sta ba_on,x
-        inx
+        lda bd_w,x
+        sta (bp1),y
+:       inx
         cpx bn_e
-        bne @b
-        inc bn_set              ; vshift back to 3 in line 6, before 7
-        inc bn_set              ; fetches the next row's colours
-        lda TED_SCROLLY
+        beq :+
+        ldy bd_col,x
+        lda (bp2),y
+        cmp bd_q,x
+        bne :+
+        lda bd_w,x
+        sta (bp1),y
+:       jmp band_back
+
+; band_back: vshift back to 3 in line p, after the TED's fetch there (the
+; wait sees line p only when the TED lets go). The screen's colours are put
+; back in the vertical blank (band_undo): rows one under the other leave
+; each other no time for it. Before the wait, if more than a line is
+; left till p, the next row made ready for band (bn_pre): right under a
+; row with a fetch in 5, one in 4 has only the lines between the TED's
+; fetches for its writes. Not later: the TED may hold the CPU from line p
+; into p + 1 (Yape), and vshift has to be back before the next row's
+; fetch in p + 2.
+band_back:
+        ldx pd_n                ; its colours to be put back
+        lda bg_i
+        sta pd_g,x
+        inc pd_n
+        lda TED_RLO
+        clc
+        adc #2
+        cmp bn_r
+        bcs :+
+        ldx bg_k
+        inx
+        cpx bg_n
+        bcs :+
+        lda bo,x
+        tax
+        lda bd_gp,x
+        cmp #4
+        bcc :+
+        lda bn_r                ; and right under this one
+        clc
+        adc #1
+        cmp bd_irq,x
+        bcc :+
+        stx bn_pre
+        lda bg_t,x
+        sta bn_t
+        jsr band_ip
+:       lda TED_SCROLLY
+        and #$F8
         ora #$03
         tay
 :       lda TED_RLO
-        cmp bn_set
+        cmp bn_r
         bcc :-
-        sty TED_SCROLLY
-        ldx bg_i                ; the screen's colours again
-        lda bd_gfirst,x
-        tax
-@u:     lda ba_on,x
-        beq :+
-        ldy bd_col,x
-        lda ba_a,x
-        sta (ip1),y
-:       inx
-        cpx bn_e
-        bne @u
-@next:  inc bg_i
-        lda bg_i
-        cmp bg_stop
-        jcc band_at
-        lda #BOARD_IRQ
+        ldx #3                  ; well past the line's cycle 4, where the
+:       dex                     ; TED looks at vshift (the line count
+        bne :-                  ; moves on a few cycles before it): held
+        sty TED_SCROLLY         ; by its fetch till then, or after it
+        ldx bn_pre              ; the next one made ready: on with it
+        bmi band_next
+        inc bg_k
+        stx bg_i
+        jmp band_go
+band_next:
+        inc bg_k
+        ldx bg_k
+        cpx bg_n
+        bcs :+
+        lda bo,x
+        sta bg_i
+        jsr band_at
+        jcs band
+        rts
+:       lda #BOARD_IRQ
         sta irq_at
         sta TED_RCMP
         rts
 
-; band_under: what the pointer's or the cursor's character A covers -
-; their places are their characters' lowest two bits. Keeps X, Y.
+; band_undo: in the vertical blank, the screen's colours back in the rows
+; that had a band (pd_g, map.s's indexes in the set they were drawn from)
+band_undo:
+        ldx pd_n
+        beq @rts
+        dex
+        stx pd_n
+        lda pd_g,x
+        tax
+        jsr band_ip
+        jsr band_cur
+        lda bp1
+        sta mcp
+        lda bp1+1
+        sta mcp+1
+        lda bd_gfirst,x
+        tax
+@a:     ldy bd_col,x
+        lda (bp2),y
+        bit bn_cur
+        bmi @cu
+        cmp bd_code,x
+        bne @alta
+@wa:    lda bd_a,x
+        sta (bp1),y
+@na:    inx
+        cpx bn_e
+        bne @a
+        beq band_undo
+@rts:   rts
+@alta:  jsr band_mc
+        bcc @na
+        ora bd_a,x
+        sta (bp1),y
+        jmp @na
+@cu:    cmp bd_q,x              ; the cursor's: back where the band put
+        bne @na                 ; its green (the same character, the same
+        lda bd_q,x              ; colour still) - one drawn again has its
+        beq @na                 ; colour already
+        lda (bp1),y
+        cmp bd_w,x
+        beq @wa
+        bne @na
+
+; band_cur: bn_cur $80 if row X's places are the cursor's (a fetch in 4),
+; else 0 - its places count only where the cursor's characters are: the
+; map's own character there again is not the cursor's place (it has gone).
+; Keeps X, Y.
+band_cur:
+        lda bd_gp,x
+        cmp #4
+        bne :+
+        lda #$80
+        bne :++
+:       lda #0
+:       sta bn_cur
+        rts
+
+; band_mc: A, a character on screen not place X's: C set if the cursor's,
+; over place X's - and A the bits its colour keeps: its multicolour bit (at
+; mcp, Y). Keeps X, Y.
+band_mc:
+        cmp #C_CUR
+        bcc @no
+        jsr band_under
+        cmp bd_code,x
+        bne @no
+        lda (mcp),y
+        and #$08
+        sec
+        rts
+@no:    clc
+        rts
+
+; band_curq: A, the character on screen at the cursor's place X: C set if
+; it is the cursor's there, hires and its band green (cu_band). Keeps X, Y.
+band_curq:
+        cmp #C_CUR
+        bcc @no
+        and #3
+        stx bu_x
+        tax
+        lda cu_band,x
+        beq @nox
+        lda cu_under,x
+        ldx bu_x
+        cmp bd_code,x
+        bne @no
+        sec
+        rts
+@nox:   ldx bu_x
+@no:    clc
+        rts
+
+; band_under: what the cursor's character A covers - its places are its
+; characters' lowest two bits. Keeps X, Y.
 band_under:
         stx bu_x
-        cmp #C_CUR
-        bcs @cur
         and #3
         tax
-        lda p_under,x
-        cmp #C_CUR
-        bcc @back
-@cur:   and #3
-        tax
         lda cu_under,x
-@back:  ldx bu_x
+        ldx bu_x
         rts

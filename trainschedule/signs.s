@@ -45,8 +45,10 @@ _xs_bot:    .res 2
 _wt_top:    .res 2              ; the stopwatch's
 _wt_bot:    .res 2
 _watch_v:   .res 1              ; the speed its dial shows
+        .segment "BANDS"        ; (trainschedule.cfg; cleared by glyphs_make)
 hcode:      .res 128            ; each half's character: 0 none yet,
                                 ; $FF wanted
+        .bss
 sg_used:    .res 32             ; the signs the level shows
 gm_i:       .res 1
 gm_n:       .res 1              ; halves wanted

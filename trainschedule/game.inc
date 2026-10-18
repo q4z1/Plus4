@@ -12,19 +12,18 @@
 ;            cell, close up the quarters of cells (map.s)
 ;   then-    the trains, from a free list as they are drawn, each train
 ;            keeping those it is shown in till its next are (train.s)
-;   -239     the station signs and the flap digits, as many as the level
+;   -247     the station signs and the flap digits, as many as the level
 ;            needs (signs.s)
-;   240-247  the pointer, two sets so it is never redrawn while shown
-;   248-255  the frame round the cell pointed at, likewise
+;   248-255  the frame round the cell pointed at, two sets so it is never
+;            redrawn while shown
 FONT        = $C000
 VIEW_TOP    = 2
 VIEW_H      = 16
 BOARD_TOP   = 19
 C_FIRST     = 64
 C_LAST      = 159               ; the kinds of cell: 64-159
-C_POINTER   = 240
 C_CURSOR    = 248
-C_POOL_END  = 240
+C_POOL_END  = 248
 
 ; ---- the map ---------------------------------------------------------------
 ; One byte per cell in each of three arrays, row after row, the map's own
@@ -33,9 +32,9 @@ C_POOL_END  = 240
 ; the directions its track leaves the cell in, one bit each (D_E ...), and
 ; what else is drawn in it (code_deco).
 MAP_CODE    = $C800
-MAP_ATTR    = $CE00
-MAP_OCC     = $D400
-MAP_MAX     = 1536
+MAP_ATTR    = $CC00
+MAP_OCC     = $D000
+MAP_MAX     = 1024
 
 ; The map's song (data/music.txt) comes in its file (tools/mklevel.py) and
 ; is kept here while the map is played (front.s, load_map).
@@ -62,7 +61,7 @@ DECO_NUMBER   = $40             ; the platform's number: bits 0-2, and 8
                                 ; for bit 7
 
 ; colours: luminance * 16 + colour. Colours 0-7 only: a colour with bit 3
-; set makes its cell multicolour (the pointer's cells, engine.s)
+; set makes its cell multicolour (the cursor's cells, engine.s)
 COL_BG      = $00
 COL_TRACK   = $31
 COL_ROUTE   = $55

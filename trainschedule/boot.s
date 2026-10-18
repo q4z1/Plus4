@@ -57,6 +57,7 @@ CREDIT  = $51           ; grey
 NAME    = $42           ; red
 FOOT    = $61           ; light grey
 ROMON   = $FF3E
+DOT_ON  = $E0           ; the dots (the interrupt): 0 till the text is in
 RAMON   = $FF3F
 
 DRIVE   = $0500         ; drive.s, in the drive
@@ -146,6 +147,8 @@ eol:    .word 0
         sta TED06
         lda #100                ; (till the picture says where)
         sta split_at
+        lda #0                  ; no dots while the picture is unpacked:
+        sta DOT_ON              ; exomizer copies from what it unpacked
         lda #<irq_ram           ; the interrupt: through $FFFE when the
         sta $FFFE               ; RAM is in, through the KERNAL when the
         lda #>irq_ram           ; ROM is
@@ -195,6 +198,7 @@ eol:    .word 0
         lda #<texts
         ldy #>texts
         jsr print
+        inc DOT_ON
 
         lda MATRIX + 1002       ; the hires part's first row: switched
         asl                     ; to in its first lines, which are black
@@ -227,13 +231,16 @@ eol:    .word 0
 ; Text into the hires part of the picture, in the ROM's characters (the
 ; set with lower case). A list of lines: the cell to start at (a word, 0
 ; ends the list), then screen codes, $FF and a colour to change the colour,
-; 0 to end the line. Each cell gets its colour for set pixels, black for
-; the rest.
+; LOWER to set the rest of the line a pixel lower (their eighth rows, empty
+; but for descenders, are lost), 0 to end the line. Each cell gets its
+; colour for set pixels, black for the rest.
 TP      = $DA           ; zero page (free while the KERNAL works): the text
 BP      = $DC           ; the bitmap
 MP      = $DE           ; the cell in the matrices
 GP      = $D0           ; the character in the ROM
 COLOUR  = $D2
+SHIFT   = $D9           ; 1 for a pixel lower
+LOWER   = $FE
 print:  sta TP
         sty TP+1
 @line:  jsr @next               ; where: $C000 + cell * 8, $0800 + cell
@@ -241,7 +248,10 @@ print:  sta TP
         jsr @next
         sta MP+1
         ora MP
-        beq @done
+        bne :+
+        rts
+:       ldx #0
+        stx SHIFT
         lda MP
         sta BP
         lda MP+1
@@ -258,29 +268,41 @@ print:  sta TP
         sta MP+1
 @char:  jsr @next
         beq @line
-        cmp #$FF
+        cmp #LOWER
+        bne :+
+        inc SHIFT
+        bne @char
+:       cmp #$FF
         bne @glyph
         jsr @next
         sta COLOUR
         jmp @char
-@glyph: ldx #0                  ; $D400 + code * 8
-        stx GP+1
+@glyph: ldx #0                  ; $D400 + code * 8, a byte before it
+        stx GP+1                ; when lower
         asl
         rol GP+1
         asl
         rol GP+1
         asl
         rol GP+1
+        sec
+        sbc SHIFT
         sta GP
         lda GP+1
         ora #$D4
+        sbc #0
         sta GP+1
         ldy #7
 :       lda (GP),y
         sta (BP),y
         dey
         bpl :-
-        iny                     ; the cell's colours
+        iny
+        lda SHIFT               ; lower: the top row empty
+        beq :+
+        tya
+        sta (BP),y
+:                               ; the cell's colours
         lda COLOUR
         lsr
         lsr
@@ -324,8 +346,8 @@ print:  sta TP
 texts:                          ; as the game has them (engine.s)
         .word 17 * 40 + 14
         .byte $FF, CREDIT, "by ", $FF, NAME, "q4z1", $FF, CREDIT, " 2026", 0
-        .word 18 * 40 + 14
-        .byte "(and Claude)", 0
+        .word 18 * 40 + 15
+        .byte LOWER, "(& Claude)", 0
         .word 20 * 40 + 10
         .byte $FF, FOOT, "     loading ...    ", 0
         .word 0
@@ -625,9 +647,13 @@ MSTATE  = $07A0                 ; the player's place: the game takes it over
 
 ; The three dots after "loading", a wave going through them as a spinner
 ; does: each dot's luminance from dot_lum, a step every 4 frames, a dot 4
-; steps behind the one before it; then the music
+; steps behind the one before it; then the music. Not before DOT_ON: a dot
+; written while exomizer unpacks the colours would be copied on by it, into
+; the background's colour too.
 DOTS    = MATRIX + 20 * 40 + 23 ; texts: their cells' attributes
-dots:   inc dot_t
+dots:   lda DOT_ON
+        beq @tick
+        inc dot_t
         lda dot_t
         lsr
         lsr
@@ -641,7 +667,7 @@ dots:   inc dot_t
         adc #4
         dex
         bpl @dot
-        jmp mus_tick
+@tick:  jmp mus_tick
 dot_lum:
         .byte 2, 2, 2, 2, 2, 2, 2, 2, 3, 4, 5, 6, 6, 5, 4, 3
 dot_t:  .byte 0

@@ -24,7 +24,7 @@
         .export _sel_x, _sel_y, _sel_alt, _clock_txt
 
         .import level_load, code_kind, code_mc, view_draw, view_cell, set_zoom
-        .import bands_make, bd_dirty
+        .import bands_make, bd_dirty, cu_bands, _eng_below
         .import cell_screen, view_set, cellp, cf_m, cf_d, cf_mc, cs_o
         .importzp mc, mo, lp
         .import _map_w, _map_h, _code_mask, _code_deco, _zoom
@@ -49,8 +49,9 @@
         .import _eng_mode, _title_bg, _title_mc, _title_split, _scrn, _colr
         .import _vput, _vget, _vp_o, _vp_c, _vp_a, _vg_a
         .import _ptr_x, _ptr_y, _ptr_w, _ptr_h, _vorg_x, _vorg_y
-        .import _ptr_on, _ptr_lock, _ptr_forget, _mus_start
-        .import _mc_of, _cursor, _cursor2, _cu_add, _cu_clear, _cu_forget
+        .import _ptr_on, _mus_start
+        .import _mc_of, _cursor, _cursor2, _cursor2u, _cu_add, _cu_clear, _cu_forget
+        .import _cu_low
         .import _cu_n, _cu_m
         .import _sg_top, _sg_bot, _sg_col, _bg_top, _bg_bot, sign_of, big_of
         .import watch_set, _xs_top, _xs_bot, _wt_top, _wt_bot
@@ -91,8 +92,10 @@ _sel_y:     .res MAX_DEST
 _sel_alt:   .res MAX_DEST
 blink:      .res 1              ; 1: the marks are off just now
 ; a row of text in the making - one for all, none of them makes its row
-; while another's is half done
+; while another's is half done (line_blank first)
+        .segment "STKBSS"       ; (trainschedule.cfg: not cleared)
 line:       .res 41
+        .bss
 ; The clock as the digits on screen, "hh:mm:ss", turned on a second at a
 ; time like a counter - working it out from the seconds every time costs
 ; more than all the trains
@@ -136,7 +139,7 @@ pn_at:      .res 2
 pn_rec:     .res 2
 sv_i:       .res 1              ; sel_show's and others'
 sv_k:       .res 1
-cu_n:       .res 1              ; cursor_show's
+cu_k:       .res 1              ; cursor_show's
 pf_px:      .res 2              ; ptr_follow's
 pf_py:      .res 2
 pf_cx:      .res 1
@@ -160,7 +163,9 @@ mn_speed:   .res 1
 mn_wait:    .res 1
 mn_blink:   .res 1
 mn_shown:   .res 2
+        .segment "STKBSS"       ; (written before it is read)
 ev_buf:     .res 64
+        .bss
 hd_line:    .res 40             ; the head row, as it is when no message
 hd_ca:      .res 1              ; is over it: its colours, left and right
 hd_cb:      .res 1
@@ -189,7 +194,20 @@ _sel_sig:   .byte 255           ; the signal a route is being chosen from
 speeds:     .byte 0, 1, 3, 10
 tens_lo:    .byte <10000, <1000, <100, <10, <1
 tens_hi:    .byte >10000, >1000, >100, >10, >1
-qoff:       .byte 0, 1, 40, 41
+; the cursor's places, close up: the cell above's bottom quarters - the
+; top corners there, in their lowest lines - and the cell's own; 4 on: its
+; own four quarters (no room above it); 8: the overview, the cell itself.
+; low: in a bottom quarter, its corners' lines in multicolour, the rest
+; hires (engine.s, cu_mixup)
+cq_lo:      .byte <-40, <-39, 40, 41,  0, 1, 40, 41,  0
+cq_hi:      .byte >-40, >-39, 0, 0,  0, 0, 0, 0,  0
+cq_mlo:     .byte <_cursor2u, <(_cursor2u + 8), <(_cursor2 + 16), <(_cursor2 + 24)
+            .byte <_cursor2, <(_cursor2 + 8), <(_cursor2 + 16), <(_cursor2 + 24)
+            .byte <_cursor
+cq_mhi:     .byte >_cursor2u, >(_cursor2u + 8), >(_cursor2 + 16), >(_cursor2 + 24)
+            .byte >_cursor2, >(_cursor2 + 8), >(_cursor2 + 16), >(_cursor2 + 24)
+            .byte >_cursor
+cq_low:     .byte 1, 1, 1, 1,  0, 0, 1, 1,  0
 type_lo:    .byte <t_freight, <t_ic, <t_regional, <t_commuter, <t_urban
 type_hi:    .byte >t_freight, >t_ic, >t_regional, >t_commuter, >t_urban
 t_freight:  .byte "FREIGHT", 0
@@ -1648,7 +1666,7 @@ ev_points:
 ; signal a route would end before (or the bar where the track ends): the
 ; cell is drawn as the kind without it every other moment. (Not with the
 ; TED's flash bit: it does nothing once multicolour is on, which the
-; pointer needs.)
+; cursor needs.)
 sel_show:
         lda #0
         sta sv_i
@@ -1735,45 +1753,47 @@ cursor_show:
         lda cs_o
         ora cs_o+1
         beq @done
-        lda #1
-        ldx _zoom
-        cpx #1
-        beq :+
-        lda #4
-:       sta cu_n
-@q:     ldx _cu_n
-        lda qoff,x
+        ldx #0                  ; close up: its places (cq_), their top
+        lda _zoom               ; corners in the cell above if that is in
+        cmp #1                  ; view (4 on: in the cell's own top
+        bne :+                  ; quarters)
+        ldx #8                  ; the overview: one place
+        bne @set
+:       lda cs_o+1
+        bne @set
+        lda cs_o
+        cmp #3 * 40
+        bcs @set
+        ldx #4
+@set:   stx cu_k
+@q:     ldx cu_k
+        lda cs_o
         clc
-        adc cs_o
+        adc cq_lo,x
         sta _vp_o
         lda cs_o+1
-        adc #0
+        adc cq_hi,x
         sta _vp_o+1
-        lda _zoom
-        cmp #1
-        bne :+
-        lda #<_cursor
+        lda cq_mlo,x
         sta _cu_m
-        lda #>_cursor
+        lda cq_mhi,x
         sta _cu_m+1
-        bne :++
-:       txa                     ; close up: a quarter of the corners each
-        asl a
-        asl a
-        asl a
-        clc
-        adc #<_cursor2
-        sta _cu_m
-        lda #>_cursor2
-        adc #0
-        sta _cu_m+1
-:       jsr _cu_add
-        lda _cu_n
-        cmp cu_n
+        lda cq_low,x
+        sta _cu_low
+        jsr _cu_add
+        inc cu_k
+        lda cu_k
+        and #3
+        beq :+
+        lda cu_k
+        cmp #9
         bne @q
+:       jmp cu_bands            ; its bands (map.s)
 @done:  rts
 
-cursor_hide = _cu_clear
+cursor_hide:
+        jsr _cu_clear
+        jmp cu_bands
 
 ; div3: A / 3
 div3:   ldx #0
@@ -1820,7 +1840,9 @@ ptr_follow:
         cmp _cur_x
         bne :+
         rts
-:       jsr cursor_hide
+:       jsr _eng_below          ; the old frame gone and the new one there
+        jsr cursor_hide         ; below the map: no picture with half of
+                                ; each, and its bands by the blank
         lda pf_cx
         sta _cur_x
         lda pf_cy
@@ -1999,14 +2021,8 @@ timescs:
 ; the view drawn afresh, out of sight: on the screen not shown, which is
 ; shown when it is done - no picture of a half-drawn map
 view_redraw:
-        ; the pointer stays where it is on the old screen till the new one is
-        ; shown; nothing drawn now goes under it
-        lda #1
-        sta _ptr_lock
-        sei
-        jsr _ptr_forget
-        cli
-        jsr _cu_forget          ; (nor the cursor)
+        jsr _cu_forget          ; the cursor stays on the old screen: nothing
+                                ; drawn now goes under it
         lda _colr+1
         cmp #$08
         bne :+
@@ -2094,7 +2110,8 @@ view_redraw:
         jsr sel_show
         jsr cursor_show
         jsr ptr_frame
-        lda vr_v                ; (the pointer drawn in the same blank)
+        jsr bands_make          ; (its bands from the first picture on)
+        lda vr_v
         jmp _eng_vmbase
 
 ; the view with the cursor in the middle
@@ -2123,13 +2140,10 @@ view_centre:
         jmp view_redraw
 
 ; Z: close up or the overview. The characters change with it: the old view
-; stays up in a copy of them (the pointer, too, where it is) while they and
+; stays up in a copy of them (the cursor, too, where it is) while they and
 ; the new view are made out of sight, and both come in one vertical blank.
 zoom_switch:
-        lda #1
-        sta _ptr_lock
         sei
-        jsr _ptr_forget
         lda _zoom
         cmp #1
         bne :+
@@ -2337,7 +2351,7 @@ level_start:
         sta _ptr_y
         stx _ptr_y+1
         cli
-        ldx #1                  ; (none in the tests: it is drawn when the
+        ldx #1                  ; (none in the tests: it moves when the
         lda _dbg_n              ; interrupt comes)
         beq :+
         dex

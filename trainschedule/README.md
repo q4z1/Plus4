@@ -135,12 +135,12 @@ shows which are open. Until the Plus/4 is switched off.
 
 Everything works with a joystick of one button alone, in either port; the
 keyboard has the same as keys. Fire counts when it is let go. Held, with a
-direction pushed, it is a command instead, and the pointer stays where it
+direction pushed, it is a command instead, and the frame stays where it
 is.
 
 | | Joystick | Keyboard |
 |---|---|---|
-| Move the pointer | stick | cursor keys |
+| Move the frame | stick | cursor keys |
 | Choose, set, take back (see below) | fire | `Space` or `Return` |
 | A train's timetable | fire on the train | |
 | The next train's timetable; after the last, the board again | fire + down | `.` (`,` the one before) |
@@ -153,10 +153,9 @@ is.
 | Music off / on | left / right in the choice of a map | `F1`, anywhere |
 | At the end: play again or another map | left / right, then fire | the same, or `L` for another |
 
-The pointer is an arrow that moves a pixel at a time, faster the longer the
-stick (or a cursor key) is held. The cell its tip is in has a frame round
-it: that is the cell fire acts on. Near the edge of the view, the view
-moves on by a third.
+A frame round a cell shows the cell fire acts on. A tap on the stick (or
+a cursor key) moves it a cell; held, it goes on, faster the longer it is
+held. Near the edge of the view, the view moves on by a third.
 
 ### Routes and trains
 
@@ -350,24 +349,42 @@ it. So the TED is made to fetch a character row's colours a second time,
 after its sixth line: the raster interrupt sets the vertical scroll so
 that this line counts as a row's first, with the second colour written in
 for it, and puts both back. The legs going up have one colour, the track
-across the other, the legs going down the row below. Only rows with such
-a switch in view get it - in Smiths Falls, the busiest map, none in most
-pictures and never more than three - at a little over 1 % of a picture
-each.
+across the other, the legs going down the row below. In the overview a
+cell is one character: the fetch comes after its third line, the legs
+going up grey above it - a leg going down shows the route's green in the
+switch's own three lines, as there is no time for a third colour when
+rows of switches lie one under the other. The TED holds the CPU in the
+lines it fetches in, so the timing is tight: everything a row needs is
+worked out beforehand, and a row the interrupt would reach too late is
+left as it is for that picture rather than have the TED fetch at the
+wrong moment. Only rows with such a switch in view get it - in Smiths
+Falls, the busiest map, none in most pictures and rarely more than three
+- at about 2 % of a picture each.
 
-**The pointer** is moved and drawn by the raster interrupt, every picture,
-like a sprite - however busy the game is, it never stops or jumps. The
-cells it covers switch to multicolour, as the cells under a droid do in
-the Paradroid conversion: the map's character there becomes multicolour
-(a pair of pixels with anything in it takes the cell's own colour), so the
-track keeps its colour, and the arrow is drawn in the two colours all
-multicolour cells share - white, with a black edge. The arrow is shifted
-in advance to the four places a multicolour pixel can start in a
-character. The frame round the cell pointed at is done the same way.
-The rest of the game writes to the view through one door (`vput`, `vget`
-in engine.s): a cell under the pointer is not written but becomes what
-lies under it, and the interrupt lays the pointer over it again - so
-nothing under it gets lost, and it is never off the screen for a picture.
+**The frame** round the cell pointed at follows a point the raster
+interrupt moves every picture - however busy the game is, it never stops
+or lags. The point goes a pixel at a time, faster the longer the stick is
+held; let go, it goes to the middle of its cell, and a tap takes it from
+there into the next. Close up, the corners lie in the last three lines
+of a character, and where that character is hires they are drawn into
+it in hires. Where it has little in those lines - nothing, a diagonal -
+the same second fetch of colours as for the switches gives them the
+route's green; where it has more - a sign, a platform's edge - they are
+cut into it in its own colour rather than paint it green. The cursor's
+two rows have places of their own in the interrupt's list, in two sets
+taking turns, filled as soon as the frame has moved: the frame is hires
+from its first picture on, its corners green from the first or the
+next. Elsewhere - in the overview, over a train - the
+characters the corners are in switch to multicolour, as the cells under
+a droid do in the Paradroid conversion: the map's character there
+becomes multicolour (a pair of pixels with anything in it takes the
+cell's own colour), so the track keeps its colour, and the corners are
+drawn in the route's green, which all multicolour cells share. The rest
+of the game writes to the view through one door (`vput`,
+`vget` in engine.s): a character under a corner is not written but
+becomes what lies under it, and the corner is drawn over it at once - so
+nothing under it gets lost, and it is never off the screen for a
+picture.
 
 **Two sizes.** Close up, a cell is 2 x 2 characters, 16 x 16 pixels, drawn
 from tables at that size. Each kind of cell is then four quarters, and a

@@ -129,7 +129,9 @@ _r_pix:     .res SLOTS          ; where its front was drawn, in steps
 _r_dirty:   .res SLOTS          ; to be drawn again
 _r_bank:    .res SLOTS          ; the half of its draw list on screen
 _moved:     .res 1              ; something to draw
+        .segment "XBSS"         ; (trainschedule.cfg: made before read)
 fq:         .res 256            ; characters given up, free next time
+        .bss
 fq_n:       .res 1
 fl_first:   .res 1              ; the pool the free list was made for
 fl_end:     .res 1
@@ -1245,9 +1247,14 @@ head_under:
 ; quiet_ahead: a train come onto the map: the way in it was given, to the
 ; next signal (run_on), is the game's, not a route set - it looks free,
 ; and is the train's (mo) all the same. hide_ahead leaves it be, so it is
-; never green.
+; never green. Its front's cell too, if it is on the map already: grey as
+; behind the front, the track in front of the train not green.
 quiet_ahead:
+        jsr head_under
         ldx s
+        lda #1
+        sta _r_dirty,x
+        sta _moved
         lda _r_head,x
         sta hd_k
 @cell:  ldx s
@@ -2336,8 +2343,10 @@ trains_step:
         tax
         lda (ryp),y
         tay
-        lda #OCC_FREE
-        jsr cell_mark
+        lda #OCC_FREE           ; (its characters stay: drawn from the
+        inc vc_keep             ; front rounded, the tail may still be in
+        jsr cell_mark           ; it - trains_draw takes them back)
+        dec vc_keep
 :       ldx s
         inc _r_tail,x
         dec st_h+1
@@ -3102,10 +3111,10 @@ trains_draw:
         lda (mc),y
         ldx _zoom
         cpx #1
-        beq @put
+        beq :+
         jsr q4at
-        tax                     ; (a platform's edge alone: grey)
-        lda _q_deco,x
+:       tax                     ; (a platform's edge alone, a set
+        lda _q_deco,x           ; switch's other leg: grey)
         and #1
         beq :+
         lda _vp_a

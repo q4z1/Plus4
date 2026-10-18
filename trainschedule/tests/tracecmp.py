@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """tracecmp.py a b - two traces of trace.py compared, second by second:
-the map, its characters, the screen shown (the pointer's cells as what is
-under it), the routes, the trains and the rest of the game's state, each
-by its name in the build's labels. The first seconds where something
-differs are listed, with what.
+the map, its characters, the screen shown, the routes, the trains and the
+rest of the game's state, each by its name in the build's labels. The
+first seconds where something differs are listed, with what.
 
 tracecmp.py a - what trace a holds at its end (clock, score, trains).
 """
@@ -90,28 +89,18 @@ class Trace:
         return b[0] | b[1] << 8
 
     def screen(self, m):
-        """the screen shown, the pointer's cells as what is under them"""
+        """the screen shown"""
         s = self.word(m, '_scrn')
         c = self.word(m, '_colr')
-        chars = bytearray(m[s - BASE:s - BASE + 1000])
-        cols = bytearray(m[c - BASE:c - BASE + 1000])
-        valid = self.get(m, 'p_valid', 4)
-        lo, hi = self.get(m, 'p_olo', 4), self.get(m, 'p_ohi', 4)
-        und, ucol = self.get(m, 'p_under', 4), self.get(m, 'p_ucol', 4)
-        for k in range(4):
-            if valid[k]:
-                o = lo[k] | hi[k] << 8
-                if o < 1000:
-                    chars[o], cols[o] = und[k], ucol[k]
-        return bytes(chars), bytes(cols)
+        return bytes(m[s - BASE:s - BASE + 1000]), bytes(m[c - BASE:c - BASE + 1000])
 
     def used(self, m):
         """what is in use of the map, the routes, the rings, the draw
         list: (name, bytes) each"""
         w, h = self.get(m, '_map_w', 1)[0], self.get(m, '_map_h', 1)[0]
         out = [('_row_start', self.get(m, '_row_start', 2 * h))]
-        for name, a in (('map code', 0xC800), ('map attr', 0xCE00),
-                        ('map occ', 0xD400)):
+        for name, a in (('map code', 0xC800), ('map attr', 0xCC00),
+                        ('map occ', 0xD000)):
             out.append((name, m[a - BASE:a - BASE + w * h]))
         sig = self.get(m, '_rt_sig', 16)
         ln = self.get(m, '_rt_len', 16)
@@ -157,7 +146,7 @@ def text(chars):
         for c in chars[r * 40:(r + 1) * 40]:
             c = c & 63 if r >= 19 else c    # the board: extended colour
             s += chr(64 + c) if 1 <= c <= 26 else chr(c) if 32 <= c <= 63 else \
-                '#' if 64 <= c < 160 else 'T' if c < 240 else '+'
+                '#' if 64 <= c < 160 else 'T' if c < 248 else '+'
         rows.append(s)
     return '\n'.join(rows)
 

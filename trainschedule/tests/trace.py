@@ -102,7 +102,7 @@ def point(x, y):
 
 def train_cell():
     w, h = byte('_map_w'), byte('_map_h')
-    occ = v.mem(0xD400, w * h)
+    occ = v.mem(0xD000, w * h)
     for i, o in enumerate(occ):
         if o & 0x80:
             return i % w, i // w

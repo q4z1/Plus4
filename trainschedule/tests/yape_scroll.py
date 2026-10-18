@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""trainschedule in Yape: the pointer to the right until the view has
+"""trainschedule in Yape: the frame to the right until the view has
 scrolled - shown from the second screen at $F000 - and the picture saved.
 Run from trainschedule/."""
 import os

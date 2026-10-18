@@ -64,8 +64,8 @@ cur_map:    .res 1              ; the map being played, 1 on
 map_song:   .res 1              ; 1: it has a song (at SONG_BUF)
 cp_n:       .res 2              ; copy's
 sm_i:       .res 1
-sm_line:    .res 41             ; a row of the list
         .segment "STKBSS"       ; (trainschedule.cfg)
+sm_line:    .res 41             ; a row of the list (sm_blank first)
 map_text:   .res 16 * 3 * 2     ; per map its name and two lines about it
         .segment "MAPHI"        ; above the map (trainschedule.cfg)
 _level_buf: .res 1024           ; the map being played, as loaded

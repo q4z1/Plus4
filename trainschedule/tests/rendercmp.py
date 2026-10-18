@@ -2,8 +2,8 @@
 """rendercmp.py a b - two traces of trace.py compared by what the view
 shows, second by second: each of its cells as its glyph and colour, not
 its character's number (two builds may hand out the trains' characters
-differently and still show the same). The pointer's cells are taken as
-what is under them. Lists the seconds that differ, and where.
+differently and still show the same). Lists the seconds that differ, and
+where.
 """
 import sys
 

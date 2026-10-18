@@ -120,8 +120,8 @@ def level(path):
             sys.exit(f"{where}: what is {word}?")
 
     w, h = meta["w"], meta["h"]
-    if w * h > 1536:
-        sys.exit(f"{path}: {w}x{h} is more than 1536 cells")
+    if w * h > 1024:                    # game.inc: MAP_MAX
+        sys.exit(f"{path}: {w}x{h} is more than 1024 cells")
     for pts in tracks:
         for x, y in pts:
             if not (0 <= x < w and 0 <= y < h):
@@ -243,31 +243,6 @@ def tables():
             "111100111101111", "111001010010010", "111101111101111",
             "111101111001111"]
     out["digit"] = [[int(d[r * 3:r * 3 + 3], 2) << 5 for r in range(5)] for d in font]
-    # The pointer, in multicolour pixels (two hires wide): white (%01) with
-    # a black edge (%10) below and right of it, the tip at 0, 0. Shifted in
-    # advance to the four places a multicolour pixel can start in a
-    # character: per shift and line, the two characters it spans, as the
-    # pixels to set and the mask of what of the map stays (1s).
-    white = ["X", "XX", "XXX", "XXXX", "XX", "X.X", "..X"]
-    W = {(x, y) for y, r in enumerate(white) for x, c in enumerate(r) if c == "X"}
-    B = {(x + dx, y + dy) for x, y in W for dx in (0, 1) for dy in (0, 1)} - W
-    pdata, pmask = [], []
-    for sh in range(4):
-        for y in range(9):
-            row_d, row_m = 0, 0
-            for x in range(6):
-                v = 1 if (x, y) in W else 2 if (x, y) in B else 0
-                pos = 7 - (sh + x)          # pairs from the left of 16 bits
-                if pos < 0:
-                    continue
-                row_d |= v << (pos * 2)
-                if v:
-                    row_m |= 3 << (pos * 2)
-            row_m ^= 0xFFFF
-            pdata += [row_d >> 8, row_d & 255]
-            pmask += [row_m >> 8, row_m & 255]
-    out["ptr_data"] = pdata
-    out["ptr_mask"] = pmask
     # hires to multicolour: a pair with anything set becomes %11, the cell's
     # own colour
     out["mc_of"] = [sum(3 << (2 * k) for k in range(4) if v & (3 << (2 * k)))
@@ -372,6 +347,11 @@ def tables2():
     corner = [(x, y) for x, y in ALL16
               if (x in (0, 15) and (y < 3 or y > 12)) or (y in (0, 15) and (x < 3 or x > 12))]
     out["cursor2"] = [cell16(corner)]
+    # its top corners a line of characters higher: in the lowest three lines
+    # of the cell above's bottom quarters (trainschedule.s, cursor_show) -
+    # the cell's own top quarters stay as they are, hires
+    up = [(x, y + 5) for x, y in corner if y < 3]
+    out["cursor2u"] = [cell16(up)[0:16]]
     return out
 
 
