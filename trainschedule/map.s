@@ -36,6 +36,7 @@
         .export bd_t, bd_irq, bd_late, bd_r, bd_vs, bd_pubf
         .export cu_bands, cb_next, cb_vact, cb_ng
         .export code_kind, code_mc, cf_m, cf_d, cf_mc, cs_o, cr_a, cr_b, bitv
+        .export pl_b
         .exportzp mc, ma, mo, lp, fp
 
         .import _vput, _vget, _vp_o, _vp_c, _vp_a, _pool_end
@@ -141,6 +142,7 @@ mk_qd:      .res 1              ; the edge; those with only it
 mk_qg:      .res 1              ; a set switch's grey ones (lines 0-5)
 mk_qb:      .res 1              ; and those of two colours (regions)
 mk_qo:      .res 1              ; the overview's q_deco (ov_regions)
+mk_m2:      .res 1              ; 1: a platform's kind for a route (pl_var)
 mk_w:       .res 1              ; quarters: grey wanted (0 or 1)
 qo_m:       .res 1
 t_strip:    .res 2              ; the glyph tables of the size now (make)
@@ -224,6 +226,15 @@ _code_path: .res 256
 ; them without the mark, which stand in for them when the marks blink.
         .segment "XBSS"         ; (filled as a level loads)
 code_mc:    .res 256
+        .segment "BANDS"        ; (pl_v filled as a level loads)
+pl_vt:      .res C_LAST + 1 - C_FIRST ; a platform's kind: its kind for a
+pl_bt:      .res C_LAST + 1 - C_FIRST ; route in the overview (pl_var), back
+pl_v = pl_vt - C_FIRST
+pl_b = pl_bt - C_FIRST
+        .bss
+pl_k:       .res 1
+pz_n:       .res 2
+vq_x:       .res 1
         .segment "HIBSS"
 
         .data
@@ -480,7 +491,18 @@ make:   ldx #0                  ; the tables of the size now
 :       sta cellbuf,y
         dey
         bpl :-
-        lda _code_path,x
+        sta mk_m2
+        lda code_mc,x           ; a platform's kind for a route (pl_var):
+        cmp #2                  ; the track in the cell's colour, at 32,
+        bne :++                 ; the edge and its number grey - the
+        lda _zoom               ; overview's only (close up no cell has it)
+        cmp #1
+        beq :+
+        rts
+:       inc mk_m2
+        lda #32
+        sta mk_dst
+:       lda _code_path,x
         cmp #255
         beq @strips
         jsr path_split          ; a set switch: only its two colours
@@ -550,11 +572,20 @@ make:   ldx #0                  ; the tables of the size now
         ; room for it
         jsr num5
         ldy #6
+        lda mk_m2               ; (the track at 32 for a route's kind)
+        bne @nr2
 :       lda cellbuf,y
         and #$C1
         sta cellbuf,y
         dey
         bpl :-
+        bmi @nr
+@nr2:   lda cellbuf+32,y
+        and #$C1
+        sta cellbuf+32,y
+        dey
+        bpl @nr2
+@nr:
         ldy #0
 :       lda _digit,x
         lsr a
@@ -894,18 +925,29 @@ path_split:
         sta mk_dst
         lda mk_n
         cmp #32
-        beq regions
-        ; fall through
+        bne ov_regions
+        jmp regions
 ; ov_regions: the overview, a cell one character: legs going up in its
-; lines 0-2, the track across in 3-4, legs going down in 5-7. One more
-; fetch of the colours in a row (engine.s), in line 2: lines 0-2 grey,
-; from 3 on the cell's colour (q_deco 3: drawn grey, the band the
-; cell's), if the legs going up are not in the way. A leg going down
-; shows the cell's colour in its three lines here, and so does one across
-; - there is only one colour across. (A second fetch, in line 4, for the
-; legs going down: no time for it with rows of switches one under the
-; other.) All the legs in cellbuf.
+; lines 0-2, the track across in 3-4, legs going down in 5-7; the way in
+; cellbuf, the other legs at 32. q_deco (mk_qo): bit 0 drawn grey, bit 1
+; a band (engine.s: one more fetch of the row's colours, in line 2), bit
+; 2 multicolour from there, bit 3 the cell multicolour (drawn so).
+; - Only a leg going up not in the way: lines 0-2 grey, the band the
+;   cell's colour (q 3).
+; - More not in the way below line 3 (half the track across, a leg going
+;   down): lines 3-7 multicolour, the way %11, the rest grey %10 - along
+;   the track across as fine as hires. With a leg going up, it hires in
+;   lines 0-2 and the band multicolour (q 6, or 7 if the leg is grey);
+;   without, the whole cell multicolour (q 8): a leg going down, coarser,
+;   in the right colour. (One fetch a row: no time for a second with rows
+;   of switches one under the other.)
 ov_regions:
+        lda cellbuf+32+3        ; anything not in the way below line 3?
+        ora cellbuf+32+4
+        ora cellbuf+32+5
+        ora cellbuf+32+6
+        ora cellbuf+32+7
+        bne @mc
         lda cellbuf+32
         ora cellbuf+33
         ora cellbuf+34
@@ -924,6 +966,40 @@ ov_regions:
         sta cellbuf+32,y
         dey
         bpl :-
+        rts
+@mc:    lda #8                  ; no leg going up: the cell multicolour
+        sta mk_qo
+        lda cellbuf
+        ora cellbuf+1
+        ora cellbuf+2
+        ora cellbuf+32
+        ora cellbuf+33
+        ora cellbuf+34
+        beq @lines
+        lda #6                  ; one going up: the band, multicolour
+        sta mk_qo
+        lda cellbuf
+        ora cellbuf+1
+        ora cellbuf+2
+        bne @lines
+        inc mk_qo               ; (7: the leg grey)
+@lines: ldy #7                  ; lines 3-7 multicolour, 0-2 hires
+@l:     ldx cellbuf,y
+        lda _mc_of,x
+        sta mk_t
+        ldx cellbuf+32,y
+        lda _mc_of,x
+        and #$AA
+        ora mk_t
+        cpy #3
+        bcs :+
+        lda cellbuf+32,y
+        ora cellbuf,y
+:       sta cellbuf,y
+        lda #0
+        sta cellbuf+32,y
+        dey
+        bpl @l
         rts
 
 ; regions: close up, the six parts of a set switch's cell that each have a
@@ -1278,12 +1354,20 @@ bands_make:
         jsr bm_quarter
         jmp @back
 @ov:    stx bm_ch               ; the overview: the cell's character
-        lda _q_deco,x           ; grey above line 3, the cell's colour
-        and #2                  ; from there
-        beq @back
-        lda #COL_TRACK
-        sta bm_a
+        lda _q_deco,x           ; grey or its colour above line 3, the
+        and #2                  ; cell's from there - multicolour for
+        beq @back               ; q_deco bit 2 (ov_regions)
+        lda _q_deco,x
+        lsr a
         lda bm_col
+        bcc :+
+        lda #COL_TRACK
+:       sta bm_a
+        lda _q_deco,x
+        and #4
+        beq :+
+        lda #8
+:       ora bm_col
         sta bm_b
         lda bm_x
         clc
@@ -1758,6 +1842,11 @@ level_load:
         fill256 plain, 0
         fill256 _code_path, 255
         fill256 code_mc, 0
+        lda #0
+        ldx #C_LAST - C_FIRST
+:       sta pl_vt,x
+        dex
+        bpl :-
         fill256 _code_mask, 0
         fill256 _code_deco, 0
         lda #C_FIRST
@@ -2226,8 +2315,118 @@ zoom_tables:
 set_zoom:
         sta _zoom
         jsr make_all
+        jsr pl_zoom
         jsr zoom_tables
         jmp view_size
+
+; ---- a platform in a route, in the overview -------------------------------
+; A cell of the overview is one character, track and platform's edge (and
+; its number) in it: hires, a route would make the edge green too. So
+; there a platform's cell in a route is a kind of its own, multicolour: the
+; track in the cell's colour, the edge and the number grey (%10) - along a
+; track across only, where multicolour is as fine as hires. Close up the
+; edge has quarters of its own, grey (q_deco): the plain kind.
+
+; pl_var: X a kind: its kind for a route in the overview - a platform's
+; without a signal or the end of the line, made the first time - or X
+pl_var:
+        lda code_mc,x
+        bne @self               ; (multicolour already)
+        lda _code_path,x
+        cmp #255
+        bne @self               ; (a set switch)
+        lda _code_deco,x
+        and #DECO_PLATFORM | DECO_SIGNAL | DECO_END
+        cmp #DECO_PLATFORM
+        bne @self
+        lda _code_mask,x        ; along a track across only (east, west):
+        and #$EE                ; multicolour as fine as hires there, not
+        bne @self               ; for one up or askew
+        lda pl_v,x
+        beq @make
+        cmp #1
+        beq @self               ; (none to be had)
+        tax
+@self:  rts
+@make:  stx pl_k
+        lda _code_mask,x
+        sta cf_m
+        lda _code_deco,x
+        sta cf_d
+        lda #2
+        sta cf_mc
+        jsr code_kind
+        tay
+        ldx pl_k
+        lda code_mc,y
+        cmp #2
+        beq :+
+        lda #1                  ; out of kinds: the plain one
+        sta pl_v,x
+        rts
+:       tya
+        sta pl_v,x
+        txa
+        sta pl_b,y
+        tya
+        tax
+        rts
+
+; pl_zoom: the map's platforms in a route to the kinds of the size now
+pl_zoom:
+        lda #<MAP_CODE
+        sta mc
+        lda #>MAP_CODE
+        sta mc+1
+        lda #<MAP_ATTR
+        sta ma
+        lda #>MAP_ATTR
+        sta ma+1
+        lda ll_cells
+        sta pz_n
+        lda ll_cells+1
+        sta pz_n+1
+@c:     lda pz_n
+        ora pz_n+1
+        beq @rts
+        ldy #0
+        lda (mc),y
+        tax
+        lda _zoom
+        cmp #1
+        bne @close
+        lda (ma),y              ; the overview: a route's (not under a
+        cmp #COL_ROUTE          ; train) the route's kind
+        bne @next
+        jsr pl_var
+        lda code_mc,x
+        cmp #2
+        bne @next
+        txa
+        ldy #0
+        sta (mc),y
+        lda #COL_ROUTE | 8
+        sta (ma),y
+        bne @next
+@close: lda code_mc,x           ; close up: the plain kind again
+        cmp #2
+        bne @next
+        lda pl_b,x
+        sta (mc),y
+        lda #COL_ROUTE
+        sta (ma),y
+@next:  inc mc
+        bne :+
+        inc mc+1
+:       inc ma
+        bne :+
+        inc ma+1
+:       lda pz_n
+        bne :+
+        dec pz_n+1
+:       dec pz_n
+        jmp @c
+@rts:   rts
 
 ; view_set: the view's corner on the map at X, Y, kept inside it
 view_set:
@@ -2310,16 +2509,31 @@ cell_screen:
 ; vputq: as vputo, a quarter close up: one of only a platform's edge in
 ; the track's grey (q_deco)
 vputq:  sta _vp_c
-        tay
-        lda _q_deco,y
-        and #1
-        beq :+
-        lda vc_a                ; (a multicolour cell's grey is %10)
+        stx vq_x
+        tax
+        lda vc_a
+        jsr ov_col
+        ldx vq_x
+        jmp vput1
+
+; ov_col: colour A of a cell with character X as drawn: grey for q_deco
+; bit 0 (a multicolour cell's grey is %10), multicolour for bit 3 (the
+; overview's set switches, ov_regions). Keeps Y.
+        .export ov_col
+ov_col: pha
+        lda _q_deco,x
+        lsr a
+        pla
+        bcc :+
         and #8
         ora #COL_TRACK
-        jmp vput1
-:       lda vc_a
-        jmp vput1
+:       pha
+        lda _q_deco,x
+        and #8
+        sta mk_t
+        pla
+        ora mk_t
+        rts
 
 ; vputo: character A in colour vc_a at cs_o + X, past the cursor (vput)
 vputo:  sta _vp_c
@@ -2648,14 +2862,10 @@ view_draw:
         dey
 @c1:    lda (mc),y
         sta (dp),y
-        tax                     ; (a set switch drawn grey: q_deco)
-        lda _q_deco,x
-        lsr a
-        lda (ma),y
-        bcc :+
-        and #8
-        ora #COL_TRACK
-:       sta (dq),y
+        tax                     ; (a set switch drawn grey or multicolour:
+        lda (ma),y              ; q_deco)
+        jsr ov_col
+        sta (dq),y
         dey
         bpl @c1
         lda dp
@@ -2756,16 +2966,36 @@ cm_look:
         ldy #0
         sta (mc),y
         tax
-@col:   lda code_mc,x
+@col:   lda code_mc,x           ; (a platform's kind for a route: the
+        cmp #2                  ; plain one first, pl_var)
+        bne :+
+        lda pl_b,x
+        tax
+        ldy #0
+        sta (mc),y
+:       lda code_mc,x
         sta cm_mc
         ldy #0
         lda cm_occ
         bmi @train
         cmp #OCC_ROUTE
         bne @free
-        lda #COL_ROUTE
+        lda _zoom
+        cmp #1
+        bne @rh
+        jsr pl_var
+        txa
+        ldy #0
+        sta (mc),y
+        lda code_mc,x
+        cmp #2
+        bne @rh
+        lda #COL_ROUTE | 8
+        bne :+
+@rh:    lda #COL_ROUTE
+:       ldy #0
         sta (ma),y
-        bne @view
+        jmp @view
 @free:  lda #COL_TRACK
         ldx cm_mc
         beq :+

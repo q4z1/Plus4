@@ -1752,7 +1752,9 @@ cursor_show:
         jsr cell_screen
         lda cs_o
         ora cs_o+1
-        beq @done
+        bne :+
+        jmp cu_bands            ; (not in view: no rows of its own either)
+:
         ldx #0                  ; close up: its places (cq_), their top
         lda _zoom               ; corners in the cell above if that is in
         cmp #1                  ; view (4 on: in the cell's own top

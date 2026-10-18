@@ -2766,6 +2766,8 @@ band_ip:
 fast:   lda TED_RLO
         cmp bd_t,x
         jcs band_next
+        lda bd_r,x
+        sta bn_r
         jsr band_ip
         ldy bg_vs,x
         lda bd_t,x

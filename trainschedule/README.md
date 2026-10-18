@@ -350,10 +350,15 @@ after its sixth line: the raster interrupt sets the vertical scroll so
 that this line counts as a row's first, with the second colour written in
 for it, and puts both back. The legs going up have one colour, the track
 across the other, the legs going down the row below. In the overview a
-cell is one character: the fetch comes after its third line, the legs
-going up grey above it - a leg going down shows the route's green in the
-switch's own three lines, as there is no time for a third colour when
-rows of switches lie one under the other. The TED holds the CPU in the
+cell is one character, and there is time for one fetch a row only, rows
+of switches lying one under the other: it comes after the third line,
+a leg going up grey above it, or green with the track across from there
+multicolour - the way in the route's green, the rest grey, as fine as
+hires along a straight line. A switch with a leg going down is
+multicolour as a whole, that leg a little coarser in its three lines.
+And as a platform's edge and number share their character with the
+track there, a platform's cell in a route is multicolour too, the track
+green and the edge grey. The TED holds the CPU in the
 lines it fetches in, so the timing is tight: everything a row needs is
 worked out beforehand, and a row the interrupt would reach too late is
 left as it is for that picture rather than have the TED fetch at the

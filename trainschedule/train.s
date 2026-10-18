@@ -35,7 +35,7 @@
         .export ev_why, ev_pts, ev_late, ev_wrong, ev_st, ev_rec
 
         .import cellp, cell_mark, cell_route, cell_under, cr_a, cr_b, bitv
-        .import vc_keep
+        .import vc_keep, code_mc, pl_b, ov_col
         .importzp mc, ma, mo
         .import signal_at, platform_at, route_find, route_free
         .import route_passes, route_from, route_set, rp_st, rp_pl
@@ -2955,7 +2955,13 @@ trains_draw:
         ldx _zoom
         cpx #1
         bne :+
-        sta _tc_base
+        tax                     ; (a platform's kind for a route: the
+        lda code_mc,x           ; plain one under the train, map.s pl_var)
+        cmp #2
+        txa
+        bcc @tbase
+        lda pl_b,x
+@tbase: sta _tc_base
         jmp @draw
 :       sec                     ; its quarters
         sbc #C_FIRST
@@ -3114,14 +3120,10 @@ trains_draw:
         beq :+
         jsr q4at
 :       tax                     ; (a platform's edge alone, a set
-        lda _q_deco,x           ; switch's other leg: grey)
-        and #1
-        beq :+
-        lda _vp_a
-        and #8
-        ora #COL_TRACK
+        lda _vp_a               ; switch's other leg: grey - or the
+        jsr ov_col              ; overview's multicolour, map.s)
         sta _vp_a
-:       txa
+        txa
 @put:   sta _vp_c
         jsr _vput
 @nexto: inc td_i
