@@ -369,8 +369,9 @@ there into the next. Close up, the corners lie in the last three lines
 of a character, and where that character is hires they are drawn into
 it in hires. Where it has little in those lines - nothing, a diagonal -
 the same second fetch of colours as for the switches gives them the
-route's green; where it has more - a sign, a platform's edge - they are
-cut into it in its own colour rather than paint it green. The cursor's
+route's green; where it has more - a sign, a platform's edge - the fetch
+makes those three lines multicolour instead, what is there keeping its
+own colour and the corners green over it. The cursor's
 two rows have places of their own in the interrupt's list, in two sets
 taking turns, filled as soon as the frame has moved: the frame is hires
 from its first picture on, its corners green from the first or the

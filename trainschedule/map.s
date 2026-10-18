@@ -1308,8 +1308,8 @@ bands_make:
         rts
 
 ; cu_bands: the cursor's rows (engine.s): close up, its places in a bottom
-; quarter over thin hires (cu_band), their lines 5-7 in its green (the
-; fetch in line 4). Made into the pair the interrupt does not read (cb_vact), which
+; quarter over hires (cu_band), their lines 5-7 (the fetch in line 4) in
+; its green, or multicolour where more than a little is there. Made into the pair the interrupt does not read (cb_vact), which
 ; it reads from the next blank on (cb_next) - till then the old pair, also
 ; while this one is being made. Rows top first: the top corners' places
 ; come first (trainschedule.s, cursor_show).
@@ -1394,10 +1394,15 @@ cu_bands:
         sta bd_col,x
         lda cu_under,y
         sta bd_code,x
-        lda #COL_CUR
-        sta bd_b,x
         lda cu_ucol,y
         sta bd_a,x
+        lda cu_band,y           ; green, or multicolour in its own colour
+        lsr a
+        lda #COL_CUR
+        bcs :+
+        lda cu_ucol,y
+        ora #$08
+:       sta bd_b,x
         inc cb_e
         ldx cb_g
         lda cb_e

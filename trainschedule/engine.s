@@ -2180,12 +2180,14 @@ vget_:  lda _vp_o
 ; however often a train there is drawn again. Each of its places (cu_n, 1
 ; or 4) has two characters, C_CURSOR + i and C_CURSOR + 4 + i, taking turns,
 ; so the one shown is never the one drawn into. Close up, where its corners
-; are in a bottom quarter of hires, they are hires too, in what is there:
-; where that is thin in their lines (2 pixels a line at most: nothing, a
-; diagonal), a band (map.s, cu_bands) gives those lines the cursor's green
-; - till it does, in a picture or so, they have the track's colour; where
-; it is more (a sign, a platform's edge) they are cut into it in its own
-; colour. Elsewhere the place is multicolour, the corners in multicolour 1.
+; are in a bottom quarter of hires, the character stays hires above them.
+; Where it is thin in their lines 5-7 (2 pixels a line at most: nothing,
+; a diagonal) they are hires too, and a band (map.s, cu_bands) gives those
+; lines the cursor's green - till it does, in a picture or so, they have
+; the track's colour. Where it has more (a sign, a platform's edge, a lamp)
+; those lines are multicolour, made so by the band: what is there in its
+; own colour, the corners in multicolour 1 over it. Elsewhere the whole
+; place is multicolour.
 ; ---------------------------------------------------------------------------
         .export _cu_add, _cu_clear, _cu_forget, _cu_n, _cu_m, _cu_low, cu_lowp
 
@@ -2207,7 +2209,7 @@ cu_buf:     .res 8
 cu_lowp:    .res 4              ; 1: in a bottom quarter, close up
 _cu_low:    .res 1              ; cu_add's: the place's cu_lowp
 cu_hr:      .res 1              ; cu_glyph's: 1 hires
-cu_band:    .res 4              ; 1: hires, its band green (cu_bands)
+cu_band:    .res 4              ; its band (cu_bands): 1 green, 2 multicolour
 cu_bt:      .res 1              ; (cu_glyph's)
         .code
 
@@ -2331,6 +2333,7 @@ cu_glyph:
         ldx cu_i                ; hires: thin in lines 5-7? (a line with
         lda cu_hr               ; its two lowest pixels taken away empty)
         beq @corners
+        inc cu_band,x           ; (1: thin)
         ldy #5
 @thin:  lda cu_buf,y
         beq :+
@@ -2342,11 +2345,19 @@ cu_glyph:
         sec
         sbc #1
         and cu_t
-        bne @corners
+        bne @thick
 :       iny
         cpy #8
         bne @thin
-        inc cu_band,x
+        beq @corners
+@thick: inc cu_band,x           ; 2: more - lines 5-7 multicolour, its
+        ldy #7                  ; band turning them so
+:       ldx cu_buf,y
+        lda _mc_of,x
+        sta cu_buf,y
+        dey
+        cpy #5
+        bcs :-
 @corners:
         ldx cu_i
         lda cu_band,x
@@ -2360,23 +2371,18 @@ cu_glyph:
         tax                     ; in hires as in multicolour)
         lda _mc_of,x
         sta cu_t
-        ldx cu_hr
-        bne @hp
-        eor #$FF
+        ldx cu_bt
+        dex
+        beq @or                 ; hires over thin: green by its band
+        eor #$FF                ; multicolour: in multicolour 1
         and cu_buf,y
         sta cu_buf,y
         lda cu_t
         and #$55
 @or:    ora cu_buf,y
-@put:   sta cu_buf,y
+        sta cu_buf,y
         dey
         bpl @px
-        bmi @font
-@hp:    ldx cu_bt               ; hires: over thin, or cut into more
-        bne @or
-        eor cu_buf,y
-        jmp @put
-@font:
         ldx cu_i
         txa
         clc
@@ -2929,7 +2935,7 @@ band_mc:
         rts
 
 ; band_curq: A, the character on screen at the cursor's place X: C set if
-; it is the cursor's there, hires and its band green (cu_band). Keeps X, Y.
+; it is the cursor's there, with a band (cu_band). Keeps X, Y.
 band_curq:
         cmp #C_CUR
         bcc @no
