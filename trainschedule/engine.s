@@ -2505,6 +2505,7 @@ bv_base:    .res 1              ; the screen shown: its colours' page
 bn_t:       .res 1              ; the row's line 0
 bn_r:       .res 1              ; its line p: vshift back
 bn_pre:     .res 1              ; the row band_back made ready, or $FF
+bn_nx:      .res 1              ; the row it goes on with, or $FF
 bv_scr:     .res 1              ; $FF06 without vshift
 bn_e:       .res 1
 bu_x:       .res 1
@@ -2642,7 +2643,7 @@ band:   ldx bg_i
         lda bd_gp,x
         cmp #4
         jcc fast
-        lda bg_t,x              ; all of it before the wait, made in the
+band_c: lda bg_t,x              ; all of it before the wait, made in the
         sta bn_t                ; blank (band_resolve) - or in the row
         jsr band_ip             ; before's band_back (band_go): a row right
 band_go:                        ; under another's band has less than three
@@ -2795,36 +2796,39 @@ fast:   lda TED_RLO
 ; band_back: vshift back to 3 in line p, after the TED's fetch there (the
 ; wait sees line p only when the TED lets go). The screen's colours are put
 ; back in the vertical blank (band_undo): rows one under the other leave
-; each other no time for it. Before the wait, if more than a line is
-; left till p, the next row made ready for band (bn_pre): right under a
-; row with a fetch in 5, one in 4 has only the lines between the TED's
-; fetches for its writes. Not later: the TED may hold the CPU from line p
-; into p + 1 (Yape), and vshift has to be back before the next row's
-; fetch in p + 2.
+; each other no time for it. A row right under this one goes on at once,
+; without band_at - with a fetch in 5 above it, one in 4 has only the
+; lines between the TED's fetches for its writes - and is made ready for
+; band before the wait if more than a line is left till p (bn_pre). Not
+; later: the TED may hold the CPU from line p into p + 1 (Yape), and
+; vshift has to be back before the next row's fetch in p + 2.
 band_back:
         ldx pd_n                ; its colours to be put back
         lda bg_i
         sta pd_g,x
         inc pd_n
-        lda TED_RLO
-        clc
-        adc #2
-        cmp bn_r
-        bcs :+
-        ldx bg_k
-        inx
-        cpx bg_n
-        bcs :+
+        lda #$FF
+        sta bn_nx
+        ldx bg_k                ; the next row right under this one, with
+        inx                     ; a fetch in 4 or 5: straight on with it
+        cpx bg_n                ; after the wait (bn_nx), made ready now
+        bcs :+                  ; if there is time (bn_pre)
         lda bo,x
         tax
         lda bd_gp,x
         cmp #4
         bcc :+
-        lda bn_r                ; and right under this one
+        lda bn_r
         clc
         adc #1
         cmp bd_irq,x
         bcc :+
+        stx bn_nx
+        lda TED_RLO
+        clc
+        adc #2
+        cmp bn_r
+        bcs :+
         stx bn_pre
         lda bg_t,x
         sta bn_t
@@ -2840,11 +2844,13 @@ band_back:
 :       dex                     ; TED looks at vshift (the line count
         bne :-                  ; moves on a few cycles before it): held
         sty TED_SCROLLY         ; by its fetch till then, or after it
-        ldx bn_pre              ; the next one made ready: on with it
+        ldx bn_nx
         bmi band_next
         inc bg_k
         stx bg_i
-        jmp band_go
+        cpx bn_pre
+        jeq band_go
+        jmp band_c
 band_next:
         inc bg_k
         ldx bg_k
