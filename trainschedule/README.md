@@ -237,6 +237,16 @@ the flap digits are drawn, pixel by pixel, in
 [tools/mkd64.py](tools/mkd64.py), with the files' sectors spaced for the
 fast loader (below).
 
+**Where the memory goes.** After a build,
+[tools/memstat.py](tools/memstat.py) lists the RAM from $0000 to $FFFF:
+who holds each range and what is still free, the program by module, the
+largest tables and routines, how full each map leaves the buffers it is
+loaded into, and the disk's files with their blocks.
+
+```
+python3 tools/memstat.py [--top N]
+```
+
 **The test build.** `tests/start.sh` builds the game and a second disk,
 `build/trainschedule-test.d64`, with two bytes of the game set
 ([tools/patch.py](tools/patch.py)), and starts it: straight into a map,
