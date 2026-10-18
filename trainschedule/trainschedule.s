@@ -116,7 +116,6 @@ tl_bot:     .res 1
 tl_i:       .res 1
 tmp2:       .res 1
 bl_n:       .res 1
-bl_c:       .res 1
 vr_v:       .res 1
 vr_hud:     .res 1              ; 1: the head rows anew too (a new zoom)
 bd_t:       .res 1              ; board's
@@ -175,6 +174,11 @@ ph_x:       .res 1
 ms_i:       .res 1              ; msg's
 ms_y:       .res 1
 fd_n:       .res 1              ; frame_draw's
+fd_bg:      .res 1
+bd_ruled:   .res 1              ; 1: the pages' columns ruled (the board's
+                                ; list, not a train's timetable or the end)
+ph_bg:      .res 1              ; put_half's background bits
+bp_bg:      .res 1              ; board_put's
 bd_s:       .res 1              ; the board's first train shown (of those
 bd_k:       .res 1              ; not gone), and how many still to skip
 bd_wait:    .res 1              ; board ticks till the list moves on
@@ -216,15 +220,14 @@ t_regional: .byte "REGIONAL", 0
 t_commuter: .byte "COMMUTER", 0
 t_urban:    .byte "URBAN", 0
 s_score:    .byte "SCORE ", 0
-; the frame's sides: their columns, their characters and colours - the
-; screens' blue their inner half, the frame's grey the outer
-fr_cols:    .byte 0, 19, 20, 39
-; board_put's fields: 0 the frame, 1 the number, 2 between, 3 the row, 4
-; how it is doing
+; the book's own columns in rows 19-24: its sides, and the fold at the
+; left edge of column 20 (on the rows' registers: the ruling runs through)
+fr_cols:    .byte 0, 20, 39
+fr_side:    .byte FR_LEFT, FR_RULE, FR_RIGHT
+; board_put's fields: 0 the book's own, 1 the number, 2 between (a
+; column's rule), 3 the row, 4 how it is doing
 bp_kind:    .byte 0, 1, 1, 1, 1, 1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
             .byte 0, 0, 3, 3, 2, 3, 3, 3, 3, 3, 2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0
-fr_side:    .byte FR_LH | BG_FRAME, FR_LH, FR_LH | BG_FRAME, FR_LH
-fr_scol:    .byte COL_FRAME, COL_SCREEN, COL_FRAME, COL_SCREEN
 s_head_a:   .byte "TRAIN  NEXT STOP", 0
 s_head_b:   .byte "PL TIME", 0
 s_arr:      .byte "ARR ", 0
@@ -295,23 +298,15 @@ txt_at: stx tmp
 :       rts
 
 ; blank: Y characters from screen offset A/X on spaces (the colours
-; stay) - on the board's rows the board's blue spaces; dp2 left there
+; stay), above the board; dp2 left there
 blank:  sty bl_n
-        ldy #32
-        cpx #>(BOARD_TOP * 40)
-        bcc @sp
-        bne :+
-        cmp #<(BOARD_TOP * 40)
-        bcc @sp
-:       ldy #32 | BG_FRAME
-@sp:    sty bl_c
         clc
         adc _scrn
         sta dp2
         txa
         adc _scrn+1
         sta dp2+1
-        lda bl_c
+        lda #32
         ldy #0
 :       sta (dp2),y
         iny
@@ -496,17 +491,20 @@ line_blank:
         sta line+40
         rts
 
-; ---- the board's two screens ------------------------------------------------
-; Rows 18-24 are two screens side by side in one grey frame (game.inc
-; COL_FRAME): row 18 its top, row 24 its foot with the LED, columns 0, 19,
-; 20 and 39 its sides. Each screen is SCR_W characters, from SCR_A and
-; SCR_B; row 19 is their head row, rows 20-23 the rest. A row's text is
-; made in line at the columns it has on the screen.
+; ---- the board: a book ----------------------------------------------------------
+; Rows 18-24 are a small book lying open (game.inc): row 18 the top edge of
+; its cover, columns 0 and 39 its sides, the fold at the left edge of
+; column 20, its lower edge the last two lines of row 24 (made by the
+; interrupt). The pages are ruled, a line under each row's text; the left
+; is SCR_W characters from SCR_A, the right from SCR_B. Row 19 is their
+; head row, rows 20-23 the rest, row 24 left empty. A row's text is made
+; in line at the columns it has on the screen.
 
-; frame_draw: the frame, and the screens blank
+; frame_draw: the book, its pages blank
 frame_draw:
         lda #0
         sta bd_s
+        sta bd_ruled
         lda #4
         sta bd_wait
         ldx #0
@@ -514,67 +512,61 @@ frame_draw:
         jsr txt_at
         jsr row_ptrs
         ldy #39
-:       lda #FR_BLOCK
+:       lda #FR_TOP
         sta (dp2),y
-        lda #COL_FRAME
+        lda #COL_COVER
         sta (wp),y
         dey
         bpl :-
         lda #FR_TL
         iny
         sta (dp2),y
+        lda #FR_TFOLD
+        ldy #20
+        sta (dp2),y
         lda #FR_TR
         ldy #39
         sta (dp2),y
-        lda #5
+        lda #BOARD_TOP
         sta fd_n
 @row:   jsr next_row
+        lda fd_n
+        jsr row_bg
+        sta fd_bg
         ldy #39
-:       lda #32 | BG_FRAME
+:       lda #32
+        ora fd_bg
         sta (dp2),y
-        lda #COL_HUD
+        lda #COL_INK
         sta (wp),y
         dey
         bpl :-
-        ldx #3
+        ldx #2
 :       ldy fr_cols,x
         lda fr_side,x
+        ora fd_bg
         sta (dp2),y
-        lda fr_scol,x
+        lda #COL_COVER
         sta (wp),y
         dex
         bpl :-
-        dec fd_n
+        inc fd_n
+        lda fd_n
+        cmp #BOARD_TOP + 6
         bne @row
-        jsr next_row
-        ldy #39
-:       lda #32
-        sta (dp2),y
-        lda #COL_FRAME
-        sta (wp),y
-        dey
-        bpl :-
-        ldy #39
-        lda #FR_BR
-        sta (dp2),y
-        lda #COL_BG
-        sta (wp),y
-        ldy #0
-        lda #FR_BL
-        sta (dp2),y
-        lda #COL_BG
-        sta (wp),y
-        ldy #38
-        lda #FR_LED
-        sta (dp2),y
-        lda #COL_LED
-        sta (wp),y
         lda #0                  ; no head row yet
         sta _msg_time
         jsr line_blank
-        lda #COL_HUD
+        lda #COL_INK
         tax
         jmp put_head
+
+; row_bg: the background bits of row A's page (game.inc BG_PAGE_*)
+row_bg: lsr a
+        lda #BG_PAGE_B
+        bcc :+
+        lda #BG_PAGE_A
+:       rts
 
 ; next_row: dp2, wp a row on
 next_row:
@@ -610,7 +602,7 @@ row_ptrs:
         sta wp+1
         rts
 
-; put_line: line on both screens, row Y, in colour A - each half at once:
+; put_line: line on both pages, row Y, in colour A - each half at once:
 ; nothing on screen is ever blank in between (a row cleared and then
 ; written shows as a flicker when the picture catches it)
 put_line:
@@ -619,28 +611,47 @@ put_line:
         ldx #SCR_A
         jsr put_half
         ldx #SCR_B
-; put_half: line's columns X on to row pl_row, the screen there, in pl_col
+; put_half: line's columns X on to row pl_row, the page there, in pl_col -
+; with the columns' rules where they are blank, if the pages have them
 put_half:
         stx ph_x
         ldy pl_row
         jsr txt_at
         jsr row_ptrs
+        lda pl_row
+        jsr row_bg
+        sta ph_bg
         ldx ph_x
         ldy #0
-:       lda line,x
+@ch:    lda line,x
+        beq @sp
+        cmp #32
+        bne @put
+@sp:    lda bd_ruled
+        beq :+
+        lda pl_row              ; (not in row 24: it would run on
+        cmp #BOARD_TOP + 5      ; through the cover under it)
+        beq :+
+        lda bp_kind,x
+        cmp #2
         bne :+
-        lda #32
-:       ora #BG_FRAME
+        lda #FR_RULE
+        ora ph_bg
+        sta (dp2),y
+        lda #COL_RULE
+        bne @col
+:       lda #32
+@put:   ora ph_bg
         sta (dp2),y
         lda pl_col
-        sta (wp),y
+@col:   sta (wp),y
         inx
         iny
         cpy #SCR_W
-        bne :--
+        bne @ch
         rts
 
-; put_head: line as the head row, the left screen in colour A, the right in
+; put_head: line as the head row, the left page in colour A, the right in
 ; X - kept, and shown if no message is over it
 put_head:
         sta hd_ca
@@ -674,8 +685,9 @@ head_show:
 
 ; ---- messages -------------------------------------------------------------------
 
-; msg: the text at A/X over the head row a few seconds, yellow and
-; blinking: up to SPLIT on the left screen, the rest on the right
+; msg: the text at A/X over the head row a few seconds, red and blinking:
+; up to SPLIT on the left page, the rest on the right (no columns' rules
+; in the row meanwhile: the text runs over them)
 msg:
 msg_:   sta rp2
         stx rp2+1
@@ -700,7 +712,7 @@ msg_at: ldy #BOARD_TOP
         bne @put
 @sp:    lda #32
 @put:   ldy ms_y
-        ora #BG_FRAME
+        ora #BG_PAGE_A          ; (row 19)
         sta (dp2),y
         lda #COL_MSG
         sta (wp),y
@@ -728,7 +740,7 @@ msg_blink:
         lda #COL_MSG
         ldx blink
         beq :+
-        lda #COL_SCREEN
+        lda #COL_PAPER
 :       ldy #SCR_W - 1
 :       sta (wp),y
         dey
@@ -971,7 +983,9 @@ board_head:
         wpat line + SCR_B
         ldax s_head_b
         jsr scat
-        lda #COL_DB_DIM
+        lda #1                  ; the list's columns ruled
+        sta bd_ruled
+        lda #COL_INK_HEAD
         tax
         jmp put_head
 
@@ -1077,7 +1091,7 @@ board_step:
         sta line + SCR_A,y
         dey
         bpl :-
-        lda #COL_HUD
+        lda #COL_INK
         sta bd_col
         ldy #TR_NV
         lda bd_v
@@ -1130,7 +1144,7 @@ board_step:
         bne :+
         ldax s_atstop
         jsr scat
-        lda #COL_GOOD
+        lda #COL_INK_GOOD
         sta bd_col
         bne @put
 :       lda bd_when             ; clock_s > when + 59?
@@ -1156,7 +1170,7 @@ board_step:
         sta hs+1
         jsr div60
         jsr num
-        lda #COL_LATE
+        lda #COL_INK_LATE
         sta bd_col
         bne @put
 @ontime:
@@ -1166,7 +1180,7 @@ board_step:
         lda #0
         tay
         sta (wp),y
-        lda #COL_DB_DIM
+        lda #COL_INK_DIM
         sta bd_col
         bne @put
 :       lda bd_t                ; on time: setting off, or on its way
@@ -1174,7 +1188,7 @@ board_step:
         bcc :+
         ldax s_departing
         jsr scat
-        lda #COL_GOOD
+        lda #COL_INK_GOOD
         sta bd_col
         bne @put
 :       ldax s_ontime
@@ -1194,12 +1208,12 @@ board_step:
         rts
 @next:  inc bd_t
         jmp @train
-@rest:  lda bd_r
-        cmp #BOARD_TOP + 5
+@rest:  lda bd_r                ; (row 24 too: the columns' rules)
+        cmp #BOARD_TOP + 6
         beq @done
         jsr line_blank
         ldy bd_r
-        lda #COL_DB_DIM
+        lda #COL_INK
         jsr put_line
         inc bd_r
         bne @rest
@@ -1207,42 +1221,43 @@ board_step:
         sta bd_busy
         rts
 
-; board_put: line as row bd_r of the board, in bd_col - as a DB board
-; shows a train: its row in the lighter blue, cut into fields by the
-; board's own between them, its number dark on white, and how late it
-; is, if it is, on white too (bp_kind). Each character with its colour,
-; the row in one go (nothing seen half written); the frame left as it is
+; board_put: line as row bd_r of the board, as a ledger has a train: its
+; number, where it goes, the platform and the time in ink - faded if it
+; is not in yet - and how it is doing in its colour, bd_col; between the
+; fields the columns' rules (bp_kind). Each character with its colour, the
+; row in one go (nothing seen half written); the book's own columns left
+; as they are
 board_put:
         ldx #0
         ldy bd_r
         jsr txt_at
         jsr row_ptrs
+        lda bd_r
+        jsr row_bg
+        sta bp_bg
         ldy #39
 @ch:    ldx bp_kind,y
         beq @next
         lda line,y
         bne :+
         lda #32
-:       dex
-        beq @white
-        dex
-        beq @gap
-        dex
-        beq @band
-        ldx bd_col              ; how late: on white
-        cpx #COL_LATE
-        bne @band
-        ldx #COL_DB_LATE
-        ora #BG_WHITE
+:       cpx #2
+        bne @text
+        cmp #32
+        bne @text
+        lda #FR_RULE
+        ldx #COL_RULE
         bne @put
-@white: ldx #COL_DB_ON
-        ora #BG_WHITE
+@text:  cpx #4
+        beq @own
+        ldx bd_col
+        cpx #COL_INK_DIM
+        beq @put
+        ldx #COL_INK
         bne @put
-@gap:   ora #BG_FRAME
-        bne @put
-@band:  ldx bd_col
-        ora #BG_BAND
-@put:   sta (dp2),y
+@own:   ldx bd_col
+@put:   ora bp_bg
+        sta (dp2),y
         txa
         sta (wp),y
 @next:  dey
@@ -1327,7 +1342,9 @@ div60:  lda #0
 ; platform and the times it is to arrive and leave; for the stops made, when
 ; it came and what that scored. The stop it is on its way to has a '>'.
 
-panel:  lda _panel_t
+panel:  lda #0                  ; (no columns: the lines run across)
+        sta bd_ruled
+        lda _panel_t
         jsr tt_record
         sta pn_rec
         stx pn_rec+1
@@ -1378,7 +1395,7 @@ panel:  lda _panel_t
         jsr numa
         ldax s_kmh
         jsr scat
-        lda #COL_HUD
+        lda #COL_INK_HEAD
         tax
         jsr put_head
         ; four stops at a time: from the one before the next on
@@ -1441,7 +1458,7 @@ panel:  lda _panel_t
         ldy #1
         lda (pn_vp),y
         sta pn_pl
-        lda #COL_DB_DIM
+        lda #COL_INK_DIM
         sta pn_col
         lda #$FF                ; at: when it came, $FFFF: not yet
         sta pn_at
@@ -1482,23 +1499,23 @@ panel:  lda _panel_t
         sta pn_pl
         lda _tt_pts,x
         sta pn_pts
-        ldy #COL_GOOD           ; 10: good, 5 on: white, else late
+        ldy #COL_INK_GOOD       ; 10: good, 5 on: ink, else late
         cmp #10
         beq :++
-        ldy #COL_HUD
+        ldy #COL_INK
         sec
         sbc #5
         bvc :+
         eor #$80
 :       bpl :+
-        ldy #COL_LATE
+        ldy #COL_INK_LATE
 :       sty pn_col
         jmp @line
 @notyet:
         lda pn_i
         cmp pn_v
         bne @line
-        lda #COL_HUD
+        lda #COL_INK
         sta pn_col
 @line:  lda pn_pl
         clc
@@ -1556,10 +1573,10 @@ panel:  lda _panel_t
         jmp @stop
 @rest:  jsr line_blank
 :       lda pn_r
-        cmp #BOARD_TOP + 5
+        cmp #BOARD_TOP + 6
         beq :+
         tay
-        lda #COL_DB_DIM
+        lda #COL_INK
         jsr put_line
         inc pn_r
         bne :-
@@ -2423,15 +2440,17 @@ level_end:
         lda #255
         sta _panel_t
         jsr trains_mark
-        lda #BOARD_TOP + 1      ; the screens: the score on the left, what
+        lda #0
+        sta bd_ruled
+        lda #BOARD_TOP + 1      ; the pages: the score on the left, what
         sta le_r                ; next on the right
 :       jsr line_blank
         ldy le_r
-        lda #COL_DB_DIM
+        lda #COL_INK
         jsr put_line
         inc le_r
         lda le_r
-        cmp #BOARD_TOP + 5
+        cmp #BOARD_TOP + 6
         bne :-
         ; pc = score <= 0 || !perfect ? 0 : score * 100 / perfect
         lda #0
@@ -2507,7 +2526,7 @@ level_end:
         sta nv+1
         jsr num
         ldy #BOARD_TOP + 1
-        lda #COL_HUD
+        lda #COL_INK
         jsr put_line
         jsr line_blank
         wpat line + SCR_A
@@ -2520,7 +2539,7 @@ level_end:
         jsr putc
         lda #BOARD_TOP + 2
         sta pl_row
-        lda #COL_HUD
+        lda #COL_INK
         sta pl_col
         ldx #SCR_A
         jsr put_half
@@ -2558,7 +2577,7 @@ level_end:
         bne :-
 :       lda #BOARD_TOP + 3
         sta pl_row
-        lda #$77
+        lda #COL_STARS
         sta pl_col
         ldx #SCR_A
         jsr put_half
@@ -2571,15 +2590,15 @@ level_end:
         wpat line + SCR_B
         ldax s_unlocked
         jsr scat
-:       lda #COL_HUD
-        ldx #COL_GOOD
+:       lda #COL_INK_HEAD
+        ldx #COL_INK_GOOD
         jsr put_head
         lda #0
         sta end_sel
         ; the end's choice: the level again, or the next; left and right
         ; choose, fire takes it
 end_choice:
-        lda #COL_HUD
+        lda #COL_INK
         sta pl_col
         jsr line_blank
         wpat line + SCR_B + 1

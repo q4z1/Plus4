@@ -72,33 +72,39 @@ COL_DIM     = $31
 COL_LATE    = $52
 COL_GOOD    = $55
 COL_PLATE   = $61               ; a station sign
-; the board, rows 19-24, is in extended colour (engine.s), after a DB
-; departure board: a character's top two bits choose its background -
-; none black, BG_WHITE a box, BG_BAND a train's row, BG_FRAME the board
-BG_WHITE    = $40
-BG_BAND     = $80
-BG_FRAME    = $C0
-COL_DB_DIM  = $6D               ; on the blue: the heads, a train not yet in
-COL_DB_ON   = $0D               ; on the white: a train's number
-COL_DB_LATE = $22               ;               how late it is
-; the board as two screens side by side, in one grey frame: row 18 its
-; top, row 24 its foot with the LED, columns 0, 19, 20 and 39 its sides.
-; The frame's grey is background 0 there (engine.s); its characters are
-; ROM codes no text uses (engine.s frame_chars)
-COL_FRAME   = $21
-COL_LED     = $55
-COL_MSG     = $77               ; a message: yellow, blinking (msg_blink)
-COL_SCREEN  = $0D               ; the screens' blue (engine.s COL_BOARD)
-FR_BLOCK    = 0
-FR_LH       = 44                ; the left half: the screen's blue on the
-                                ; frame, or the frame on the screen's blue
-FR_LED      = 46                ; (over the ROM's full stop)
-FR_TL       = 27                ; the corners
+; the board, rows 18-24, is a small open book, in extended colour
+; (engine.s): a character's top two bits choose its background. Its rows
+; take turns between two registers of the paper's colour, BG_PAGE_A rows
+; 19, 21 and 23, BG_PAGE_B 20, 22 and 24, and the interrupt turns a row's
+; register the ruling's blue for its last line, the line under its text -
+; and row 24's the cover's for its last two, the book's lower edge. No
+; bits (background 0) is the paper too, never ruled: row 18, the book's
+; top edge
+BG_PAGE_A   = $40
+BG_PAGE_B   = $80
+COL_PAPER   = $78               ; (engine.s)
+COL_RULE    = $6D               ; the ruling, the columns' rules too
+COL_COVER   = $22               ; the cover, 2 pixels round the pages, and
+                                ; the fold between them
+COL_INK     = $09               ; what is written in the book
+COL_INK_HEAD = $22              ; the heads
+COL_INK_DIM = $48               ; a train not yet in
+COL_INK_GOOD = $25              ; at its stop, setting off; a stop on time
+COL_INK_LATE = $32
+COL_MSG     = $32               ; a message: blinking (msg_blink)
+COL_STARS   = $38
+; the book's characters: ROM codes no text uses (engine.s frame_chars) -
+; its top edge, the top's corners, the edge over the fold, the sides, and
+; a rule (the columns', and the fold, in the cover's colour)
+FR_TOP      = 0
+FR_TL       = 27
 FR_TR       = 28
-FR_BL       = 29
-FR_BR       = 30
-SCR_A       = 1                 ; the screens' first columns
-SCR_B       = 21
+FR_RULE     = 29
+FR_TFOLD    = 30
+FR_LEFT     = 44
+FR_RIGHT    = 46
+SCR_A       = 1                 ; the pages' first columns: the fold is
+SCR_B       = 21                ; between columns 19 and 20
 SCR_W       = 18
 SG_LCAP     = 27                ; a sign's plate: its left end, its right
 SG_RCAP     = 28                ; (signs.s, tools/mkfont.py)

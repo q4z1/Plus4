@@ -58,7 +58,7 @@ gm_w:       .res 1
 
         .rodata
 ; the codes of the ROM's characters no text uses: ← ! " # $ & ' ( ) ; < = ?
-; (@ , [ £ ] ↑ are the board's frame, game.inc FR_*)
+; (@ , [ £ ] ↑ . are the board's book, game.inc FR_*)
 sp_codes:   .byte 31, 33, 34, 35, 36, 38, 39, 40, 41, 59, 60, 61, 63
 SP_N = * - sp_codes
 

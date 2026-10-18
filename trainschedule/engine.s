@@ -37,17 +37,17 @@ TED_BG      = $FF15
 TED_RHI     = $FF1C              ; the beam's line: bit 8
 TED_RLO     = $FF1D              ; and bits 0-7
 TED_BORDER  = $FF19
+TED_HPOS    = $FF1E             ; the beam's place in its line
 KEY_ROW     = $FD30
 
 VBL_LINE    = 251               ; lines 251-268 are not drawn at all
 BOARD_IRQ   = 18 * 8 + 4        ; the board's interrupt: row 18's first line
-COL_FRAME   = $21               ; the screens' frame: background 0 from row
-                                ; 18's fifth line on (game.inc)
-COL_BOARD   = $0D               ; the board's blue (extended colour 3),
-COL_BAND    = $3D               ; its rows' (2, in place of the grey)
+COL_PAPER   = $78               ; the book's pages: background 0 from row
+                                ; 18's fifth line on, and 1 and 2 (game.inc)
+COL_RULE    = $6D               ; the ruling (game.inc)
+COL_COVER   = $22               ; its cover (game.inc)
 COL_MC2     = $31               ; multicolour 2 above it: grey
 COL_MC1     = $55               ; multicolour 1 above it: COL_ROUTE (game.inc)
-COL_BOX     = $71               ; extended colour 1 below: the board's white
 BOARD_ROW   = 19                ; its first row (game.inc: BOARD_TOP)
 COL_BG      = $00
 TK_STRIP    = $DE00             ; the ticker's strip (game.inc)
@@ -61,6 +61,9 @@ src:        .res 2
 dst:        .res 2
 
         .data
+rl_h:       .byte 146           ; TED_HPOS from which the beam is past a
+                                ; line's picture (rule): from 120 to 180 in
+                                ; plus4emu, 100 to 170 in Yape
 ; The screen being written to: characters and colours. There are two, the
 ; second at $F000 (colours) and $F400 (characters): a new view is drawn into
 ; the one not shown, and the interrupt shows it when it is done.
@@ -76,6 +79,7 @@ _title_bg:  .res 1              ; its colours: background, multicolour 1
 _title_mc:  .res 1
 _title_split: .res 1            ; the raster line its hires part starts at
 irq_at:     .res 1              ; the next interrupt's line
+rl_i:       .res 1              ; the book's next row to rule (rl_*)
 _eng_keepirq: .res 1            ; 1: eng_blank leaves the interrupt on (the
                                 ; fast loader does not mind it)
 
@@ -230,8 +234,8 @@ show_on:
         sta $FF16               ; route in front of a train, in its cells
         lda #COL_MC2            ; multicolour 2: grey, the leg
         sta $FF17               ; of a set switch not in the route
-        lda #COL_BOARD          ; extended colour 3: the board's blue (1 its
-        sta $FF18               ; white, 2 its rows', from row 18)
+        lda #COL_BG             ; extended colour 3: the board has none
+        sta $FF18
         lda #$1B                ; text, display on, 25 rows, y scroll 3
         sta TED_SCROLLY
         rts
@@ -633,7 +637,7 @@ kirq:   lda TED_IRQ
         jmp $FCBE
 
 ; eng_romfont: screen codes 0-63 of the ROM's upper-case set into ours,
-; and over 6 of them no text has the board's frame (frame_chars)
+; and over 7 of them no text has the board's book (frame_chars)
 _eng_romfont:
         php
         sei
@@ -650,7 +654,7 @@ _eng_romfont:
         jmp frame_chars
 
         .code
-; frame_chars: the characters of the screens' frame (game.inc FR_*) -
+; frame_chars: the characters of the board's book (game.inc FR_*) -
 ; codes the ROM's characters have and no text uses
 frame_chars:
         ldx #FR_N * 8 - 1
@@ -678,17 +682,31 @@ frame_chars:
         rts
 
         .rodata
-; block, left half, the top corners, the bottom ones, the LED (over the
-; full stop, which no text has: in the middle of the foot)
-fr_code:    .byte 0, 44, 27, 28, 29, 30, 46
+; the book's (game.inc FR_*): its top edge, the top's corners, a rule (the
+; columns', the fold), the top edge over the fold, the left side, the
+; right. The cover 2 pixels wide, under 2 lines of gap at the top
+fr_code:    .byte 0, 27, 28, 29, 30, 44, 46
 FR_N = * - fr_code
-fr_bits:    .byte $00, $00, $FF, $FF, $FF, $FF, $FF, $FF    ; (2 lines gap)
-            .byte $F0, $F0, $F0, $F0, $F0, $F0, $F0, $F0
-            .byte $00, $00, $3F, $7F, $FF, $FF, $FF, $FF
-            .byte $00, $00, $FC, $FE, $FF, $FF, $FF, $FF
-            .byte $00, $00, $00, $00, $00, $00, $80, $C0    ; (in black)
-            .byte $00, $00, $00, $00, $00, $00, $01, $03
-            .byte $00, $00, $00, $18, $18, $00, $00, $00
+fr_bits:    .byte $00, $00, $FF, $FF, $00, $00, $00, $00
+            .byte $00, $00, $FF, $FF, $C0, $C0, $C0, $C0
+            .byte $00, $00, $FF, $FF, $03, $03, $03, $03
+            .byte $80, $80, $80, $80, $80, $80, $80, $80
+            .byte $00, $00, $FF, $FF, $80, $80, $80, $80
+            .byte $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0
+            .byte $03, $03, $03, $03, $03, $03, $03, $03
+
+; the book's rows 19-24 ruled (irq): each one's interrupt two lines before
+; its write, the line before the one it is for (in whose right border it is
+; written), the register and its colour, and the register of the row above
+; to put back
+rl_irq:     .byte 19 * 8 + 8, 20 * 8 + 8, 21 * 8 + 8, 22 * 8 + 8, 23 * 8 + 8
+            .byte 24 * 8 + 7
+RL_N = * - rl_irq
+rl_line:    .byte 19 * 8 + 10, 20 * 8 + 10, 21 * 8 + 10, 22 * 8 + 10, 23 * 8 + 10
+            .byte 24 * 8 + 9
+rl_reg:     .byte $16, $17, $16, $17, $16, $17
+rl_col:     .byte COL_RULE, COL_RULE, COL_RULE, COL_RULE, COL_RULE, COL_COVER
+rl_back:    .byte $17, $16, $17, $16, $17, $16
         .segment "LOWCODE"
 
 ; font_d800, in the vertical blank that brings the choice of a map up: its
@@ -891,25 +909,30 @@ irq:    pha
         bne @title
         lda irq_at              ; a band of the map's (bands_vbl)
         cmp #BOARD_IRQ
-        beq :+
-        jsr band
+        beq :++
+        bcc :+
+        jmp rule                ; (a row of the board's book)
+:       jsr band
         jmp @out
-        ; the game: the departure board in extended colour - the top two
-        ; bits of a character's code choose its background, the board's
-        ; blue among them ($FF18) - and so without multicolour. Switched in
-        ; row 18, the screens' top frame: its characters (codes below 64,
-        ; hires) look the same either way. Background 0 turns the frame's
-        ; grey there, in the row's fifth line (the beam's line counts one
-        ; ahead): the two lines over the frame stay black, a gap to the
-        ; map, and so do its round corners in the next two. The beam is on
-        ; the frame's own grey then: no snow (plus4emu)
+        ; the game: the board, a book, in extended colour - the top two
+        ; bits of a character's code choose its background, the paper of
+        ; its rows among them ($FF16, $FF17) - and so without multicolour.
+        ; Switched in row 18, the book's top edge: its characters (codes
+        ; below 64, hires) look the same either way. Background 0 turns
+        ; the paper there, in the row's fifth line (the beam's line counts
+        ; one ahead): the two lines over the cover stay black, a gap to the
+        ; map. The beam is not on the paper yet then: no snow (plus4emu)
 :       lda TED_RHI
         lsr a
-        bcs :+
+        bcs :++
         lda TED_RLO
-        cmp #18 * 8 + 4 + 4
+        cmp #18 * 8 + 4 + 3
         bcc :-
-:       lda #COL_FRAME
+        bne :++
+        lda rl_h                ; (the line before's right border)
+:       cmp TED_HPOS
+        bcs :-
+:       lda #COL_PAPER
         sta TED_BG
         lda TED_CTRL2
         and #<~$10
@@ -917,11 +940,12 @@ irq:    pha
         lda TED_SCROLLY
         ora #$40
         sta TED_SCROLLY
-        lda #COL_BAND           ; (no cell of row 18 shows them: no snow)
+        lda #COL_PAPER          ; (no cell of row 18 shows them: no snow)
         sta $FF17
-        lda #COL_BOX
         sta $FF16
-        lda #VBL_LINE
+        ldx #0
+        stx rl_i
+        lda rl_irq
         sta irq_at
         sta TED_RCMP
         jmp @out
@@ -995,12 +1019,56 @@ irq:    pha
 :       lda _mus_off
         bne @out
         jsr mus_tick
-@out:   pla
+@out:
+irq_out:
+        pla
         tay
         pla
         tax
         pla
         rti
+
+; rule: a row of the board's book ruled: its register the ruling's blue for its
+; last line, written in the right border of the line before (as above) -
+; and back to the paper in the next row's interrupt, the row below
+; on the other register meanwhile: only that write has to be on
+; time. Row 24's turns the cover's two lines earlier, the book's
+; lower edge, till the vertical blank. Too late (the interrupt kept
+; waiting): no line this picture, rather than half a line
+rule:   ldx rl_i
+        ldy rl_back,x           ; the row above's register: paper again
+        lda #COL_PAPER
+        sta $FF00,y
+        ldy rl_reg,x
+        lda rl_col,x
+        pha
+        lda rl_line,x
+        tax
+        pla
+:       cpx TED_RLO
+        beq rl_w
+        bcs :-
+        bcc :++
+rl_w:   tax
+        lda rl_h
+:       cmp TED_HPOS
+        bcs :-
+        txa
+        sta $FF00,y
+:       ldx rl_i                ; the next row's, if the beam is not past it
+rl_n:   inx
+        cpx #RL_N
+        bcs rl_v
+        lda TED_RLO
+        cmp rl_irq,x
+        bcs rl_n
+        stx rl_i
+        lda rl_irq,x
+        bne :+
+rl_v:   lda #VBL_LINE
+:       sta irq_at
+        sta TED_RCMP
+        jmp irq_out
 
 ; ---------------------------------------------------------------------------
 ; Keyboard and joysticks, straight off the matrix. The row goes to both

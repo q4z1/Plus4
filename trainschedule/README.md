@@ -192,17 +192,17 @@ in narrow lettering after DIN 1451.
 At the top the map's name on a sign of its own, the clock and the score in
 the tall digits of a split-flap board, between them the speed on the dial
 of a stopwatch (two bars for the pause), and a star before the score - all
-of it two rows high. At the bottom the board, after a DB departure board,
-on two screens side by side in one grey frame with a green LED: dark
-blue, the trains' rows in a lighter blue cut into fields, each train's
-number dark on white. The left screen has the trains and the stop each is
-on its way to, the right one its platform, when it is due there or leaves
-it, and whether it is on time; how late a train is stands out on white.
-Four trains fit; with more, the list moves on a row every two seconds and
-starts again from the top. What scored, and what to do next, blinks in
-yellow over the screens' head row for a few seconds. A train that whistles
-to set off blinks till it is under way, and the board says DEPARTING
-meanwhile.
+of it two rows high. At the bottom the board: a small book lying open, as
+a station master's would have been when the maps' lines were built - cream
+pages ruled in a pale blue, in a red cover that runs round them and down
+the fold. The left page has the trains and the stop each is on its way to,
+the right one its platform, when it is due there or leaves it, and whether
+it is on time, in columns ruled like a ledger's. It is written in dark
+brown ink; a train not yet in is faded, one at its stop green, one late
+red. Four trains fit; with more, the list moves on a row every two seconds
+and starts again from the top. What scored, and what to do next, blinks in
+red over the head row for a few seconds. A train that whistles to set off
+blinks till it is under way, and the board says DEPARTING meanwhile.
 
 ![The overview](screenshots/overview.png)
 
@@ -427,20 +427,30 @@ white above and grey below, with a line left out where the two flaps
 meet.
 
 **The board is in extended colour.** In that mode of the TED the top two
-bits of a character's code choose its background, one of four - so the
-board has its dark blue, the lighter blue of its rows and the white of its
-boxes with only the ROM's 64 characters. The map above needs all 256
-characters and multicolour, so a raster interrupt switches modes in row
-18, the frame's top, and back in the vertical blank. That row has only
-plain characters either way. The fourth background, black over the map,
-is the frame's grey below: the interrupt waits for the row's fifth line
-to set it, so the two lines over the frame (a gap to the tracks) and its
-round corners stay black, and the beam is on the frame's own grey when the
-register is written - no snow. The same interrupt sets the third
-background, the rows' blue, into the register the map's multicolour grey
-comes from: no cell of row 18 shows that colour. The frame takes six of
-the ROM's characters no text uses (a block, a half for the sides, four
-corners) and the full stop as its LED; the stations' signs keep the rest.
+bits of a character's code choose its background, one of four, with only
+the ROM's 64 characters. The map above needs all 256 characters and
+multicolour, so a raster interrupt switches modes in row 18, the book's top
+edge, and back in the vertical blank. That row has only plain characters
+either way. Its background, black over the map, turns the paper in the
+row's fifth line: the two lines over the cover stay black, a gap to the
+tracks.
+
+A cell has two colours only, its character's and its background - yet the
+pages show paper, ink and the ruling's blue. The ruling is the background
+too: the rows take turns between two registers of the paper's colour, and
+an interrupt in each row sets that row's register to the blue for its last
+line, the one under its letters, and back to the paper in the next row,
+which is on the other register meanwhile. Only the write to the blue has to
+be on time: in the right border of the line before, found by the beam's
+place in its line ($FF1E). Written as the line count turns over, it came
+three characters into the line - in plus4emu with a pixel of snow there -
+and the ruled line is one where the TED stops the CPU to fetch the next
+row's colours. Row 24's interrupt turns its register to the cover's colour
+instead, two lines before the end: the book's lower edge. Should an
+interrupt come too late, the line is left out for that picture rather than
+drawn half (once in 4000 pictures of the busiest map at x10). The cover's
+top, its sides, the fold and the columns' rules take seven of the ROM's
+characters no text uses; the stations' signs keep the rest.
 Characters in this mode cannot blink, so a message blinks by its colours.
 
 **Trains move a pixel at a time, over a map that scrolls a cell at a
@@ -470,7 +480,7 @@ can still stop before it.
 **Time.** The game counts in 50ths of a second of its own time, taken from
 the number of pictures shown, and steps all trains once per turn of its
 loop by as many as have gone by - times x1, x3 or x10. A turn mostly takes
-one picture: what costs more is spread out, the departure board written a
+one picture: what costs more is spread out, the board written a
 row a turn.
 
 **All assembly.** The game began in C and is now all assembly, as
