@@ -2369,6 +2369,8 @@ level_start:
         sta _sel_n
         lda #255
         sta _sel_sig
+        lda #1                  ; every level starts at the game's own speed
+        sta _speed_i
         jsr clock_set
         lda _map_w
         lsr a
@@ -2667,8 +2669,6 @@ _main:  lda $FF06
         jsr text_screen
 @go:    jsr disk_init
         jsr _eng_init
-        lda #1
-        sta _speed_i
         lda _test_map           ; the test build (tests/start.sh): straight
         beq @title              ; into a map, or to the choice of one
         bmi @choose
