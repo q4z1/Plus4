@@ -160,6 +160,7 @@ sp_st:      .res 1
 sp_first:   .res 1
 sp_last:    .res 1
 sp_found:   .res 1
+sp_n:       .res 1
 ev_why:     .res 1              ; event's
 ev_pts:     .res 1
 ev_late:    .res 1
@@ -574,17 +575,54 @@ stop_point:
         cmp _pl_y1,x
         beq @end
 :       inc sp_last
-@end:   lda sp_first            ; a = pos(first) + 128
-        pos
-        sta sp_a+1
-        lda #128
-        sta sp_a
-        lda sp_last             ; b = pos(last) + 128
+@end:   lda _pl_x1,x            ; n: its length in cells, less one
+        sec
+        sbc _pl_x0,x
+        bcs :+
+        eor #$FF
+        adc #1
+:       sta sp_n
+        lda _pl_y1,x
+        sec
+        sbc _pl_y0,x
+        bcs :+
+        eor #$FF
+        adc #1
+:       cmp sp_n
+        bcc :+
+        sta sp_n
+:       lda sp_last             ; b = pos(last) + 128
         pos
         sta sp_b+1
         lda #128
         sta sp_b
-        lda sp_a                ; a = (a + b) / 2 + r_len / 2
+        lda sp_first
+        cmp _r_head,x
+        bne @ends
+        ; its front on the platform already: the cells behind the front are
+        ; not all in the ring (the tail's are gone, or outside the map at a
+        ; portal), so the middle from the far end: a = b - n * 128
+        lda sp_n
+        lsr a
+        sta ml_r+1
+        lda #0
+        ror a
+        sta ml_r
+        lda sp_b
+        sec
+        sbc ml_r
+        sta sp_a
+        lda sp_b+1
+        sbc ml_r+1
+        sta sp_a+1
+        jcc @set                ; (behind the tail's entry: long past it)
+        bcs @half
+@ends:  lda sp_first            ; a = pos(first) + 128
+        pos
+        sta sp_a+1
+        lda #128
+        sta sp_a
+        lda sp_a                ; a = (a + b) / 2
         clc
         adc sp_b
         sta sp_a
@@ -593,7 +631,7 @@ stop_point:
         ror a
         sta sp_a+1
         ror sp_a
-        ldx s2
+@half:  ldx s2                  ; a += r_len / 2
         lda _r_len+1,x
         lsr a
         sta ml_r+1
@@ -1306,8 +1344,24 @@ hide_ahead:
         lda (ma),y
         and #$77
         cmp #COL_ROUTE
-        beq :+
-        rts
+        jne @rts
+        ldx s                   ; its front in a signal's cell: ahead is a
+        lda _r_head,x           ; route set on from there, not the way in
+        and #RING - 1
+        tay
+        lda (rap),y
+        clc
+        adc #4
+        and #7
+        pha
+        lda (rxp),y
+        tax
+        lda (ryp),y
+        tay
+        pla
+        jsr signal_at
+        cmp #255
+        jne @rts
 :       jsr head_under
         ldx s
         lda #1
