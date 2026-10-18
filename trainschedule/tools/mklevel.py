@@ -24,6 +24,8 @@ A level in the program (all numbers little-endian, all text screen codes,
   portals:  n, then each: x y
   stations: n, then each: label-x label-y name platforms,
             then each platform: number x0 y0 x1 y1
+  asides:   n, then each: x y way - a cell whose north and south are
+            drawn a pixel aside close up, 1 left, 2 right (asides)
   trains:   n, then each: number (6 characters) type km/h cars visits,
             then each visit: station platform arrival(2) departure(2),
             times in seconds from the start minute
@@ -148,6 +150,10 @@ def level(path):
         b += [x, y] + scr(name) + [0, len(plats)]
         for p in plats:
             b += list(p)
+    side = asides(tracks, w, h)
+    b.append(len(side))
+    for (x, y), v in sorted(side.items()):
+        b += [x, y, v]
     b.append(len(trains))
     for number, typ, kmh, cars, vs in trains:
         num = scr(number)[:6]                 # game.inc: TR_NUM_N
@@ -165,6 +171,58 @@ def level(path):
     summary = {"name": listed, "about": meta["about"], "music": meta["music"],
                "facts": f"{len(stations)} STATIONS  {len(trains)} TRAINS  {span}"}
     return b, summary
+
+
+def asides(tracks, w, h):
+    """Close up, a set switch's north or south beside a diagonal leg goes a
+    pixel aside, into the other column of characters (map.s, path_split):
+    beside north-east or south-east to the left (1), north-west or
+    south-west to the right (2). So that a track up and down stays one
+    straight line, the whole of it goes with it, end to end: each run of
+    cells joined north to south takes its first switch's way (another's the
+    other way: from that one on, a jog). A switch whose north and south
+    would go opposite ways is left to path_split. {(x, y): way}"""
+    bits = {}
+    for pts in tracks:
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+            dx, dy = (x1 > x0) - (x1 < x0), (y1 > y0) - (y1 < y0)
+            d = STEP.index((dx, dy))
+            x, y = x0, y0
+            while (x, y) != (x1, y1):
+                bits[(x, y)] = bits.get((x, y), 0) | 1 << d
+                x, y = x + dx, y + dy
+                bits[(x, y)] = bits.get((x, y), 0) | 1 << (d + 4) % 8
+    N, NE, NW, S, SW, SE = 4, 2, 8, 64, 32, 128
+    out = {}
+    for x in range(w):
+        run, way = [], 0
+        for y in range(h + 1):
+            b = bits.get((x, y), 0)
+            if run and not b & N:               # the run above ends
+                out.update((c, way) for c in run if way)
+                run, way = [], 0
+            if not b & (N | S):
+                continue
+            want = 0
+            if bin(b).count("1") > 2:
+                if b & N:
+                    want |= 1 if b & NE else 2 if b & NW else 0
+                if b & S:
+                    want |= 2 if b & SW else 1 if b & SE else 0
+            if want == 3:                       # both ways: path_split's
+                out.update((c, way) for c in run if way)
+                run, way = [], 0
+                continue
+            if want and way and want != way:    # a jog
+                out.update((c, way) for c in run)
+                run = []
+            if want:
+                way = want
+            run.append((x, y))
+            if not b & S:
+                out.update((c, way) for c in run if way)
+                run, way = [], 0
+    return out
 
 
 # ---- the pixel tables -----------------------------------------------------

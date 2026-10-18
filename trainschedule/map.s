@@ -36,6 +36,7 @@
         .export bd_t, bd_irq, bd_late, bd_r, bd_vs, bd_pubf
         .export cu_bands, cb_next, cb_vact, cb_ng
         .export code_kind, code_mc, cf_m, cf_d, cf_mc, cs_o, cr_a, cr_b, bitv
+        .export cf_v, code_vs
         .export pl_b
         .exportzp mc, ma, mo, lp, fp
 
@@ -118,6 +119,12 @@ cellbuf:    .res 64             ; a cell's pixels being made (the quarters
 cf_m:       .res 1              ; code_for's bits and decoration
 cf_d:       .res 1
 cf_mc:      .res 1              ; and code_kind's multicolour
+cf_v:       .res 1              ; and its north and south aside (code_vs),
+                                ; path_kind's too
+g_v:        .res 1              ; grey_of's: a byte of the glyph, it a
+g_l:        .res 1              ; pixel to the left and to the right
+g_r:        .res 1
+g_t:        .res 1
 cs_o:       .res 2              ; cell_screen's offset, 0: not in view
 cs_x:       .res 1
 cr_a:       .res 1              ; cell_route's ways in and out
@@ -226,6 +233,13 @@ _code_path: .res 256
 ; them without the mark, which stand in for them when the marks blink.
         .segment "XBSS"         ; (filled as a level loads)
 code_mc:    .res 256
+; close up, a kind's north and south a pixel aside (strip2v): 0 not, 1 to
+; the left, 2 to the right. A track up and down keeps to one column of
+; characters where a diagonal leg of a switch has the other (path_split),
+; and the whole of it with it, from end to end: one straight line, grey or
+; in a route's colour (tools/mklevel.py, asides). By kind: in code_mc's
+; end, which no kind has (it is cleared with it)
+code_vs = code_mc + 256 - (C_LAST + 1 - C_FIRST) - C_FIRST
         .segment "BANDS"        ; (pl_v filled as a level loads)
 pl_vt:      .res C_LAST + 1 - C_FIRST ; a platform's kind: its kind for a
 pl_bt:      .res C_LAST + 1 - C_FIRST ; route in the overview (pl_var), back
@@ -298,8 +312,9 @@ forks:  sta fk
 
 ; ---- the kinds of cell ----------------------------------------------------
 
-; code_for: the kind of cell with bits cf_m and decoration cf_d, made if
-; there is none yet (A). Out of kinds, the plain track has to do.
+; code_for: the kind of cell with bits cf_m and decoration cf_d, north
+; and south aside by cf_v, made if there is none yet (A). Out of kinds, the
+; plain track has to do.
 code_for:
         lda #0
         sta cf_mc
@@ -317,6 +332,7 @@ code_kind:
         rts
 :       lda cf_d
         ora cf_mc
+        ora cf_v
         bne @deco
         ldx cf_m
         lda plain,x
@@ -337,6 +353,9 @@ code_kind:
         lda code_mc,x
         cmp cf_mc
         bne @no
+        lda code_vs,x
+        cmp cf_v
+        bne @no
         txa
         rts
 @no:    inx
@@ -345,10 +364,12 @@ code_kind:
         cpx #C_LAST + 1
         bcc @make
         lda cf_d                ; none left: the plain track, or nothing
+        ora cf_v
         beq @space
         lda #0
         sta cf_d
         sta cf_mc
+        sta cf_v
         beq code_kind
 @space: lda #32
         rts
@@ -361,11 +382,14 @@ code_kind:
         sta _code_path,x
         lda cf_mc
         sta code_mc,x
+        lda cf_v
+        sta code_vs,x
         stx mk_c
         jsr make
         ldx mk_c
         lda cf_d
         ora cf_mc
+        ora cf_v
         bne :+
         ldy cf_m
         txa
@@ -373,8 +397,8 @@ code_kind:
 :       txa
         rts
 
-; path_kind: the kind of a switch with bits pk_m set the way pk_a - pk_b
-; (made if need be), in A
+; path_kind: the kind of a switch with bits pk_m set the way pk_a - pk_b,
+; north and south aside by cf_v (made if need be), in A
 path_kind:
         lda pk_a
         cmp pk_b
@@ -400,6 +424,9 @@ path_kind:
         lda _code_path,x
         cmp pk_p
         bne @no
+        lda code_vs,x
+        cmp cf_v
+        bne @no
         txa
         rts
 @no:    inx
@@ -418,6 +445,8 @@ path_kind:
         sta _code_path,x
         lda #0
         sta code_mc,x
+        lda cf_v
+        sta code_vs,x
         stx mk_c
         jsr make
         lda mk_c
@@ -517,8 +546,18 @@ make:   ldx #0                  ; the tables of the size now
         lda mk_mask
         and bitv,x
         beq :+
+        jsr vs_ix               ; north or south aside?
+        bcs @vs
         txa
         jsr orbuf
+        jmp :+
+@vs:    lda #<_strip2v
+        sta tb
+        lda #>_strip2v
+        sta tb+1
+        tya
+        jsr orbuf
+        settb t_strip
 :       inc mk_d
         lda mk_d
         cmp #8
@@ -857,6 +896,30 @@ orbuf:  ldx mk_sh
         bpl :-
         rts
 
+; vs_ix: half track X of kind mk_c being made: close up, north or south
+; aside (code_vs)? Then C set and Y its entry in strip2v, else C clear.
+; Keeps X.
+vs_ix:  lda mk_n
+        cmp #32
+        bne @no
+        cpx #2
+        beq :+
+        cpx #6
+        bne @no
+:       ldy mk_c
+        lda code_vs,y
+        beq @no
+        cpx #2                  ; north: 0, 1; south: 2, 3
+        beq :+
+        adc #0                  ; (C set by cpx: + 1)
+        .byte $2C               ; (bit abs: skips the sbc)
+:       sbc #1                  ; (C set by cpx)
+        tay
+        sec
+        rts
+@no:    clc
+        rts
+
 ; path_split: a set switch (kind mk_c, bits mk_mask), hires, in cellbuf:
 ; its way in the cell's own colour, the other legs grey. A hires character
 ; has one colour, but the TED can fetch a character row's colours again
@@ -893,7 +956,9 @@ path_split:
         bne :+
         lda #32
         sta mk_dst
-:       lda mk_n
+:       jsr vs_ix               ; close up, the kind's north and south
+        bcs @v                  ; aside (level_load, aside)
+        lda mk_n
         cmp #32
         bne @plain
         ; close up, north or south a pixel aside, clear of a diagonal leg
@@ -1170,7 +1235,10 @@ fontp:  ldx #0
 
 ; grey_of: character A's glyph (at fp) as a cell of a train shows it
 ; where the train is not: multicolour, its track grey (%10) - for
-; eng_tcell, in _grey (engine.s)
+; eng_tcell, in _grey (engine.s). A pair with a pixel set is grey, but for
+; one with only one, next to a pair with both or (its right pixel) where
+; the line goes on into the next pair: a diagonal two or three pixels
+; wide, two in multicolour, a pair a line - not four, in steps
 grey_of:
         ldx #0
         stx gp+1
@@ -1187,13 +1255,38 @@ grey_of:
         adc #>_grey
         sta gp+1
         ldy #7
-:       lda (fp),y
-        tax
+@b:     lda (fp),y
+        sta g_v
+        asl a
+        sta g_l                 ; v << 1
+        lda g_v
+        lsr a
+        sta g_r                 ; v >> 1
+        and g_v                 ; the pairs with both, a bit to the
+        and #$55                ; left: beside them a left pixel alone
+        lsr a                   ; goes
+        sta g_t
+        lda g_l
+        eor #$FF
+        and g_v
+        and g_t
+        sta g_t
+        lda g_r                 ; a right pixel alone, the next pair's
+        eor #$FF                ; left one set: goes
+        and g_v
+        and g_l
+        and #$55
+        asl a
+        ora g_t
+        eor #$FF
+        sta g_t
+        ldx g_v
         lda _mc_of,x
         and #$AA
+        and g_t
         sta (gp),y
         dey
-        bpl :-
+        bpl @b
         rts
 
 ; q4p: qp = the quarters of kind A
@@ -2077,6 +2170,25 @@ level_load:
         jmp @station
 
 @trains:
+        ; the cells whose north and south go aside, for the kind each
+        ; becomes (in MAP_CODE until then)
+        jsr next
+        sta ll_n
+@aside: lda ll_n
+        beq @asides
+        dec ll_n
+        jsr next
+        pha
+        jsr next
+        tay
+        pla
+        tax
+        jsr cellp
+        jsr next
+        ldy #0
+        sta (mc),y
+        beq @aside              ; (always: ldy)
+@asides:
         jsr next
         sta _lv_ntrains
         lda lp
@@ -2114,7 +2226,12 @@ level_load:
         lda (ma),y
         ora #DECO_END
         sta (ma),y
-:       lda (ma),y
+:       lda (mc),y              ; (aside: its north and south, 1 or
+        cmp #3                  ; 2 - else the space still)
+        bcc :+
+        lda #0
+:       sta cf_v
+        lda (ma),y
         sta cf_d
         sta ll_m
         jsr code_for
@@ -2153,6 +2270,8 @@ level_load:
         cmp ll_m
         jeq @kinds
         tax
+        lda code_vs,x
+        sta cf_v
         lda _code_deco,x
         sta ll_n
         lda _code_mask,x
@@ -2359,6 +2478,8 @@ pl_var:
         tax
 @self:  rts
 @make:  stx pl_k
+        lda code_vs,x
+        sta cf_v
         lda _code_mask,x
         sta cf_m
         lda _code_deco,x
@@ -2950,6 +3071,8 @@ cm_look:
         beq @kind
         lda #1                  ; a set switch no more: the bands afresh
         sta bd_dirty
+        lda code_vs,x
+        sta cf_v
         lda _code_mask,x
         sta cf_m
         lda _code_deco,x
@@ -2970,6 +3093,8 @@ cm_look:
         beq :+
         dey
 :       sty cf_mc               ; free: 1, a route or a train: 0
+        lda code_vs,x
+        sta cf_v
         lda _code_mask,x
         sta cf_m
         jsr code_kind
@@ -3042,6 +3167,8 @@ cell_route:
 @fork:  ldy #0
         lda #OCC_ROUTE
         sta (mo),y
+        lda code_vs,x
+        sta cf_v
         lda _code_path,x
         cmp #255
         beq :+

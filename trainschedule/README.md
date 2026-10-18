@@ -378,7 +378,11 @@ it. So the TED is made to fetch a character row's colours a second time,
 after its sixth line: the raster interrupt sets the vertical scroll so
 that this line counts as a row's first, with the second colour written in
 for it, and puts both back. The legs going up have one colour, the track
-across the other, the legs going down the row below. In the overview a
+across the other, the legs going down the row below. A track up and down
+beside a diagonal leg goes a pixel to the side, into the column of
+characters the leg leaves free - and with it the whole of that track, end
+to end, so that it stays one straight line, grey or green (worked out by
+`tools/mklevel.py` as the map is built). In the overview a
 cell is one character, and there is time for one fetch a row only, rows
 of switches lying one under the other: it comes after the third line,
 a leg going up grey above it, or green with the track across from there
@@ -486,7 +490,10 @@ map, and then what they left behind goes back to the map's characters. So
 a train is never off the screen for a moment, nor shown half moved on, and
 it runs smoothly over switches and diagonals however the view lies. Close
 up, the cars show: at every whole car's length behind the head a step of
-the band is left out, and the grey track shows through the gap.
+the band is left out, and the grey track shows through the gap. Those
+characters are multicolour, so what else lies in them - the leg of a
+switch it passes - is two pixels a step: a diagonal three pixels wide
+becomes two, a pair a line, rather than four (map.s, `grey_of`).
 
 **A train knows its cells.** It keeps a ring of the cells it is on and the
 cells of the routes it has taken, each with the way in and the way out.

@@ -26,6 +26,7 @@
         .import level_load, code_kind, code_mc, view_draw, view_cell, set_zoom
         .import bands_make, bd_dirty, cu_bands, _eng_below
         .import cell_screen, view_set, cellp, cf_m, cf_d, cf_mc, cs_o
+        .import cf_v, code_vs
         .importzp mc, mo, lp
         .import _map_w, _map_h, _code_mask, _code_deco, _zoom
         .import _view_x, _view_y, _view_sx, _view_sy, _view_cw, _view_ch
@@ -1726,6 +1727,8 @@ unmarked:
         ldy #0
         lda (mc),y
         tax
+        lda code_vs,x
+        sta cf_v
         lda _code_mask,x
         sta cf_m
         lda code_mc,x           ; in the mode it is in
