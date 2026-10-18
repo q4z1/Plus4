@@ -1024,8 +1024,11 @@ path_split:
 ; cellbuf, the other legs at 32. q_deco (mk_qo): bit 0 drawn grey, bit 1
 ; a band (engine.s: one more fetch of the row's colours, in line 2), bit
 ; 2 multicolour from there, bit 3 the cell multicolour (drawn so).
-; - Only a leg going up not in the way: lines 0-2 grey, the band the
-;   cell's colour (q 3).
+; - Only a leg going up not in the way (its root in line 3 goes with the
+;   way): from line 3 on hires in the cell's colour, a diagonal there as
+;   fine as elsewhere; lines 0-2 grey (q 3) - or, with the way going up
+;   too, multicolour, the way %11, the leg %10 (q 10: the cell multicolour,
+;   the band hires).
 ; - More not in the way below line 3 (half the track across, a leg going
 ;   down): lines 3-7 multicolour, the way %11, the rest grey %10 - along
 ;   the track across as fine as hires. With a leg going up, it hires in
@@ -1034,9 +1037,8 @@ path_split:
 ;   in the right colour. (One fetch a row: no time for a second with rows
 ;   of switches one under the other.)
 ov_regions:
-        lda cellbuf+32+3        ; anything not in the way below line 3?
-        ora cellbuf+32+4
-        ora cellbuf+32+5
+        lda cellbuf+32+4        ; anything not in the way below line 4?
+        ora cellbuf+32+5        ; (in 3 only: legs going up, their roots)
         ora cellbuf+32+6
         ora cellbuf+32+7
         bne @mc
@@ -1044,12 +1046,28 @@ ov_regions:
         ora cellbuf+33
         ora cellbuf+34
         beq @merge              ; no other leg going up
+        ldy #3
         lda cellbuf
         ora cellbuf+1
         ora cellbuf+2
-        bne @merge              ; (the way goes up)
-        lda #3
+        beq @q                  ; (the way does not go up: grey there)
+        lda #10
         sta mk_qo
+        ldy #2                  ; lines 0-2 multicolour
+:       ldx cellbuf,y
+        lda _mc_of,x
+        sta mk_t
+        ldx cellbuf+32,y
+        lda _mc_of,x
+        and #$AA
+        ora mk_t
+        sta cellbuf,y
+        lda #0
+        sta cellbuf+32,y
+        dey
+        bpl :-
+        bmi @merge
+@q:     sty mk_qo
 @merge: ldy #7
 :       lda cellbuf+32,y
         ora cellbuf,y
@@ -1059,20 +1077,7 @@ ov_regions:
         dey
         bpl :-
         rts
-@mc:    ldy mk_c                ; north or south aside, in the way: at the
-        ldx code_vs,y           ; junction a pixel wider, to the middle -
-        beq @mq                 ; over the grey root of a leg beside it
-        lda ps_w
-        and #$04
-        beq :+
-        ldy #3
-        jsr widen
-:       lda ps_w
-        and #$40
-        beq @mq
-        ldy #4
-        jsr widen
-@mq:    lda #8                  ; no leg going up: the cell multicolour
+@mc:    lda #8                  ; no leg going up: the cell multicolour
         sta mk_qo
         lda cellbuf
         ora cellbuf+1
@@ -1105,18 +1110,6 @@ ov_regions:
         sta cellbuf+32,y
         dey
         bpl @l
-        rts
-
-; widen: line Y of cellbuf a pixel wider, to the middle, for a track aside
-; by X (1 left, 2 right)
-widen:  lda cellbuf,y
-        cpx #2
-        bne :+
-        asl a
-        .byte $24               ; (bit zp: skips the lsr)
-:       lsr a
-        ora cellbuf,y
-        sta cellbuf,y
         rts
 
 ; regions: close up, the six parts of a set switch's cell that each have a
@@ -1513,13 +1506,17 @@ bands_make:
 @ov:    stx bm_ch               ; the overview: the cell's character
         lda _q_deco,x           ; grey or its colour above line 3, the
         and #2                  ; cell's from there - multicolour for
-        beq @back               ; q_deco bit 2 (ov_regions)
+        beq @back               ; q_deco bits 3, 2 (ov_regions)
         lda _q_deco,x
         lsr a
         lda bm_col
         bcc :+
         lda #COL_TRACK
 :       sta bm_a
+        lda _q_deco,x           ; (bit 3: multicolour before it)
+        and #8
+        ora bm_a
+        sta bm_a
         lda _q_deco,x
         and #4
         beq :+

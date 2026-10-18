@@ -389,11 +389,14 @@ on such a track goes aside with it, its middle on the track's. In the
 overview the same tracks go a pixel aside, for the same pair, and a
 platform's number stands beside such a track rather than in it. In the overview a
 cell is one character, and there is time for one fetch a row only, rows
-of switches lying one under the other: it comes after the third line,
-a leg going up grey above it, or green with the track across from there
-multicolour - the way in the route's green, the rest grey, as fine as
-hires along a straight line. A switch with a leg going down is
-multicolour as a whole, that leg a little coarser in its three lines.
+of switches lying one under the other: it comes after the third line.
+A leg going up that is not in the way is grey above it, or multicolour
+there where the way goes up too, and from there on the cell is hires in
+the route's green - a diagonal way as fine as anywhere else. Where more
+than that is grey below - half the track across, a leg going down - the
+lines from there on are multicolour: the way in the route's green, the
+rest grey, as fine as hires along a straight line, a grey leg going down
+a little coarser in its three lines.
 And as a platform's edge and number share their character with the
 track there, a platform's cell in a route is multicolour too, the track
 green and the edge grey. The TED holds the CPU in the
