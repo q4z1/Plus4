@@ -506,8 +506,10 @@ becomes two, a pair a line, rather than four (map.s, `grey_of`).
 **A train knows its cells.** It keeps a ring of the cells it is on and the
 cells of the routes it has taken, each with the way in and the way out.
 Where to stop is worked out from the ring: before the next red signal, or
-with its middle at the middle of the platform of its next stop. It brakes
-when its braking distance (a table) reaches that point. A route taken back
+with its middle at the middle of the platform of its next stop. A train too
+long for that, its front past where the signal at the platform's end stops
+it, stops at the signal - at its platform, so not fined for a red signal. It
+brakes when its braking distance (a table) reaches that point. A route taken back
 is cut off the ring at its signal's cell - if that table says the train
 can still stop before it.
 
@@ -613,9 +615,9 @@ train.s) sets routes the way a player would, for the tests: only to the
 platform in the timetable (another may lead nowhere the train has to go
 on to), and a route on from a stop not until shortly before the train may
 leave (sooner, it would hold up the trains the timetable has come first).
-It plays Riesa to 113 of 120 points, Alessandria to 296 of 300 and Smiths
-Falls to 544 of 560, every stop on time: proof that the timetables can be
-kept.
+It plays every map to its full score - Riesa 120, Alessandria 300, Smiths
+Falls 560 - every stop on time and no train held at a red signal: proof
+that the timetables can be kept to the last point.
 
 `tests/trace.py` plays a map from start to end with the game's time
 counted, not waited for (`_dbg_n`), so that a run comes out the same every

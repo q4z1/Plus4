@@ -663,7 +663,7 @@ stop_point:
         cmp sp_target
         lda sp_a+1
         sbc sp_target+1
-        bcs @set
+        bcs @long
         lda sp_a
         clc
         adc #8
@@ -680,12 +680,21 @@ stop_point:
         sta sp_target
         lda sp_a+1
         sta sp_target+1
+        jmp @set
+        ; a train too long for its platform's middle, its front past where
+        ; the signal at the end stops it: stopped there, it is at the
+        ; platform all the same, not held at a red signal
+@long:  lda #2
+        sta sp_found
 @set:   ldx s
         lda sp_found
         sta _r_platahead,x
         lda #0                  ; the stop a red signal?
         ldy _r_exit,x
         bne @sig
+        ldy sp_found
+        cpy #2
+        beq @sig
         ldy sp_target
         cpy sp_sig
         bne @sig
