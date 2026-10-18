@@ -605,7 +605,11 @@ choose_map:
         lda #0
         sta _ptr_on
         jsr catalogue
-        jsr music
+        lda _eng_mode           ; from the game (the screen off now): the
+        bne :+                  ; choice's mode before it is drawn - else
+        lda #2                  ; its rows from 19 on are the board's
+        sta _eng_mode           ; (eng_text), the ticker's characters
+:       jsr music
         lda _tk_on
         bne :+
         jsr _tk_start
