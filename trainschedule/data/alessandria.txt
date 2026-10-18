@@ -1,13 +1,14 @@
-# Alessandria: the industrial triangle of the north - Turin, Milan, Genoa - and
-# the stations between and beyond. Alessandria is the junction in the
-# middle: the line from Turin comes in at its west end, the lines to Milan
-# and to Genoa leave at its east end, and a chord past it (Tortona's, in
-# reality) takes trains from Genoa to Milan without it. Only its middle
-# platform reaches both lines. Turin, Genoa and Monza are where the trains
-# come from and go to; Milan is a through station, Monza a stop on the line
-# north to Switzerland. Nine trains, thirty stops; some turn round.
+# Alessandria: Turin, Genoa and Milan in 1867, the year the line from Pavia
+# to Voghera joined Milan to the line from Turin to Genoa (1853). Alessandria
+# is the junction in the middle: the line from Turin comes in at its west
+# end, the lines to Milan and to Genoa leave at its east end, and a chord
+# past it (Novi Ligure-Tortona, 1858) takes trains from Genoa to Milan
+# without it. Only its middle platform reaches both lines. Turin, Genoa and
+# Monza are where the trains come from and go to; Milan is a through
+# station, Monza a stop on the line north to Switzerland. Nine trains,
+# thirty stops; some turn round.
 name ALESSANDRIA
-about INDUSTRIAL TRIANGLE OF NORTH ITALY
+about TURIN-GENOA-MILAN, ITALY 1867
 level MEDIUM
 music barbiere                  # Rossini, Il barbiere di Siviglia (data/music.txt)
 size 40 16

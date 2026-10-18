@@ -40,14 +40,18 @@ bitrich. If you like this, play the real one.
 
 ![Riesa, three trains at its platforms](screenshots/riesa.png)
 
-### Alessandria - medium
+### Alessandria, 1867 - medium
 
-The **industrial triangle** of northern Italy: Turin in the west, Genoa on
-the coast in the south, Milan in the east and Monza just north of it, each
-about where it is on a map, and **Alessandria** in the middle, where the
-line from Turin meets the lines to Genoa and to Milan. Nine trains from
-07:00, thirty stops, intercity and regional trains and a commuter train
-between Monza and Milan.
+What would become the **industrial triangle** of northern Italy, in the
+year it was joined up: Turin in the west, Genoa on the coast in the south,
+Milan in the east and Monza just north of it, each about where it is on a
+map, and **Alessandria** in the middle, where the line from Turin meets the
+lines to Genoa and to Milan. Turin had reached Genoa through Alessandria
+in 1853; on 14 November 1867 the line from Pavia to Voghera opened, the
+last piece between Milan and Genoa. Nine trains from 07:00, thirty stops,
+intercity and regional trains and a commuter train between Monza and
+Milan. The lines and the station names are history; the track layout and
+the timetable are a game's.
 
 What makes it harder than Riesa:
 
@@ -57,7 +61,7 @@ What makes it harder than Riesa:
   and only platform 2 reaches both. A train put on the wrong one cannot
   go on the way it has to.
 - **The chord.** East of Alessandria a line joins the Genoa line to the
-  Milan line (in reality the line through Tortona), so a train from Genoa
+  Milan line (in reality Novi Ligure-Tortona, 1858), so a train from Genoa
   can run to Milan without Alessandria - and holds both lines as it does.
 - **Single track.** Between the stations there is one track: trains meet
   only in the stations, and one sent out too soon blocks the one it meets.
