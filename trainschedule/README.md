@@ -40,6 +40,30 @@ bitrich. If you like this, play the real one.
 
 ![Riesa, three trains at its platforms](screenshots/riesa.png)
 
+### Yokohama, 1872 - easy
+
+**Japan's first railway**, from Shimbashi in Tokyo along the bay to
+Yokohama, opened on 14 October 1872 - built by British engineers, with
+engines and carriages from England. In its first years it was a single
+track, 29 km, nine trains each way a day, 53 minutes; it was doubled in
+1881. Shimbashi in the north-east and Yokohama in the south-west have two
+platforms each, Shinagawa and Kawasaki on the way two to pass in (the
+halts at Tsurumi and Kanagawa are left out). Six trains from 08:00,
+twenty-four stops; the down trains to Yokohama have odd numbers, the up
+trains to Tokyo even ones, as Japan's railways number them to this day.
+The line and the station names are history; the track layout and the
+timetable are a game's.
+
+What makes it harder than Riesa:
+
+- **Four stations, two to pass in.** Trains coming the other way meet at
+  Shinagawa or at Kawasaki, and at each one waits for the other.
+- **Single track.** A train may have a route on to the next station only
+  once the one coming the other way has come in - set it too soon and
+  both stand. Six trains, and the next one is always on its way.
+
+![Yokohama in the overview, two trains passing at Kawasaki](screenshots/yokohama.png)
+
 ### Alessandria, 1867 - medium
 
 What would become the **industrial triangle** of northern Italy, in the
@@ -53,7 +77,7 @@ intercity and regional trains and a commuter train between Monza and
 Milan. The lines and the station names are history; the track layout and
 the timetable are a game's.
 
-What makes it harder than Riesa:
+What makes it harder than Riesa and Yokohama:
 
 - **The junction.** At Alessandria the line from Turin comes in at the
   west end, and the lines to Milan and to Genoa leave at the east end - but
@@ -120,8 +144,9 @@ runs along the foot of the screen - what the game is, how it is played,
 its controls - and on through the choice of a map without a break: each
 map with how hard it is, a line about it and what it has - stations,
 trains, the timetable's hours. Each map has its own music: Riesa plays
-Zeuner's Rail Road Waltz, Alessandria the Allegro of Rossini's overture
-to *Il barbiere di Siviglia*, Smiths Falls N.S. Smith's *C.P.R. Lancers*.
+Zeuner's Rail Road Waltz, Yokohama the Railway Song, *Tetsudo Shoka*,
+Alessandria the Allegro of Rossini's overture to *Il barbiere di
+Siviglia*, Smiths Falls N.S. Smith's *C.P.R. Lancers*.
 A train coming to a stand at its platform squeals on its brakes and lets
 off steam; one leaving whistles and puffs away.
 `F1` turns the music off, and on again, wherever the game is; with the
@@ -278,7 +303,7 @@ all of them open.
 
     tests/start.sh [MAP|choose] [locked|open] [yape|vice|plus4emu]
 
-`tests/start.sh 2 open` is Alessandria at once, in Yape. In VS Code the
+`tests/start.sh 2 open` is Yokohama at once, in Yape. In VS Code the
 same is "Train Schedule: Testumgebung (Yape)" or "(VICE)" under F5, which
 asks where to and how the locks are.
 
@@ -546,7 +571,14 @@ map brings its own, as loud as the march. Riesa plays Charles Zeuner's *Rail Roa
 Waltz* "for the piano forte" (Boston: Oliver Ditson, 1835, from the scan
 the Library of Congress keeps): the waltz without its trio, as its repeats
 go - A A B A B A, 48 bars - with an oom-pah-pah from his left hand's
-chords. Alessandria plays the Allegro con brio of Gioachino Rossini's
+chords. Yokohama plays Ono Umewaka's *Tetsudo Shoka*, the Railway Song
+(1900, words by Owada Takeki), whose first verse sets off from Shimbashi
+and which all Japan sang for twenty years (the notes from the score in
+[Japanese Wikipedia](https://ja.wikipedia.org/wiki/%E9%89%84%E9%81%93%E5%94%B1%E6%AD%8C)):
+16 bars in 2/4, a crotchet = 107, dotted as it is sung - its last four
+bars to start, then the verse twice, under it first an oom-pah, then a
+second voice a third below, as a school class sang it in two parts.
+Alessandria plays the Allegro con brio of Gioachino Rossini's
 overture to *Il barbiere di Siviglia* (1816), a crotchet = 150: the first
 theme in E minor with the cellos' answer, a run down onto D, and the
 crescendo in G major to its cadence, which leads into the theme again as
@@ -619,8 +651,8 @@ train.s) sets routes the way a player would, for the tests: only to the
 platform in the timetable (another may lead nowhere the train has to go
 on to), and a route on from a stop not until shortly before the train may
 leave (sooner, it would hold up the trains the timetable has come first).
-It plays every map to its full score - Riesa 120, Alessandria 300, Smiths
-Falls 560 - every stop on time and no train held at a red signal: proof
+It plays every map to its full score - Riesa 120, Yokohama 240,
+Alessandria 300, Smiths Falls 560 - every stop on time and no train held at a red signal: proof
 that the timetables can be kept to the last point.
 
 `tests/trace.py` plays a map from start to end with the game's time

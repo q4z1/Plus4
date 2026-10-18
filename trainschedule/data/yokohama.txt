@@ -1,0 +1,77 @@
+# Yokohama: Japan's first railway, from Shimbashi in Tokyo along the bay to
+# Yokohama, opened on 14 October 1872 - built by British engineers, its
+# engines and carriages from England. In its first year a single track, 29
+# km, nine trains each way a day, 53 minutes: they met in the stations on
+# the way. Shimbashi and Yokohama with two platforms each, Shinagawa and
+# Kawasaki with two to pass; Tsurumi and Kanagawa, halts, left out. Six
+# trains, twenty-four stops. Down trains to Yokohama odd, up trains to
+# Tokyo even, as Japan's railways number them to this day.
+name YOKOHAMA
+about SHIMBASHI-YOKOHAMA, JAPAN 1872
+level EASY
+music shoka                     # Ono Umewaka, Tetsudo Shoka (data/music.txt)
+size 40 15
+
+# Shimbashi, two platforms, and the line down to Shinagawa
+track 39,1 33,1 32,2
+track 39,2 32,2
+track 32,2 30,4
+
+# Shinagawa: its platform 2 the loop to pass in
+track 30,4 21,4
+track 30,4 29,5 23,5 22,4
+
+# across the Tama to Kawasaki
+track 21,4 19,6 19,8 18,9
+
+# Kawasaki, its platform 2 the loop
+track 18,9 9,9
+track 18,9 17,10 11,10 10,9
+
+# past Tsurumi and Kanagawa to Yokohama, two platforms
+track 9,9 8,10 8,12 7,13
+track 0,13 7,13
+track 0,14 6,14 7,13
+
+signal 34,1 W
+signal 34,2 W
+signal 24,4 W
+signal 24,5 W
+signal 28,4 E
+signal 28,5 E
+signal 12,9 W
+signal 12,10 W
+signal 16,9 E
+signal 16,10 E
+signal 5,13 E
+signal 5,14 E
+portal 39,1
+portal 39,2
+portal 0,13
+portal 0,14
+
+station 1 31,0 SHIMBASHI
+platform 1 1 34,1 39,1
+platform 1 2 34,2 39,2
+station 2 22,3 SHINAGAWA
+platform 2 1 24,4 28,4
+platform 2 2 24,5 28,5
+station 3 11,8 KAWASAKI
+platform 3 1 12,9 16,9
+platform 3 2 12,10 16,10
+station 4 0,12 YOKOHAMA
+platform 4 1 0,13 5,13
+platform 4 2 0,14 5,14
+
+start 08:00
+# A single track: trains meet only at Shinagawa and Kawasaki. What makes it
+# harder than Riesa: four stations, two of them to pass in, six trains, and
+# a train for the next stretch may have a route only once the one coming
+# the other way has come in. At Shinagawa and Kawasaki down trains take
+# platform 1, up trains 2.
+train NO 1 R 80 5 : 1/2 08:01 08:02, 2/1 08:04 08:05, 3/1 08:07 08:08, 4/1 08:10 08:11
+train NO 2 R 80 5 : 4/2 08:03 08:04, 3/2 08:06 08:08, 2/2 08:10 08:11, 1/1 08:13 08:14
+train NO 3 R 80 5 : 1/2 08:06 08:07, 2/1 08:09 08:11, 3/1 08:13 08:14, 4/1 08:16 08:17
+train NO 4 R 80 5 : 4/2 08:10 08:11, 3/2 08:13 08:14, 2/2 08:16 08:17, 1/1 08:19 08:20
+train NO 5 R 80 5 : 1/2 08:13 08:14, 2/1 08:16 08:17, 3/1 08:19 08:20, 4/1 08:22 08:23
+train NO 6 R 80 5 : 4/2 08:16 08:17, 3/2 08:19 08:20, 2/2 08:22 08:23, 1/1 08:25 08:26

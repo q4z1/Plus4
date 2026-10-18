@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The README's pictures, made anew in plus4emu from the disk: the title,
 the choice of a map, its page of help, Riesa with trains at its platforms, a train's
-timetable, the overview, the end of a level, and then Alessandria and
-Smiths Falls in the overview. The autopilot plays (as the tests do). Writes screenshots/*.png; run from trainschedule/.
+timetable, the overview, the end of a level, and then Yokohama,
+Alessandria and Smiths Falls in the overview, each played to its end, so
+that it opens the next. The autopilot plays (as the tests do). Writes screenshots/*.png; run from trainschedule/.
 """
 import os
 import sys
@@ -89,7 +90,31 @@ def main():
         wait(lambda: p.peek('ended') == 1, 300)
         p.run_for(1)
         shot('done.png')
-        # OTHER MAP, the second, Alessandria: the overview, Milan busy
+        # OTHER MAP, the second, Yokohama (the choice has it chosen): the
+        # overview, trains passing at Shinagawa and Kawasaki
+        p.set('dbg_keys', 8)
+        p.run_for(0.2)
+        p.set('dbg_keys', 0)
+        p.run_for(0.2)
+        fire()
+        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        p.run_for(1.5)
+        fire()
+        wait(lambda: p.peek('ptr_on') == 1)
+        p.set('autopilot_on', 1)
+        p.set('speed_i', 3)
+        wait(lambda: clock() >= 13 * 60 + 30, 200)
+        p.set('speed_i', 1)
+        if p.peek('zoom') != 1:                  # (it stays as it was)
+            p.poke(p.lab['hits2'], [1])          # Z: the overview
+        wait(lambda: clock() >= 13 * 60 + 40, 60)
+        p.run_for(0.5)
+        shot('yokohama.png')
+        # to its end (a star opens the third), OTHER MAP, Alessandria: the
+        # overview, Milan busy
+        p.set('speed_i', 3)
+        wait(lambda: p.peek('ended') == 1, 300)
+        p.run_for(1)
         p.set('dbg_keys', 8)
         p.run_for(0.2)
         p.set('dbg_keys', 0)
@@ -103,11 +128,12 @@ def main():
         p.set('speed_i', 3)
         wait(lambda: clock() >= 7 * 60 + 30, 200)
         p.set('speed_i', 1)
-        p.poke(p.lab['hits2'], [1])              # Z: the overview
+        if p.peek('zoom') != 1:                  # (it stays as it was)
+            p.poke(p.lab['hits2'], [1])          # Z: the overview
         wait(lambda: clock() >= 7 * 60 + 40, 60)
         p.run_for(0.5)
         shot('alessandria.png')
-        # to its end (a star opens the third), OTHER MAP, Smiths Falls (the
+        # to its end (a star opens the fourth), OTHER MAP, Smiths Falls (the
         # choice has it chosen): the overview, Smiths Falls busy
         p.set('speed_i', 3)
         wait(lambda: p.peek('ended') == 1, 300)

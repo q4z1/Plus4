@@ -20,7 +20,7 @@ mkdir -p build/gen build/disk
 # (a map's song where the game keeps it: game.inc's SONG_BUF)
 SONG_BUF=$(sed -n 's/^SONG_BUF *= *\$\([0-9A-Fa-f]*\).*/\1/p' game.inc)
 python3 tools/mklevel.py build/gen/data.s build/disk data/music.txt $SONG_BUF \
-    data/riesa.txt data/alessandria.txt data/smithsfalls.txt
+    data/riesa.txt data/yokohama.txt data/alessandria.txt data/smithsfalls.txt
 python3 tools/mkpicture.py data/start.png build/disk --up 2 --hires-from 7 --blank-from 16
 python3 tools/mkfont.py build/gen/font.s
 python3 tools/mkhelp.py data/help.txt build/gen/help.s

@@ -103,6 +103,45 @@ v1 @A D5:36 C#5:9 D5 | @B A4:36 F#4:9 G4 | @A D5:36 F#4:9 G4
 v2 @A @A @B @A @B @A
 
 
+; ---- Yokohama -------------------------------------------------------------
+; Ono Umewaka, Tetsudo Shoka, the Railway Song (1900, words by Owada
+; Takeki), whose first verse sets off from Shimbashi - 16 bars in 2/4, a
+; crotchet 28 pictures (107 a minute), dotted as it is sung.
+; Its last four bars to start, then the verse twice: under the tune an
+; oom-pah, the bass on the beat and a note of the chord after it; the second
+; time a second voice a third below, as a school class sang it in two parts.
+; The tune an octave above the singers'.
+
+song shoka
+volume 6
+
+pattern V1                      ; the verse, with the oom-pah
+v1 G5:21 G5:7 G5:21 A5:7 | B5:21 B5:7 B5:21 A5:7 | G5:21 G5:7 G5:21 E5:7 | D5:42 r:14
+v1 E5:21 E5:7 D5:21 E5:7 | G5:21 G5:7 B5:21 B5:7 | A5:21 A5:7 G5:21 A5:7 | B5:42 r:14
+v1 D6:21 D6:7 D6:21 D6:7 | D6:21 D6:7 E6:21 D6:7 | B5:21 G5:7 A5:21 B5:7 | A5:42 r:14
+v1 G5:21 A5:7 B5:21 B5:7 | A5:21 A5:7 D6:21 D6:7 | B5:21 B5:7 A5:21 A5:7 | G5:42 r:14
+v2 G3:14 B3:14. D3:14 B3:14. | G3:14 B3:14. D3:14 B3:14. | C3:14 G3:14. G3:14 E4:14. | D3:14 A3:14. A2:14 F#3:14.
+v2 C3:14 G3:14. G3:14 E4:14. | G3:14 B3:14. D3:14 B3:14. | D3:14 A3:14. A2:14 F#3:14. | G3:14 B3:14. D3:14 B3:14.
+v2 G3:14 B3:14. D3:14 B3:14. | G3:14 B3:14. D3:14 C4:14. | G3:14 B3:14. D3:14 B3:14. | D3:14 A3:14. A2:14 F#3:14.
+v2 G3:14 B3:14. D3:14 B3:14. | D3:14 A3:14. A2:14 F#3:14. | G3:14 B3:14. D3:14 A3:14. | G3:14 B3:14. G3:28.
+
+pattern V2                      ; the verse, in two parts
+v1 G5:21 G5:7 G5:21 A5:7 | B5:21 B5:7 B5:21 A5:7 | G5:21 G5:7 G5:21 E5:7 | D5:42 r:14
+v1 E5:21 E5:7 D5:21 E5:7 | G5:21 G5:7 B5:21 B5:7 | A5:21 A5:7 G5:21 A5:7 | B5:42 r:14
+v1 D6:21 D6:7 D6:21 D6:7 | D6:21 D6:7 E6:21 D6:7 | B5:21 G5:7 A5:21 B5:7 | A5:42 r:14
+v1 G5:21 A5:7 B5:21 B5:7 | A5:21 A5:7 D6:21 D6:7 | B5:21 B5:7 A5:21 A5:7 | G5:42 r:14
+v2 E5:21 E5:7 E5:21 F#5:7 | G5:21 G5:7 G5:21 F#5:7 | E5:21 E5:7 E5:21 C5:7 | B4:42 r:14
+v2 C5:21 C5:7 B4:21 C5:7 | E5:21 E5:7 G5:21 G5:7 | F#5:21 F#5:7 E5:21 F#5:7 | G5:42 r:14
+v2 B5:21 B5:7 B5:21 B5:7 | B5:21 B5:7 C6:21 B5:7 | G5:21 E5:7 F#5:21 G5:7 | F#5:42 r:14
+v2 E5:21 F#5:7 G5:21 G5:7 | F#5:21 F#5:7 B5:21 B5:7 | G5:21 G5:7 F#5:21 F#5:7 | B4:42 r:14
+
+main                            ; bars 13-16 to start, then round
+v1 G5:21 A5:7 B5:21 B5:7 | A5:21 A5:7 D6:21 D6:7 | B5:21 B5:7 A5:21 A5:7 | G5:42 r:14
+v1 @V1 @V2
+v2 G3:14 B3:14. D3:14 B3:14. | D3:14 A3:14. A2:14 F#3:14. | G3:14 B3:14. D3:14 A3:14. | G3:14 B3:14. G3:28.
+v2 @V1 @V2
+
+
 ; ---- Alessandria ----------------------------------------------------------
 ; Gioachino Rossini, Il barbiere di Siviglia (1816), the overture's Allegro
 ; con brio, a crotchet 150 (a semiquaver 5 pictures): the first theme in E
