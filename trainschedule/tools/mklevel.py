@@ -180,8 +180,13 @@ def asides(tracks, w, h):
     south-west to the right (2). So that a track up and down stays one
     straight line, the whole of it goes with it, end to end: each run of
     cells joined north to south takes its first switch's way (another's the
-    other way: from that one on, a jog). A switch whose north and south
-    would go opposite ways is left to path_split. {(x, y): way}"""
+    other way: from that one on, a jog). A run without one goes to the left
+    too: in one column of characters, a pair in multicolour - a signal's
+    or the end of the line's cell, a train's - two pixels wide, not four;
+    and a platform's edge and number have the right one to themselves,
+    grey when the track is green. The overview's go aside with them, to be
+    a pair in multicolour too. A switch whose north and south would go
+    opposite ways is left to path_split. {(x, y): way}"""
     bits = {}
     for pts in tracks:
         for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
@@ -199,7 +204,7 @@ def asides(tracks, w, h):
         for y in range(h + 1):
             b = bits.get((x, y), 0)
             if run and not b & N:               # the run above ends
-                out.update((c, way) for c in run if way)
+                out.update((c, way or 1) for c in run)
                 run, way = [], 0
             if not b & (N | S):
                 continue
@@ -210,7 +215,7 @@ def asides(tracks, w, h):
                 if b & S:
                     want |= 2 if b & SW else 1 if b & SE else 0
             if want == 3:                       # both ways: path_split's
-                out.update((c, way) for c in run if way)
+                out.update((c, way or 1) for c in run)
                 run, way = [], 0
                 continue
             if want and way and want != way:    # a jog
@@ -220,7 +225,7 @@ def asides(tracks, w, h):
                 way = want
             run.append((x, y))
             if not b & S:
-                out.update((c, way) for c in run if way)
+                out.update((c, way or 1) for c in run)
                 run, way = [], 0
     return out
 
@@ -269,6 +274,10 @@ def tables():
     out = {}
     out["strip"] = [glyph(p for p in ALL if half(d, *p, False) is not None)
                     for d in range(8)]
+    # north and south a pixel to the left and to the right (as strip2v):
+    # in a pair of multicolour pixels, two wide, not four (map.s, asides)
+    out["stripv"] = [glyph((x + dx, y) for x, y in ALL if half(d, x, y, False) is not None)
+                     for d in (2, 6) for dx in (-1, 1)]
     out["tk_edge"] = [[glyph(p for p in ALL if (s := half(d, *p, True)) is not None
                              and s >= 4 - k) for k in range(5)] for d in range(8)]
     lamp = []

@@ -1296,13 +1296,16 @@ krow:   sta KEY_ROW
 ; list (dl_..., at dl_n) notes where on screen it is to be (offset tc_o +
 ; 0, 1, 40, 41), what, and which map cell and quarter - it is not shown
 ; yet: train.s shows a train's characters all at once.
+; Close up, where the cell's north and south go a pixel aside (tc_vs, map.s
+; code_vs), the band along them goes with them, its middle on the track's:
+; those halves made first, with their gaps, and moved, then the others.
 ; ===========================================================================
 
         .export _eng_tcell
         .export _tc_a, _tc_ae, _tc_am, _tc_b, _tc_be, _tc_bm
-        .export _tc_o, _tc_col, _tc_x, _tc_y, _tc_base, _tc_lead
+        .export _tc_o, _tc_col, _tc_x, _tc_y, _tc_base, _tc_lead, _tc_vs
         .export _tz_q, _tz_n1, _tz_sh, _tz_edge, _eng_tzsetup, _grey
-        .import grey_of
+        .import grey_of, g_any
         .importzp fp
         .export _fl, _fl_n, _dl_n, _dl_lim, _tc_nc, _tc_cp, _tc_short
         .export _dl_lo, _dl_hi, _dl_code, _dl_x, _dl_y, _dl_q
@@ -1321,6 +1324,9 @@ _tc_y:      .res 1
 _tc_base:   .res 4
 _tc_lead:   .res 1              ; the cell of its front, a route's: the
                                 ; track in front of it green (%01)
+_tc_vs:     .res 1              ; its north and south aside: 1 left, 2 right
+bp_f:       .res 1              ; the halves being made: 0 all, 1 north and
+                                ; south (to be moved aside), 2 the others
 _tz_q:      .res 1              ; characters a cell: 1 or 4
 _tz_n1:     .res 1              ; steps of a half + 1: 5 or 9
 _tz_sh:     .res 1              ; table entry size as a shift: 3 or 5
@@ -1461,6 +1467,8 @@ _eng_tzsetup:
         ; as they are made)
         lda #0
         sta ts_d
+        lda #1                  ; (text: as mc_of)
+        sta g_any
 @g:     lda ts_d
         jsr font_at
         stx fp
@@ -1471,12 +1479,22 @@ _eng_tzsetup:
         lda ts_d
         cmp #C_FIRST
         bne @g
+        lda #0
+        sta g_any
         rts
 
 qbit:   .byte 1, 2, 4, 8
 
 _eng_tcell:
-        lda _tc_lead            ; the cell of its front: what lies in front
+        lda #0
+        sta bp_f
+        lda _tz_q               ; close up, aside: north and south first
+        cmp #4
+        bne :+
+        lda _tc_vs
+        beq :+
+        inc bp_f
+:       lda _tc_lead            ; the cell of its front: what lies in front
         beq :+                  ; of it, in aband
         jsr lead
         ; the band: the half it comes in by, the half it goes out by, less
@@ -1484,13 +1502,23 @@ _eng_tcell:
 :       ldx _tc_a
         lda _tc_ae
         ldy _tc_am
-        jsr half
+        jsr hf
         ldx _tc_b
         lda _tc_be
         ldy _tc_bm
-        jsr half
+        jsr hf
+        lda _tc_nc              ; (cuts uses them up)
+        pha
         jsr cuts
-        ldx _tc_a               ; the characters it may touch
+        pla
+        ldx bp_f
+        cpx #1
+        bne :+
+        sta _tc_nc
+        jsr vmove               ; north and south aside; then the others
+        inc bp_f
+        bne :-
+:       ldx _tc_a               ; the characters it may touch
         lda ix_q,x
         ldx _tc_b
         ora ix_q,x
@@ -1647,7 +1675,23 @@ clear:  lda ix_end,x
 ; the half it goes out by, from the middle as far as the train is not
 ; (tc_bm), or all of it and the half it comes in by from the edge as far as
 ; the train is not (tc_ae). cband 0 again.
-lead:   ldx _tz_n1
+lead:   jsr ld_h
+        lda bp_f
+        beq @move
+        jsr vmove               ; aside: north and south moved, then the
+        inc bp_f                ; others
+        jsr ld_h
+        dec bp_f
+@move:  ldy #31
+:       lda cband,y
+        sta aband,y
+        lda #0
+        sta cband,y
+        dey
+        bpl :-
+        rts
+
+ld_h:   ldx _tz_n1
         dex
         stx ld_n                ; N
         lda _tc_bm
@@ -1657,26 +1701,62 @@ lead:   ldx _tz_n1
         sbc _tc_bm
         ldx _tc_b
         ldy ld_n
-        jsr half
-        jmp @move
+        jmp hf
 @both:  ldx _tc_b
         lda ld_n
         ldy ld_n
-        jsr half
+        jsr hf
         lda ld_n
         sec
         sbc _tc_ae
         tay
         ldx _tc_a
         lda ld_n
-        jsr half
-@move:  ldy #31
-:       lda cband,y
-        sta aband,y
-        lda #0
-        sta cband,y
-        dey
-        bpl :-
+        jmp hf
+
+; hf: half, if its direction X is one being made now (bp_f)
+hf:     pha
+        txa
+        jsr bp_skip
+        pla
+        bcc half
+        rts
+
+; bp_skip: C set if direction A is not one being made now (bp_f)
+bp_skip:
+        and #3
+        cmp #2
+        beq @ns
+        lda bp_f
+        cmp #1
+        beq @yes
+@no:    clc
+        rts
+@ns:    lda bp_f
+        cmp #2
+        bne @no
+@yes:   sec
+        rts
+
+; vmove: cband a pixel to the left (tc_vs 1) or to the right (2): the
+; halves north and south in it, as the track there (map.s, strip2v)
+vmove:  ldx #7
+        lda _tc_vs
+        cmp #2
+        beq @r
+@l:     asl cband+8,x
+        rol cband,x
+        asl cband+24,x
+        rol cband+16,x
+        dex
+        bpl @l
+        rts
+@r:     lsr cband,x
+        ror cband+8,x
+        lsr cband+16,x
+        ror cband+24,x
+        dex
+        bpl @r
         rts
 
 ; half: into cband, the band in a half track in direction X, from the edge
@@ -1752,6 +1832,9 @@ cuts3:  eor #$FF                ; the half it goes out by: (255 - p) / 16
         sta ce
         lda _tc_b
 cuts4:  sta cd
+        jsr bp_skip             ; (aside: only the halves being made)
+        bcs cuts8
+        lda cd
         and #3
         cmp #2
         beq cuts5
@@ -1800,7 +1883,7 @@ cuts7:  ldy ix_tab,x
         inx
         cpx h_end
         bne cuts7
-        lda _tc_nc
+cuts8:  lda _tc_nc
         jne cuts2
 cuts9:  rts
 

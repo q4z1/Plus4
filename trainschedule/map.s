@@ -36,7 +36,7 @@
         .export bd_t, bd_irq, bd_late, bd_r, bd_vs, bd_pubf
         .export cu_bands, cb_next, cb_vact, cb_ng
         .export code_kind, code_mc, cf_m, cf_d, cf_mc, cs_o, cr_a, cr_b, bitv
-        .export cf_v, code_vs
+        .export cf_v, code_vs, g_any
         .export pl_b
         .exportzp mc, ma, mo, lp, fp
 
@@ -45,7 +45,7 @@
         .import _scrn, _colr, _tz_q, _tz_n1, _tz_sh, _tz_edge, _eng_tzsetup
         .import _grey
         .import glyphs_make, _sg_top, _sg_bot, _sg_col, sign_of
-        .import _strip, _lamp, _bar, _gate, _digit, _mc_of, _tk_edge
+        .import _strip, _lamp, _bar, _gate, _digit, _mc_of, _tk_edge, _stripv
         .import _strip2, _lamp2, _bar2, _gate2, _tk2_edge, _strip2v, pd_n
         .import _cu_n, cu_olo, cu_ohi, cu_under, cu_ucol, cu_band, _frames
 
@@ -121,10 +121,11 @@ cf_d:       .res 1
 cf_mc:      .res 1              ; and code_kind's multicolour
 cf_v:       .res 1              ; and its north and south aside (code_vs),
                                 ; path_kind's too
-g_v:        .res 1              ; grey_of's: a byte of the glyph, it a
+g_v:        .res 1              ; thin's: a byte of the glyph, it a
 g_l:        .res 1              ; pixel to the left and to the right
 g_r:        .res 1
 g_t:        .res 1
+g_any:      .res 1              ; not 0: thin as mc_of (text, a number)
 cs_o:       .res 2              ; cell_screen's offset, 0: not in view
 cs_x:       .res 1
 cr_a:       .res 1              ; cell_route's ways in and out
@@ -156,6 +157,7 @@ t_strip:    .res 2              ; the glyph tables of the size now (make)
 t_lamp:     .res 2
 t_bar:      .res 2
 t_gate:     .res 2
+t_stripv:   .res 2
 px_b:       .res 1
 px_o:       .res 1
 ps_a:       .res 1
@@ -233,11 +235,12 @@ _code_path: .res 256
 ; them without the mark, which stand in for them when the marks blink.
         .segment "XBSS"         ; (filled as a level loads)
 code_mc:    .res 256
-; close up, a kind's north and south a pixel aside (strip2v): 0 not, 1 to
+; a kind's north and south a pixel aside (strip2v, stripv): 0 not, 1 to
 ; the left, 2 to the right. A track up and down keeps to one column of
 ; characters where a diagonal leg of a switch has the other (path_split),
 ; and the whole of it with it, from end to end: one straight line, grey or
-; in a route's colour (tools/mklevel.py, asides). By kind: in code_mc's
+; in a route's colour; any other track up and down to the left, a pair in
+; multicolour - in the overview too (tools/mklevel.py, asides). By kind: in code_mc's
 ; end, which no kind has (it is cleared with it)
 code_vs = code_mc + 256 - (C_LAST + 1 - C_FIRST) - C_FIRST
         .segment "BANDS"        ; (pl_v filled as a level loads)
@@ -263,11 +266,13 @@ _scr_row:   .repeat 25, R       ; screen offset of each row
             .word R * 40
             .endrepeat
 ; the glyph tables, overview and close up: strips, lamps, bars, gates
-mk_tabs:    .word _strip, _lamp, _bar, _gate
-            .word _strip2, _lamp2, _bar2, _gate2
+mk_tabs:    .word _strip, _lamp, _bar, _gate, _stripv
+            .word _strip2, _lamp2, _bar2, _gate2, _strip2v
 ; where a platform's number goes close up, by the axis of its track: on
 ; the side of its edge, clear of the track (and of a train on it)
 num_x:      .byte 10, 10, 10, 2       ; (even: its pixels two wide in pairs)
+nm_m:       .byte $C1, $F0, $0F         ; the overview's: in the track, beside
+nm_s:       .byte 3, 5, 0               ; it up and down (right, left)
 num_y:      .byte 10, 9, 1, 9
 ; a set switch's parts close up (regions): first byte, last + 1, the
 ; horizontal leg in it (its bit)
@@ -494,7 +499,7 @@ make:   ldx #0                  ; the tables of the size now
         lda _zoom
         cmp #1
         beq :+
-        ldx #8
+        ldx #10
         ldy #32
         lda #5
         sta mk_sh
@@ -504,13 +509,15 @@ make:   ldx #0                  ; the tables of the size now
         sta t_strip,y
         inx
         iny
-        cpy #8
+        cpy #10
         bne :-
         ldx mk_c
         lda _code_mask,x
         sta mk_mask
         lda _code_deco,x
         sta mk_deco
+        and #DECO_NUMBER        ; (a number's strokes, a pixel wide in the
+        sta g_any               ; overview: as they are)
         lda #0
         sta mk_dst
         sta mk_qg
@@ -551,10 +558,7 @@ make:   ldx #0                  ; the tables of the size now
         txa
         jsr orbuf
         jmp :+
-@vs:    lda #<_strip2v
-        sta tb
-        lda #>_strip2v
-        sta tb+1
+@vs:    settb t_stripv
         tya
         jsr orbuf
         settb t_strip
@@ -603,33 +607,53 @@ make:   ldx #0                  ; the tables of the size now
         jsr orbuf
 :       lda mk_deco
         and #DECO_NUMBER
-        beq @done
+        jeq @done
         lda _zoom
         cmp #1
-        bne @num2
+        jne @num2
         ; the platform's number in the middle of the cell, the track making
-        ; room for it
+        ; room for it - up and down, beside the track instead, on the side
+        ; it is not aside to (its edge's, as close up)
+        ldy #0                  ; (nm_m, nm_s: what stays, the digit's
+        lda mk_d                ; place)
+        and #3
+        cmp #2
+        bne @nm
+        iny                     ; up and down: right of the track
+        ldx mk_c
+        lda code_vs,x
+        cmp #2
+        bne @nm
+        iny                     ; (it to the right: left of it)
+@nm:    lda nm_m,y
+        sta mk_nx
+        lda nm_s,y
+        sta mk_ny
         jsr num5
         ldy #6
         lda mk_m2               ; (the track at 32 for a route's kind)
         bne @nr2
 :       lda cellbuf,y
-        and #$C1
+        and mk_nx
         sta cellbuf,y
         dey
         bpl :-
         bmi @nr
 @nr2:   lda cellbuf+32,y
-        and #$C1
+        and mk_nx
         sta cellbuf+32,y
         dey
         bpl @nr2
 @nr:
         ldy #0
 :       lda _digit,x
-        lsr a
-        lsr a
-        lsr a
+        sty mk_q
+        ldy mk_ny
+        beq @sh0
+@sh:    lsr a
+        dey
+        bne @sh
+@sh0:   ldy mk_q
         ora cellbuf+1,y
         sta cellbuf+1,y
         inx
@@ -896,13 +920,9 @@ orbuf:  ldx mk_sh
         bpl :-
         rts
 
-; vs_ix: half track X of kind mk_c being made: close up, north or south
-; aside (code_vs)? Then C set and Y its entry in strip2v, else C clear.
-; Keeps X.
-vs_ix:  lda mk_n
-        cmp #32
-        bne @no
-        cpx #2
+; vs_ix: half track X of kind mk_c being made: north or south aside
+; (code_vs)? Then C set and Y its entry in t_stripv, else C clear. Keeps X.
+vs_ix:  cpx #2
         beq :+
         cpx #6
         bne @no
@@ -984,10 +1004,7 @@ path_split:
         lda mk_mask
         and #$80                ; south-east: to the left
         beq @plain
-@v:     lda #<_strip2v
-        sta tb
-        lda #>_strip2v
-        sta tb+1
+@v:     settb t_stripv
         tya
         jmp @or
 @plain: txa
@@ -1042,7 +1059,20 @@ ov_regions:
         dey
         bpl :-
         rts
-@mc:    lda #8                  ; no leg going up: the cell multicolour
+@mc:    ldy mk_c                ; north or south aside, in the way: at the
+        ldx code_vs,y           ; junction a pixel wider, to the middle -
+        beq @mq                 ; over the grey root of a leg beside it
+        lda ps_w
+        and #$04
+        beq :+
+        ldy #3
+        jsr widen
+:       lda ps_w
+        and #$40
+        beq @mq
+        ldy #4
+        jsr widen
+@mq:    lda #8                  ; no leg going up: the cell multicolour
         sta mk_qo
         lda cellbuf
         ora cellbuf+1
@@ -1075,6 +1105,18 @@ ov_regions:
         sta cellbuf+32,y
         dey
         bpl @l
+        rts
+
+; widen: line Y of cellbuf a pixel wider, to the middle, for a track aside
+; by X (1 left, 2 right)
+widen:  lda cellbuf,y
+        cpx #2
+        bne :+
+        asl a
+        .byte $24               ; (bit zp: skips the lsr)
+:       lsr a
+        ora cellbuf,y
+        sta cellbuf,y
         rts
 
 ; regions: close up, the six parts of a set switch's cell that each have a
@@ -1234,11 +1276,8 @@ fontp:  ldx #0
         rts
 
 ; grey_of: character A's glyph (at fp) as a cell of a train shows it
-; where the train is not: multicolour, its track grey (%10) - for
-; eng_tcell, in _grey (engine.s). A pair with a pixel set is grey, but for
-; one with only one, next to a pair with both or (its right pixel) where
-; the line goes on into the next pair: a diagonal two or three pixels
-; wide, two in multicolour, a pair a line - not four, in steps
+; where the train is not: multicolour, its track grey (%10, thin) - for
+; eng_tcell, in _grey (engine.s)
 grey_of:
         ldx #0
         stx gp+1
@@ -1255,8 +1294,26 @@ grey_of:
         adc #>_grey
         sta gp+1
         ldy #7
-@b:     lda (fp),y
-        sta g_v
+:       lda (fp),y
+        jsr thin
+        sta (gp),y
+        dey
+        bpl :-
+        rts
+
+; thin: hires byte A as multicolour, a pair with a pixel set %10 - but for
+; one with only one, next to a pair with both or (its right pixel) where
+; the line goes on into the next pair: a diagonal two or three pixels
+; wide, two in multicolour, a pair a line - not four, in steps. Text and
+; numbers (g_any) as mc_of. Keeps Y.
+thin:   sta g_v
+        ldx g_any
+        beq :+
+        tax
+        lda _mc_of,x
+        and #$AA
+        rts
+:       lda g_v
         asl a
         sta g_l                 ; v << 1
         lda g_v
@@ -1284,9 +1341,6 @@ grey_of:
         lda _mc_of,x
         and #$AA
         and g_t
-        sta (gp),y
-        dey
-        bpl @b
         rts
 
 ; q4p: qp = the quarters of kind A

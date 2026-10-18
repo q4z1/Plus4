@@ -382,7 +382,12 @@ across the other, the legs going down the row below. A track up and down
 beside a diagonal leg goes a pixel to the side, into the column of
 characters the leg leaves free - and with it the whole of that track, end
 to end, so that it stays one straight line, grey or green (worked out by
-`tools/mklevel.py` as the map is built). In the overview a
+`tools/mklevel.py` as the map is built). Any other track up and down goes
+a pixel to the left: in one column, it is two pixels wide in multicolour
+too, and a platform's edge and number beside it keep their grey. A train
+on such a track goes aside with it, its middle on the track's. In the
+overview the same tracks go a pixel aside, for the same pair, and a
+platform's number stands beside such a track rather than in it. In the overview a
 cell is one character, and there is time for one fetch a row only, rows
 of switches lying one under the other: it comes after the third line,
 a leg going up grey above it, or green with the track across from there

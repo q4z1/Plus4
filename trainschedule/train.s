@@ -35,7 +35,7 @@
         .export ev_why, ev_pts, ev_late, ev_wrong, ev_st, ev_rec
 
         .import cellp, cell_mark, cell_route, cell_under, cr_a, cr_b, bitv
-        .import vc_keep, code_mc, pl_b, ov_col
+        .import vc_keep, code_mc, pl_b, ov_col, code_vs
         .importzp mc, ma, mo
         .import signal_at, platform_at, route_find, route_free
         .import route_passes, route_from, route_set, rp_st, rp_pl
@@ -48,7 +48,7 @@
         .import _view_x, _view_y, _view_sx, _view_sy, _view_cw, _view_ch
         .import _scr_row
         .import _eng_tcell, _tc_a, _tc_ae, _tc_am, _tc_b, _tc_be, _tc_bm
-        .import _tc_col, _tc_x, _tc_y, _tc_o, _tc_base, _tc_nc, _tc_cp
+        .import _tc_col, _tc_x, _tc_y, _tc_o, _tc_base, _tc_nc, _tc_cp, _tc_vs
         .import _tc_lead
         .import _fl, _fl_n, _dl_n, _dl_lim, _tc_short
         .import _pool_end
@@ -3020,7 +3020,11 @@ trains_draw:
         lda pl_b,x
 @tbase: sta _tc_base
         jmp @draw
-:       sec                     ; its quarters
+:       tax                     ; its north and south aside
+        lda code_vs,x
+        sta _tc_vs
+        txa
+        sec                     ; its quarters
         sbc #C_FIRST
         ldx #0
         stx tq+1
