@@ -54,6 +54,8 @@ Faster: pause, x1, x3, x10
 :  [FIRE]+[RIGHT] [+]
 Slower
 :  [FIRE]+[LEFT]  [-]
+Leave the map (it asks first)
+:  [FIRE]+[LEFT] AT PAUSE  [L]
 Music off and on
 :  [LEFT] [RIGHT] IN THE MAPS  [F1]
 At the end: again, or another map

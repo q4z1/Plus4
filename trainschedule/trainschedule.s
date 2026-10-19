@@ -16,15 +16,20 @@
 
         .macpack longbranch
         .include "game.inc"
-        .import zerobss
+        .import zerobss, __TOPBSS_RUN__, __TOPBSS_SIZE__
 
 ; The start, where the program's BASIC line SYSes to: not cc65's, no C
-; here - the ROM out, the variables cleared. The interrupt stays the boot
-; program's (boot.s) till eng_init.
+; here - the ROM out, the variables cleared (those under the ROM too). The
+; interrupt stays the boot program's (boot.s) till eng_init.
         .segment "STARTUP"
         cld
         sta $FF3F
         jsr zerobss
+        lda #0
+        ldx #<__TOPBSS_SIZE__
+:       sta __TOPBSS_RUN__ - 1,x
+        dex
+        bne :-
         jmp _main
 
         .export _main, _clock_s, score_event, _loops
@@ -45,7 +50,7 @@
         .import route_cancel, routes_reset
         .import _ndest, _dest_tx, _dest_ty
         .import trains_reset, trains_step, trains_second, trains_draw
-        .import trains_forget, trains_claim, tt_record
+        .import trains_forget, trains_claim, tt_record, trains_stuck
         .import tt_mode, tt_visit, train_at, trains_mark, trains_flash, _moved
         .import train_giveback
         .import train_departing
@@ -77,6 +82,7 @@ SPLIT   = $80                   ; in a message: the rest on the right screen
 wp:     .res 2                  ; where text is being written
 rp2:    .res 2                  ; and read from
 gp:     .res 2
+nv:     .res 2                  ; num's number
 dp2:    .res 2
 pn_vp:  .res 2                  ; a stop in a train's record
 
@@ -110,10 +116,13 @@ line:       .res 41
 ; time like a counter - working it out from the seconds every time costs
 ; more than all the trains
 _clock_txt: .res 9
-end_sel:    .res 1              ; the end's choice: 0 again, 1 another map
+end_sel:    .res 1              ; the end's choice: 0 play on (when asked
+                                ; to leave), 1 again, 2 another map
+ec_i:       .res 1              ; end_choice's: the row, and its texts
+ec_f:       .res 1
 le_new:     .res 1              ; level_end's: a map unlocked
+le_t:       .res 2              ; and its head: why it ends
 le_r:       .res 1
-nv:         .res 2              ; num's number
 nm_d:       .res 1
 nm_any:     .res 1
 hs:         .res 2              ; hhmm's seconds
@@ -262,9 +271,16 @@ s_inuse:    .byte "THE SIGNAL IS", SPLIT, "IN USE", 0
 s_noroute:  .byte "NO FREE ROUTE", SPLIT, "FROM HERE", 0
 s_where:    .byte "WHERE TO: FIRE ON", SPLIT, "A BLINKING SIGNAL", 0
 s_done:     .byte "TIMETABLE DONE", 0
+s_stuck:    .byte "NO TRAIN CAN GO ON", 0
+s_leave:    .byte "LEAVE THIS MAP", 0  ; (no ? or , - their codes are
+s_playon:   .byte "NO - PLAY ON", 0    ; the signs' and the book's)
+s_yagain:   .byte "YES - PLAY AGAIN", 0
+s_yother:   .byte "YES - OTHER MAP", 0
 s_of:       .byte " OF ", 0
 s_again:    .byte "PLAY AGAIN", 0
 s_other:    .byte "OTHER MAP", 0
+ec_lo:      .byte <s_playon, <s_yagain, <s_yother, <s_again, <s_other
+ec_hi:      .byte >s_playon, >s_yagain, >s_yother, >s_again, >s_other
 s_unlocked: .byte "NEXT MAP UNLOCKED", 0
 
         .code
@@ -2453,26 +2469,19 @@ ptrpos: jsr times8
         ldx nv+1
         rts
 
+; level_stuck: no train can move on any more (trains_stuck) - the end too,
+; scored as far as it got
+level_stuck:
+        ldax s_stuck
+        bne le_go               ; (the high byte: never 0)
 ; the timetable is through: the score, and stars as Rail Route gives them,
 ; at 70, 90 and 100 per cent of all there was to get
 level_end:
+        ldax s_done
+le_go:  sta le_t
+        stx le_t+1
         lda #1
-        sta _ended
-        lda #255
-        sta _panel_t
-        jsr trains_mark
-        lda #0
-        sta bd_ruled
-        lda #BOARD_TOP + 1      ; the pages: the score on the left, what
-        sta le_r                ; next on the right
-:       jsr line_blank
-        ldy le_r
-        lda #COL_INK
-        jsr put_line
-        inc le_r
-        lda le_r
-        cmp #BOARD_TOP + 6
-        bne :-
+        jsr pages
         ; pc = score <= 0 || !perfect ? 0 : score * 100 / perfect
         lda #0
         sta le_pc
@@ -2529,28 +2538,6 @@ level_end:
         sta le_pc+1
 @pc:    jsr line_blank
         wpat line + SCR_A
-        ldax s_score
-        jsr scat
-        lda _score
-        ldx _score+1
-        bpl :+
-        lda #0
-        tax
-:       sta nv
-        stx nv+1
-        jsr num
-        ldax s_of
-        jsr scat
-        lda _perfect
-        sta nv
-        lda _perfect+1
-        sta nv+1
-        jsr num
-        ldy #BOARD_TOP + 1
-        lda #COL_INK
-        jsr put_line
-        jsr line_blank
-        wpat line + SCR_A
         lda le_pc
         sta nv
         lda le_pc+1
@@ -2604,7 +2591,8 @@ level_end:
         jsr put_half
         jsr line_blank          ; the head: done, and a map unlocked
         wpat line + SCR_A
-        ldax s_done
+        lda le_t
+        ldx le_t+1
         jsr scat
         lda le_new
         beq :+
@@ -2614,38 +2602,104 @@ level_end:
 :       lda #COL_INK_HEAD
         ldx #COL_INK_GOOD
         jsr put_head
-        lda #0
+        lda #1
         sta end_sel
-        ; the end's choice: the level again, or the next; left and right
-        ; choose, fire takes it
+        ; the end's choice, and the one when asked to leave the map: play
+        ; on (asked only), the level again, another map; up and down (or
+        ; left and right) choose, fire takes it
 end_choice:
         lda #COL_INK
         sta pl_col
-        jsr line_blank
+        lda #2                  ; the first: 0 when asked, else 1
+        sec
+        sbc _ended
+        sta ec_i
+        asl a                   ; (asked, they are no or yes)
+        sta ec_f
+ec_row: jsr line_blank
         wpat line + SCR_B + 1
-        ldax s_again
+        lda ec_i
+        clc
+        adc ec_f
+        tay
+        lda ec_lo,y
+        ldx ec_hi,y
         jsr scat
-        lda end_sel
-        jsr ec_mark
-        lda #BOARD_TOP + 2
-        jsr ec_put
-        jsr line_blank
-        wpat line + SCR_B + 1
-        ldax s_other
-        jsr scat
-        lda end_sel
-        eor #1
-        jsr ec_mark
-        lda #BOARD_TOP + 3
-ec_put: sta pl_row
-        ldx #SCR_B
-        jmp put_half
-; ec_mark: the '>' before it if A is 0
-ec_mark:
+        ldy ec_i
+        cpy end_sel
         bne :+
         lda #'>'
         sta line + SCR_B
-:       rts
+:       tya
+        clc
+        adc #BOARD_TOP + 1
+        sta pl_row
+        ldx #SCR_B
+        jsr put_half
+        inc ec_i
+        lda ec_i
+        cmp #3
+        bne ec_row
+        rts
+
+; level_ask: leave the map? Asked with the game standing (ended 2): no -
+; play on, or yes - the map again, or another (end_choice)
+level_ask:
+        lda #2
+        jsr pages
+        jsr line_blank
+        wpat line + SCR_A
+        ldax s_leave
+        jsr scat
+        lda #COL_INK_HEAD
+        tax
+        jsr put_head
+        lda #0
+        sta end_sel
+        beq end_choice
+
+; pages: the board's pages blank, with no board or timetable over them
+; (ended = A) and no message over their head row; the score on the first
+; row - at the end, and when asked to leave
+pages:  sta _ended
+        lda #0
+        sta bd_ruled
+        sta _msg_time
+        lda #255
+        sta _panel_t
+        jsr trains_mark
+        lda #BOARD_TOP + 2      ; (the first row: the score's, below)
+        sta le_r
+:       jsr line_blank
+        ldy le_r
+        lda #COL_INK
+        jsr put_line
+        inc le_r
+        lda le_r
+        cmp #BOARD_TOP + 6
+        bne :-
+        jsr line_blank
+        wpat line + SCR_A
+        ldax s_score
+        jsr scat
+        lda _score
+        ldx _score+1
+        bpl :+
+        lda #0
+        tax
+:       sta nv
+        stx nv+1
+        jsr num
+        ldax s_of
+        jsr scat
+        lda _perfect
+        sta nv
+        lda _perfect+1
+        sta nv+1
+        jsr num
+        ldy #BOARD_TOP + 1
+        lda #COL_INK
+        jmp put_line
 
 _main:  lda $FF06
         and #$20
@@ -2713,26 +2767,50 @@ _main:  lda $FF06
         sta mn_hits
         lda _ended
         beq @play
+        lda #2                  ; the first choice: 0 when asked, else 1
+        sec
+        sbc _ended
+        sta mn_k
         lda mn_hits
-        and #K_LEFT | K_RIGHT | K_UP | K_DOWN
-        beq :+
-        lda end_sel
-        eor #1
-        sta end_sel
+        and #K_DOWN | K_RIGHT
+        beq @up
+        ldx end_sel             ; the next, after the last the first
+        inx
+        cpx #3
+        bcc @sel
+        ldx mn_k
+        bcs @sel
+@up:    lda mn_hits
+        and #K_UP | K_LEFT
+        beq @lv
+        ldx end_sel             ; the one before, before the first the last
+        cpx mn_k
+        bne :+
+        ldx #3
+:       dex
+@sel:   stx end_sel
         jsr end_choice
-:       lda mn_hits
+@lv:    lda mn_hits
         and #K_LEVEL
         beq :+
-        lda #1
+        lda #2
         sta end_sel
 :       lda mn_hits
         and #K_FIRE | K_LEVEL
-        beq @loop
+        jeq @loop
         lda end_sel
-        beq :+
+        beq @on
+        cmp #2
+        bne :+
         jsr choose_map
         jsr load_map
 :       jsr level_start
+        jmp @loop
+@on:    lda #0                  ; play on: the board back
+        sta _ended
+        jsr panel_close
+        jmp @loop
+@ask:   jsr level_ask           ; L, or slower than standing: leave?
         jmp @loop
 
         ; commands: the keys, or fire held with a direction (engine.s): up
@@ -2799,9 +2877,10 @@ _main:  lda $FF06
         and #K_SLOW
         beq :+
         lda _speed_i
-        beq :+
+        jeq @ask
         dec _speed_i
 :       lda mn_hits
+        jmi @ask                ; (K_LEVEL)
         and #K_FIRE
         beq :+
         jsr cursor_hide
@@ -2930,10 +3009,14 @@ _main:  lda $FF06
         beq :+
         jsr tt_mode
         cmp #TT_GONE
-        bne @wait
+        bne @live
         inc mn_t
         bne :-
 :       jsr level_end
+        jmp @wait
+@live:  jsr trains_stuck        ; or none can go on
+        beq @wait
+        jsr level_stuck
 @wait:  lda _dbg_n
         jne @loop
 :       lda _frames

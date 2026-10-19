@@ -55,6 +55,7 @@ AREA_NAMES = {
     "XB": "tables (XBSS)", "HIM": "kinds of cell, level_buf",
     "HI0": "trains' rings", "HI3": "route search, code_path",
     "HI1": "draw list 1", "HI2": "draw list 2", "STK": "small variables",
+    "TOP": "trains' variables, under the ROM",
     "OVL": "overlay, outside a level: choice, help",
     "OVLB": "overlay's variables, outside a level",
 }

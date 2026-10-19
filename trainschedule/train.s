@@ -31,7 +31,7 @@
         .export trains_reset, trains_step, trains_second, trains_draw
         .export trains_forget, trains_claim, tt_record
         .export tt_mode, tt_visit, train_at, trains_mark, trains_flash
-        .export train_departing, train_giveback
+        .export train_departing, train_giveback, trains_stuck
         .export ev_why, ev_pts, ev_late, ev_wrong, ev_st, ev_rec
 
         .import cellp, cell_mark, cell_route, cell_under, cr_a, cr_b, bitv
@@ -85,6 +85,9 @@ rap:    .res 2                  ; the ways in,
 rbp:    .res 2                  ; and out
 vp:     .res 2                  ; a train's record, or one of its stops
 tq:     .res 2
+s:      .res 1                  ; the slot being worked on
+s2:     .res 1
+st_v:   .res 2                  ; trains_step's
 
         .bss
 ; the timetable: per train of the level where its data is, and what it is
@@ -131,14 +134,12 @@ _r_bank:    .res SLOTS          ; the half of its draw list on screen
 _moved:     .res 1              ; something to draw
         .segment "XBSS"         ; (trainschedule.cfg: made before read)
 fq:         .res 256            ; characters given up, free next time
-        .bss
+        .segment "TOPBSS"       ; (trainschedule.cfg: under the ROM)
 fq_n:       .res 1
 fl_first:   .res 1              ; the pool the free list was made for
 fl_end:     .res 1
 fq_hold:    .res 1              ; fq kept back a turn
 dl_cnt:     .res SLOTS * 2      ; the entries in each half of the draw list
-s:          .res 1              ; the slot being worked on
-s2:         .res 1
 ap_turn:    .res 1
 pu_x:       .res 1              ; push's entry
 pu_y:       .res 1
@@ -215,7 +216,6 @@ ap_t:       .res 2
 st_k:       .res 1              ; trains_step's
 st_k4:      .res 2
 st_k7:      .res 2
-st_v:       .res 2
 st_rem:     .res 2
 st_acc:     .res 2
 st_h:       .res 2
@@ -225,6 +225,9 @@ st_i:       .res 1
 ps_t:       .res 1
 ts_t:       .res 1              ; trains_second's
 ts_when:    .res 2
+ts_later:   .res 1              ; trains not yet due to come
+sk_free:    .res 1              ; trains_stuck's: a route was free
+sf_i:       .res 1              ; sig_free's
 td_k:       .res 1              ; trains_draw's
 td_i:       .res 1
 td_x:       .res 1
@@ -2029,6 +2032,7 @@ trains_second:
         bcc :-
 :       lda #0
         sta ts_t
+        sta ts_later
 @t:     ldx ts_t
         cpx _lv_ntrains
         beq @slots
@@ -2063,7 +2067,7 @@ trains_second:
         cmp ts_when
         lda _clock_s+1
         sbc ts_when+1
-        bcc @nt
+        bcc @later
 :       lda ts_t
         sta sw_t
         jsr spawn
@@ -2071,6 +2075,8 @@ trains_second:
         ldx ts_t
         lda #T_ON
         sta _tt_state,x
+        bne @nt
+@later: inc ts_later
 @nt:    inc ts_t
         bne @t
 @slots: ldx #0
@@ -2112,6 +2118,85 @@ trains_second:
         cpx #SLOTS
         bne @s
         rts
+
+; trains_stuck: no train can ever move on - each one on the map stands at
+; a red signal (or the end of its track) with no free route from it, nor
+; from the signal behind it to turn round; no route is set that no train
+; has taken (it could be taken back); none is still to come (ts_later),
+; one waiting at the edge of the map stands as well; and there is one at
+; least (at the start trains_second has not counted yet). A 1 if so (Z
+; clear).
+; While all stand, the routes are searched only once: what is free cannot
+; be taken without a train moving or a route set.
+trains_stuck:
+        lda ts_later
+        bne @no
+        ldx #MAX_ROUTES - 1
+:       lda _rt_sig,x
+        cmp #255
+        bne @no
+        dex
+        bpl :-
+        ldy #0                  ; (the trains on the map)
+        ldx #SLOTS - 1
+:       lda _r_state,x
+        beq :+
+        iny
+        cmp #S_RUN
+        bne @no                 ; at a platform
+        lda _r_halt,x
+        beq @no                 ; under way
+:       dex
+        bpl :--
+        tya
+        beq @no                 ; none: none to be stuck
+        lda sk_free
+        bne @free
+        ldx #0
+@s:     jsr use_slot
+        lda _r_state,x
+        beq @ns
+        jsr front_signal
+        jsr sig_free
+        bne @found
+        jsr rear_signal
+        jsr sig_free
+        bne @found
+@ns:    ldx s
+        inx
+        cpx #SLOTS
+        bne @s
+        lda #1
+        rts
+@found: sta sk_free
+@free:  lda #0
+        rts
+@no:    lda #0
+        sta sk_free
+        rts
+
+; sig_free: a free route from signal A (255: none): A 1 (Z clear) if so
+sig_free:
+        cmp #255
+        beq @no
+        tay
+        ldx _sig_x,y
+        lda _sig_dir,y
+        pha
+        lda _sig_y,y
+        tay
+        pla
+        jsr route_find
+        ldx _ndest
+@d:     dex
+        bmi @no
+        stx sf_i
+        jsr route_free
+        bne @rts
+        ldx sf_i
+        bpl @d
+@no:    lda #0
+@rts:   rts
 
 ; pix_step: st_h in 32nds of a cell, as trains_draw draws a train: its low
 ; byte, in A (X = s)

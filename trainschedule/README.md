@@ -257,6 +257,7 @@ is.
 | Close up / overview | fire + up | `Z` |
 | Faster: pause, x1, x3, x10 | fire + right | `+` |
 | Slower | fire + left | `-` |
+| Leave the map: it asks first, then play on, again or another map | fire + left at pause | `-` at pause, or `L` |
 | Title picture: on | fire | `Space` or `Return` |
 | Choose a map | up / down, then fire | cursor keys, `Space` or `Return` |
 | Music off / on | left / right in the choice of a map | `F1`, anywhere |
@@ -284,6 +285,14 @@ held. Near the edge of the view, the view moves on by a third.
   has not passed the signal and can still stop before it; it then brakes.
 - **Turning a train round.** Set a route from the signal behind a train that
   stands at a platform: when it is due to leave, it leaves that way.
+- **Stuck.** Two trains never meet on the same track - a route is only set
+  if all of it is free - but they can wait for each other: on a single
+  line, with both stations at its ends full of trains that want to go the
+  other way, no route on is free. Turning one round may still get them
+  out. When no train can go on at all - none is under way or at a
+  platform, none is still to come, no route is set that could be taken
+  back, and from no signal in front of a train or behind it is a route
+  free - the map ends there: "NO TRAIN CAN GO ON", scored as far as it got.
 - **A train's timetable.** Fire on a train, or page through all of them with
   `,` and `.` - those still to come and those gone too. In place of the
   board: every stop with its platform and the times it is to arrive and
