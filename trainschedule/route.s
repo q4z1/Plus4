@@ -300,9 +300,8 @@ route_find:
         adc #4
         and #7
         sta sa_
-        lda #1                  ; straight on through the signal only
+        lda #0                  ; straight on through the signal only
         sta sc_
-        lda #0
         sta _ndest
         sta rf_d
 @loop:  ldx rf_d
@@ -311,7 +310,7 @@ route_find:
         bcs @back
         cpx #0
         bne @try
-        cmp #2
+        cmp #1
         bcc @try
 @back:  dec rf_d
         bmi @done
@@ -319,10 +318,14 @@ route_find:
         inc sc_,x
         jmp @loop
 @done:  rts
-        ; the track bends by 45 degrees at most: out at a + 3, 4 or 5
-@try:   clc
+        ; the track bends by 45 degrees at most: out at a + 4, 3 or 5 -
+        ; straight on first, so that of two ways as long (a diagonal step
+        ; is a step), keep has the straighter: not over two crossovers to
+        ; the other track and back
+@try:   tay
+        lda rf_turn,y
+        clc
         adc sa_,x
-        adc #3
         and #7
         sta rf_b
         ldy sy_,x
@@ -416,6 +419,8 @@ route_find:
         lda #0
         sta sc_,x
         jmp @loop
+
+rf_turn: .byte 4, 3, 5
 
 ; route_free: every cell of way X is free (the signal's own too): A 1 or 0
 route_free:

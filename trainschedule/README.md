@@ -425,7 +425,11 @@ track leaves it in - and that is all the network there is. A switch is a
 cell with three bits; a train may go on from a cell where the track bends
 by 45 degrees at most, which in bits is: out by `b` when it came in by `a`,
 if `b - a` is 3, 4 or 5 (mod 8). Searching for routes is walking these
-bits, depth first, from a signal to the next ones (route.s).
+bits, depth first, from a signal to the next ones (route.s). It keeps the
+shortest way to each, and tries straight on before it turns off: a
+diagonal step is a step, so a way over a crossover to the other track and
+back over another is as short as the straight way along it - of two as
+long it keeps the one found first, and that is the straighter.
 
 **The characters are made from the bits.** Each bit is half a track, from
 the middle of the cell to its edge - so a straight track, a bend, a switch
