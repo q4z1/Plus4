@@ -230,6 +230,47 @@ v2 D3:20 G3:20 C3:20 D3:20 D3:20 G3:20 C3:20 D3:20 D3:20 A3:15 r:45 F#3:20
 v2 D3:15 r:45 D#3:20 E3:15 r:45 A3:20 B3:15 r:45 B2:20 E3:20. E3:20. E3:20.
 v2 E3:20.
 
+; ---- Paris ---------------------------------------------------------------
+; Jacques Offenbach, La Vie parisienne (1866), Act I, No. 1, Introduction:
+; the act is set in the Gare de l'Ouest - Saint-Lazare - and opens with its
+; staff singing "Nous sommes employes de la ligne de l'Ouest" and calling
+; the stations its trains serve, Poissy and Viroflay among them. The notes
+; from the vocal score (Paris: E. Heu, 1866, arranged by Victor Boullard):
+; the orchestra's eight bars, the chorus, and the stations to "Saint-Brieuc
+; et Fecamp" - 33 bars, Allegro in 3/4, a crotchet 16 pictures. Voice 1
+; the tune: the orchestra's, the chorus's, and where the chorus calls the
+; stations on one note, the orchestra's figure under it; voice 2 the bass,
+; its call at the start as Offenbach wrote it, then an oom-pah-pah from the
+; chords, an octave up where the TED cannot go so low.
+
+song ouest
+volume 6
+
+v1 r:48 | Ab4:8 G4:8 Ab4:16 Ab4:16 | G4:16 r:32 | Cb5:8 Bb4:8 Cb5:16 Cb5:16
+v1 Bb4:16 r:32 | Fb5:8 Eb5:8 Fb5:16 Fb5:16 | F5:8 E5:8 F5:16 F5:16
+v1 G5:8 F5:8 G5:16 G5:16 | Ab5:16 r:16 Eb4:16
+v1 Ab4:8 Ab4:8 Ab4:16 G4:16 | Ab4:16 Ab4:16 Bb4:16 | C5:16 Bb4:16 Ab4:16
+v1 E5:16 r:16 Ab4:16 | Ab4:8 Ab4:8 Ab4:16 G4:16 | Ab4:16 Ab4:16 Bb4:16
+v1 C5:16 Bb4:16 Ab4:16 | E5:16 r:32
+v1 Eb5:8 F5:8 G5:16 G5:16 | F5:8 G5:8 F5:16 F5:16 | Eb5:8 F5:8 G5:16 G5:16
+v1 F5:8 G5:8 F5:16 F5:16 | Eb5:8 F5:8 G5:16 G5:16 | F5:8 G5:8 F5:16 F5:16
+v1 Eb5:8 F5:8 G5:16 G5:16 | F5:8 G5:8 F5:16 F5:16 | Eb5:8 F5:8 G5:16 G5:16
+v1 F5:8 G5:8 F5:16 Eb5:16 | F5:8 G5:8 F5:16 Eb5:16
+v1 C5:32 r:16 | C5:8 B4:8 C5:8 B4:8 C5:8 B4:8 | C5:8 Db5:8 Eb5:8 F5:8 G5:8 Ab5:8
+v1 G5:8 F5:8 Eb5:8 Db5:8 Bb4:8 Eb5:8 | Ab4:16 r:32
+v2 Eb3:8 D3:8 Eb3:16 Eb3:16 | Eb3:16 r:32 | Eb3:8 D3:8 Eb3:16 Eb3:16 | Eb3:16 r:32
+v2 Eb3:8 D3:8 Eb3:16 Eb3:16 | Eb3:8 Eb3:8 Eb3:16 Eb3:16 | Eb3:8 Eb3:8 Eb3:16 Eb3:16
+v2 Eb3:8 Eb3:8 Eb3:16 Eb3:16
+v2 Ab3:16 C4:16. Eb4:16. | Ab3:16 C4:16. Eb4:16. | Ab3:16 C4:16. Eb4:16. | Ab3:16 C4:16. Eb4:16.
+v2 C3:16 E3:16. Bb3:16. | Db3:16 F3:16. Ab3:16. | Db3:16 F3:16. Ab3:16. | Ab3:16 C4:16. Eb4:16.
+v2 C3:16 E3:16. Bb3:16.
+v2 Eb3:16 G3:16. Db4:16. | Eb3:16 Ab3:16. C4:16. | Eb3:16 G3:16. Db4:16. | Eb3:16 Ab3:16. C4:16.
+v2 Eb3:16 G3:16. Db4:16. | Eb3:16 Ab3:16. C4:16. | Eb3:16 G3:16. Db4:16. | Eb3:16 Ab3:16. C4:16.
+v2 Eb3:16 G3:16. Db4:16. | Eb3:16 Ab3:16. C4:16. | Eb3:16 Ab3:16. C4:16.
+v2 E3:16 G3:16. C4:16. | F3:16 Ab3:16. B3:16. | Eb3:16 Ab3:16. C4:16. | Eb3:16 G3:16. Db4:16.
+v2 Ab3:16 C4:16. r:16
+
+
 ; ---- Smiths Falls -----------------------------------------------------------
 ; N.S. Smith, The C.P.R. Lancers (Toronto: I. Suckling & Sons, 1887), No. 1,
 ; Spiritoso: the 6/8 fanfare to Fine, its answer, the 2/4 part in E flat,

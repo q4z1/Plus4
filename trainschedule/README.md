@@ -98,6 +98,39 @@ north towards Switzerland.
 
 ![Alessandria in the overview, three trains at Milan](screenshots/alessandria.png)
 
+### Paris, 1847 - medium
+
+The **Gare Saint-Lazare**, where France's railways for passengers began.
+From it the line to Le Pecq opened in 1837, the first in France for
+passengers; the line to Versailles left it at Asnieres from 1839, and the
+line to Rouen at Colombes from 1843. In 1847 that line reached Le Havre,
+and an atmospheric railway, worked by air pressure, took the trains on
+from Le Pecq up the hill to Saint-Germain. Paris has four platforms; two
+tracks run out to Asnieres and Colombes, with one platform each way, and
+a single track on each of the three lines beyond - to Maisons on the way
+to Rouen, to Le Pecq, to Versailles. The trains keep to the left, as they
+do in France. Twelve trains from 07:00, forty-four stops: trains for
+Saint-Germain and Versailles, for Rouen, an express for Le Havre and a
+slow goods train. The lines and the station names are history; the track
+layout and the timetable are a game's.
+
+What makes it harder than Alessandria:
+
+- **The terminus.** The trains come in on one track and go out on the
+  other. A train out of platform 1 or 2, or one into 3 or 4, crosses
+  over, and the trains on the other track wait for it.
+- **Flat junctions.** At Asnieres a train from Versailles crosses the
+  track the trains leave on; at Colombes a train for Rouen and a train
+  from Le Pecq cross the ones coming the other way. Set a route over a
+  junction too soon and the trains on the other track stand.
+- **One platform each way.** Every train stops at Asnieres and Colombes,
+  and each has a platform for each way only: the next can come in only
+  once the one before has left.
+- **Twelve trains**, an express at 100 km/h and a goods train at 60 among
+  them.
+
+![Paris in the overview, trains on all its lines](screenshots/paris.png)
+
 ### Smiths Falls, 1887 - hard
 
 The **Canadian Pacific** in eastern Ontario. Its line from Toronto to
@@ -146,7 +179,8 @@ map with how hard it is, a line about it and what it has - stations,
 trains, the timetable's hours. Each map has its own music: Riesa plays
 Zeuner's Rail Road Waltz, Yokohama the Railway Song, *Tetsudo Shoka*,
 Alessandria the Allegro of Rossini's overture to *Il barbiere di
-Siviglia*, Smiths Falls N.S. Smith's *C.P.R. Lancers*.
+Siviglia*, Paris the opening of Offenbach's *La Vie parisienne*, Smiths
+Falls N.S. Smith's *C.P.R. Lancers*.
 A train coming to a stand at its platform squeals on its brakes and lets
 off steam; one leaving whistles and puffs away.
 `F1` turns the music off, and on again, wherever the game is; with the
@@ -585,6 +619,17 @@ crescendo in G major to its cadence, which leads into the theme again as
 it does in the overture - 65 bars, 104 seconds. The violins on voice 1,
 the cellos and basses on voice 2 (the notes taken from an orchestral MIDI
 file at [classicalmidi.co.uk](http://www.classicalmidi.co.uk/rossini.htm)).
+Paris plays the opening of Jacques Offenbach's *La Vie parisienne* (1866),
+whose first act is set in the Gare de l'Ouest - Saint-Lazare - and begins
+with its staff singing "Nous sommes employes de la ligne de l'Ouest" and
+calling the stations its trains serve, Poissy and Viroflay among them (the
+notes from the vocal score, Paris: E. Heu, 1866, on
+[IMSLP](https://imslp.org/wiki/La_vie_parisienne_(Offenbach,_Jacques))):
+the orchestra's eight bars, the chorus, and the stations to "Saint-Brieuc
+et Fecamp" - 33 bars, Allegro in 3/4, a crotchet 16 pictures. Where the
+chorus calls the stations on one note, the tune is the orchestra's figure
+under it; under all of it the bass's call as Offenbach wrote it, then an
+oom-pah-pah from the chords.
 Smiths Falls plays the first figure of *The C.P.R. Lancers* for piano by
 N.S. Smith, a Canadian composer (Toronto: I. Suckling & Sons, 1887,
 dedicated to Sir George Stephen, the railway's president; from the scan
@@ -652,8 +697,9 @@ platform in the timetable (another may lead nowhere the train has to go
 on to), and a route on from a stop not until shortly before the train may
 leave (sooner, it would hold up the trains the timetable has come first).
 It plays every map to its full score - Riesa 120, Yokohama 240,
-Alessandria 300, Smiths Falls 560 - every stop on time and no train held at a red signal: proof
-that the timetables can be kept to the last point.
+Alessandria 300, Paris 440, Smiths Falls 560 - every stop on time and no
+train held at a red signal: proof that the timetables can be kept to the
+last point.
 
 `tests/trace.py` plays a map from start to end with the game's time
 counted, not waited for (`_dbg_n`), so that a run comes out the same every

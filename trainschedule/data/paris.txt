@@ -1,0 +1,110 @@
+# Paris: the Gare Saint-Lazare in 1847, the year the line from it reached Le
+# Havre and the atmospheric railway climbed from Le Pecq to Saint-Germain.
+# From the terminus two tracks run out through the Batignolles to Asnieres,
+# where the line to Versailles (1839) leaves, and on to Colombes, where the
+# line to Rouen and Le Havre (1843) leaves that to Le Pecq, France's first
+# for passengers (1837). The trains keep to the left, as in France. Paris
+# with four platforms; Asnieres and Colombes with one each way; Maisons, on
+# the way to Rouen, Le Pecq and Versailles where the trains come from and go
+# to. Twelve trains, forty-four stops.
+name PARIS
+about PARIS SAINT-LAZARE, FRANCE 1847
+level MEDIUM
+music ouest                     # Offenbach, La Vie parisienne (data/music.txt)
+size 48 15
+
+# Paris, four platforms, and the two tracks out: the up track (row 7) into
+# platforms 1 and 2, the down track (row 8) out of 3 and 4; a crossover
+# each way between them
+track 47,6 41,6 40,7
+track 47,7 11,7
+track 47,8 11,8
+track 47,9 41,9 40,8
+track 36,7 37,8
+track 39,7 38,8
+
+# west of Asnieres the line to Versailles leaves the down track; a train
+# from Versailles crosses it to the up track
+track 24,8 20,12
+track 25,8 26,7
+track 13,12 20,12
+track 13,13 19,13 20,12
+
+# west of Colombes the line to Rouen leaves the up track, a train for it
+# crosses from the down track; the line to Le Pecq leaves the down track, a
+# train from it crosses to the up track
+track 13,8 12,7
+track 11,8 12,7
+track 11,7 9,5 9,2 8,1
+track 0,1 8,1
+track 0,2 6,2 7,1
+track 11,8 7,12
+track 0,12 7,12
+track 0,13 6,13 7,12
+
+signal 42,6 W
+signal 42,7 W
+signal 42,8 W
+signal 42,9 W
+signal 34,7 E
+signal 29,8 W
+signal 18,7 E
+signal 14,8 W
+signal 5,1 E
+signal 5,2 E
+signal 5,12 E
+signal 5,13 E
+signal 18,12 E
+signal 18,13 E
+portal 47,6
+portal 47,7
+portal 47,8
+portal 47,9
+portal 0,1
+portal 0,2
+portal 0,12
+portal 0,13
+portal 13,12
+portal 13,13
+
+station 1 42,5 PARIS
+platform 1 1 42,6 47,6
+platform 1 2 42,7 47,7
+platform 1 3 42,8 47,8
+platform 1 4 42,9 47,9
+station 2 29,6 ASNIERES
+platform 2 1 29,7 34,7
+platform 2 2 29,8 34,8
+station 3 13,6 COLOMBES
+platform 3 1 14,7 18,7
+platform 3 2 14,8 18,8
+station 4 0,0 MAISONS
+platform 4 1 0,1 5,1
+platform 4 2 0,2 5,2
+station 5 0,11 LE PECQ
+platform 5 1 0,12 5,12
+platform 5 2 0,13 5,13
+station 6 13,14 VERSAILLES
+platform 6 1 13,12 18,12
+platform 6 2 13,13 18,13
+
+start 07:00
+# Two tracks from Paris to Colombes, one on each line beyond: trains meet
+# at Colombes and at the ends. What makes it harder than Alessandria: the
+# terminus, where a train from platform 1 or 2, or one for 3 or 4, crosses
+# the other track; the junctions, where a train from Versailles, one for
+# Rouen and one from Le Pecq cross the trains going the other way; one
+# platform each way at Asnieres and Colombes for every train; twelve trains,
+# a slow goods train among them.
+train SG 1 C 80 4 : 1/3 07:01 07:02, 2/2 07:04 07:05, 3/2 07:07 07:08, 5/1 07:10 07:11
+train V 12 C 80 4 : 6/2 07:01 07:02, 2/1 07:04 07:05, 1/1 07:07 07:08
+train SG 2 C 80 4 : 5/2 07:02 07:03, 3/1 07:05 07:06, 2/1 07:08 07:09, 1/2 07:11 07:12
+train V 11 C 80 4 : 1/4 07:05 07:06, 2/2 07:08 07:09, 6/1 07:11 07:12
+train R 32 R 80 5 : 4/2 07:07 07:08, 3/1 07:10 07:11, 2/1 07:13 07:14, 1/4 07:16 07:17
+train EX 21 I 100 6 : 1/1 07:11 07:12, 2/2 07:14 07:15, 3/2 07:17 07:18, 4/1 07:20 07:21
+train SG 3 C 80 4 : 1/3 07:16 07:17, 2/2 07:19 07:20, 3/2 07:22 07:23, 5/1 07:25 07:26
+train V 14 C 80 4 : 6/2 07:16 07:17, 2/1 07:19 07:20, 1/1 07:22 07:23
+train SG 4 C 80 4 : 5/2 07:19 07:20, 3/1 07:22 07:23, 2/1 07:25 07:26, 1/2 07:28 07:29
+train V 13 C 80 4 : 1/4 07:20 07:21, 2/2 07:23 07:24, 6/1 07:26 07:27
+train M 42 F 60 10 : 4/2 07:23 07:24, 3/1 07:27 07:28, 2/1 07:31 07:32, 1/2 07:35 07:36
+train R 31 R 80 5 : 1/3 07:24 07:25, 2/2 07:27 07:28, 3/2 07:30 07:31, 4/1 07:33 07:34
