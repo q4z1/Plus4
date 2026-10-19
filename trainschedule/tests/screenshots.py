@@ -2,7 +2,7 @@
 """The README's pictures, made anew in plus4emu from the disk: the title,
 the choice of a map, its page of help, Riesa with trains at its platforms, a train's
 timetable, the overview, the end of a level, and then Yokohama,
-Alessandria, Paris and Smiths Falls in the overview, each played to its end, so
+Alessandria, Paris, Smiths Falls and Copenhagen in the overview, each played to its end, so
 that it opens the next. The autopilot plays (as the tests do). Writes screenshots/*.png; run from trainschedule/.
 """
 import os
@@ -13,6 +13,7 @@ from p4emu import P4emu  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(HERE, 'screenshots')
+CPH_AT = 21 * 60 + 30                   # Copenhagen's picture: its clock, from 08:00
 
 
 def main():
@@ -179,6 +180,29 @@ def main():
         wait(lambda: clock() >= 21 * 60 + 30, 60)
         p.run_for(0.5)
         shot('smithsfalls.png')
+        # to its end (a star opens the sixth), OTHER MAP, Copenhagen: the
+        # overview, trains on all three lines
+        p.set('speed_i', 3)
+        wait(lambda: p.peek('ended') == 1, 300)
+        p.run_for(1)
+        p.set('dbg_keys', 8)
+        p.run_for(0.2)
+        p.set('dbg_keys', 0)
+        p.run_for(0.2)
+        fire()
+        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        p.run_for(1)
+        fire()
+        wait(lambda: p.peek('ptr_on') == 1)
+        p.set('autopilot_on', 1)
+        p.set('speed_i', 3)
+        wait(lambda: clock() >= CPH_AT - 30, 300)
+        p.set('speed_i', 1)
+        if p.peek('zoom') != 1:                  # (it stays as it was)
+            p.poke(p.lab['hits2'], [1])          # Z: the overview
+        wait(lambda: clock() >= CPH_AT, 60)
+        p.run_for(0.5)
+        shot('copenhagen.png')
     finally:
         p.stop()
 

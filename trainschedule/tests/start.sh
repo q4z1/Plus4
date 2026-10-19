@@ -4,7 +4,8 @@
 #
 #   tests/start.sh [MAP|choose] [locked|open] [yape|vice|plus4emu]
 #
-#   MAP       a map's number (1 Riesa, 2 Yokohama, 3 Alessandria, 4 Paris ...): straight into it,
+#   MAP       a map's number (1 Riesa, 2 Yokohama, 3 Alessandria, 4 Paris, 5 Smiths Falls,
+#             6 Copenhagen): straight into it,
 #             no title, no choice (after it, OTHER MAP goes to the choice)
 #   choose    straight to the choice of a map (the default)
 #   locked    only the first map open, as in a new game (the default)

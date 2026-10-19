@@ -165,6 +165,41 @@ What makes it harder than Alessandria:
 
 ![Smiths Falls in the overview, its platforms busy](screenshots/smithsfalls.png)
 
+### Copenhagen, 1864 - hard
+
+The **Zealand Railway** in the year its second station in Copenhagen
+opened, on 14 October 1864, by the lakes north of Vesterbrogade - for the
+line west to Roskilde, Denmark's first (1847), and for the new North Line.
+West along the bottom of the map the line runs by Frederiksberg to
+Roskilde, and on to Korsor and the ferry to Funen. North it runs by
+Norrebro to **Hellerup**, where the line to Klampenborg (1863), on the
+Sound by the deer park, leaves the North Line to Lyngby and Hillerod
+(June 1864), and on to Helsingor. Like Smiths Falls the map is 64 cells
+wide. Fifteen trains from 08:00 to 08:49, sixty-seven stops: trains for
+Roskilde and Hillerod, expresses from Korsor and Helsingor, a goods train,
+and the excursion trains to Klampenborg. The lines and the station names
+are history; the track layout and the timetable are a game's.
+
+What makes it harder than Smiths Falls:
+
+- **One terminus for two lines.** Every train starts or ends in
+  Copenhagen. The North Line comes in to platforms 1 and 2, the line west
+  to 3 and 4; a train from either line to the other's platforms crosses
+  the other's track in the station throat.
+- **One track north.** From Copenhagen to Hellerup a single track carries
+  the trains to Hillerod and to Klampenborg both ways. They pass only at
+  Norrebro and at Hellerup, and Norrebro is close to Hellerup: a train let
+  out too soon meets the one coming the other way head on.
+- **Hellerup, north to south.** Its two platforms run up the screen, and
+  north of them the lines to Lyngby and to Klampenborg part.
+- **Turning round at Klampenborg.** The excursion trains turn there and
+  come back through Hellerup and Norrebro: set a route from the signal
+  behind the train. Beyond Klampenborg the line runs on to the shore - a
+  train sent that way is gone.
+- **Fifteen trains** on three lines, up to eight on the map at once.
+
+![Copenhagen in the overview, trains on all three lines](screenshots/copenhagen.png)
+
 ## Playing
 
 ### Starting
@@ -180,7 +215,8 @@ trains, the timetable's hours. Each map has its own music: Riesa plays
 Zeuner's Rail Road Waltz, Yokohama the Railway Song, *Tetsudo Shoka*,
 Alessandria the Allegro of Rossini's overture to *Il barbiere di
 Siviglia*, Paris the opening of Offenbach's *La Vie parisienne*, Smiths
-Falls N.S. Smith's *C.P.R. Lancers*.
+Falls N.S. Smith's *C.P.R. Lancers*, Copenhagen Lumbye's *Copenhagen
+Steam Railway Galop*.
 A train coming to a stand at its platform squeals on its brakes and lets
 off steam; one leaving whistles and puffs away.
 `F1` turns the music off, and on again, wherever the game is; with the
@@ -643,6 +679,16 @@ E flat, and round again as its D.C. goes - 24 bars, a dotted crotchet 24
 pictures. The fanfare in octaves on both voices, then an oom-pah from the
 left hand's bass and chords, the bass an octave up where the TED cannot go
 so low.
+Copenhagen plays H.C. Lumbye's *Kjobenhavns Jernbane-Damp-Galop*, written
+for the opening of the line to Roskilde and first played at Tivoli on 29
+June 1847 (the notes from the full score Andreas Schein typeset, 2018, on
+[IMSLP](https://imslp.org/wiki/Kj%C3%B6benhavns_Jernbane-Damp-Galop_(Lumbye,_Hans_Christian))):
+the galop itself, without the station and the train's setting off before
+it - its first strain twice, the second time in the violins' triplets, and
+the second strain, in A, to the basses' walk back down to D; 64 bars in
+2/4, a quaver 6 pictures. The first violins' tune, their tremolo as plain
+notes; under it the double basses on the beat and the octave above after
+it, a galop's oom-pah.
 
 All are text, [data/music.txt](data/music.txt), made into what the
 player reads by [tools/mkmusic.py](tools/mkmusic.py): notes and lengths in 50ths
@@ -701,8 +747,8 @@ platform in the timetable (another may lead nowhere the train has to go
 on to), and a route on from a stop not until shortly before the train may
 leave (sooner, it would hold up the trains the timetable has come first).
 It plays every map to its full score - Riesa 120, Yokohama 240,
-Alessandria 300, Paris 440, Smiths Falls 560 - every stop on time and no
-train held at a red signal: proof that the timetables can be kept to the
+Alessandria 300, Paris 440, Smiths Falls 560, Copenhagen 670 - every stop
+on time and no train held at a red signal: proof that the timetables can be kept to the
 last point.
 
 `tests/trace.py` plays a map from start to end with the game's time

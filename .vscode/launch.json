@@ -105,7 +105,7 @@
             "id": "tsWhere",
             "type": "pickString",
             "description": "Train Schedule: wohin?",
-            "options": ["choose", "1", "2", "3", "4", "5"],
+            "options": ["choose", "1", "2", "3", "4", "5", "6"],
             "default": "choose"
         },
         {
