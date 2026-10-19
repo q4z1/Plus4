@@ -2745,12 +2745,16 @@ bn_nx:      .res 1              ; the row it goes on with, or $FF
 bv_scr:     .res 1              ; $FF06 without vshift
 bn_e:       .res 1
 bu_x:       .res 1
+bg_co:      .res 2 * BD_ROWS    ; a row's writes (fast): their code's low
+                                ; byte in FW_PAGE, 0 till made (fw_make)
         .bss                    ; (outside a level BANDS is the overlay's:
 bn_pre:     .res 1              ; the interrupt sets this one in any mode)
                                 ; the row band_back made ready, or $FF
 bn_cur:     .res 1              ; band_cur's
 br_k:       .res 1              ; band_resolve's
 br_e:       .res 1
+br_x:       .res 1
+fw_n:       .res 1              ; fw_make's: where the next row's code goes
 bd_q:       .res BD_PL          ; a place's character on screen (map.s's
 bd_w:       .res BD_PL          ; places: both sets, the cursor's) and its
                                 ; colour to write
@@ -2764,6 +2768,11 @@ bo_a:       .res 1              ; (bands_vbl's)
 bo_ai:      .res 1
 bo_b:       .res 1
 bo_bi:      .res 1
+
+        .segment "FWRITE"       ; (made before it runs: fw_make)
+FW_PAGE = $B700
+fw_code:    .res $C0            ; the overview's rows' writes, as code
+        .assert fw_code = FW_PAGE + $40, lderror, "fw_code: trainschedule.cfg"
 
         .segment "BANDS"
         .bss
@@ -2784,6 +2793,10 @@ bands_vbl:
         ldy #0
         lda _eng_mode
         bne @end
+        ldx #2 * BD_ROWS - 1    ; no row's writes made yet (fw_make): the
+:       sta bg_co,x             ; interrupt leaves them out till then
+        dex
+        bpl :-
         ldx bd_act
         lda bd_ng,x
         sta bo_a
@@ -2920,6 +2933,8 @@ band_go:                        ; under another's band has less than three
 band_resolve:
         lda #0
         sta br_k
+        lda #<fw_code
+        sta fw_n
 @g:     ldx br_k
         cpx bg_n
         jcs @rts
@@ -2965,7 +2980,14 @@ band_resolve:
 @n:     inx
         cpx br_e
         bne @p
-        inc br_k
+        ldx br_k                ; a fetch in line 2: its writes as code
+        lda bo,x
+        tax
+        lda bd_gp,x
+        cmp #4
+        bcs :+
+        jsr fw_make
+:       inc br_k
         jmp @g
 @rts:   rts
 @cur:   jsr band_curq           ; the cursor's: its green where its
@@ -2980,6 +3002,74 @@ band_resolve:
         beq @n
 :       ora bd_b,x
         jmp @w
+
+; fw_make: the writes of row X (a fetch in line 2) made into code at fw_n,
+; for fast, as band_resolve found the places: each, where the screen
+; still shows its character, its colour - lda abs, cmp #, bne, lda #,
+; sta abs: 14 cycles a place, not 27 with pointers, four in the line or
+; so the TED leaves the CPU. Then on to band_back. As far as there is
+; room; bg_co,x once it is all there (the interrupt may come meanwhile).
+fw_make:
+        stx br_x
+        ldy fw_n
+        cpy #256 - 3 + 1        ; room for the jump at least?
+        bcs @rts
+        lda bd_gend,x
+        sta br_e
+        lda bd_gfirst,x
+        tax
+@p:     lda bd_q,x
+        beq @n                  ; (not there)
+        cpy #256 - 15 + 1       ; room for it and the jump?
+        bcs @end
+        lda #$AD                ; lda its character
+        sta FW_PAGE,y
+        lda #$C9                ; cmp #
+        sta FW_PAGE+3,y
+        lda bd_q,x
+        sta FW_PAGE+4,y
+        lda #$D0                ; bne over the write
+        sta FW_PAGE+5,y
+        lda #5
+        sta FW_PAGE+6,y
+        lda #$A9                ; lda #
+        sta FW_PAGE+7,y
+        lda bd_w,x
+        sta FW_PAGE+8,y
+        lda #$8D                ; sta its colour
+        sta FW_PAGE+9,y
+        lda bd_col,x
+        clc
+        adc ip2
+        sta FW_PAGE+1,y
+        sta FW_PAGE+10,y
+        lda ip2+1
+        adc #0
+        sta FW_PAGE+2,y
+        and #<~$04
+        sta FW_PAGE+11,y
+        tya
+        clc
+        adc #12
+        tay
+@n:     inx
+        cpx br_e
+        bne @p
+@end:   lda #$4C                ; jmp band_back
+        sta FW_PAGE,y
+        lda #<band_back
+        sta FW_PAGE+1,y
+        lda #>band_back
+        sta FW_PAGE+2,y
+        ldx br_x
+        lda fw_n
+        sta bg_co,x
+        tya
+        clc
+        adc #3
+        sta fw_n
+@rts:   ldx br_x
+        rts
 
 ; band_ip: row X's colours at bp1, its characters at bp2 (as band_resolve
 ; found them for the screen shown), its places' end in bn_e. Keeps X.
@@ -2996,42 +3086,27 @@ band_ip:
         rts
 
 ; fast: a fetch in line 2 - the TED holds the CPU till the start of line 0
-; or 1, leaving it less than a line: here by line -1, the row's pointers
-; set, then the two writes each where the screen still shows its
-; character (under the cursor: left as it is). The wait
-; ends at the start of line 0 or 1 (vshift in line 2 itself: the TED
-; would fetch then, from what is on the bus).
+; or 1, leaving it less than a line: here by line -1, the row's code
+; chosen, then the writes each where the screen still shows its character
+; (fw_make; under the cursor: left as it is). The wait ends at the start
+; of line 0 or 1 (vshift in line 2 itself: the TED would fetch then, from
+; what is on the bus). A row whose code is not made yet is left out.
 fast:   lda TED_RLO
         cmp bd_t,x
         jcs band_next
+        lda bg_co,x
+        jeq band_next
+        sta @go+1
         lda bd_r,x
         sta bn_r
-        jsr band_ip
         ldy bg_vs,x
         lda bd_t,x
         sta bn_t
-        lda bd_gfirst,x
-        tax
 :       lda TED_RLO
         cmp bn_t
         bcc :-
         sty TED_SCROLLY
-        ldy bd_col,x
-        lda (bp2),y
-        cmp bd_q,x
-        bne :+
-        lda bd_w,x
-        sta (bp1),y
-:       inx
-        cpx bn_e
-        beq :+
-        ldy bd_col,x
-        lda (bp2),y
-        cmp bd_q,x
-        bne :+
-        lda bd_w,x
-        sta (bp1),y
-:       jmp band_back
+@go:    jmp FW_PAGE             ; (the row's low byte)
 
 ; band_back: vshift back to 3 in line p, after the TED's fetch there (the
 ; wait sees line p only when the TED lets go). The screen's colours are put

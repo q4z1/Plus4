@@ -1368,7 +1368,8 @@ q4p:    sec
 BD_MAX = 24                     ; a set's places
 BD_ROWS = 12                    ; and rows
 BD_PER = 3                      ; places a row: what the interrupt has time
-                                ; for (engine.s) - 2 with the fetch in line 2
+BD_FAST = 4                     ; for (engine.s) - 4 with the fetch in line 2,
+                                ; written by code made for them (fw_code)
 BD_GR = 2 * BD_ROWS + 4         ; rows and places in all: then the cursor's
 BD_PL = 2 * BD_MAX + 8          ; two pairs of rows (cu_bands)
 
@@ -1721,12 +1722,13 @@ bm_add:
         lda bd_gend-1,x         ; room in the row?
         sec
         sbc bd_gfirst-1,x
-        cmp #BD_PER
-        bcs @rts
         ldx bm_p
         cpx #2
         bne :+
-        cmp #BD_PER - 1
+        cmp #BD_FAST
+        bcs @rts
+        bcc :++
+:       cmp #BD_PER
         bcs @rts
 :       ldx bm_gx
         lda bm_i

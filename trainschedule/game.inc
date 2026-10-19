@@ -39,7 +39,7 @@ MAP_MAX     = 1024
 ; The map's song (data/music.txt) comes in its file (tools/mklevel.py) and
 ; is kept here while the map is played (front.s, load_map).
 SONG_BUF    = $B000
-SONG_MAX    = $0600
+SONG_MAX    = $0560
 
 D_E         = 0
 D_NE        = 1

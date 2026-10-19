@@ -35,7 +35,7 @@ import sys
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 import mkmusic                          # noqa: E402
 
-SONG_MAX = 1536                         # game.inc: SONG_MAX
+SONG_MAX = 1376                         # game.inc: SONG_MAX
 LOAD_MAX = 3072                         # front.s: SCRATCH, 3 KB
 
 DIRS = ["E", "NE", "N", "NW", "W", "SW", "S", "SE"]
