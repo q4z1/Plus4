@@ -11,6 +11,10 @@
 #                      data/*.txt, the songs from data/music.txt)
 #   help               the overlay: the choice of a map and the page of
 #                      help (front.s, help.s, tools/mkhelp.py, data/help.txt)
+#   scores             the page of a map's best scores, and saving them
+#                      (scores.s; the rest of its code is in "maps")
+#   best               the best scores (scores.s), as the disk brings them:
+#                      none - the fast loader saves into it
 # The program is packed too, as Stardew Pond's: it unpacks itself.
 set -e
 cd "$(dirname "$0")"
@@ -25,7 +29,7 @@ python3 tools/mkpicture.py data/start.png build/disk --up 2 --hires-from 7 --bla
 python3 tools/mkfont.py build/gen/font.s
 python3 tools/mkhelp.py data/help.txt build/gen/help.s
 # the game: all assembly (cl65 only assembles it and links)
-for f in trainschedule map route train front engine signs unpack help; do
+for f in trainschedule map route train front engine signs unpack help scores; do
     $B/cl65 -t plus4 -g -c -o build/$f.o $f.s
 done
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
@@ -35,8 +39,23 @@ $B/cl65 -t plus4 -C trainschedule.cfg -m build/trainschedule.map \
     -Ln build/trainschedule.lbl -o build/trainschedule.raw \
     build/trainschedule.o build/map.o build/route.o build/train.o \
     build/front.o build/engine.o build/signs.o build/unpack.o build/data.o \
-    build/font.o build/help.o build/helpdoc.o
+    build/font.o build/help.o build/helpdoc.o build/scores.o
 cp build/trainschedule.raw build/trainschedule-plain.prg
+# the best scores' code (trainschedule.cfg: SCO, $E300) after the catalogue
+# in its file, which the game loads to $E000; and their file as it comes:
+# its load address, the cassette buffer (game.inc BEST), and 0s as long as
+# the table - no scores, which the game takes for none at all
+python3 - build/disk/MAPS build/scores.bin build/disk/maps.prg build/disk/best.prg <<'PY'
+import re, sys
+cat, code = open(sys.argv[1], "rb").read(), open(sys.argv[2], "rb").read()
+if len(cat) - 2 > 0x300:
+    sys.exit(f"the catalogue: {len(cat) - 2} bytes, over the $300 before the scores' code")
+open(sys.argv[3], "wb").write(cat + bytes(0x302 - len(cat)) + code)
+maps = int(re.search(r"^MAX_MAPS *= *(\d+)", open("game.inc").read(), re.M).group(1))
+open(sys.argv[4], "wb").write(bytes([0x33, 0x03]) + bytes(2 + maps + 5 * 5 * maps))
+PY
+printf '\000\000' | cat - build/page.bin > build/disk/scores.prg
+echo "scores: $(stat -c%s build/scores.bin) bytes, maps file $(stat -c%s build/disk/maps.prg), the page $(stat -c%s build/page.bin)"
 # the overlay (trainschedule.cfg: OVL) packed, as the title's files, with a
 # load address the game ignores; front.s unpacks it from $EC00, 3 KB
 $EXOMIZER raw -q -o build/help.exo build/help.bin
@@ -79,11 +98,12 @@ disk() {        # disk <d64> <the game, packed>
     set -- trainschedule=build/boot.prg \
            title.b=build/disk/title.b.prg title.m=build/disk/title.m.prg \
            music=build/disk/music.prg \
-           game@$GAME_INTERLEAVE="$2" maps=build/disk/MAPS \
+           game@$GAME_INTERLEAVE="$2" maps=build/disk/maps.prg \
            help@$GAME_INTERLEAVE=build/disk/help.prg
     for f in build/disk/MAP[0-9]*; do
         set -- "$@" "$(basename "$f" | tr 'A-Z' 'a-z')=$f"
     done
+    set -- "$@" scores=build/disk/scores.prg best=build/disk/best.prg
     python3 tools/mkd64.py "$d64" trainschedule rs $INTERLEAVE "$@"
 }
 disk build/trainschedule.d64 build/trainschedule.prg

@@ -57,7 +57,7 @@
         .import _tt_arr, _tt_plat, _tt_pts, _train_blink, _autopilot_on
         .import ev_why, ev_pts, ev_late, ev_wrong, ev_st, ev_rec
         .import disk_init, title, choose_map, load_map, _level_buf, map_song
-        .import catalogue, unlock_next, text_screen
+        .import catalogue, unlock_next, text_screen, best_after, cur_map
         .export _test_map
         .import _eng_init, _eng_hits, _eng_hits2
         .import _eng_vmbase, _eng_font2, _eng_dark, _eng_show, _eng_text, _txt_o, _txt_col, _frames, _dbg_n
@@ -122,6 +122,9 @@ ec_i:       .res 1              ; end_choice's: the row, and its texts
 ec_f:       .res 1
 le_new:     .res 1              ; level_end's: a map unlocked
 le_t:       .res 2              ; and its head: why it ends
+        .segment "TOPBSS"       ; (trainschedule.cfg: under the ROM)
+le_best:    .res 1              ; and 1: a score among the map's best five
+        .bss
 le_r:       .res 1
 nm_d:       .res 1
 nm_any:     .res 1
@@ -2486,11 +2489,19 @@ le_go:  sta le_t
         lda #0
         sta le_pc
         sta le_pc+1
+        sta le_best
         lda _score+1
         jmi @pc
         ora _score
-        beq @pc
-        lda _perfect
+        jeq @pc
+        ldx cur_map             ; more than the map's fifth best (scores.s):
+        lda BEST_LO + 27,x      ; among them, their page after it
+        cmp _score
+        lda BEST_HI + 27,x
+        sbc _score+1
+        bcs :+
+        inc le_best
+:       lda _perfect
         ora _perfect+1
         beq @pc
         lda #0                  ; le_p = score * 100 (24 bits)
@@ -2800,6 +2811,10 @@ _main:  lda $FF06
         jeq @loop
         lda end_sel
         beq @on
+        lsr le_best             ; a new best score: its page first
+        bcc :+
+        jsr best_after
+:       lda end_sel
         cmp #2
         bne :+
         jsr choose_map

@@ -17,6 +17,11 @@
 ; The KERNAL needs $07D8-$07E7 to load (measured for Paradroid); the game
 ; keeps routes there, so those 16 bytes are kept from the start and put
 ; back before every load.
+;
+; The catalogue's file brings the best scores' code with it (scores.s): the
+; choice shows each map's stars and its best score, and after a map played
+; to its end with a score among its best five, their page comes
+; (best_after).
 
         .include "game.inc"
         .macpack longbranch
@@ -24,6 +29,9 @@
         .export _level_buf, disk_init, title, choose_map, load_map
         .export catalogue, unlock_next, _unlocked, map_song
         .export cm_sel, show_maps, help_read, text_screen
+        .export best_after, load, kload, kernal_07d8, dev, fl_on, cur_map
+        .export ld_addr, ld_len
+        .exportzp ld_name
 
         .import _eng_blank, _eng_unblank, _eng_irqon, _eng_hits, _eng_text, _txt_o
         .import _txt_col, _eng_romfont, _eng_bmtext, _title_credits
@@ -32,6 +40,7 @@
         .import _mus_toggle, _unpack, _unp_dst, _scrn, _colr, _ptr_on
         .import _tk_start, _tk_on, _eng_choice, _eng_loading, _eng_clear
         .import help_hits, bulb_place
+        .import sc_init, sc_page, sc_stars, sc_best
 
 SCRATCH = $E000                 ; packed files, 3 KB: the trains' rings and
                                 ; the route search's tables, free here
@@ -45,7 +54,7 @@ FL_MAGIC = $FA03
 FL_NAME  = $FA07
 FL_ADDR  = $FA09
 KERNAL_LOAD_RAM = $07D8         ; what the KERNAL needs to load
-MAX_LIST = 7                    ; maps in the list: rows 6, 8 ... 18
+MAX_LIST = MAX_MAPS             ; maps in the list: rows 6, 8 ... 18
 OVL_ADDR = $B000                ; the overlay (trainschedule.cfg)
 OVL_TITLE = $EC00               ; and where it comes packed (build.sh: 3 KB)
 OVL_LEVEL = $C000
@@ -490,9 +499,15 @@ show_maps:
 :       lda #<lock_shut
         ldx #>lock_shut
         jsr put_at
-@next:  inc cm_i
+@next:  ldx cm_i                ; its stars (scores.s)
+        ldy sm_i
+        jsr sc_stars
+        inc cm_i
         jmp @map
-@about: ldx cm_sel
+@about: ldx cm_sel              ; its best score, below the rest
+        ldy #22
+        jsr sc_best
+        ldx cm_sel
         bpl @map1
         lda #<help_t1
         sta fp1
@@ -530,7 +545,8 @@ show_maps:
         lda #COL_LATE
         jmp put_text
 
-; the music, on or off: left and right turn it (and F1, anywhere)
+; the music, on or off: left and right turn it (and F1, anywhere) - below
+; the best score
 show_music:
         ldx #14                 ; N
         ldy #32
@@ -544,7 +560,7 @@ show_music:
         sta _txt_col
         lda #11
         sta cm_k
-        ldy #22
+        ldy #23
         lda #<music_t
         ldx #>music_t
         jmp put_at
@@ -607,7 +623,7 @@ catalogue:
         bcc :+
         lda #MAX_LIST
 :       sta cm_n
-        rts
+        jmp sc_init             ; the best scores, the first time
 
         .segment "OVLCODE"
 ; choice_screen: the second screen ($F000/$F400) empty, the one written
@@ -749,6 +765,24 @@ choose_map:
         beq :+                  ; board's (eng_text), the ticker's
         stx _eng_mode           ; characters (3 - 1); the title stays 1
 :       jmp choice
+
+; best_after: leaving map cur_map, played to its end with a score among its
+; best five: the page of them (scores.s), with the catalogue, its code -
+; and the map loaded afresh for its next game (A = 1: end_sel's), as the
+; page took its memory
+best_after:
+        pha
+        jsr _eng_loading
+        jsr catalogue
+        inc cat_ok              ; (the choice of a map needs it no more)
+        jsr sc_page
+        jsr _eng_loading        ; (on while the next is loaded: not the
+        pla                     ; page's screen, where the overlay comes)
+        lsr a
+        bcc @rts
+        lda cur_map
+        jmp load_map
+@rts:   rts
 
 ; overlay: the overlay, if it is not there, unpacked from page A
 overlay:

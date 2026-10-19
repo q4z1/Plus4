@@ -60,7 +60,7 @@ ROMON   = $FF3E
 DOT_ON  = $E0           ; the dots (the interrupt): 0 till the text is in
 RAMON   = $FF3F
 
-DRIVE   = $0500         ; drive.s, in the drive
+DRIVE   = $0400         ; drive.s, in the drive
 RESIDENT = $FA00        ; fastload.s
 FL_NAME = RESIDENT + 7
 FL_ADDR = RESIDENT + 9

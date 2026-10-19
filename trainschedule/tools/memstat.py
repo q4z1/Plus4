@@ -34,7 +34,9 @@ FIXED = [
     (0x0000, 0x0001, "CPU port"),
     (0x0080, 0x00FF, "KERNAL's zero page"),
     (0x0100, 0x01FF, "CPU stack"),
-    (0x0200, 0x03FF, "KERNAL's work area (LOAD, $0314)"),
+    (0x0200, 0x0332, "KERNAL's work area (LOAD, $0314)"),
+    (0x0333, 0x03F2, "best scores (game.inc BEST), the cassette buffer"),
+    (0x03F3, 0x03FF, "KERNAL's work area"),
     (0x0800, 0x0FFF, "screen 1: colours, characters"),
     (0x1000, 0x1000, "BASIC's 0 before the program"),
     (0xC000, 0xC7FF, "character set"),
@@ -58,7 +60,13 @@ AREA_NAMES = {
     "TOP": "trains' variables, under the ROM",
     "OVL": "overlay, outside a level: choice, help",
     "OVLB": "overlay's variables, outside a level",
+    "SCO": "best scores' code, outside a level",
+    "SCP": "best scores' page, after a level",
+    "KSV": "saving them the KERNAL's way",
 }
+
+# segments that are meant to lie over fixed memory: (segment, what)
+OVER_FIXED = {("SCPAGE", "character set")}
 
 # Files on the disk (build.sh)
 FILE_NAMES = {
@@ -67,7 +75,9 @@ FILE_NAMES = {
     "title.m": "title picture: colours (packed)",
     "music": "title's song",
     "game": "the game (packed)",
-    "maps": "map list",
+    "maps": "map list, best scores' code",
+    "scores": "page of a map's best scores",
+    "best": "the best scores",
     "help": "choice of a map, page of help (packed)",
 }
 
@@ -176,7 +186,7 @@ def ram(build, cfg, inc, top):
         if size == 0 or name in ("LOADADDR",):
             continue
         for a in range(start, end + 1):
-            if owner[a] and owner[a][0] == "fixed":
+            if owner[a] and owner[a][0] == "fixed" and (name, owner[a][1]) not in OVER_FIXED:
                 clash.append((a, name, owner[a][1]))
             owner[a] = ("seg", seg_area.get(name, "?"))
     for a, (start, end, last) in areas.items():

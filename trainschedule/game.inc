@@ -165,3 +165,25 @@ TK_COL      = $61
 LOCK_CODE   = 64
 COL_LOCK    = $57               ; the body: gold
 COL_SHACKLE = $51               ; its shackle: grey
+
+; ---- the best scores (scores.s) --------------------------------------------
+; Five a map, for the seven maps the list can have, kept in the cassette
+; buffer, $0333-$03F2: the game never uses a tape, and it is below the
+; ROM, where the KERNAL can save it from. As the file "best" holds them:
+; a byte making the sum of all of them 0, the maps open (_unlocked's
+; bits), each map's most stars; then the scores' low bytes, their high
+; bytes, and the three letters of the name to each, every one of these
+; five 35 long - index rank * 7 + map (both from 0), so the fifth's of map
+; m (from 1) is at BEST_LO + 27 + m. A score of 0 is no score. After
+; them, not in the file: its name, for the KERNAL, below the ROM too.
+MAX_MAPS    = 7
+BEST        = $0333
+BEST_OPEN   = BEST + 1
+BEST_STARS  = BEST + 2
+BEST_LO     = BEST + 2 + MAX_MAPS
+BEST_HI     = BEST_LO + 5 * MAX_MAPS
+BEST_C1     = BEST_HI + 5 * MAX_MAPS
+BEST_C2     = BEST_C1 + 5 * MAX_MAPS
+BEST_C3     = BEST_C2 + 5 * MAX_MAPS
+BEST_LEN    = BEST_C3 + 5 * MAX_MAPS - BEST     ; 184
+BEST_NAME   = BEST + BEST_LEN   ; "s0:best", 0

@@ -1,16 +1,18 @@
 ; drive.s - the fast loader's half in the disk drive: a 1541 (any of them),
-; 1570 or 1571, at $0500
+; 1570 or 1571, at $0400
 ;
 ; The boot program (boot.s) writes it into the drive with M-W and starts it
-; with M-E; from then on the drive answers only to this. The drive reads the
-; disk through its own DOS - a read job in the job queue, as any program
-; would - so nothing in here depends on the mechanics or on the disk's
-; timing. Only the transfer is ours: one bit at a time on the serial bus's
-; DATA line, each to an edge of CLK made by the Plus/4. The drive answers
-; an edge within 14 us; the Plus/4 looks at DATA no sooner than 30 us after
-; it (fastload.s), so every bit has more than twice the time it needs. The
-; Plus/4's interrupts or the TED's stolen cycles can only make it later.
-; This is Siz's way (siziolib, after the G.I. Joe loader), written anew.
+; with M-E; from then on the drive answers only to this - the game loads
+; through it, and saves the best scores (scores.s). The drive reads and
+; writes the disk through its own DOS - a job in the job queue, as any
+; program would - so nothing in here depends on the mechanics or on the
+; disk's timing. Only the transfer is ours: one bit at a time on the serial
+; bus's DATA line, each to an edge of CLK made by the Plus/4. The drive
+; answers an edge within 14 us; the Plus/4 looks at DATA no sooner than
+; 30 us after it (fastload.s), so every bit has more than twice the time it
+; needs. The Plus/4's interrupts or the TED's stolen cycles can only make it
+; later. This is Siz's way (siziolib, after the G.I. Joe loader), written
+; anew; Stardew Pond has the same.
 ;
 ; The bus as the drive sees it ($1800): bit 0 DATA in, bit 2 CLK in (1 =
 ; line pulled low), bit 1 DATA out, bit 3 CLK out (1 = pull it low), bit 4
@@ -18,16 +20,25 @@
 ;
 ; Idle, the drive holds CLK low - so the Plus/4 can tell it is there. A
 ; request: the Plus/4 pulls DATA, the drive lets go of CLK, the Plus/4 sends
-; 16 bytes, the file's name padded with $A0 as in the directory. The drive
-; holds CLK while it looks for the file and reads a sector, and lets go of
-; it when a block is ready, a sector's bytes: first a count (1-254: that
-; many bytes follow; 0: this is the file's last block, its count follows;
-; 255: no such file, or the disk failed), then the bytes - without the
-; file's load address. After a block's last bit the drive waits till the
-; Plus/4 lets go of CLK - it has read the bit - and only then holds CLK
-; again: busy, reading the next sector, or waiting for the next request.
-; The Plus/4 waits for that before it looks for the next block. So neither
-; side ever assumes how fast the other is.
+; 16 bytes, the file's name padded with $A0 as in the directory, and what to
+; do with it: 0 load, 1 save. The drive holds CLK while it looks for the
+; file and reads a sector, and lets go of it when a block is ready.
+;
+; Loading, a block is a sector's bytes: first a count (1-254: that many
+; bytes follow; 0: this is the file's last block, its count follows; 255:
+; no such file, or the disk failed), then the bytes - without the file's
+; load address. After a block's last bit the drive waits till the Plus/4
+; lets go of CLK - it has read the bit - and only then holds CLK again:
+; busy, reading the next sector, or waiting for the next request. The
+; Plus/4 waits for that before it looks for the next block. So neither side
+; ever assumes how fast the other is.
+;
+; Saving writes into the file as it is on the disk: its sectors, its length
+; and its load address stay, only what it holds changes (the disk comes
+; with the file, tools/mkd64.py). For each sector the drive sends a count
+; the same way (1-254; 255: it failed), lets go of both lines once the
+; Plus/4 has it, and takes that many bytes, sent as the name was; then it
+; holds CLK while it writes the sector. After the last a 0: all written.
 
         .setcpu "6502"
 
@@ -49,8 +60,10 @@ last    = $0311         ; the sector's last byte to send
 from    = $0312         ; and its first
 bits    = $0313         ; the byte going over the bus
 tries   = $0314         ; reading a sector
+op      = $0315         ; 0 load, 1 save
+link    = $0316         ; saving: the sector's link, 2 bytes
 
-        .org $0500
+        .org $0400
 
 start:  sei
         cld
@@ -79,6 +92,8 @@ idle:   lda #$08                ; CLK held: the drive is here, and busy
         iny
         cpy #16
         bne @name
+        jsr get
+        sta op
         lda #$08                ; busy again
         sta SER
 
@@ -105,7 +120,9 @@ idle:   lda #$08                ; CLK held: the drive is here, and busy
         sta from                ; the load address)
         lda BUF+1,y
         ldx BUF+2,y
-        jmp file
+        ldy op
+        beq file
+        jmp save
 @nomatch:
         ldy entry
 @next:  tya
@@ -162,6 +179,49 @@ upto:   sta last
         adc #1
         rts
 
+; ---- saving: into the file's sectors ----------------------------------------
+
+save:   jsr read                ; the sector first: where the file goes on
+        bcs @fail
+        lda BUF                 ; (kept: the buffer is the DOS's while it
+        sta link                ; writes)
+        lda BUF+1
+        sta link+1
+        lda link
+        beq @last
+        lda #$FF                ; a full sector: bytes up to 255
+        bne @upto
+@last:  lda link+1              ; the last: up to the byte it names
+@upto:  jsr upto
+        jsr block               ; how many: the Plus/4 sends that many
+        lda #$04                ; once it has the count (lets go of CLK),
+:       bit SER                 ; both lines are its
+        bne :-
+        lda #$00
+        sta SER
+        ldy from
+@byte:  jsr get
+        sta BUF,y
+        cpy last
+        beq @write
+        iny
+        bne @byte
+@write: lda #$08                ; busy while it is written
+        sta SER
+        lda #$90                ; write
+        jsr job
+        cmp #$01
+        bne @fail
+        lda #2                  ; the sectors after the first: from 2
+        sta from
+        ldx link+1
+        lda link
+        bne save
+        jsr block               ; all written: 0, and nothing more
+        jsr busy
+        jmp idle
+@fail:  jmp fail
+
 ; ---- reading a sector ----------------------------------------------------
 
 ; Track A, sector X into BUF, by the DOS's job queue. C set if it failed:
@@ -202,7 +262,7 @@ job:    sta JOB
 ; ---- the bus --------------------------------------------------------------
 
 ; A byte from the Plus/4: a bit as CLK goes low, a bit as it goes high.
-; DATA low is 1.
+; DATA low is 1. Keeps Y.
 get:    ldx #4
 @bit:   lda #$04
 @lo:    bit SER

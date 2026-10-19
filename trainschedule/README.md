@@ -236,9 +236,23 @@ it, and the bulb stays dark from then on.
 **Unlocking.** At first only Riesa is open. A star on a map - 70 per cent
 of its points or more - opens the next one: the end of the level says so,
 and the choice of a map has it chosen already. The lock beside each map
-shows which are open. Until the Plus/4 is switched off.
+shows which are open, and the stars after it the most the map has been
+given.
 
 ![Choosing a map](screenshots/maps.png)
+
+**The best scores.** Each map keeps its best five, with a name of three
+letters to each. A map played to its end with a score among them - after
+the end's PLAY AGAIN or OTHER MAP - shows them on a page of their own, the
+new one in white, its stars beside it, its name to be given: the stick's
+up and down change the letter that blinks, left and right go to the one
+before or after, fire takes the name (the one given last comes first).
+Then they are saved on the disk, with the maps that are open, and the
+page says whether that worked - a disk with its write protect tab on keeps
+the old ones. The choice of a map shows the best score of the one chosen,
+and whose it is.
+
+![A new best score on Riesa](screenshots/best.png)
 
 ### Controls
 
@@ -344,9 +358,11 @@ left stick and A button are the joystick). On the disk:
 | `game` | the game, packed by exomizer: it unpacks itself |
 | `title.b`, `title.m` | the title picture, packed: the bitmap and its colours |
 | `music` | the title's music: the Radetzky March |
-| `maps` | the catalogue: each map's name and how hard it is, a line about it, its facts |
+| `maps` | the catalogue: each map's name and how hard it is, a line about it, its facts; and most of the best scores' code |
 | `help` | the choice of a map and the page of help, packed: loaded before the choice |
 | `map1`, `map2` ... | a map each: its music, its track and its timetable |
+| `scores` | the page of a map's best scores, and saving them: loaded only for it |
+| `best` | the best scores and the maps open: the disk comes with none |
 
 The maps are text, in [data/](data/), made into these files by
 [tools/mklevel.py](tools/mklevel.py) along with the pixel tables the
@@ -427,6 +443,20 @@ KERNAL needs 16 bytes at `$07D8` to load (found for Paradroid), where the
 game keeps its routes: they are kept from the start and put back before
 every load. The title picture is packed and unpacked by exomizer's
 decruncher.
+
+**Saving the best scores** ([scores.s](scores.s)) works as in Stardew
+Pond. With the fast loader, the drive writes into the file `best` the
+disk came with - its sectors and length stay, only what it holds changes
+- and the game reads it back and compares. Else the KERNAL saves it: the
+old file scratched first, the new one saved, and the drive's status read,
+which also waits till the drive has really written it. The table, 184
+bytes, lives in the cassette buffer at `$0333`: the game has no tape, and
+it is below the ROM, where the KERNAL can save from. A byte in it makes
+the sum of all of them 0; a file that does not add up is taken for none.
+There was no room left in the program for the rest: its code comes with
+the catalogue, behind it in the file `maps`, and the page itself, with
+saving, is a file of its own loaded where the map's characters were - the
+map is over then, and loaded afresh for PLAY AGAIN.
 
 **The title** is two kinds of bitmap, one above the other. The lettering
 at the top is multicolour - a cell of 4 x 8 pixels has the background,

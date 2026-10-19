@@ -11,10 +11,11 @@
 ;   $FA09  where to (the file's own load address is not sent)
 ;
 ; load returns the end of what it loaded in A/X, C clear; or C set and 0
-; if the file is not there or the disk failed. It uses no zero page but
-; the CPU's port, $01: bit 0 DATA out, bit 1 CLK out (1 = pull the line
-; low), bit 3 the tape motor (kept off), bit 6 CLK in, bit 7 DATA in (1 =
-; high).
+; if the file is not there or the disk failed. Saving is not here - no
+; room: the best scores' code (scores.s) has its own half of it, which the
+; game loads only with them. It uses no zero page but the CPU's port, $01:
+; bit 0 DATA out, bit 1 CLK out (1 = pull the line low), bit 3 the tape
+; motor (kept off), bit 6 CLK in, bit 7 DATA in (1 = high).
 ;
 ; The drive answers an edge of CLK within 14 us; the waits here, counted
 ; at the TED's fastest clock (1.79 MHz), give it 29 us before DATA is
@@ -65,7 +66,9 @@ nm:     lda $FFFF,y
         iny
         cpy #16
         bne @pad
-@sent:  lda #FREE
+@sent:  lda #0                  ; what to do with it: load (saving is
+        jsr put                 ; scores.s's)
+        lda #FREE
         sta PORT
 
 block:  jsr busy                ; till the drive takes CLK: it has read

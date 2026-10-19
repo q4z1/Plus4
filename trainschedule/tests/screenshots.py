@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The README's pictures, made anew in plus4emu from the disk: the title,
 the choice of a map, its page of help, Riesa with trains at its platforms, a train's
-timetable, the overview, the end of a level, and then Yokohama,
+timetable, the overview, the end of a level, the page of its best scores, and then Yokohama,
 Alessandria, Paris, Smiths Falls and Copenhagen in the overview, each played to its end, so
 that it opens the next. The autopilot plays (as the tests do). Writes screenshots/*.png; run from trainschedule/.
 """
@@ -42,6 +42,25 @@ def main():
 
     def shot(name):
         print(name, p.png(os.path.join(OUT, name)))
+
+    def other_map(page=None):
+        # OTHER MAP at the end; first the page of the map's best scores
+        # (on a new disk each map's first game makes one): fire takes the
+        # name, and once it is saved fire goes on - to the choice
+        p.set('dbg_keys', 8)
+        p.run_for(0.2)
+        p.set('dbg_keys', 0)
+        p.run_for(0.2)
+        fire()
+        wait(lambda: bytes([2, 5, 19, 20, 32, 15, 14]) in p.mem(0xF400 + 3 * 40, 40)
+             and p.peek('eng_mode') == 2)                           # BEST ON
+        p.run_for(1)
+        if page:
+            shot(page)
+        fire()
+        wait(lambda: bytes([19, 1, 22, 5, 4]) in p.mem(0xF400 + 20 * 40, 40))  # SAVED
+        fire()
+        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
 
     try:
         # the title, the game ready (its own interrupt and the march on)
@@ -93,12 +112,7 @@ def main():
         shot('done.png')
         # OTHER MAP, the second, Yokohama (the choice has it chosen): the
         # overview, trains passing at Shinagawa and Kawasaki
-        p.set('dbg_keys', 8)
-        p.run_for(0.2)
-        p.set('dbg_keys', 0)
-        p.run_for(0.2)
-        fire()
-        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        other_map('best.png')
         p.run_for(1.5)
         fire()
         wait(lambda: p.peek('ptr_on') == 1)
@@ -116,12 +130,7 @@ def main():
         p.set('speed_i', 3)
         wait(lambda: p.peek('ended') == 1, 300)
         p.run_for(1)
-        p.set('dbg_keys', 8)
-        p.run_for(0.2)
-        p.set('dbg_keys', 0)
-        p.run_for(0.2)
-        fire()
-        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        other_map()
         p.run_for(1.5)                           # (the choice has it chosen)
         fire()
         wait(lambda: p.peek('ptr_on') == 1)
@@ -139,12 +148,7 @@ def main():
         p.set('speed_i', 3)
         wait(lambda: p.peek('ended') == 1, 300)
         p.run_for(1)
-        p.set('dbg_keys', 8)
-        p.run_for(0.2)
-        p.set('dbg_keys', 0)
-        p.run_for(0.2)
-        fire()
-        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        other_map()
         p.run_for(1.5)
         fire()
         wait(lambda: p.peek('ptr_on') == 1)
@@ -162,12 +166,7 @@ def main():
         p.set('speed_i', 3)
         wait(lambda: p.peek('ended') == 1, 300)
         p.run_for(1)
-        p.set('dbg_keys', 8)
-        p.run_for(0.2)
-        p.set('dbg_keys', 0)
-        p.run_for(0.2)
-        fire()
-        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        other_map()
         p.run_for(1)
         fire()
         wait(lambda: p.peek('ptr_on') == 1)
@@ -185,12 +184,7 @@ def main():
         p.set('speed_i', 3)
         wait(lambda: p.peek('ended') == 1, 300)
         p.run_for(1)
-        p.set('dbg_keys', 8)
-        p.run_for(0.2)
-        p.set('dbg_keys', 0)
-        p.run_for(0.2)
-        fire()
-        wait(lambda: bytes([3, 8, 15, 15, 19, 5]) in on_screen())    # CHOOSE
+        other_map()
         p.run_for(1)
         fire()
         wait(lambda: p.peek('ptr_on') == 1)
