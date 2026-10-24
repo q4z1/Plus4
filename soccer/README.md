@@ -77,9 +77,12 @@ built anew - before it runs full, and never for two pictures running.
 The C64 has two colours for a sprite besides its own; a multicolour
 character on the TED shares three with the whole screen and has one of
 its own. The grass, black and the players' skin are the shared ones, and
-a cell's own colour is the shirt of the player in it - or white, for the
-lines. Where a player stands on a line, that bit of line takes his
-colour.
+a cell's own colour is white, for the lines and the nets - or the shirt
+of a player in it. Only the cells with a bit of shirt in them take its
+colour, and what was white in them turns to the light skin colour
+instead of to the shirt's (trainschedule does the same with its track
+under a train). The ball gives way: over a cell a shirt has coloured,
+its white is drawn in that light colour too.
 
 ![Running, the view following](screenshots/running.png)
 

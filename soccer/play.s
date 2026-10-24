@@ -214,6 +214,7 @@ stand:
         lda #0
         sta o_spl,x
         sta o_sph,x
+        sta o_step,x            ; (the standing picture)
         sta o_vxf,x
         sta o_vxl,x
         sta o_vyf,x
@@ -225,11 +226,14 @@ stand:
 play_frame:
         jsr control
         ldx #PLAYERS - 1
-:       stx z_obj
+@pl:    lda o_spl,x             ; (the standing ones passed over)
+        ora o_sph,x
+        beq @next
+        stx z_obj
         jsr player_move
         ldx z_obj
-        dex
-        bpl :-
+@next:  dex
+        bpl @pl
         jsr ball_move
         jmp switch
 
@@ -621,16 +625,10 @@ abs16:
 
 ; ---- moving ---------------------------------------------------------------
 
-; player_move: player X a frame towards his destination, his running
-; picture on
+; player_move: player X, moving, a frame towards his destination, his
+; running picture on (stand puts the standing picture)
 player_move:
-        lda o_spl,x
-        ora o_sph,x
-        bne :+
-        lda #0                  ; standing
-        sta o_step,x
-        rts
-:       jsr aim
+        jsr aim
         ldx z_obj
         jsr step
         dec o_run,x             ; a step every four frames

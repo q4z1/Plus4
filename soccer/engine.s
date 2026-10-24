@@ -31,11 +31,12 @@
         .export cam_x, cam_y, frames, joy, dbg_joy
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_map, _pitch_font
-        .import img_ox, img_oy, img_lo, img_hi
+        .import img_ox, img_oy, img_lo, img_hi, img_alt, light11
 
 POOL        = 112               ; first code for figures
 FLUSH_EARLY = 86                ; a cache this full is emptied when it suits
 STRIP       = 32                ; a figure's column: four cells at most
+MOVE_U      = 16                ; bytes a turn when the codes are moved
 VBL_LINE    = 205               ; the interrupt: below the picture
 
         .zeropage
@@ -80,6 +81,14 @@ z_mix:      .res 1              ; bit 7: a cell showed more than grass
 z_grass:    .res 1              ; a bit for each cell to be cleared
 z_d:        .res 2              ; the column's pixels, less its first line
 z_kp:       .res 2              ; and its bits to keep
+z_cd:       .res 2              ; the column's record (or its giving way's)
+z_alt:      .res 2              ; how far the giving way picture's record is
+z_yield:    .res 1              ; bit 7: the figure gives way (the ball)
+z_ycol:     .res 1              ; bit 7: this column gives way
+z_rmp:      .res 1              ; bit 7: the cell's white turns light
+z_kc0:      .res 1              ; the column's cells with pixels in the
+z_kc1:      .res 1              ;   cell's colour, in the strip
+z_kk:       .res 1              ; the cell's in the strip
 z_cl:       .res 1              ; the next code in the picture's page
 z_ci:       .res 1              ; restore's: the next code to put back
 z_yy:       .res 1              ; a cell's place below the column's first
@@ -744,7 +753,7 @@ fc_put: sta (z_scr),y
         rts
 
 ; move_up: the codes moved to lower addresses, from z_src to z_dst (the
-; matrix), 1024 bytes, the lowest first, eight a turn. Past the 1000 the
+; matrix), 1024 bytes, the lowest first, MOVE_U a turn. Past the 1000 the
 ; TED shows it writes into the matrix's unused end, and reads from the
 ; character set behind it.
 move_up:
@@ -763,17 +772,17 @@ move_up:
         adc #6
         tay
         inx
-        cpx #8
+        cpx #MOVE_U
         bne :-
         lda #4
         sta z_cnt
 mu_page:                        ; their high bytes, a page at a time
         lda z_src + 1
-        .repeat 8, K
+        .repeat MOVE_U, K
         sta mu_loop + 2 + 6 * K
         .endrepeat
         lda z_dst + 1
-        .repeat 8, K
+        .repeat MOVE_U, K
         sta mu_loop + 5 + 6 * K
         .endrepeat
         ldx #0
@@ -784,20 +793,20 @@ mu_page:                        ; their high bytes, a page at a time
         bne mu_page
         rts
 mu_loop:
-        .repeat 8, K
+        .repeat MOVE_U, K
         lda $FF00 + K,x
         sta $FF00 + K,x
         .endrepeat
         txa
         clc
-        adc #8
+        adc #MOVE_U
         tax
         bne mu_loop
         rts
 
 ; move_down: the codes moved to higher addresses, |off| = z_dst's low
 ; byte up, 1024 bytes into the matrix's four pages from the top down,
-; the highest first, eight a turn. The bytes it puts below |off| in the
+; the highest first, MOVE_U a turn. The bytes it puts below |off| in the
 ; first page are cells of the rows or columns coming in, looked up after.
 move_down:
         lda z_dst               ; |off|
@@ -816,7 +825,7 @@ md_page:                        ; source = destination page - |off|
         lda z_dst + 1
         sbc #0
         sta z_src + 1
-        ldx #7                  ; operand K: + 7 - K
+        ldx #MOVE_U - 1         ; operand K: + MOVE_U - 1 - K
         ldy #0
 :       txa
         clc
@@ -835,20 +844,20 @@ md_page:                        ; source = destination page - |off|
         tay
         dex
         bpl :-
-        ldx #248
+        ldx #256 - MOVE_U
         jsr md_loop
         dec z_dst + 1
         dec z_cnt
         bne md_page
         rts
 md_loop:
-        .repeat 8, K
-        lda $FF00 + 7 - K,x
-        sta $FF00 + 7 - K,x
+        .repeat MOVE_U, K
+        lda $FF00 + MOVE_U - 1 - K,x
+        sta $FF00 + MOVE_U - 1 - K,x
         .endrepeat
         txa
         sec
-        sbc #8
+        sbc #MOVE_U
         tax
         bcs md_loop
         rts
@@ -1068,7 +1077,31 @@ fd_yok:   lda z_ty
         sta z_dat
         lda img_hi,x
         sta z_dat + 1
-        ldy #0
+        ; giving way (the ball): its picture with its white in the light
+        ; shared colour, the same shape - how far its record is
+        lda #0
+        sta z_yield
+        ldy fig_img
+        lda img_alt,y
+        cmp #$FF
+        beq :+
+        asl a
+        asl a
+        sta z_t
+        txa
+        and #3
+        ora z_t
+        tay
+        lda img_lo,y
+        sec
+        sbc z_dat
+        sta z_alt
+        lda img_hi,y
+        sbc z_dat + 1
+        sta z_alt + 1
+        lda #$80
+        sta z_yield
+:       ldy #0
         lda (z_dat),y
         sta z_ncol
         inc z_dat               ; the first column
@@ -1133,6 +1166,24 @@ fd_col: ldy #1
         lsr a
         lsr a
         sta z_ro
+        ldy #2                  ; its cells with pixels in the cell's colour:
+        lda (z_dat),y           ; strip cells kc0 .. kc1 (none: 255, 0)
+        cmp #$FF
+        beq :+
+        clc
+        adc z_y0
+        lsr a
+        lsr a
+        lsr a
+:       sta z_kc0
+        iny
+        lda (z_dat),y
+        clc
+        adc z_y0
+        lsr a
+        lsr a
+        lsr a
+        sta z_kc1
         lda z_y0                ; its cells: (y0 + lines + 7) / 8
         clc
         adc z_h
@@ -1196,11 +1247,33 @@ fd_skip:
         tay
         lda #0
         sta z_mix
+        sta z_ycol
+        lda z_k0
+        sta z_kk
         ldx z_cl                ; (X: the list, Y: the cell)
         stx z_x0
-fd_cell:
-        lda fig_col
+fd_cell:                        ; its colour: where it has pixels in it and
+        lda #0                  ; the cell another - a player takes the cell,
+        sta z_rmp               ; what is under it in that colour turned to
+        lda z_kk                ; the light shared one; the ball gives way,
+        cmp z_kc0               ; its white in the light shared colour
+        bcc fd_keep
+        lda z_kc1
+        cmp z_kk
+        bcc fd_keep
+        lda (z_att),y
+        cmp fig_col
+        beq fd_keep
+        bit z_yield
+        bpl :+
+        lda #$80
+        sta z_ycol
+        bne fd_keep
+:       lda fig_col
         sta (z_att),y
+        lda #$80
+        sta z_rmp
+fd_keep:
         lda (z_scr),y
 pc_code = *
         sta codes,x             ; (the picture's page)
@@ -1212,6 +1285,7 @@ pc_offs = *
         sta offs,x              ; (the picture's page)
         inx
         inc z_cc
+        inc z_kk
         tya
         clc
         adc #SCR_W
@@ -1230,23 +1304,47 @@ fd_bg:  stx z_ix                ; more than grass: its pixels into the strip
         lda z_cc
         jsr char_at
         ldy #7
+        bit z_rmp
+        bmi fd_light
 :       lda (z_src),y
         sta (z_fnt),y
         dey
         bpl :-
+        bmi fd_copied
+fd_light:                       ; (its white in the light shared colour)
+        lda (z_src),y
+        tax
+        lda light11,x
+        sta (z_fnt),y
+        dey
+        bpl fd_light
+fd_copied:
         lda #$80
         sta z_mix
         ldx z_ix
         ldy z_yy
         jmp fd_put
-fd_strip:
-        bit z_mix
+fd_strip:                       ; the column's record, or the giving-way
+        lda z_dat               ; picture's
+        sta z_cd
+        lda z_dat + 1
+        sta z_cd + 1
+        bit z_ycol
+        bpl :+
+        lda z_cd
+        clc
+        adc z_alt
+        sta z_cd
+        lda z_cd + 1
+        adc z_alt + 1
+        sta z_cd + 1
+:       bit z_mix
         bmi fd_mixed0
         ; all grass: the whole strip straight from the pixels, the empty
         ; lines before and after them included - entered so that it ends
         ; with the block (strip line j at y = j + A, A = 32 - cells * 8):
         ; the strip less A is code c0 + cells - 4's pixels, the pixels
-        ; less y0 and A the column's record + 2 + 8 - 32 + cells * 8 - y0
+        ; less y0 and A the column's record + 4 + 8 - 32 + cells * 8 - y0
         lda z_c0
         clc
         adc z_nc
@@ -1259,13 +1357,13 @@ fd_strip:
         sbc z_y0
         sta z_t                 ; (signed)
         clc
-        adc z_dat
+        adc z_cd
         sta z_d
         lda z_t
         and #$80
         beq :+
         lda #$FF
-:       adc z_dat + 1
+:       adc z_cd + 1
         sta z_d + 1
         lda fbn_lo,x
         sta fd_fcall + 1
@@ -1278,11 +1376,11 @@ fd_fcall:
 fd_mixed0:                      ; the strip; the pixels after the column's
         lda z_c0                ; first line, its lines, eight empty ones
         jsr char_at
-        lda z_dat
+        lda z_cd
         clc
-        adc #2 + 8
+        adc #4 + 8
         sta z_d
-        lda z_dat + 1
+        lda z_cd + 1
         adc #0
         sta z_d + 1
 fd_mixed:                       ; the grass cells on the picture (code 0
@@ -1364,11 +1462,11 @@ fm_done:
         tay
 fd_mcall:
         jsr mblock
-fd_ncol:                        ; the next column: 2 + 16 + 2 * its lines on
+fd_ncol:                        ; the next column: 4 + 16 + 2 * its lines on
         inc z_c
         lda z_h
         asl a
-        adc #2 + 16             ; (carry clear: a column is under 128 lines)
+        adc #4 + 16             ; (carry clear: a column is under 128 lines)
         adc z_dat
         sta z_dat
         bcc :+
@@ -1402,7 +1500,7 @@ fy_of:
         .endrepeat
 fr_off:
         .repeat 5, I
-        .byte <(2 + 8 - STRIP + 8 * I)
+        .byte <(4 + 8 - STRIP + 8 * I)
         .endrepeat
 row40s_lo:                      ; rows -3 .. 27, times 40
         .repeat 31, I
