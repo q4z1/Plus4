@@ -104,6 +104,7 @@ RUN_BASE = [0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C]
 # Then the ball turning (four pictures), and its shadow (its own colour
 # black, from the C64's); then the ball again giving way, its white in the
 # light shared colour (engine.s: over a cell another figure has coloured).
+RUN_FRAMES = [b + f for b in RUN_BASE for f in (0, 1, 3)]
 IMAGES = [b + f for b in RUN_BASE for f in (0, 1, 3)] + [0x40, 0x41, 0x42, 0x43, 0x54] \
     + [0x40, 0x41, 0x42, 0x43]
 BLACK = {0x54}
@@ -136,6 +137,19 @@ def sprites():
     txt = open(os.path.join(DATA, 'sprites.txt')).read()
     return {int(m.group(1), 16): m.group(2).split()
             for m in re.finditer(r'sprite ([0-9a-f]{2})\n((?:[.sck]{12}\n){21})', txt)}
+
+
+def half_shadow(pic):
+    """A player's shadow at half its height: the black below the last line
+    with skin or shirt, two lines at a time made one (black where either
+    is) - a figure that goes into a third row of cells less often."""
+    body = [i for i, l in enumerate(pic) if 's' in l or 'c' in l]
+    if not body:
+        return pic
+    top, rest = pic[:body[-1] + 1], pic[body[-1] + 1:]
+    shadow = [''.join('k' if 'k' in (a[x], b[x]) else '.' for x in range(len(a)))
+              for a, b in zip(rest[0::2], rest[1::2] + ['.' * len(rest[0])])]
+    return top + shadow + ['.' * len(pic[0])] * (len(pic) - len(top) - len(shadow))
 
 
 def figure(pic, black=False, light=False):
@@ -246,7 +260,8 @@ def main():
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
         spr = sprites()
-        figs = [figure(spr[b], b in BLACK, i >= GIVE_WAY) for i, b in enumerate(IMAGES)]
+        figs = [figure(half_shadow(spr[b]) if b in RUN_FRAMES else spr[b], b in BLACK, i >= GIVE_WAY)
+                for i, b in enumerate(IMAGES)]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi, img_alt, light11\n        .rodata\n')
         alt = [GIVE_WAY + IMAGES.index(b) - IMAGES.index(0x40) if i < GIVE_WAY and b in (0x40, 0x41, 0x42, 0x43)
                else 255 for i, b in enumerate(IMAGES)]
