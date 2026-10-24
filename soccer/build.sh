@@ -7,10 +7,10 @@ cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
 mkdir -p build/gen
 python3 tools/mkdata.py
-for f in soccer engine; do
+for f in soccer engine play; do
     $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/$f.o $f.s
 done
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -C soccer.cfg -m build/soccer.map -Ln build/soccer.lbl \
-    -o build/soccer.prg build/soccer.o build/engine.o build/data.o
+    -o build/soccer.prg build/soccer.o build/engine.o build/play.o build/data.o
 echo "build/soccer.prg: $(stat -c%s build/soccer.prg) bytes"

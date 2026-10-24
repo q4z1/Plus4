@@ -3,12 +3,12 @@
 cell of the picture just finished that no figure took must show the
 ground's character for its place: its code's pixels in the picture's set
 against the ground's character from the map. Runs the player about in
-every direction meanwhile, fast and slow.
+every direction meanwhile, dribbling and passing.
 
     tests/consistency.py [pictures per direction] [jump]
 
-With jump, the player is also moved by up to that many pixels either way
-before each picture, so the view moves by several cells between a
+With jump, the ball (which the view follows) is also moved by up to that
+many pixels either way before each picture, so the view moves by several cells between a
 picture's builds (shift's longer moves, and full builds).
 """
 import random
@@ -48,21 +48,20 @@ def main():
         for m in moves * 2:
             v.poke(lab['dbg_joy'], [m])
             for _ in range(per):
-                if jump:
-                    ctrl = v.mem(lab['ctrl'], 1)[0]
-                    for lo, hi in (('f_xlo', 'f_xhi'), ('f_ylo', 'f_yhi')):
-                        p = v.mem(lab[lo] + ctrl, 1)[0] + 256 * v.mem(lab[hi] + ctrl, 1)[0]
-                        p = min(max(p + rnd.randint(-jump, jump), 60), 480)
-                        v.poke(lab[lo] + ctrl, [p & 255])
-                        v.poke(lab[hi] + ctrl, [p >> 8])
+                if jump:                # the ball, which the view follows
+                    for lo, hi, top in (('o_xl', 'o_xh', 560), ('o_yl', 'o_yh', 700)):
+                        p = v.mem(lab[lo] + 22, 1)[0] + 256 * v.mem(lab[hi] + 22, 1)[0]
+                        p = min(max(p + rnd.randint(-jump, jump), 40), top)
+                        v.poke(lab[lo] + 22, [p & 255])
+                        v.poke(lab[hi] + 22, [p >> 8])
                 v.cmd('x')
                 b = v.mem(lab['back'], 1)[0]
                 col, row = v.mem(lab['b_col'] + b, 1)[0], v.mem(lab['b_row'] + b, 1)[0]
                 # (eng_end sets b_nlist from z_lst)
                 n = v.mem(lab['z_lst'], 1)[0]
-                lc = v.mem(lab['lsts'] + 256 * b, n) if n else []
-                lr = v.mem(lab['lsts'] + 256 * b + 128, n) if n else []
-                figs = set(zip(lc, lr))
+                lo = v.mem(lab['lists'] + 0x300 * b, n) if n else []
+                hi = v.mem(lab['lists'] + 0x300 * b + 0x100, n) if n else []
+                figs = set(((l + 256 * h) % 40, (l + 256 * h) // 40) for l, h in zip(lo, hi))
                 codes = v.mem(MAT[b] + 0x400, 1000)
                 fnt = v.mem(FNT[b], 2048)
                 for r in range(25):

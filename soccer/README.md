@@ -6,9 +6,9 @@ larger than the screen that scrolls in eight directions, small players
 with their shadows, the stands and the boards around the pitch.
 
 **Work in progress.** What is there: the whole ground, both teams lined up
-for the kick-off, and one player run about with the joystick while the
-view follows him. Still to come: the ball, the other players, the rules,
-the match.
+for the kick-off, the ball, and the player of yours nearest to it, who
+dribbles it and passes it; the view follows the ball. Still to come: the
+shot, the other players running, the keepers, the rules, the match.
 
 ![The kick-off](screenshots/kickoff.png)
 
@@ -16,8 +16,8 @@ the match.
 
 | Joystick (either port) | Keyboard | |
 | --- | --- | --- |
-| directions | cursor keys | run |
-| fire | space | run faster (for now) |
+| directions | cursor keys | run, and dribble the ball at your feet |
+| fire | space | pass, to the team-mate the way you face |
 
 ## Building and running
 
@@ -30,6 +30,18 @@ soccer/run.sh            # in VICE
 In VS Code, F5 with any file of the folder open builds and starts it.
 `tools/mkdata.py` makes the data the game is built with from the text
 files in `data/`.
+
+## How it plays
+
+The match runs on Sensible Soccer's pitch and in its units, 50 times a
+second, as Sensible Soccer moves things: a player or the ball always
+heads for a point at a speed, the ball rolls and flies with its friction,
+gravity and bounce, a dribbled ball is kicked on just ahead of the player
+whenever it is at his feet, and a pass goes to the nearest team-mate
+within an eighth of a turn of the way you face, harder the further he
+is. The ground the C64 draws is shorter than Sensible Soccer's pitch, so
+the game's lengths are squeezed onto it: across one to one, along by
+about nine sixteenths.
 
 ## How it is drawn
 

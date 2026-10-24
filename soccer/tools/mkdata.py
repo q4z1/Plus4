@@ -10,10 +10,19 @@ and the colours, for the code):
   img_*        the figures (data/sprites.txt), cut to what they cover and
                shifted to each of the four pixels in a character, ready
                to go into the characters under them
+  atan_tab     the angle of a move from its steps (|dy| * 32 + |dx|, both
+               under 32): 0 along x .. 64 along y, $FF none - the angle
+               Sensible Soccer steers by, linear in dy/dx rather than a
+               true arc tangent
+  sin_tab      127 * sin, 256 steps to a circle (signed)
+  ymap_*       where a place on the pitch is on the ground: the game
+               runs on Sensible Soccer's pitch, 640 long, the ground
+               shows it 363 high
 
 The colours are the TED's nearest to the C64's (VICE's "pepto" palette
 against the one Yape shows, tools/yape-pal.txt).
 """
+import math
 import os
 import re
 
@@ -74,7 +83,16 @@ def chars():
 # each (the C64's sprite blocks; the third step is its fourth block),
 # then the ball.
 RUN_BASE = [0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C]
-IMAGES = [b + f for b in RUN_BASE for f in (0, 1, 3)] + [0x40]
+# Then the ball turning (four pictures), and its shadow (its own colour
+# black, from the C64's).
+IMAGES = [b + f for b in RUN_BASE for f in (0, 1, 3)] + [0x40, 0x41, 0x42, 0x43, 0x54]
+BLACK = {0x54}
+
+# The pitch: Sensible Soccer's lines (goal lines at y 49 and 689, the
+# halfway line at 369) onto the ground's (pixel rows 107.5, 291.5, 466.5 -
+# the C64's near half is a little shorter than its far one)
+PITCH_Y = (49, 369, 689)
+GROUND_Y = (107.5, 291.5, 466.5)
 
 
 def sprites():
@@ -83,7 +101,7 @@ def sprites():
             for m in re.finditer(r'sprite ([0-9a-f]{2})\n((?:[.sck]{12}\n){21})', txt)}
 
 
-def figure(pic):
+def figure(pic, black=False):
     """A sprite cut to its pixels: (ox, oy, records): its first column and
     row in the sprite, and for each shift 0-3 (pixels to the right in its
     first character) the bytes the draw takes - the number of columns,
@@ -105,6 +123,8 @@ def figure(pic):
                 for p in range(4):
                     x = c * 4 + p - s + ox
                     v = '.skc'.index(pic[y][x]) if ox <= x < ox + w else 0
+                    if black and v == 3:
+                        v = 2
                     d = d << 2 | v      # s %01 skin, k %10 black, c %11 the cell's colour
                     k = k << 2 | (0 if v else 3)
                 data.append(d)
@@ -114,6 +134,23 @@ def figure(pic):
             out += [top, bot - top] + data[top:bot] + keep[top:bot]
         recs.append(out)
     return ox, oy, recs
+
+
+YMAP = 768
+
+
+def atan(dx, dy):
+    if dx == 0 and dy == 0:
+        return 0xFF
+    if dy <= dx:
+        return int(32 * dy / dx + 0.5)
+    return 64 - int(32 * dx / dy + 0.5)
+
+
+def ymap(y):
+    i = 0 if y < PITCH_Y[1] else 1
+    return int(GROUND_Y[i] + (y - PITCH_Y[i]) * (GROUND_Y[i + 1] - GROUND_Y[i])
+               / (PITCH_Y[i + 1] - PITCH_Y[i]))
 
 
 def hexrows(out, data, per=16):
@@ -134,7 +171,7 @@ def main():
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
         spr = sprites()
-        figs = [figure(spr[b]) for b in IMAGES]
+        figs = [figure(spr[b], b in BLACK) for b in IMAGES]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi\n        .rodata\n')
         out.write('img_ox: .byte ' + ', '.join(str(f[0]) for f in figs) + '\n')
         out.write('img_oy: .byte ' + ', '.join(str(f[1]) for f in figs) + '\n')
@@ -145,10 +182,24 @@ def main():
             for sh, rec in enumerate(f[2]):
                 out.write('img%d_%d:\n' % (i, sh))
                 hexrows(out, rec)
+        out.write('\n        .export atan_tab, sin_tab, ymap_lo, ymap_hi\n        .segment "TABLES"\n')
+        out.write('atan_tab:               ; |dy| * 32 + |dx|\n')
+        hexrows(out, bytes(atan(dx, dy) for dy in range(32) for dx in range(32)))
+        out.write('sin_tab:\n')
+        hexrows(out, bytes((int(round(32767 * math.sin(2 * math.pi * i / 256))) >> 8) & 255
+                           for i in range(256)))
+        ym = [ymap(y) for y in range(YMAP)]
+        out.write('ymap_lo:\n')
+        hexrows(out, bytes(v & 255 for v in ym))
+        out.write('ymap_hi:\n')
+        hexrows(out, bytes(v >> 8 for v in ym))
     with open(os.path.join(GEN, 'data.inc'), 'w') as out:
         out.write('; made by tools/mkdata.py from data/ - do not edit\n\n')
         out.write('MAP_W       = %d\nMAP_H       = %d\n\n' % (w, h))
-        out.write('IMAGES      = %d\n\n' % len(IMAGES))
+        out.write('IMAGES      = %d\n' % len(IMAGES))
+        out.write('IMG_BALL    = %d            ; four, turning\n' % IMAGES.index(0x40))
+        out.write('IMG_SHADOW  = %d\n' % IMAGES.index(0x54))
+        out.write('YMAP        = %d            ; ymap_*: pitch y 0..YMAP-1\n\n' % YMAP)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))
         out.write('COL_SKIN    = $%02X           ; C64 light red, the sprites\' shared colour\n' % ted_of(10))
         out.write('COL_BLACK   = $%02X\n' % ted_of(0))

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """How fast the game draws: pictures shown (50 a second) per turn of its
-loop, standing and running with the view scrolling.
+loop, standing and dribbling from the kick-off, the view following the
+ball.
 
     tests/speed.py
 """
@@ -32,8 +33,8 @@ def main():
                 break
         run_pictures(v, lab, 20)
         print('standing:          %.2f pictures per turn' % measure(v, lab))
-        for name, bits in (('running right', 8), ('running right, fast', 8 + 16),
-                           ('running down-left, fast', 2 + 4 + 16)):
+        for name, bits in (('dribbling up', 1), ('dribbling right', 8),
+                           ('dribbling down-left', 2 + 4)):
             v.poke(lab['dbg_joy'], [bits])
             print('%-19s%.2f pictures per turn' % (name + ':', measure(v, lab)))
     finally:

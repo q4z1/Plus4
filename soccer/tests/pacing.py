@@ -16,7 +16,7 @@ from shot import PRG, WORK, BITS, labels, run_pictures  # noqa: E402
 
 
 def main():
-    d = sys.argv[1] if len(sys.argv) > 1 else 'right+fire'
+    d = sys.argv[1] if len(sys.argv) > 1 else 'up'
     n = int(sys.argv[2]) if len(sys.argv) > 2 else 100
     lab = labels()
     v = Vice(PRG, WORK)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Where a picture's time goes, instruction by instruction: VICE's CPU
-history from eng_begin to eng_end of one picture, the cycles summed up
+"""Where a turn's time goes, instruction by instruction: VICE's CPU
+history from one turn of the loop (loop) to its eng_end, the cycles summed up
 by the label each instruction is under (the interrupt included, where
 it falls), and by address for the busiest.
 
@@ -41,7 +41,7 @@ def main():
         if d:
             bits = 0
             for p in d.split('+'):
-                bits |= BITS[p]
+                bits |= BITS.get(p, 0)
             v.poke(lab['dbg_joy'], [bits])
             run_pictures(v, lab, 20)
         v.cmd('break %04x' % lab['eng_end'])
@@ -52,7 +52,11 @@ def main():
                 m = LINE.match(l)
                 if m:
                     hist.append((int(m.group(1), 16), int(m.group(2))))
-            start = max(i for i, (a, _) in enumerate(hist) if a == lab['eng_begin'])
+            starts = [i for i, (a, _) in enumerate(hist) if a == lab['loop']]
+            if not starts:
+                print('history: %d instructions, no turn start in it' % len(hist))
+                continue
+            start = starts[-1]
             hist = hist[start:]
             if not want or any(a == lab[want] for a, _ in hist):
                 break

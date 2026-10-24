@@ -33,7 +33,7 @@
         .import _pitch_map, _pitch_font
         .import img_ox, img_oy, img_lo, img_hi
 
-POOL        = 136               ; first code for figures
+POOL        = 112               ; first code for figures
 VBL_LINE    = 205               ; the interrupt: below the picture
 
         .zeropage
@@ -103,12 +103,15 @@ fig_y:      .res 2              ; its sprite's top left corner
 fig_img:    .res 1
 fig_col:    .res 1              ; its cells' colour
 
+        .segment "LISTS"
+lists:      .res 3 * $300       ; the cells each picture's figures took, three
+                                ; pages a picture: their places in the
+                                ; matrix (low, high bytes), their codes
+
         .segment "HIBSS"
 xlat0:      .res 256
 xlat1:      .res 256
 xlat2:      .res 256
-lsts:       .res 3 * 256        ; the cells each picture's figures took, a
-                                ; page each: columns, rows from +128
 
         .code
 
@@ -297,13 +300,17 @@ eng_begin:
         lda xlat_hi,x
         sta cl_look + 2
         sta al_put + 2
-        sta rs_look + 2
         sta fc_look + 2
-        lda lst_hi,x
-        sta pc_lc + 2
-        sta pc_lr + 2
-        sta rs_lc + 2
-        sta rs_lr + 2
+        lda lst_hi,x            ; (its list: places, then codes)
+        sta pc_lo + 2
+        sta rs_lo + 2
+        clc
+        adc #1
+        sta pc_hi + 2
+        sta rs_hi + 2
+        adc #1
+        sta pc_cd + 2
+        sta rs_cd + 2
         lda fnt_hi,x
         sta al_font
         sta z_fnthi
@@ -423,7 +430,8 @@ mapbase:
         rts
 
 ; restore: the cells the back picture's figures took, from its list: their
-; colour back to the ground's, and with carry set their codes too
+; colour back to the ground's, and with carry set their codes too (the
+; ground's, as the list keeps them)
 restore:
         ldx back
         lda b_nlist,x
@@ -432,42 +440,30 @@ restore:
         ror z_t                 ; bit 7: codes too
         ldx #0
 rs_next:
-rs_lr = *
-        ldy lsts + 128,x        ; (the picture's list)
-        lda row40_lo,y
-        sta z_att
+rs_lo = *
+        lda lists,x             ; (the picture's list: the cell's place
+        sta z_att               ; in the matrix)
         sta z_scr
-        lda row40_hi,y
-        clc
-        adc z_atthi
+rs_hi = *
+        lda lists + $100,x
+        ora z_atthi
         sta z_att + 1
-        adc #4
+        ora #4
         sta z_scr + 1
-        lda row79_lo,y
-        clc
-        adc z_mb
-        sta z_src
-        lda row79_hi,y
-        adc z_mb + 1
-        sta z_src + 1
-rs_lc = *
-        ldy lsts,x
+        ldy #0
         lda #COL_LINE
         sta (z_att),y
         bit z_t
         bpl rs_skip
-        lda (z_src),y
-        beq rs_put                ; the grass: code 0
-        stx z_t2
-        tax
-rs_look = *
-        lda xlat0,x             ; (the picture's cache)
-        ldx z_t2
-rs_put:   sta (z_scr),y
-rs_skip:  inx
+rs_cd = *
+        lda lists + $200,x      ; (its code)
+        sta (z_scr),y
+rs_skip:
+        inx
         dec z_n
         bne rs_next
-rs_done:  rts
+rs_done:
+        rts
 
 ; cells: the back picture's code matrix, from the ground at col0, row0
 cells:
@@ -801,7 +797,7 @@ md_loop:
 xlat_hi: .byte >xlat0, >xlat1, >xlat2
 fnt_hi:  .byte >FNT0, >FNT1, >FNT2
 mat_hi:  .byte >MAT0, >MAT1, >MAT2
-lst_hi:  .byte >lsts, >(lsts + 256), >(lsts + 512)
+lst_hi:  .byte >lists, >(lists + $300), >(lists + $600)
 
 row40_lo:
         .repeat SCR_H, I
@@ -1167,13 +1163,21 @@ pool_char:
         sta (z_scr),y
         inc pool_next
         stx z_t2
-        ldx z_lst               ; into the picture's list
-        lda z_col
-pc_lc = *
-        sta lsts,x
-        lda z_r
-pc_lr = *
-        sta lsts + 128,x
+        ldx z_lst               ; into the picture's list: the cell's place
+        tya                     ; in the matrix, and the ground's code
+        clc
+        adc z_att
+pc_lo = *
+        sta lists,x
+        lda z_att + 1
+        adc #0
+        sec
+        sbc z_atthi
+pc_hi = *
+        sta lists + $100,x
+        lda z_t
+pc_cd = *
+        sta lists + $200,x
         inc z_lst
         ldy z_col
         lda (z_scr),y           ; to: the new one
