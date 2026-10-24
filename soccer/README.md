@@ -71,8 +71,9 @@ run. Over grass its pixels go straight in; where a line or another
 player is under it, that is copied into the strip first and the player
 goes in through a mask. Each picture keeps a list of the cells its
 players took, with what they showed before, and puts them back before
-it is drawn again. A cache that fills up is emptied and its picture
-built anew - before it runs full, and never for two pictures running.
+it is drawn again. A cache that fills up gives back the codes its
+picture does not show - found in one pass over its codes - before it
+runs full, and never for two pictures running.
 
 The C64 has two colours for a sprite besides its own; a multicolour
 character on the TED shares three with the whole screen and has one of

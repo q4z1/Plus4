@@ -34,7 +34,7 @@
         .import img_ox, img_oy, img_lo, img_hi, img_alt, light11
 
 POOL        = 112               ; first code for figures
-FLUSH_EARLY = 86                ; a cache this full is emptied when it suits
+EVICT_AT    = 86                ; a cache this full gives codes back (evict)
 STRIP       = 32                ; a figure's column: four cells at most
 MOVE_U      = 16                ; bytes a turn when the codes are moved
 VBL_LINE    = 205               ; the interrupt: below the picture
@@ -89,6 +89,8 @@ z_rmp:      .res 1              ; bit 7: the cell's white turns light
 z_kc0:      .res 1              ; the column's cells with pixels in the
 z_kc1:      .res 1              ;   cell's colour, in the strip
 z_kk:       .res 1              ; the cell's in the strip
+z_ev:       .res 1              ; bit 7: the back picture's cache gives back
+z_fn:       .res 1              ; evict's
 z_cl:       .res 1              ; the next code in the picture's page
 z_ci:       .res 1              ; restore's: the next code to put back
 z_yy:       .res 1              ; a cell's place below the column's first
@@ -120,7 +122,8 @@ b_col:      .res 3              ; ground cell at its top left, $FF none
 b_row:      .res 3
 b_fx:       .res 3              ; what the interrupt sets for it
 b_fy:       .res 3
-b_next:     .res 3              ; next free code in its set
+b_next:     .res 3              ; next code never given out in its set
+fl_n:       .res 3              ; codes given back, in its fl
 b_nlist:    .res 3              ; figures in its list
 since_full: .res 1              ; turns since a picture was built anew
 pool_next:  .res 1              ; next code for a figure, 0 when used up
@@ -146,6 +149,10 @@ offs:       .res 3 * 256
 xlat0:      .res 256
 xlat1:      .res 256
 xlat2:      .res 256
+fl0:        .res 256            ; each picture's codes given back (evict)
+fl1:        .res 256
+fl2:        .res 256
+used:       .res 256            ; evict's: the codes a matrix shows
 
         .code
 
@@ -335,6 +342,12 @@ eng_begin:
         sta cl_look + 2
         sta al_put + 2
         sta fc_look + 2
+        sta ev_look + 2
+        sta ev_clr + 2
+        lda fl_hi,x
+        sta al_fl + 2
+        sta ev_push + 2
+        lda xlat_hi,x
         lda codes_hi,x          ; (its pages of the cells' places, codes)
         sta pc_code + 2
         sta pm_code + 2
@@ -353,21 +366,23 @@ eng_begin:
         sta b_fy,x
         tsx                     ; alloc's way out when the cache is full
         stx z_sp
-        lda since_full          ; turns since a picture was built anew
+        lda since_full          ; turns since a cache gave codes back
         cmp #255
         beq :+
         inc since_full
-:       ldx back                ; a cache filling up: emptied, and the
-        lda b_next,x            ; picture built anew, before it runs full -
-        cmp #FLUSH_EARLY        ; not two turns running, so that the
-        bcc :+                  ; pictures between make up the time
+:       lda #0                  ; a cache filling up gives back the codes
+        sta z_ev                ; its picture does not show (evict), before
+        ldx back                ; it runs full - not two turns running
+        lda b_next,x
+        clc
+        sbc fl_n,x              ; (codes in it: next - 1 - given back)
+        cmp #EVICT_AT
+        bcc :+
         lda since_full
         cmp #3
         bcc :+
-        jsr mapbase
-        clc                     ; (the figures' colours back first)
-        jsr restore
-        jmp full_now
+        lda #$80
+        sta z_ev
 :       ldx back
         lda col0
         sec
@@ -382,7 +397,10 @@ eng_begin:
         jsr mapbase             ; the same cells: the figures' put back
         sec
         jsr restore
-        jmp eng_pool
+        bit z_ev
+        bpl :+
+        jsr evict
+:       jmp eng_pool
 @moved: lda b_col,x             ; three cells off at most, either way:
         cmp #$FF                ; the old picture moved over (shift)
         beq @far
@@ -401,7 +419,13 @@ eng_begin:
 @far:   jsr mapbase             ; else built anew; the figures' colours
         clc                     ; back first
         jsr restore
-        jsr cells
+        bit z_ev                ; (built anew anyway: the cache emptied)
+        bpl :+
+        ldx back
+        jsr flush
+        lda #0
+        sta since_full
+:       jsr cells
 eng_pool:
         lda #POOL
         sta pool_next
@@ -601,7 +625,10 @@ shift:
         jsr mapbase
         sec
         jsr restore
-        pla
+        bit z_ev
+        bpl :+
+        jsr evict
+:       pla
         sta row0
         pla
         sta col0
@@ -863,6 +890,7 @@ md_loop:
         rts
 
 xlat_hi: .byte >xlat0, >xlat1, >xlat2
+fl_hi:   .byte >fl0, >fl1, >fl2
 fnt_hi:  .byte >FNT0, >FNT1, >FNT2
 mat_hi:  .byte >MAT0, >MAT1, >MAT2
 lst_base: .byte 0, 85, 170
@@ -891,16 +919,27 @@ row79_hi:
 alloc:
         sty z_t
         ldy back
-        lda b_next,y
+        lda fl_n,y              ; a code given back first, else the next
+        beq al_seq              ; never given out
+        sec
+        sbc #1
+        sta fl_n,y
+        tay
+al_fl = *
+        lda fl0,y               ; (the picture's codes given back)
+        jmp al_got
+al_seq: lda b_next,y
         cmp #POOL
         bcc :+
         jmp full                ; (the cache full: emptied, built anew)
 :       pha
-al_put = *
-        sta xlat0,x             ; (the picture's cache)
         clc
         adc #1
         sta b_next,y
+        pla
+al_got: pha
+al_put = *
+        sta xlat0,x             ; (the picture's cache)
         ; source: the ground's character X
         lda #0
         sta z_src + 1
@@ -942,10 +981,77 @@ al_font = * + 1
         ldy z_t
         rts
 
+; evict: the back picture's cache gives back the codes its picture does
+; not show: those in its code matrix marked (the figures' cells put back
+; first), every character whose code is not among them taken out, its
+; code onto the list alloc takes from first. Costs a pass over the
+; matrix and the cache - much less than building the picture anew.
+evict:
+        lda #0
+        sta since_full
+        ldx #POOL - 1           ; none marked
+:       sta used,x
+        dex
+        bpl :-
+        lda z_atthi             ; the codes' four pages
+        clc
+        adc #4
+        sta ev_m0 + 2
+        adc #1
+        sta ev_m1 + 2
+        adc #1
+        sta ev_m2 + 2
+        adc #1
+        sta ev_m3 + 2
+        ldy #0
+        lda #1
+ev_mark:
+ev_m0 = *
+        ldx $FF00,y
+        sta used,x
+ev_m1 = *
+        ldx $FF00,y
+        sta used,x
+ev_m2 = *
+        ldx $FF00,y
+        sta used,x
+ev_m3 = *
+        ldx $FF00,y
+        sta used,x
+        iny
+        bne ev_mark
+        ldx back
+        lda fl_n,x
+        sta z_fn
+        ldx #0
+ev_char:
+ev_look = *
+        ldy xlat0,x             ; (the picture's cache)
+        beq ev_next
+        lda used,y
+        bne ev_next
+        lda #0
+ev_clr = *
+        sta xlat0,x
+        tya
+        ldy z_fn
+ev_push = *
+        sta fl0,y               ; (the picture's codes given back)
+        inc z_fn
+ev_next:
+        inx
+        bne ev_char
+        ldx back
+        lda z_fn
+        sta fl_n,x
+        rts
+
 ; flush: the back picture's cache emptied (the grass stays in code 0)
 flush:
         lda #1
         sta b_next,x
+        lda #0
+        sta fl_n,x
         lda xlat_hi,x
         sta @clr + 2
         lda #0
