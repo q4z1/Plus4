@@ -28,6 +28,8 @@ MAT0        = $C000             ; picture 0: colours, codes at +$400
 FNT0        = $C800             ;   its characters
 MAT1        = $D000             ; picture 1
 FNT1        = $D800
+MAT2        = $E800             ; picture 2
+FNT2        = $F000
 
 ; ---- input: joy's bits, set while held ------------------------------------
 

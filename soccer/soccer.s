@@ -8,7 +8,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .import eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read
+        .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, joy, fig_x, fig_y, fig_img, fig_col
         .import __BSS_RUN__, __BSS_SIZE__
 
@@ -111,8 +111,7 @@ loop:
         jsr eng_begin
         jsr sort
         jsr draw
-        jsr eng_end
-        jsr eng_wait
+        jsr eng_end             ; (waits while a picture is still waiting)
         jmp loop
 
 ; line_up: both teams in their halves, facing each other, the ball on the

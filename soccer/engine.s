@@ -1,24 +1,28 @@
 ; engine.s - the Plus/4 end of the soccer game: the pictures, the
 ; interrupt, the joystick
 ;
-; Two pictures, each a colour matrix, a code matrix and a character set of
-; its own: one is shown while the other is drawn, and the interrupt swaps
-; them in the vertical blank (as Stardew Pond and Paradroid do), together
-; with the fine scroll the picture was drawn for.
+; Three pictures, each a colour matrix, a code matrix and a character set
+; of its own: one is shown, one finished may wait to be, and the third is
+; drawn. The interrupt puts a waiting picture on screen in the vertical
+; blank, together with the fine scroll it was drawn for - two frames after
+; the last at the earliest, so that they come at an even 25 a second. The
+; game draws on as soon as a picture is handed over, and waits only while
+; one is still waiting: a picture that costs more than two frames borrows
+; from the one before.
 ;
 ; The ground (data/pitch.txt) is 79 x 67 cells of 221 different characters,
 ; more than fit into a set with the figures' beside them. A picture's set
 ; holds only the ground characters it shows - at most 76 at a time - in
 ; codes given out as they are first met while the picture is built: a
-; cache, one per picture (xlat0, xlat1: the code of each ground character
+; cache, one per picture (xlat0-2: the code of each ground character
 ; in it, 0 none). Code 0 is the grass for good. The codes from POOL on are
 ; the figures' (fig_draw). A cache that runs into them while a picture is
 ; built is emptied and the picture built anew (at most 76 ground
 ; characters: an empty cache cannot fill up).
 ;
-; The view moves a cell at most from one picture to the next but one,
-; mostly: then the back picture is not built anew but moved over in
-; memory, and only the row or column that comes in is looked up (shift).
+; The view moves a few cells at most between a picture's builds, mostly:
+; then the back picture is not built anew but moved over in memory, and
+; only the rows and columns that come in are looked up (shift).
 
         .include "game.inc"
         .include "data.inc"
@@ -51,6 +55,7 @@ z_sp:       .res 1              ; the stack in eng_begin, for full
 z_dc:       .res 1              ; the view's move since the back picture
 z_dr:       .res 1              ;   was built, in cells (signed)
 z_cnt:      .res 1              ; shift's: pages to move
+z_k:        .res 1              ; shift's: rows or columns coming in
 z_c:        .res 1              ; fill_col's column
 ; fig_draw's
 z_mx:       .res 2              ; left edge, multicolour pixels
@@ -73,8 +78,10 @@ z_fresh:    .res 1              ; pool_char: a new character for grass,
 frames:     .res 1              ; pictures shown, 50 a second
 joy:        .res 1              ; J_ bits, joy_read's
 dbg_joy:    .res 1              ; J_ bits held for joy_read by a test
-back:       .res 1              ; the picture being drawn: 0 or 1
-ready:      .res 1              ; it is complete; the interrupt shows it
+back:       .res 1              ; the picture being drawn: 0, 1 or 2
+shown:      .res 1              ; the one on screen, $FF none yet
+queued:     .res 1              ; the one finished, waiting; $FF none
+since:      .res 1              ; frames since the last was put on screen
 ctrl2:      .res 1              ; $FF07 as the game wants it, without the
                                 ; fine scroll
 cam_x:      .res 2              ; the view's top left corner on the
@@ -84,12 +91,12 @@ row0:       .res 1
 fx:         .res 1
 fy:         .res 1
 ; per picture
-b_col:      .res 2              ; ground cell at its top left, $FF none
-b_row:      .res 2
-b_fx:       .res 2              ; what the interrupt sets for it
-b_fy:       .res 2
-b_next:     .res 2              ; next free code in its set
-b_nlist:    .res 2              ; cells its figures took
+b_col:      .res 3              ; ground cell at its top left, $FF none
+b_row:      .res 3
+b_fx:       .res 3              ; what the interrupt sets for it
+b_fy:       .res 3
+b_next:     .res 3              ; next free code in its set
+b_nlist:    .res 3              ; cells its figures took
 pool_next:  .res 1              ; next code for a figure, 0 when used up
 fig_x:      .res 2              ; fig_draw's figure: on the ground,
 fig_y:      .res 2              ; its sprite's top left corner
@@ -99,8 +106,9 @@ fig_col:    .res 1              ; its cells' colour
         .segment "HIBSS"
 xlat0:      .res 256
 xlat1:      .res 256
-lst_c:      .res 256            ; cells figures took, column and row:
-lst_r:      .res 256            ; picture 0 from 0, picture 1 from 128
+xlat2:      .res 256
+lsts:       .res 3 * 256        ; the cells each picture's figures took, a
+                                ; page each: columns, rows from +128
 
         .code
 
@@ -129,7 +137,7 @@ eng_init:
         lda #COL_BLACK
         sta TED_COL2
         sta TED_BORDER
-        ; both colour matrices white multicolour, both caches empty with
+        ; the colour matrices white multicolour, the caches empty with
         ; the grass in code 0
         ldx #0
 :       lda #COL_LINE
@@ -141,26 +149,34 @@ eng_init:
         sta MAT1 + $100,x
         sta MAT1 + $200,x
         sta MAT1 + $300,x
+        sta MAT2,x
+        sta MAT2 + $100,x
+        sta MAT2 + $200,x
+        sta MAT2 + $300,x
         lda #0
         sta xlat0,x
         sta xlat1,x
+        sta xlat2,x
         inx
         bne :-
         ldx #7
 :       lda _pitch_font,x
         sta FNT0,x
         sta FNT1,x
+        sta FNT2,x
         dex
         bpl :-
-        lda #1
-        sta b_next
-        sta b_next + 1
+        ldx #2
+:       lda #1
+        sta b_next,x
         lda #$FF
-        sta b_col
-        sta b_col + 1
-        lda #0
-        sta back
-        sta ready
+        sta b_col,x
+        dex
+        bpl :-
+        sta shown
+        sta queued
+        lda #2
+        sta since
         lda #<irq
         sta $FFFE
         lda #>irq
@@ -186,9 +202,12 @@ irq:    pha
         lda TED_IRQ
         sta TED_IRQ
         inc frames
-        lda ready
-        beq @done
-        ldx back
+        inc since
+        ldx queued
+        bmi @done               ; (none waiting)
+        lda since
+        cmp #2
+        bcc @done               ; (the last only a frame ago)
         lda vm_of,x
         sta TED_VMBASE
         lda TED_CHBASE
@@ -201,23 +220,23 @@ irq:    pha
         lda #$10                ; on, text, 24 rows
         ora b_fy,x
         sta TED_SCROLLY
-        txa
-        eor #1
-        sta back
+        stx shown
+        lda #$FF
+        sta queued
         lda #0
-        sta ready
+        sta since
 @done:  pla
         tax
         pla
         rti
 
-vm_of:  .byte >MAT0, >MAT1
-ch_of:  .byte >FNT0, >FNT1
+vm_of:  .byte >MAT0, >MAT1, >MAT2
+ch_of:  .byte >FNT0, >FNT1, >FNT2
 
 ; eng_wait: till the picture handed over is on screen
 eng_wait:
-:       lda ready
-        bne :-
+:       lda queued
+        bpl :-
         rts
 
 ; ---- building a picture ---------------------------------------------------
@@ -262,14 +281,29 @@ eng_begin:
         ror a
         sta row0
 
+        ; the picture to draw: neither the one shown nor the one waiting
+        sei
+        ldx #0
+:       cpx shown
+        beq :+
+        cpx queued
+        bne :++
+:       inx
+        bne :--
+:       cli
+        stx back
         ; the code below for the back picture: its cache, its matrices,
-        ; its characters
-        ldx back
+        ; its characters, its list
         lda xlat_hi,x
         sta cl_look + 2
         sta al_put + 2
         sta rs_look + 2
         sta fc_look + 2
+        lda lst_hi,x
+        sta pc_lc + 2
+        sta pc_lr + 2
+        sta rs_lc + 2
+        sta rs_lr + 2
         lda fnt_hi,x
         sta al_font
         sta z_fnthi
@@ -296,18 +330,18 @@ eng_begin:
         sec
         jsr restore
         jmp eng_pool
-@moved: lda b_col,x             ; a cell off at most, either way: the old
-        cmp #$FF                ; picture moved over (shift)
+@moved: lda b_col,x             ; three cells off at most, either way:
+        cmp #$FF                ; the old picture moved over (shift)
         beq @far
         lda z_dc
         clc
-        adc #1
-        cmp #3
+        adc #3
+        cmp #7
         bcs @far
         lda z_dr
         clc
-        adc #1
-        cmp #3
+        adc #3
+        cmp #7
         bcs @far
         jsr shift
         jmp eng_pool
@@ -318,10 +352,7 @@ eng_begin:
 eng_pool:
         lda #POOL
         sta pool_next
-        ldx back
         lda #0
-        sta b_nlist,x
-        lda lst_of,x
         sta z_lst
         rts
 
@@ -336,14 +367,14 @@ full:   ldx z_sp
         jsr cells
         jmp eng_pool
 
+; eng_end: the picture handed over, once the last is on screen
 eng_end:
         ldx back                ; the cells its figures took
         lda z_lst
-        sec
-        sbc lst_of,x
         sta b_nlist,x
-        lda #1
-        sta ready
+:       lda queued
+        bpl :-
+        stx queued
         rts
 
 ; mapbase: z_mb = the ground cell at row0, col0
@@ -399,9 +430,10 @@ restore:
         beq rs_done
         sta z_n
         ror z_t                 ; bit 7: codes too
-        lda lst_of,x
-        tax
-rs_next:  ldy lst_r,x
+        ldx #0
+rs_next:
+rs_lr = *
+        ldy lsts + 128,x        ; (the picture's list)
         lda row40_lo,y
         sta z_att
         sta z_scr
@@ -418,7 +450,8 @@ rs_next:  ldy lst_r,x
         lda row79_hi,y
         adc z_mb + 1
         sta z_src + 1
-        ldy lst_c,x
+rs_lc = *
+        ldy lsts,x
         lda #COL_LINE
         sta (z_att),y
         bit z_t
@@ -487,9 +520,10 @@ cl_none:  cpx #0                  ; the grass: code 0
         jsr alloc
         jmp cl_put
 
-; shift: the back picture, built a cell off at most (z_dc, z_dr), moved
-; over to col0, row0: the cells its figures took put back where they were,
-; the codes moved in memory, the row and column coming in looked up
+; shift: the back picture, built three cells off at most (z_dc, z_dr),
+; moved over to col0, row0: the cells its figures took put back where
+; they were, the codes moved in memory, the rows and columns coming in
+; looked up
 shift:
         lda col0                ; put back, at the old place
         pha
@@ -513,16 +547,20 @@ shift:
         sta b_col,x
         lda row0
         sta b_row,x
-        ; the move in bytes: dr * 40 + dc, -41..41
+        ; the move in bytes: dr * 40 + dc, -123..123
         lda z_dc
         ldx z_dr
         beq @off
         bmi @up
-        clc
+:       clc
         adc #SCR_W
-        jmp @off
+        dex
+        bne :-
+        beq @off
 @up:    sec
         sbc #SCR_W
+        inx
+        bne @up
 @off:   tax
         beq @edges
         ; the codes: from base + off to base (off > 0), or from base to
@@ -545,20 +583,46 @@ shift:
         adc #1
         sta z_dst
         jsr move_down
-@edges: lda z_dc                ; the column coming in
-        beq @rows
+@edges: lda z_dc                ; the columns coming in: the last dc,
+        beq @rows               ; or the first -dc
         bmi @left
-        lda #SCR_W - 1
-        bne @col
-@left:  lda #0
-@col:   jsr fill_col
-@rows:  lda z_dr                ; the row
+        sta z_k
+:       lda #SCR_W
+        sec
+        sbc z_k
+        jsr fill_col
+        dec z_k
+        bne :-
+        beq @rows
+@left:  eor #$FF
+        clc
+        adc #1
+        sta z_k
+:       dec z_k
+        lda z_k
+        jsr fill_col
+        lda z_k
+        bne :-
+@rows:  lda z_dr                ; the rows likewise
         beq @done
         bmi @top
-        lda #SCR_H - 1
-        bne @row
-@top:   lda #0
-@row:   jsr fill_row
+        sta z_k
+:       lda #SCR_H
+        sec
+        sbc z_k
+        jsr fill_row
+        dec z_k
+        bne :-
+        rts
+@top:   eor #$FF
+        clc
+        adc #1
+        sta z_k
+:       dec z_k
+        lda z_k
+        jsr fill_row
+        lda z_k
+        bne :-
 @done:  rts
 
 ; fill_row: row A of the back picture's codes looked up afresh
@@ -679,7 +743,7 @@ mu_loop:
 ; move_down: the codes moved to higher addresses, |off| = z_dst's low
 ; byte up, 1024 bytes into the matrix's four pages from the top down,
 ; the highest first, eight a turn. The bytes it puts below |off| in the
-; first page are cells of the row or column coming in, looked up after.
+; first page are cells of the rows or columns coming in, looked up after.
 move_down:
         lda z_dst               ; |off|
         sta z_c
@@ -734,10 +798,10 @@ md_loop:
         bcs md_loop
         rts
 
-xlat_hi: .byte >xlat0, >xlat1
-fnt_hi:  .byte >FNT0, >FNT1
-mat_hi:  .byte >MAT0, >MAT1
-lst_of:  .byte 0, 128           ; each picture's half of the lists
+xlat_hi: .byte >xlat0, >xlat1, >xlat2
+fnt_hi:  .byte >FNT0, >FNT1, >FNT2
+mat_hi:  .byte >MAT0, >MAT1, >MAT2
+lst_hi:  .byte >lsts, >(lsts + 256), >(lsts + 512)
 
 row40_lo:
         .repeat SCR_H, I
@@ -1095,31 +1159,33 @@ pool_char:
         sta (z_att),y
         lda (z_scr),y
         cmp #POOL
-        bcs @have
+        bcs pc_have
         ; a new one: the ground's character copied into it
         sta z_t
         lda pool_next
-        beq @full               ; (past 255)
+        beq pc_full               ; (past 255)
         sta (z_scr),y
         inc pool_next
         stx z_t2
         ldx z_lst               ; into the picture's list
         lda z_col
-        sta lst_c,x
+pc_lc = *
+        sta lsts,x
         lda z_r
-        sta lst_r,x
+pc_lr = *
+        sta lsts + 128,x
         inc z_lst
         ldy z_col
         lda (z_scr),y           ; to: the new one
         jsr char_at
         ldx z_t2
         lda z_t                 ; from: the ground's - the grass is empty,
-        bne @copy               ; fig_draw fills it (z_fresh)
+        bne pc_copy               ; fig_draw fills it (z_fresh)
         lda #1
         sta z_fresh
         clc
         rts
-@copy:  lda #0
+pc_copy:  lda #0
         sta z_fresh
         lda z_fnt
         sta z_dst
@@ -1138,12 +1204,12 @@ pool_char:
         sta z_fnt + 1
         clc
         rts
-@have:  jsr char_at
+pc_have:  jsr char_at
         lda #0
         sta z_fresh
         clc
         rts
-@full:  lda #COL_LINE           ; the colour back; the cell stays the
+pc_full:  lda #COL_LINE           ; the colour back; the cell stays the
                                 ; ground's
         sta (z_att),y
         sec

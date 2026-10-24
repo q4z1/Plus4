@@ -34,10 +34,18 @@ files in `data/`.
 ## How it is drawn
 
 The Plus/4 has no sprites, so a player is drawn into the characters under
-him. There are two pictures, each with a colour matrix, a code matrix and
-a character set of its own; one is shown while the other is drawn, and
-they are swapped in the vertical blank together with the fine scroll the
-picture was drawn for.
+him. There are three pictures, each with a colour matrix, a code matrix
+and a character set of its own: one is shown, a finished one may be
+waiting, and the third is being drawn. The interrupt puts the waiting one
+on screen in the vertical blank, with the fine scroll it was drawn for,
+never sooner than two frames after the last - an even 25 pictures a
+second. A picture that costs more than two frames to draw (the view has
+just moved by a whole cell) borrows the time from the cheaper one before
+it.
+
+When the view has moved by a cell or two since a picture was last drawn,
+its codes are not looked up afresh but moved over in memory, and only the
+rows and columns coming in are looked up.
 
 The ground is 79 x 67 cells of 221 different characters - too many to sit
 in a character set next to the players'. But a screen never shows more
