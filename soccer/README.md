@@ -58,6 +58,14 @@ players make up their minds every second frame; the ball and the two at
 it move every frame, the others once for each picture, by all the frames
 since the last.
 
+Over a touch line the ball goes to the other team for a throw-in; over a
+goal line, between the posts and under the bar, it is a goal and the
+other team kicks off; else a goal kick or a corner, by who touched it
+last. The ball is dead for a moment first - it rolls on, the net holds it
+after a goal - then it is put down with the taker behind it. When it is
+the cyan team's, the stick turns him and fire takes it (a pass, or held,
+a shot); the yellow team passes to the nearest team-mate.
+
 ## How it is drawn
 
 The Plus/4 has no sprites, so a player is drawn into the characters under

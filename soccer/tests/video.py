@@ -19,12 +19,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from yape import Yape, SHOT, host  # noqa: E402
 from shot import HERE, PRG, BITS, labels  # noqa: E402
 
-FRAMES = 950
-# (direction, seconds): the kick-off, a dribble up and a pass to the
-# left, the other team going after the ball, chasing it back, a shot
-PLAN = [('none', 1.0), ('up', 1.2), ('up+left', 0.6), ('left+fire', 0.1), ('none', 2.0),
-        ('down', 2.5), ('down+left', 1.5), ('up+fire', 0.3), ('none', 2.5),
-        ('right', 2.0), ('none', 1.5)]
+FRAMES = 1500
+# (direction, seconds): the kick-off passed on, a run up and a pass to the
+# left, the other team going after the ball, chasing it back, a shot, and
+# whatever restarts follow - fire now and then to take them
+PLAN = [('none', 1.0), ('fire', 0.1), ('none', 0.4), ('up', 1.5), ('up+left', 0.6),
+        ('left+fire', 0.1), ('none', 1.5), ('down', 2.5), ('down+left', 1.5),
+        ('up+fire', 0.3), ('none', 2.5), ('right', 1.5), ('fire', 0.1), ('none', 2.0),
+        ('left', 1.5), ('fire', 0.1), ('none', 3.0), ('fire', 0.1), ('none', 3.0)]
 
 
 def main():
@@ -53,7 +55,7 @@ def main():
 
 
 def encode(out):
-    frames = sorted(glob.glob(SHOT + '.[0-9][0-9][0-9]'))
+    frames = [f for f in glob.glob(SHOT + '.*') if f.rsplit('.', 1)[1].isdigit()]
     print('%d frames' % len(frames))
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', '50',
                     '-f', 'image2', '-c:v', 'ppm', '-i', SHOT + '.%03d', '-vf', 'scale=iw*2:ih*2:flags=neighbor',

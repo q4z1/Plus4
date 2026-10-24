@@ -29,7 +29,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, play_others
+        .export play_init, play_frame, play_others, score
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
@@ -42,6 +42,21 @@ NOBJ        = PLAYERS + 1
 SPEED_RUN   = $04E0             ; a player running
 SPEED_BALL  = 896               ; and with the ball at his feet
 SPEED_JOG   = 1024              ; going to his place
+LINE_L      = 49                ; the touch lines and goal lines
+LINE_R      = 558
+LINE_T      = 49
+LINE_B      = 689
+POST_L      = 263               ; between the posts (with the ball's width)
+POST_R      = 340
+BAR_Z       = 17                ; under the bar
+NET         = 12                ; the net this far behind the line
+DEAD_OUT    = 50                ; frames the ball is dead after going out,
+DEAD_GOAL   = 125               ; after a goal
+CPU_WAIT    = 20                ; the yellow team's set pieces: after 40 frames
+R_KICKOFF   = 0                 ; restarts
+R_THROW     = 1
+R_GOALKICK  = 2
+R_CORNER    = 3
 SLACK       = 6                 ; a place this near the last one is the same
 SPEED_CHASE = 1102              ; after the ball
 SHOOT_FROM  = 150               ; the other team shoots from this near
@@ -67,6 +82,7 @@ z_ptr:      .res 2
 z_obj:      .res 1
 z_t8:       .res 1
 z_px:       .res 2              ; place_formation's place
+z_ti:       .res 1              ; (its index into the tables)
 z_py:       .res 2
 z_nf:       .res 1              ; play_others': frames at once
 z_k:        .res 1              ; (in threes)
@@ -142,7 +158,18 @@ po_nf1:     .res 1              ; play_others': this time's frames in threes,
 po_nf2:     .res 1              ; this and the last time's,
 po_last:    .res 1              ; the last time's,
 po_turn:    .res 1              ; and which half waits
-kickoff:    .res 1              ; 1 till the kick-off is taken
+kickoff:    .res 1              ; 1 till the kick-off or set piece is taken
+taker:      .res 1              ; who takes it, $FF none
+dead_t:     .res 1              ; frames the ball is still dead, 0 in play
+goal:       .res 1              ; 1: dead for a goal - the net holds the ball
+rs_kind:    .res 1              ; the restart (R_*),
+rs_team:    .res 1              ; for which team,
+rs_x:       .res 2              ; where
+rs_y:       .res 2
+cpu_t:      .res 1              ; the yellow team's: till they take it
+last_team:  .res 1              ; who touched the ball last
+score:      .res 2              ; goals, cyan and yellow
+r_t:        .res 1              ; the rules': attackers, the team's last
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
 formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
@@ -164,9 +191,9 @@ old_y:      .res 3
 old_z:      .res 2
 
         .rodata
-; 4-4-2, the joystick's team from the bottom: keeper, defence,
-; midfield, attack - one forward at the ball for the kick-off (the other
-; team the same, mirrored)
+; 4-4-2 for the kick-off: keeper, defence, midfield, attack, one forward
+; at the ball; x as the yellow team stands, y as the cyan team (line_up
+; mirrors x for the cyan team, y for the yellow)
 line_x:     .word 304, 174, 264, 344, 434, 144, 274, 334, 464, 300, 334
 line_y:     .word 678, 556, 556, 556, 556, 445, 489, 489, 445, 373, 382
 
@@ -211,16 +238,44 @@ play_init:
         sta z_qn + 1
         lda #>qn_hi
         sta z_qnh + 1
+        jsr line_up
+        lda #<304
+        sta o_xl + BALL
+        lda #>304
+        sta o_xh + BALL
+        lda #<369
+        sta o_yl + BALL
+        lda #>369
+        sta o_yh + BALL
+        ldx #BALL
+        jsr stand
+        lda #9                  ; the cyan team kicks off
+        sta ctrl
+        sta taker
+        lda #$FF                ; no aftertouch, no one after the ball
+        sta at_n
+        sta chaser
+        lda #1
+        sta kickoff
+        rts
+
+; line_up: both teams lined up for a kick-off, standing
+line_up:
         ldx #0
 @pl:    txa
         asl a
         tay
-        lda line_x,y
-        sta o_xl,x
-        sta o_xl + 11,x
-        lda line_x + 1,y
-        sta o_xh,x
+        lda line_x,y            ; (the yellow team as the line; the cyan
+        sta o_xl + 11,x         ; team, facing the other way, mirrored:
+        lda line_x + 1,y        ; 608 - x - its right back on the right)
         sta o_xh + 11,x
+        lda #<608
+        sec
+        sbc line_x,y
+        sta o_xl,x
+        lda #>608
+        sbc line_x + 1,y
+        sta o_xh,x
         lda line_y,y
         sta o_yl,x
         lda line_y + 1,y
@@ -236,30 +291,18 @@ play_init:
         sta o_dir,x
         lda #4
         sta o_dir + 11,x
+        lda #0
+        sta o_xf,x
+        sta o_yf,x
+        sta o_xf + 11,x
+        sta o_yf + 11,x
         inx
         cpx #11
         bne @pl
-        ldx #NOBJ - 1           ; standing where they are
+        ldx #PLAYERS - 1        ; standing where they are
 :       jsr stand
         dex
         bpl :-
-        lda #<304
-        sta o_xl + BALL
-        lda #>304
-        sta o_xh + BALL
-        lda #<369
-        sta o_yl + BALL
-        lda #>369
-        sta o_yh + BALL
-        ldx #BALL
-        jsr stand
-        lda #9
-        sta ctrl
-        lda #$FF                ; no aftertouch, no one after the ball
-        sta at_n
-        sta chaser
-        lda #1
-        sta kickoff
         rts
 
 ; stand: object X stopped, its destination where it is
@@ -289,7 +332,18 @@ stand:
 play_frame:
         inc frame_n
         inc frames_due
-        jsr control
+        lda dead_t              ; the ball dead: it rolls on, no one has
+        beq @live               ; it, the others go to their places
+        dec dead_t
+        bne :+
+        jmp restart
+:       lda frame_n
+        lsr a
+        bcs :+
+        jsr team_ai
+:       jsr ball_move
+        jmp net
+@live:  jsr control
         lda frame_n             ; the others' minds every second frame, as
         lsr a                   ; Sensible Soccer's
         bcs :+
@@ -301,6 +355,7 @@ play_frame:
         jsr @one
 :       jsr aftertouch
         jsr ball_move
+        jsr rules
         lda frame_n
         lsr a
         bcs :+
@@ -472,7 +527,19 @@ step_n:
 ; control: the joystick's player - where he runs, dribbling, fire
 control:
         ldx ctrl
+        lda kickoff             ; the cyan team's set piece: the stick
+        beq @stick              ; turns the taker, fire kicks
+        lda rs_team
+        bne @stick
         lda joy
+        and #$0F
+        tay
+        lda joy_dir,y
+        cmp #8
+        beq :+
+        sta o_dir,x
+:       jmp @fire
+@stick: lda joy
         and #$0F
         tay
         lda joy_dir,y
@@ -523,8 +590,11 @@ control:
         lda frame_n             ; (a touch every second frame)
         lsr a
         bcs @far
+        lda kickoff             ; (not the other team's set piece)
+        bne @far
         jsr dribble
-@far:
+@far:   lda kickoff
+        bne @done
 @fire:  lda joy                 ; fire: let go within SHOT_HOLD - 1
         and #J_FIRE             ; frames a pass, held SHOT_HOLD frames
         beq @let                ; a shot - as soon as the ball is at his
@@ -572,6 +642,8 @@ can_kick:
 ; shot: the ball the way the joystick's player faces, hard and rising;
 ; the aftertouch on
 shot:
+        lda #0
+        sta last_team
         ldx ctrl
         ldy o_dir,x
         sty at_dir
@@ -812,6 +884,8 @@ d_abs:
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs
 dribble:
+        lda #0
+        sta last_team
         ldy o_dir,x
         cpy drib_dir
         beq :+
@@ -864,6 +938,8 @@ ball_ahead:
 ; pass: the ball to the nearest team-mate within 22.5 degrees of the way
 ; the joystick's player faces; or straight on
 pass:
+        lda #0
+        sta last_team
         lda #$FF
         sta mate
         sta mate_d
@@ -901,9 +977,19 @@ pass:
 @next:  dex
         bpl @look
         ldx mate
-        bpl :+
-        jmp @none
-:       ; at him: the ball's destination 32 times as far as he is
+        bpl kick_to
+        ldx ctrl                ; no one: straight on
+        ldy o_dir,x
+        jsr ball_ahead
+        lda #<1792
+        sta o_spl + BALL
+        lda #>1792
+        sta o_sph + BALL
+        jmp kicked
+
+; kick_to: the ball passed to player X, mate_d away (squared): its
+; destination 32 times as far as he is
+kick_to:
         lda o_xl,x
         sec
         sbc o_xl + BALL
@@ -960,15 +1046,7 @@ pass:
         sta o_spl + BALL
         lda pass_hi,y
         sta o_sph + BALL
-        jmp @kicked
-@none:  ldx ctrl
-        ldy o_dir,x
-        jsr ball_ahead
-        lda #<1792
-        sta o_spl + BALL
-        lda #>1792
-        sta o_sph + BALL
-@kicked:
+kicked: ; (on the ground)
         lda #0
         sta o_zl + BALL
         sta o_zf + BALL
@@ -1853,13 +1931,17 @@ qn_hi:
 
 team_ai:
         lda kickoff
-        beq :+
-        lda o_spl + BALL        ; the ball moving: the kick-off taken
+        beq @play
+        lda o_spl + BALL        ; the ball moving: the set piece taken
         ora o_sph + BALL
-        beq @done
+        beq :+
         lda #0
         sta kickoff
-:       lda frame_n
+        lda #$FF
+        sta taker
+        bne @play
+:       jsr cpu_take            ; (the yellow team's, after a while)
+@play:  lda frame_n
         and #7
         bne :+
         jsr pick_chaser         ; (every eighth frame)
@@ -1871,6 +1953,8 @@ team_ai:
         beq @next
         cpx chaser
         beq @next
+        cpx taker
+        beq @next
         jsr place_formation
 @next:  txa
         clc
@@ -1879,7 +1963,6 @@ team_ai:
         cpx #PLAYERS
         bcc @pl
         jmp chase
-@done:  rts
 
 ; place_formation: player X's destination, his place in the formation for
 ; where the ball is; jogging. Keeps X.
@@ -1892,6 +1975,7 @@ place_formation:
         ldy formation + 1
 :       clc                     ; (formation * 22 + player)
         adc form22,y
+        sta z_ti
         tay
         lda tac_xs,y
         sta z_m
@@ -1921,6 +2005,7 @@ place_formation:
         dex
         bne :-
 :       sta tmp + 1
+        ldy z_ti                ; (mul8 took Y)
         lda tmp
         clc
         adc tac_x0l,y
@@ -1957,6 +2042,7 @@ place_formation:
 :       dex
         bne :--
 :       ldx z_obj
+        ldy z_ti
         lda tmp
         clc
         adc tac_y0l,y
@@ -2038,6 +2124,7 @@ form22: .byte 0, 22, 44, 66, 88, 110, 132, 154
 ; pick_chaser: the other team's player nearest the ball (not the keeper)
 pick_chaser:
         lda kickoff
+        ora dead_t
         bne @done
         lda #$FF
         sta mate_d
@@ -2127,6 +2214,8 @@ chase:
         sta o_dzf + BALL
         lda #>SHOT_DZ
         sta o_dzl + BALL
+        lda #1
+        sta last_team
         lda #$FF                ; (a moment before he goes after it again)
         sta chaser
         rts
@@ -2172,6 +2261,8 @@ chase:
         sta o_spl + BALL
         lda #>1024
         sta o_sph + BALL
+        lda #1
+        sta last_team
 :       rts
 
 ; ball_near: carry clear if the ball is at player X's feet (distance
@@ -2194,7 +2285,12 @@ ball_near:
 ; switch: every few frames, the joystick to the team's player nearest the
 ; ball (not the keeper), unless the one it has is close to it
 switch:
-        dec switch_t
+        lda kickoff             ; (the cyan team's set piece: the taker
+        beq :+                  ; keeps it)
+        lda rs_team
+        bne :+
+        rts
+:       dec switch_t
         bpl @done
         lda #2                  ; (each sixth frame)
         sta switch_t
@@ -2231,4 +2327,393 @@ switch:
         beq @done
         lda mate                ; (the last one goes back to his place:
         sta ctrl                ; team_ai)
+@done:  rts
+
+; ---- the rules ------------------------------------------------------------
+;
+; Over a touch line: a throw-in for the team that did not touch the ball
+; last. Over a goal line between the posts and under the bar: a goal, and
+; a kick-off for the team that let it in; else a goal kick or, the
+; defenders' touch last, a corner. The ball is dead a while first - it
+; rolls on, no one has it, the others go to their places - then it is
+; put down, the taker behind it facing the middle of the pitch.
+
+; rules: after the ball's frame, while it is in play
+rules:
+        lda kickoff             ; (a set piece not yet taken: it lies still)
+        beq :+
+        rts
+:       ldx #BALL
+        lda o_xl,x
+        cmp #<LINE_L
+        lda o_xh,x
+        sbc #>LINE_L
+        bcs :+
+        lda #<LINE_L
+        ldy #>LINE_L
+        jmp @throw
+:       lda #<LINE_R
+        cmp o_xl,x
+        lda #>LINE_R
+        sbc o_xh,x
+        bcs @y
+        lda #<LINE_R
+        ldy #>LINE_R
+@throw: sta rs_x
+        sty rs_x + 1
+        lda o_yl,x              ; along the line where it went out, on the
+        sta rs_y                ; pitch
+        lda o_yh,x
+        sta rs_y + 1
+        lda rs_y
+        cmp #<LINE_T
+        lda rs_y + 1
+        sbc #>LINE_T
+        bcs :+
+        lda #<LINE_T
+        sta rs_y
+        lda #>LINE_T
+        sta rs_y + 1
+:       lda #<LINE_B
+        cmp rs_y
+        lda #>LINE_B
+        sbc rs_y + 1
+        bcs :+
+        lda #<LINE_B
+        sta rs_y
+        lda #>LINE_B
+        sta rs_y + 1
+:       lda #R_THROW
+        sta rs_kind
+        lda last_team
+        eor #1
+        sta rs_team
+        jmp @dead
+@y:     ldy #0                  ; the top goal line: the cyan team attacks it
+        lda o_yl,x
+        cmp #<LINE_T
+        lda o_yh,x
+        sbc #>LINE_T
+        bcc @line
+        iny                     ; the bottom one: the yellow team
+        lda #<LINE_B
+        cmp o_yl,x
+        lda #>LINE_B
+        sbc o_yh,x
+        bcc @line
+        rts
+@line:  sty r_t                ; (the attackers)
+        lda o_xl,x
+        cmp #<POST_L
+        lda o_xh,x
+        sbc #>POST_L
+        bcc @wide
+        lda #<POST_R
+        cmp o_xl,x
+        lda #>POST_R
+        sbc o_xh,x
+        bcc @wide
+        lda o_zl,x
+        cmp #BAR_Z
+        bcs @wide
+        lda score,y             ; a goal
+        clc
+        adc #1
+        sta score,y
+        lda #1
+        sta goal
+        tya
+        eor #1
+        sta rs_team
+        lda #R_KICKOFF
+        sta rs_kind
+        lda #<304
+        sta rs_x
+        lda #>304
+        sta rs_x + 1
+        lda #<369
+        sta rs_y
+        lda #>369
+        sta rs_y + 1
+        lda #DEAD_GOAL
+        bne @dead2
+@wide:  ldy #0                  ; the side it went out: x 0 left, 1 right
+        lda o_xl,x
+        cmp #<304
+        lda o_xh,x
+        sbc #>304
+        bcc :+
+        iny
+:       lda last_team
+        cmp r_t
+        beq @gkick
+        lda #R_CORNER           ; the defenders': a corner
+        sta rs_kind
+        lda r_t
+        sta rs_team
+        lda corner_xl,y
+        sta rs_x
+        lda corner_xh,y
+        sta rs_x + 1
+        ldy r_t
+        lda corner_yl,y
+        sta rs_y
+        lda corner_yh,y
+        sta rs_y + 1
+        jmp @dead
+@gkick: lda #R_GOALKICK         ; the attackers': a goal kick
+        sta rs_kind
+        lda r_t
+        eor #1
+        sta rs_team
+        lda gkick_xl,y
+        sta rs_x
+        lda gkick_xh,y
+        sta rs_x + 1
+        ldy r_t
+        lda gkick_yl,y
+        sta rs_y
+        lda gkick_yh,y
+        sta rs_y + 1
+@dead:  lda #DEAD_OUT
+@dead2: sta dead_t
+        lda #$FF                ; no one after it, no more aftertouch
+        sta chaser
+        sta at_n
+        ldx ctrl
+        jmp stand
+
+corner_xl:  .byte <54, <553     ; left, right
+corner_xh:  .byte >54, >553
+corner_yl:  .byte <54, <684     ; top, bottom
+corner_yh:  .byte >54, >684
+gkick_xl:   .byte <270, <338
+gkick_xh:   .byte >270, >338
+gkick_yl:   .byte <69, <669
+gkick_yh:   .byte >69, >669
+
+; net: the dead ball after a goal stopped by the net, NET behind the line
+net:
+        lda goal
+        beq @done
+        ldx #BALL
+        lda o_yl,x
+        cmp #<(LINE_T - NET)
+        lda o_yh,x
+        sbc #>(LINE_T - NET)
+        bcc @stop
+        lda #<(LINE_B + NET)
+        cmp o_yl,x
+        lda #>(LINE_B + NET)
+        sbc o_yh,x
+        bcs @done
+@stop:  lda #0
+        sta o_spl,x
+        sta o_sph,x
+@done:  rts
+
+; restart: the dead time over - the ball put down, the taker to it
+restart:
+        lda #0
+        sta goal
+        ldx #BALL
+        sta o_xf,x
+        sta o_yf,x
+        sta o_zf,x
+        sta o_zl,x
+        sta o_dzf,x
+        sta o_dzl,x
+        lda rs_x
+        sta o_xl,x
+        lda rs_x + 1
+        sta o_xh,x
+        lda rs_y
+        sta o_yl,x
+        lda rs_y + 1
+        sta o_yh,x
+        jsr stand
+        lda rs_kind
+        bne @set
+        jsr line_up             ; a kick-off: everyone back in line, the
+        ldx #9                  ; centre forward at the ball
+        lda rs_team
+        beq :+
+        ldx #20
+:       stx taker
+        jmp @who
+@set:   ldx #0                  ; the taker: a goal kick the keeper's, else
+        lda rs_team             ; the team's player nearest the ball
+        beq :+
+        ldx #11
+:       lda rs_kind
+        cmp #R_GOALKICK
+        beq @have
+        txa
+        clc
+        adc #10
+        sta r_t                ; (the team's last)
+        jsr nearest
+@have:  stx taker
+        lda #<304               ; facing the middle of the pitch
+        sec
+        sbc o_xl + BALL
+        sta z_ax
+        lda #>304
+        sbc o_xh + BALL
+        sta z_ax + 1
+        lda #<369
+        sec
+        sbc o_yl + BALL
+        sta z_ay
+        lda #>369
+        sbc o_yh + BALL
+        sta z_ay + 1
+        jsr angle
+        lda #128
+        sec
+        sbc z_th
+        clc
+        adc #16
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta o_dir,x
+        tay                     ; just behind the ball
+        lda #0
+        sta o_xf,x
+        sta o_yf,x
+        lda behind_x,y
+        jsr sext
+        clc
+        adc o_xl + BALL
+        sta o_xl,x
+        lda tmp
+        adc o_xh + BALL
+        sta o_xh,x
+        lda behind_y,y
+        jsr sext
+        clc
+        adc o_yl + BALL
+        sta o_yl,x
+        lda tmp
+        adc o_yh + BALL
+        sta o_yh,x
+        jsr stand
+@who:   lda #$FF
+        sta chaser
+        sta at_n
+        lda rs_team
+        bne @cpu
+        lda taker               ; the cyan team's: the joystick's (fire held
+        sta ctrl                ; on from before does not kick)
+        lda #$FF
+        sta fire_n
+        bne @go
+@cpu:   lda #CPU_WAIT
+        sta cpu_t
+@go:    lda #1
+        sta kickoff
+        rts
+
+; just behind the ball, for each way the taker faces
+behind_x:   .byte 0, <(-4), <(-5), <(-4), 0, 4, 5, 4
+behind_y:   .byte 5, 4, 0, <(-4), <(-5), <(-4), 0, 4
+
+; sext: A unchanged, tmp its sign (0 or $FF). Keeps X, Y.
+sext:
+        pha
+        and #$80
+        beq :+
+        lda #$FF
+:       sta tmp
+        pla
+        rts
+
+; nearest: X = the player from X + 1 to r_t nearest the ball, by
+; |dx| + |dy| (far ones too)
+nearest:
+        lda #$FF
+        sta mate_d
+        sta mate_d + 1
+@look:  inx
+        lda o_xl,x
+        sec
+        sbc o_xl + BALL
+        sta tmp
+        lda o_xh,x
+        sbc o_xh + BALL
+        jsr abs16
+        sty mate_t + 1
+        sta mate_t
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        sta tmp
+        lda o_yh,x
+        sbc o_yh + BALL
+        jsr abs16
+        clc
+        adc mate_t
+        sta mate_t
+        tya
+        adc mate_t + 1
+        sta mate_t + 1
+        lda mate_t
+        cmp mate_d
+        lda mate_t + 1
+        sbc mate_d + 1
+        bcs :+
+        lda mate_t
+        sta mate_d
+        lda mate_t + 1
+        sta mate_d + 1
+        stx mate
+:       cpx r_t
+        bne @look
+        ldx mate
+        rts
+
+; cpu_take: the yellow team's set piece, once it has waited: passed to
+; the nearest team-mate, or kicked on the way the taker faces
+cpu_take:
+        lda rs_team
+        beq @done
+        dec cpu_t
+        bne @done
+        lda #1
+        sta last_team
+        lda #$FF                ; the nearest, not the keeper, not the taker
+        sta mate
+        sta mate_d
+        sta mate_d + 1
+        ldx #PLAYERS - 1
+@look:  cpx taker
+        beq @next
+        jsr mate_dist
+        lda tmp
+        cmp mate_d
+        lda tmp + 1
+        sbc mate_d + 1
+        bcs @next
+        lda tmp
+        sta mate_d
+        lda tmp + 1
+        sta mate_d + 1
+        stx mate
+@next:  dex
+        cpx #11
+        bne @look
+        ldx mate
+        bmi :+
+        jmp kick_to
+:       ldx taker
+        ldy o_dir,x
+        jsr ball_ahead
+        lda #<2048
+        sta o_spl + BALL
+        lda #>2048
+        sta o_sph + BALL
+        jmp kicked
 @done:  rts
