@@ -12,8 +12,13 @@
 ; codes given out as they are first met while the picture is built: a
 ; cache, one per picture (xlat0, xlat1: the code of each ground character
 ; in it, 0 none). Code 0 is the grass for good. The codes from POOL on are
-; the figures' (fig_draw). A cache grown past FLUSH_AT is emptied before
-; the next build, so the build that follows never reaches POOL.
+; the figures' (fig_draw). A cache that runs into them while a picture is
+; built is emptied and the picture built anew (at most 76 ground
+; characters: an empty cache cannot fill up).
+;
+; The view moves a cell at most from one picture to the next but one,
+; mostly: then the back picture is not built anew but moved over in
+; memory, and only the row or column that comes in is looked up (shift).
 
         .include "game.inc"
         .include "data.inc"
@@ -25,7 +30,6 @@
         .import img_ox, img_oy, img_lo, img_hi
 
 POOL        = 136               ; first code for figures
-FLUSH_AT    = POOL - 80         ; worst picture: 76 ground characters
 VBL_LINE    = 205               ; the interrupt: below the picture
 
         .zeropage
@@ -43,6 +47,11 @@ z_fnt:      .res 2              ; a character's pixels
 z_atthi:    .res 1              ; the back picture: its colour matrix,
 z_fnthi:    .res 1              ;   its characters
 z_lst:      .res 1              ; the next entry in its list
+z_sp:       .res 1              ; the stack in eng_begin, for full
+z_dc:       .res 1              ; the view's move since the back picture
+z_dr:       .res 1              ;   was built, in cells (signed)
+z_cnt:      .res 1              ; shift's: pages to move
+z_c:        .res 1              ; fill_col's column
 ; fig_draw's
 z_mx:       .res 2              ; left edge, multicolour pixels
 z_ty:       .res 2              ; top, lines
@@ -56,6 +65,9 @@ z_h:        .res 1
 z_col:      .res 1
 z_r:        .res 1
 z_line:     .res 1
+z_end:      .res 1              ; the line below the figure's in this cell
+z_fresh:    .res 1              ; pool_char: a new character for grass,
+                                ; not cleared
 
         .bss
 frames:     .res 1              ; pictures shown, 50 a second
@@ -257,6 +269,7 @@ eng_begin:
         sta cl_look + 2
         sta al_put + 2
         sta rs_look + 2
+        sta fc_look + 2
         lda fnt_hi,x
         sta al_font
         sta z_fnthi
@@ -266,20 +279,44 @@ eng_begin:
         sta b_fx,x
         lda fy
         sta b_fy,x
-        jsr mapbase
+        tsx                     ; alloc's way out when the cache is full
+        stx z_sp
+        ldx back
         lda col0
-        cmp b_col,x
-        bne @cells
+        sec
+        sbc b_col,x
+        sta z_dc
         lda row0
-        cmp b_row,x
-        bne @cells
-        sec                     ; the figures' cells back to the ground
+        sec
+        sbc b_row,x
+        sta z_dr
+        ora z_dc
+        bne @moved
+        jsr mapbase             ; the same cells: the figures' put back
+        sec
         jsr restore
-        jmp @pool
-@cells: clc                     ; their colours back; the codes are new
+        jmp eng_pool
+@moved: lda b_col,x             ; a cell off at most, either way: the old
+        cmp #$FF                ; picture moved over (shift)
+        beq @far
+        lda z_dc
+        clc
+        adc #1
+        cmp #3
+        bcs @far
+        lda z_dr
+        clc
+        adc #1
+        cmp #3
+        bcs @far
+        jsr shift
+        jmp eng_pool
+@far:   jsr mapbase             ; else built anew; the figures' colours
+        clc                     ; back first
         jsr restore
         jsr cells
-@pool:  lda #POOL
+eng_pool:
+        lda #POOL
         sta pool_next
         ldx back
         lda #0
@@ -288,7 +325,23 @@ eng_begin:
         sta z_lst
         rts
 
+; full: alloc's way out when the cache ran into the pool during a build
+; (the stack as eng_begin had it): the cache emptied, the cells built anew
+; - from an empty cache they cannot fill it
+full:   ldx z_sp
+        txs
+        ldx back
+        jsr flush
+        jsr mapbase
+        jsr cells
+        jmp eng_pool
+
 eng_end:
+        ldx back                ; the cells its figures took
+        lda z_lst
+        sec
+        sbc lst_of,x
+        sta b_nlist,x
         lda #1
         sta ready
         rts
@@ -390,11 +443,7 @@ cells:
         sta b_col,x
         lda row0
         sta b_row,x
-        lda b_next,x
-        cmp #FLUSH_AT
-        bcc :+
-        jsr flush
-:       lda z_mb
+        lda z_mb
         sta z_map
         lda z_mb + 1
         sta z_map + 1
@@ -406,6 +455,9 @@ cells:
         sta z_scr
         lda #SCR_H
         sta z_row
+; cl_rows: z_row rows of cells, from the ground at z_map to the codes at
+; z_scr
+cl_rows:
 cl_row:   ldy #SCR_W - 1
 cl_cell:  lda (z_map),y
         tax
@@ -435,6 +487,253 @@ cl_none:  cpx #0                  ; the grass: code 0
         jsr alloc
         jmp cl_put
 
+; shift: the back picture, built a cell off at most (z_dc, z_dr), moved
+; over to col0, row0: the cells its figures took put back where they were,
+; the codes moved in memory, the row and column coming in looked up
+shift:
+        lda col0                ; put back, at the old place
+        pha
+        lda row0
+        pha
+        ldx back
+        lda b_col,x
+        sta col0
+        lda b_row,x
+        sta row0
+        jsr mapbase
+        sec
+        jsr restore
+        pla
+        sta row0
+        pla
+        sta col0
+        jsr mapbase
+        ldx back
+        lda col0
+        sta b_col,x
+        lda row0
+        sta b_row,x
+        ; the move in bytes: dr * 40 + dc, -41..41
+        lda z_dc
+        ldx z_dr
+        beq @off
+        bmi @up
+        clc
+        adc #SCR_W
+        jmp @off
+@up:    sec
+        sbc #SCR_W
+@off:   tax
+        beq @edges
+        ; the codes: from base + off to base (off > 0), or from base to
+        ; base - off (off < 0)
+        lda z_atthi
+        clc
+        adc #4
+        sta z_src + 1
+        sta z_dst + 1
+        lda #0
+        sta z_src
+        sta z_dst
+        txa
+        bmi @back
+        sta z_src
+        jsr move_up
+        jmp @edges
+@back:  eor #$FF                ; |off|
+        clc
+        adc #1
+        sta z_dst
+        jsr move_down
+@edges: lda z_dc                ; the column coming in
+        beq @rows
+        bmi @left
+        lda #SCR_W - 1
+        bne @col
+@left:  lda #0
+@col:   jsr fill_col
+@rows:  lda z_dr                ; the row
+        beq @done
+        bmi @top
+        lda #SCR_H - 1
+        bne @row
+@top:   lda #0
+@row:   jsr fill_row
+@done:  rts
+
+; fill_row: row A of the back picture's codes looked up afresh
+fill_row:
+        tay
+        lda row79_lo,y
+        clc
+        adc z_mb
+        sta z_map
+        lda row79_hi,y
+        adc z_mb + 1
+        sta z_map + 1
+        lda row40_lo,y
+        sta z_scr
+        lda row40_hi,y
+        clc
+        adc z_atthi
+        adc #4
+        sta z_scr + 1
+        lda #1
+        sta z_row
+        jmp cl_rows
+
+; fill_col: column A of the back picture's codes looked up afresh
+fill_col:
+        sta z_c
+        lda z_mb
+        sta z_map
+        lda z_mb + 1
+        sta z_map + 1
+        lda z_atthi
+        clc
+        adc #4
+        sta z_scr + 1
+        lda #0
+        sta z_scr
+        lda #SCR_H
+        sta z_row
+fc_cell:
+        ldy z_c
+        lda (z_map),y
+        tax
+fc_look = *
+        lda xlat0,x             ; (the picture's cache)
+        bne fc_put
+        cpx #0                  ; the grass: code 0
+        beq fc_put
+        jsr alloc
+fc_put: sta (z_scr),y
+        lda z_map
+        clc
+        adc #MAP_W
+        sta z_map
+        bcc :+
+        inc z_map + 1
+:       lda z_scr
+        clc
+        adc #SCR_W
+        sta z_scr
+        bcc :+
+        inc z_scr + 1
+:       dec z_row
+        bne fc_cell
+        rts
+
+; move_up: the codes moved to lower addresses, from z_src to z_dst (the
+; matrix), 1024 bytes, the lowest first, eight a turn. Past the 1000 the
+; TED shows it writes into the matrix's unused end, and reads from the
+; character set behind it.
+move_up:
+        ldx #0                  ; the operands' low bytes, once
+        ldy #0
+:       txa
+        clc
+        adc z_src
+        sta mu_loop + 1,y
+        txa
+        clc
+        adc z_dst
+        sta mu_loop + 4,y
+        tya
+        clc
+        adc #6
+        tay
+        inx
+        cpx #8
+        bne :-
+        lda #4
+        sta z_cnt
+mu_page:                        ; their high bytes, a page at a time
+        lda z_src + 1
+        .repeat 8, K
+        sta mu_loop + 2 + 6 * K
+        .endrepeat
+        lda z_dst + 1
+        .repeat 8, K
+        sta mu_loop + 5 + 6 * K
+        .endrepeat
+        ldx #0
+        jsr mu_loop
+        inc z_src + 1
+        inc z_dst + 1
+        dec z_cnt
+        bne mu_page
+        rts
+mu_loop:
+        .repeat 8, K
+        lda $FF00 + K,x
+        sta $FF00 + K,x
+        .endrepeat
+        txa
+        clc
+        adc #8
+        tax
+        bne mu_loop
+        rts
+
+; move_down: the codes moved to higher addresses, |off| = z_dst's low
+; byte up, 1024 bytes into the matrix's four pages from the top down,
+; the highest first, eight a turn. The bytes it puts below |off| in the
+; first page are cells of the row or column coming in, looked up after.
+move_down:
+        lda z_dst               ; |off|
+        sta z_c
+        lda z_src + 1           ; the top page
+        clc
+        adc #3
+        sta z_dst + 1
+        lda #4
+        sta z_cnt
+md_page:                        ; source = destination page - |off|
+        lda #0
+        sec
+        sbc z_c
+        sta z_src
+        lda z_dst + 1
+        sbc #0
+        sta z_src + 1
+        ldx #7                  ; operand K: + 7 - K
+        ldy #0
+:       txa
+        clc
+        adc z_src
+        sta md_loop + 1,y
+        lda z_src + 1
+        adc #0
+        sta md_loop + 2,y
+        txa
+        sta md_loop + 4,y
+        lda z_dst + 1
+        sta md_loop + 5,y
+        tya
+        clc
+        adc #6
+        tay
+        dex
+        bpl :-
+        ldx #248
+        jsr md_loop
+        dec z_dst + 1
+        dec z_cnt
+        bne md_page
+        rts
+md_loop:
+        .repeat 8, K
+        lda $FF00 + 7 - K,x
+        sta $FF00 + 7 - K,x
+        .endrepeat
+        txa
+        sec
+        sbc #8
+        tax
+        bcs md_loop
+        rts
+
 xlat_hi: .byte >xlat0, >xlat1
 fnt_hi:  .byte >FNT0, >FNT1
 mat_hi:  .byte >MAT0, >MAT1
@@ -463,7 +762,10 @@ alloc:
         sty z_t
         ldy back
         lda b_next,y
-        pha
+        cmp #POOL
+        bcc :+
+        jmp full                ; (the cache full: emptied, built anew)
+:       pha
 al_put = *
         sta xlat0,x             ; (the picture's cache)
         clc
@@ -651,8 +953,9 @@ fd_col: ldy #1
         sta z_h
         lda z_cx
         cmp #SCR_W
-        bcs fd_ncol             ; (off the picture, left or right)
-        sta z_col
+        bcc :+
+        jmp fd_ncol             ; (off the picture, left or right)
+:       sta z_col
         dey
         lda (z_dat),y           ; its first line: the cell and the line in it
         clc
@@ -671,9 +974,11 @@ fd_col: ldy #1
         clc
         adc #2
         sta fd_dat + 1
+        sta fd_dat2 + 1
         lda z_dat + 1
         adc #0
         sta fd_dat + 2
+        sta fd_dat2 + 2
         lda fd_dat + 1
         clc
         adc z_h
@@ -702,8 +1007,14 @@ fd_cell:                        ; lines in this cell: up to its bottom, up
         bcs fd_skip             ; (off the picture, above or below)
         jsr pool_char
         bcs fd_skip             ; (the pool is used up)
-        ldy z_line
-fd_line:
+        lda z_line
+        tay
+        clc
+        adc z_n
+        sta z_end
+        lda z_fresh
+        bne fd_fresh
+fd_line:                        ; into what is there, through the mask
         lda (z_fnt),y
 fd_keep = *
         and $FFFF,x
@@ -712,8 +1023,33 @@ fd_dat = *
         sta (z_fnt),y
         inx
         iny
-        dec z_n
+        cpy z_end
         bne fd_line
+        beq fd_down
+fd_fresh:                       ; a cell of grass, just taken: nothing to
+        lda #0                  ; keep - the lines above and below the
+        cpy #0                  ; figure's empty, its own straight in
+        beq fd_own
+        tay
+:       sta (z_fnt),y
+        iny
+        cpy z_line
+        bne :-
+fd_own:
+fd_dat2 = *
+        lda $FFFF,x
+        sta (z_fnt),y
+        inx
+        iny
+        cpy z_end
+        bne fd_own
+        cpy #8
+        beq fd_down
+        lda #0
+:       sta (z_fnt),y
+        iny
+        cpy #8
+        bne :-
         beq fd_down
 fd_skip:
         txa
@@ -773,21 +1109,19 @@ pool_char:
         lda z_r
         sta lst_r,x
         inc z_lst
-        ldx back
-        inc b_nlist,x
         ldy z_col
         lda (z_scr),y           ; to: the new one
         jsr char_at
-        lda z_t                 ; from: the ground's - the grass is empty
-        bne @copy
-        ldy #7
-:       sta (z_fnt),y
-        dey
-        bpl :-
         ldx z_t2
+        lda z_t                 ; from: the ground's - the grass is empty,
+        bne @copy               ; fig_draw fills it (z_fresh)
+        lda #1
+        sta z_fresh
         clc
         rts
-@copy:  lda z_fnt
+@copy:  lda #0
+        sta z_fresh
+        lda z_fnt
         sta z_dst
         lda z_fnt + 1
         sta z_dst + 1
@@ -802,10 +1136,11 @@ pool_char:
         sta z_fnt
         lda z_dst + 1
         sta z_fnt + 1
-        ldx z_t2
         clc
         rts
 @have:  jsr char_at
+        lda #0
+        sta z_fresh
         clc
         rts
 @full:  lda #COL_LINE           ; the colour back; the cell stays the
@@ -816,19 +1151,23 @@ pool_char:
 
 ; char_at: z_fnt = the pixels of code A in the back picture's set
 char_at:
-        ldy #0
-        sty z_fnt + 1
-        asl a
-        rol z_fnt + 1
-        asl a
-        rol z_fnt + 1
-        asl a
-        rol z_fnt + 1
+        tay
+        lda chr_lo,y
         sta z_fnt
-        lda z_fnt + 1
-        adc z_fnthi             ; (carry clear from the last rol)
+        lda chr_hi,y
+        clc
+        adc z_fnthi
         sta z_fnt + 1
         rts
+
+chr_lo:                         ; code * 8
+        .repeat 256, I
+        .byte <(I * 8)
+        .endrepeat
+chr_hi:
+        .repeat 256, I
+        .byte >(I * 8)
+        .endrepeat
 
 ; ---- input ----------------------------------------------------------------
 

@@ -80,6 +80,7 @@ order:  .res FIGS               ; the figures from the top down
 tmp:    .res 1
 s_i:    .res 1                  ; sort's
 s_j:    .res 1
+tmp2:   .res 1
 
         .rodata
 ; 4-4-2, the cyan team from the bottom: keeper, defence, midfield, attack
@@ -347,6 +348,8 @@ draw:
 @next:  ldx tmp
         lda order,x
         tax
+        jsr seen
+        bcs @skip
         lda f_xlo,x
         sec
         sbc #FOOT_X
@@ -383,8 +386,50 @@ draw:
         lda #COL_TEAM2
 :       sta fig_col
 @draw:  jsr fig_draw
-        inc tmp
+@skip:  inc tmp
         lda tmp
         cmp #FIGS
         bne @next
+        rts
+
+; seen: carry clear if figure X may be in the view at all - its feet
+; from 18 pixels left of it to 10 right, 8 above to 14 below (its sprite
+; around them); a rough test that spares fig_draw the far ones
+seen:
+        lda f_xlo,x
+        sec
+        sbc cam_x
+        sta tmp2
+        lda f_xhi,x
+        sbc cam_x + 1
+        beq @y                  ; 0..255 to the right of the left edge
+        cmp #1
+        beq @right
+        cmp #$FF
+        bne @no
+        lda tmp2                ; left of it: -18..-1
+        cmp #<(-18)
+        bcc @no
+        bcs @y
+@right: lda tmp2                ; 256..329
+        cmp #<(SCR_W * 8 + 10)
+        bcs @no
+@y:     lda f_ylo,x
+        sec
+        sbc cam_y
+        sta tmp2
+        lda f_yhi,x
+        sbc cam_y + 1
+        beq @down
+        cmp #$FF
+        bne @no
+        lda tmp2                ; above: -8..-1
+        cmp #<(-8)
+        bcc @no
+        clc
+        rts
+@down:  lda tmp2                ; 0..213
+        cmp #SCR_H * 8 + 14
+        rts
+@no:    sec
         rts

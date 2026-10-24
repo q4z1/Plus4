@@ -23,7 +23,8 @@ def measure(v, lab, n=200):
 
 def main():
     lab = labels()
-    v = Vice(PRG, WORK)
+    v = Vice(PRG, WORK, warp=False)     # (in warp, 256 pictures can pass between
+                                        # two looks, and the counters wrap)
     try:
         for _ in range(200):
             v.run_for(0.1)
