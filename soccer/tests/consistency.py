@@ -57,11 +57,24 @@ def main():
                 v.cmd('x')
                 b = v.mem(lab['back'], 1)[0]
                 col, row = v.mem(lab['b_col'] + b, 1)[0], v.mem(lab['b_row'] + b, 1)[0]
-                # (eng_end sets b_nlist from z_lst)
-                n = v.mem(lab['z_lst'], 1)[0]
-                lo = v.mem(lab['lists'] + 0x300 * b, n) if n else []
-                hi = v.mem(lab['lists'] + 0x300 * b + 0x100, n) if n else []
-                figs = set(((l + 256 * h) % 40, (l + 256 * h) // 40) for l, h in zip(lo, hi))
+                # the cells the figures took: a figure at a time, from
+                # picture b's base (eng_end sets b_nlist from z_lst)
+                base = (0, 85, 170)[b]
+                n = v.mem(lab['z_lst'], 1)[0] - base
+                figs = set()
+                if n:
+                    lo = v.mem(lab['l_lo'] + base, n)
+                    hi = v.mem(lab['l_hi'] + base, n)
+                    cn = v.mem(lab['l_n'] + base, n)
+                    ci = v.mem(lab['l_ci'] + base, n)
+                    offs = v.mem(lab['offs'] + 256 * b, 256)
+                    for l, h, k, c in zip(lo, hi, cn, ci):
+                        o0 = (l + 256 * h) & 0xFFFF
+                        if o0 >= 0x8000:
+                            o0 -= 0x10000
+                        for i in range(k):
+                            o = o0 + offs[(c + i) & 255]
+                            figs.add((o % 40, o // 40))
                 codes = v.mem(MAT[b] + 0x400, 1000)
                 fnt = v.mem(FNT[b], 2048)
                 for r in range(25):

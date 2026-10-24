@@ -34,6 +34,7 @@
         .import img_ox, img_oy, img_lo, img_hi
 
 POOL        = 112               ; first code for figures
+STRIP       = 32                ; a figure's column: four cells at most
 VBL_LINE    = 205               ; the interrupt: below the picture
 
         .zeropage
@@ -56,7 +57,7 @@ z_dc:       .res 1              ; the view's move since the back picture
 z_dr:       .res 1              ;   was built, in cells (signed)
 z_cnt:      .res 1              ; shift's: pages to move
 z_k:        .res 1              ; shift's: rows or columns coming in
-z_c:        .res 1              ; fill_col's column
+z_c:        .res 1              ; fill_col's column; fig_draw's, from 0
 ; fig_draw's
 z_mx:       .res 2              ; left edge, multicolour pixels
 z_ty:       .res 2              ; top, lines
@@ -69,10 +70,24 @@ z_ncol:     .res 1
 z_h:        .res 1
 z_col:      .res 1
 z_r:        .res 1
-z_line:     .res 1
-z_end:      .res 1              ; the line below the figure's in this cell
-z_fresh:    .res 1              ; pool_char: a new character for grass,
-                                ; not cleared
+z_y0:       .res 1              ; a column: the line in its first cell,
+z_nc:       .res 1              ;   its cells,
+z_c0:       .res 1              ;   their first code,
+z_cc:       .res 1              ; a cell's code
+z_i:        .res 1              ; and its number in the column
+z_mix:      .res 1              ; bit 7: a cell showed more than grass
+z_grass:    .res 1              ; a bit for each cell to be cleared
+z_d:        .res 2              ; the column's pixels, less its first line
+z_kp:       .res 2              ; and its bits to keep
+z_cl:       .res 1              ; the next code in the picture's page
+z_ci:       .res 1              ; restore's: the next code to put back
+z_yy:       .res 1              ; a cell's place below the column's first
+z_ix:       .res 1
+z_cl0:      .res 1              ; a figure's first cell in the list
+z_k0:       .res 1              ; a column's cells on the picture: the first,
+z_k1:       .res 1              ;   past the last
+z_x0:       .res 1              ;   the first's place in the list
+z_ro:       .res 1              ; the row of the column's first cell in it
 
         .bss
 frames:     .res 1              ; pictures shown, 50 a second
@@ -96,7 +111,7 @@ b_row:      .res 3
 b_fx:       .res 3              ; what the interrupt sets for it
 b_fy:       .res 3
 b_next:     .res 3              ; next free code in its set
-b_nlist:    .res 3              ; cells its figures took
+b_nlist:    .res 3              ; figures in its list
 pool_next:  .res 1              ; next code for a figure, 0 when used up
 fig_x:      .res 2              ; fig_draw's figure: on the ground,
 fig_y:      .res 2              ; its sprite's top left corner
@@ -104,9 +119,17 @@ fig_img:    .res 1
 fig_col:    .res 1              ; its cells' colour
 
         .segment "LISTS"
-lists:      .res 3 * $300       ; the cells each picture's figures took, three
-                                ; pages a picture: their places in the
-                                ; matrix (low, high bytes), their codes
+; the cells each picture's figures took, a figure at a time: the place in
+; the matrix of its top left cell (signed: it may be off the picture), its
+; cells, where they start in the picture's pages - their places from
+; there (40 * row + column) and the codes they showed before. Picture p's
+; figures from p * 85.
+l_lo:       .res 256
+l_hi:       .res 256
+l_n:        .res 256
+l_ci:       .res 256
+codes:      .res 3 * 256
+offs:       .res 3 * 256
 
         .segment "HIBSS"
 xlat0:      .res 256
@@ -301,16 +324,13 @@ eng_begin:
         sta cl_look + 2
         sta al_put + 2
         sta fc_look + 2
-        lda lst_hi,x            ; (its list: places, then codes)
-        sta pc_lo + 2
-        sta rs_lo + 2
-        clc
-        adc #1
-        sta pc_hi + 2
-        sta rs_hi + 2
-        adc #1
-        sta pc_cd + 2
-        sta rs_cd + 2
+        lda codes_hi,x          ; (its pages of the cells' places, codes)
+        sta pc_code + 2
+        sta pm_code + 2
+        sta rs_code + 2
+        lda offs_hi,x
+        sta pc_offs + 2
+        sta rs_offs + 2
         lda fnt_hi,x
         sta al_font
         sta z_fnthi
@@ -359,8 +379,11 @@ eng_begin:
 eng_pool:
         lda #POOL
         sta pool_next
-        lda #0
+        ldx back
+        lda lst_base,x
         sta z_lst
+        lda #0
+        sta z_cl
         rts
 
 ; full: alloc's way out when the cache ran into the pool during a build
@@ -376,8 +399,10 @@ full:   ldx z_sp
 
 ; eng_end: the picture handed over, once the last is on screen
 eng_end:
-        ldx back                ; the cells its figures took
+        ldx back                ; the columns its figures took
         lda z_lst
+        sec
+        sbc lst_base,x
         sta b_nlist,x
 :       lda queued
         bpl :-
@@ -429,39 +454,53 @@ mapbase:
         sta z_mb + 1
         rts
 
-; restore: the cells the back picture's figures took, from its list: their
-; colour back to the ground's, and with carry set their codes too (the
-; ground's, as the list keeps them)
+; restore: the cells the back picture's figures took, from its list,
+; the last figure first (a cell two figures took is listed for both, the
+; later with the earlier's code): their colour back to the ground's, and
+; with carry set their codes too
 restore:
+        ror z_t                 ; bit 7: codes too
         ldx back
         lda b_nlist,x
         beq rs_done
-        sta z_n
-        ror z_t                 ; bit 7: codes too
-        ldx #0
-rs_next:
-rs_lo = *
-        lda lists,x             ; (the picture's list: the cell's place
-        sta z_att               ; in the matrix)
+        clc
+        adc lst_base,x
+        tax                     ; past the last figure
+rs_fig: dex
+        lda l_lo,x              ; its base
+        sta z_att
         sta z_scr
-rs_hi = *
-        lda lists + $100,x
-        ora z_atthi
+        lda l_hi,x
+        clc
+        adc z_atthi
         sta z_att + 1
-        ora #4
+        clc
+        adc #4
         sta z_scr + 1
-        ldy #0
-        lda #COL_LINE
-        sta (z_att),y
+        lda l_ci,x
+        sta z_ci
+        lda l_n,x
+        sta z_n
+rs_cell:
+        ldy z_ci
+rs_offs = *
+        lda offs,y              ; (the picture's page)
+        sta z_yy
+rs_code = *
+        lda codes,y             ; (the picture's page)
+        ldy z_yy
         bit z_t
-        bpl rs_skip
-rs_cd = *
-        lda lists + $200,x      ; (its code)
+        bpl :+
         sta (z_scr),y
-rs_skip:
-        inx
+:       lda #COL_LINE
+        sta (z_att),y
+        inc z_ci
         dec z_n
-        bne rs_next
+        bne rs_cell
+        txa
+        ldy back
+        cmp lst_base,y
+        bne rs_fig
 rs_done:
         rts
 
@@ -797,7 +836,9 @@ md_loop:
 xlat_hi: .byte >xlat0, >xlat1, >xlat2
 fnt_hi:  .byte >FNT0, >FNT1, >FNT2
 mat_hi:  .byte >MAT0, >MAT1, >MAT2
-lst_hi:  .byte >lists, >(lists + $300), >(lists + $600)
+lst_base: .byte 0, 85, 170
+codes_hi: .byte >codes, >(codes + 256), >(codes + 512)
+offs_hi:  .byte >offs, >(offs + 256), >(offs + 512)
 
 row40_lo:
         .repeat SCR_H, I
@@ -889,11 +930,17 @@ flush:
 ;
 ; fig_draw puts figure fig_img (tools/mkdata.py's images) into the back
 ; picture, its sprite's top left corner at fig_x, fig_y on the ground, in
-; cells of colour fig_col. A cell it covers gets a character of its own
-; from the pool, the ground's character copied into it, and the figure
-; goes in through a mask; a cell another figure has already taken is drawn
-; into again and gets this one's colour: figures drawn later are in front.
-; Pixels: %01 skin, %10 black, %11 the cell's colour (the shirt).
+; cells of colour fig_col. Pixels: %01 skin, %10 black, %11 the cell's
+; colour (the shirt).
+;
+; A column of the figure gets as many codes from the pool as it covers
+; cells, one after the other: their pixels lie one after the other in the
+; character set, a strip, and the column goes into it in one run, its
+; lines straight on into the next cell's. Over grass only - the most of
+; them - the pixels go straight in and the lines above and below are
+; cleared; else what each cell showed is copied into the strip first, the
+; ground's character or another figure's (whose cell it takes over: drawn
+; later, in front), and the pixels go in through their mask.
 
 fig_draw:
         ; the figure's left edge in multicolour pixels of the picture,
@@ -1005,128 +1052,303 @@ fd_yok:   lda z_ty
         lda (z_dat),y
         sta z_ncol
         inc z_dat               ; the first column
-        bne fd_col
+        bne :+
         inc z_dat + 1
+:       ; the figure's base: its top left cell, row cy, column cx, on the
+        ; matrix or off it (both signed) - each of its cells is a Y from
+        ; there, 40 * its row + its column
+        lda z_cy
+        clc
+        adc #3
+        tay                     ; (rows -3 .. 27)
+        lda z_cx
+        clc
+        adc row40s_lo,y
+        sta z_att
+        sta z_scr
+        lda z_cx
+        and #$80
+        beq :+
+        lda #$FF
+:       adc row40s_hi,y
+        clc
+        adc z_atthi
+        sta z_att + 1
+        clc                     ; (a base above the matrix carries)
+        adc #4
+        sta z_scr + 1
+        ; into the picture's list: the base's place in the matrix, where
+        ; its cells start in the picture's pages of places and codes
+        ldx z_lst
+        lda z_att
+        sta l_lo,x
+        lda z_att + 1
+        sec
+        sbc z_atthi
+        sta l_hi,x
+        lda z_cl
+        sta l_ci,x
+        sta z_cl0
+        lda #0
+        sta z_c
 
 fd_col: ldy #1
         lda (z_dat),y
-        sta z_h
+        sta z_h                 ; its lines
         lda z_cx
+        clc
+        adc z_c
         cmp #SCR_W
         bcc :+
         jmp fd_ncol             ; (off the picture, left or right)
-:       sta z_col
-        dey
-        lda (z_dat),y           ; its first line: the cell and the line in it
-        clc
-        adc z_l0
+:       dey
+        lda (z_dat),y           ; its first line, from the figure's top cell:
+        clc                     ; the row of its first cell in the figure,
+        adc z_l0                ; and the line in it
         tax
         and #7
-        sta z_line
+        sta z_y0
         txa
         lsr a
         lsr a
         lsr a
-        clc
-        adc z_cy
-        sta z_r
-        lda z_dat               ; its pixels, then the bits to keep
-        clc
-        adc #2
-        sta fd_dat + 1
-        sta fd_dat2 + 1
-        lda z_dat + 1
-        adc #0
-        sta fd_dat + 2
-        sta fd_dat2 + 2
-        lda fd_dat + 1
+        sta z_ro
+        lda z_y0                ; its cells: (y0 + lines + 7) / 8
         clc
         adc z_h
-        sta fd_keep + 1
-        lda fd_dat + 2
-        adc #0
-        sta fd_keep + 2
-        ldx #0                  ; the column's line
-fd_cell:                        ; lines in this cell: up to its bottom, up
-        lda #8                  ; to the column's
-        sec
-        sbc z_line
-        sta z_n
-        txa
+        adc #7
+        lsr a
+        lsr a
+        lsr a
+        sta z_nc
+        ; its cells on the picture: rows cy + ro + k, k from k0 = -row
+        ; (0 at least) to k1 = 25 - row (its cells at most)
+        lda z_cy
         clc
-        adc z_n
-        cmp z_h
+        adc z_ro
+        sta z_row
+        lda #0
+        ldx z_row
+        bpl :+
+        sec
+        sbc z_row
+:       sta z_k0
+        lda #SCR_H
+        sec
+        sbc z_row
+        bmi fd_skip             ; (below the picture)
+        cmp z_nc
         bcc :+
-        lda z_h
-        stx z_t
+        lda z_nc
+:       sta z_k1
+        cmp z_k0
+        beq fd_skip
+        bcc fd_skip
+        ; as many codes from the pool as it has cells, one after the other
+        lda pool_next
+        beq fd_skip             ; (used up)
+        sta z_c0
+        clc
+        adc z_nc
+        bcc :+
+        beq :+                  ; (to the last code exactly)
+fd_skip:
+        jmp fd_ncol
+:       sta pool_next           ; (0: used up)
+        ; each cell on the picture: its colour, its new code; what it
+        ; showed goes into the list (and the cell's place), and is the
+        ; strip's background - grass, else its pixels copied in
+        lda z_c0
+        clc
+        adc z_k0
+        sta z_cc
+        lda z_k1
+        sec
+        sbc z_k0
+        sta z_n
+        lda z_ro
+        clc
+        adc z_k0
+        tax
+        lda y40,x
+        clc
+        adc z_c
+        tay
+        lda #0
+        sta z_mix
+        ldx z_cl                ; (X: the list, Y: the cell)
+        stx z_x0
+fd_cell:
+        lda fig_col
+        sta (z_att),y
+        lda (z_scr),y
+pc_code = *
+        sta codes,x             ; (the picture's page)
+        bne fd_bg
+fd_put: lda z_cc
+        sta (z_scr),y
+        tya
+pc_offs = *
+        sta offs,x              ; (the picture's page)
+        inx
+        inc z_cc
+        tya
+        clc
+        adc #SCR_W
+        tay
+        dec z_n
+        bne fd_cell
+        stx z_cl
+        jmp fd_strip
+fd_bg:  stx z_ix                ; more than grass: its pixels into the strip
+        sty z_yy
+        jsr char_at
+        lda z_fnt
+        sta z_src
+        lda z_fnt + 1
+        sta z_src + 1
+        lda z_cc
+        jsr char_at
+        ldy #7
+:       lda (z_src),y
+        sta (z_fnt),y
+        dey
+        bpl :-
+        lda #$80
+        sta z_mix
+        ldx z_ix
+        ldy z_yy
+        jmp fd_put
+fd_strip:
+        bit z_mix
+        bmi fd_mixed0
+        ; all grass: the whole strip straight from the pixels, the empty
+        ; lines before and after them included - entered so that it ends
+        ; with the block (strip line j at y = j + A, A = 32 - cells * 8):
+        ; the strip less A is code c0 + cells - 4's pixels, the pixels
+        ; less y0 and A the column's record + 2 + 8 - 32 + cells * 8 - y0
+        lda z_c0
+        clc
+        adc z_nc
+        sec
+        sbc #4
+        jsr char_at
+        ldx z_nc
+        lda fr_off,x
+        sec
+        sbc z_y0
+        sta z_t                 ; (signed)
+        clc
+        adc z_dat
+        sta z_d
+        lda z_t
+        and #$80
+        beq :+
+        lda #$FF
+:       adc z_dat + 1
+        sta z_d + 1
+        lda fbn_lo,x
+        sta fd_fcall + 1
+        lda fbn_hi,x
+        sta fd_fcall + 2
+        ldy fy_of,x
+fd_fcall:
+        jsr fblock
+        jmp fd_ncol
+fd_mixed0:                      ; the strip; the pixels after the column's
+        lda z_c0                ; first line, its lines, eight empty ones
+        jsr char_at
+        lda z_dat
+        clc
+        adc #2 + 8
+        sta z_d
+        lda z_dat + 1
+        adc #0
+        sta z_d + 1
+fd_mixed:                       ; the grass cells on the picture (code 0
+        ldx z_x0                ; in the list) cleared, then the column
+        lda z_k0                ; through its mask
+        asl a
+        asl a
+        asl a
+        sta z_t
+fm_cell:
+        cpx z_cl
+        beq fm_done
+pm_code = *
+        lda codes,x             ; (the picture's page)
+        bne fm_next
+        ldy z_t
+        .repeat 8
+        sta (z_fnt),y
+        iny
+        .endrepeat
+fm_next:
+        lda z_t
+        clc
+        adc #8
+        sta z_t
+        inx
+        bne fm_cell
+fm_done:
+        ; its lines y0 .. end - 1, ending with the block: A = 32 - lines
+        lda z_d                 ; the bits to keep: after the pixels and
+        clc                     ; eight empty lines
+        adc z_h
+        sta z_kp
+        lda z_d + 1
+        adc #0
+        sta z_kp + 1
+        lda z_kp
+        clc
+        adc #8
+        sta z_kp
+        bcc :+
+        inc z_kp + 1
+:       lda z_h
+        eor #$FF
+        sec
+        adc #STRIP
+        sta z_t                 ; A
+        tax
+        lda z_d                 ; pixels and bits less A
         sec
         sbc z_t
-        sta z_n
-:       lda z_r
-        cmp #SCR_H
-        bcs fd_skip             ; (off the picture, above or below)
-        jsr pool_char
-        bcs fd_skip             ; (the pool is used up)
-        lda z_line
-        tay
+        sta z_d
+        bcs :+
+        dec z_d + 1
+:       lda z_kp
+        sec
+        sbc z_t
+        sta z_kp
+        bcs :+
+        dec z_kp + 1
+:       lda z_y0                ; the strip from line y0, less A: y0 - A,
+        sec                     ; signed, mostly negative
+        sbc z_t
+        sta z_t2
         clc
-        adc z_n
-        sta z_end
-        lda z_fresh
-        bne fd_fresh
-fd_line:                        ; into what is there, through the mask
-        lda (z_fnt),y
-fd_keep = *
-        and $FFFF,x
-fd_dat = *
-        ora $FFFF,x
-        sta (z_fnt),y
-        inx
-        iny
-        cpy z_end
-        bne fd_line
-        beq fd_down
-fd_fresh:                       ; a cell of grass, just taken: nothing to
-        lda #0                  ; keep - the lines above and below the
-        cpy #0                  ; figure's empty, its own straight in
-        beq fd_own
-        tay
-:       sta (z_fnt),y
-        iny
-        cpy z_line
-        bne :-
-fd_own:
-fd_dat2 = *
-        lda $FFFF,x
-        sta (z_fnt),y
-        inx
-        iny
-        cpy z_end
-        bne fd_own
-        cpy #8
-        beq fd_down
-        lda #0
-:       sta (z_fnt),y
-        iny
-        cpy #8
-        bne :-
-        beq fd_down
-fd_skip:
+        adc z_fnt
+        sta z_fnt
+        lda z_t2
+        and #$80
+        beq :+
+        lda #$FF
+:       adc z_fnt + 1
+        sta z_fnt + 1
+        lda mb_lo,x
+        sta fd_mcall + 1
+        lda mb_hi,x
+        sta fd_mcall + 2
         txa
-        clc
-        adc z_n
-        tax
-fd_down:
-        lda #0
-        sta z_line
-        inc z_r
-        cpx z_h
-        bcc fd_cell
-fd_ncol:                        ; the next column: 2 + 2 * its lines on
-        inc z_cx
+        tay
+fd_mcall:
+        jsr mblock
+fd_ncol:                        ; the next column: 2 + 16 + 2 * its lines on
+        inc z_c
         lda z_h
         asl a
-        adc #2                  ; (carry clear: a column is under 128 lines)
+        adc #2 + 16             ; (carry clear: a column is under 128 lines)
         adc z_dat
         sta z_dat
         bcc :+
@@ -1134,90 +1356,81 @@ fd_ncol:                        ; the next column: 2 + 2 * its lines on
 :       dec z_ncol
         beq :+
         jmp fd_col
+:       lda z_cl                ; the figure's cells in the list, if any
+        sec
+        sbc z_cl0
+        beq :+
+        ldx z_lst
+        sta l_n,x
+        inc z_lst
 :       rts
 
-; pool_char: the pool character of the back picture's cell z_col, z_r,
-; given out now if the cell has none yet; z_fnt points to its pixels.
-; Carry set when the pool is used up. Keeps X.
-pool_char:
-        ldy z_r
-        lda row40_lo,y
-        sta z_att
-        sta z_scr
-        lda row40_hi,y
-        clc
-        adc z_atthi
-        sta z_att + 1
-        adc #4
-        sta z_scr + 1
-        ldy z_col
-        lda fig_col
-        sta (z_att),y
-        lda (z_scr),y
-        cmp #POOL
-        bcs pc_have
-        ; a new one: the ground's character copied into it
-        sta z_t
-        lda pool_next
-        beq pc_full               ; (past 255)
-        sta (z_scr),y
-        inc pool_next
-        stx z_t2
-        ldx z_lst               ; into the picture's list: the cell's place
-        tya                     ; in the matrix, and the ground's code
-        clc
-        adc z_att
-pc_lo = *
-        sta lists,x
-        lda z_att + 1
-        adc #0
-        sec
-        sbc z_atthi
-pc_hi = *
-        sta lists + $100,x
-        lda z_t
-pc_cd = *
-        sta lists + $200,x
-        inc z_lst
-        ldy z_col
-        lda (z_scr),y           ; to: the new one
-        jsr char_at
-        ldx z_t2
-        lda z_t                 ; from: the ground's - the grass is empty,
-        bne pc_copy               ; fig_draw fills it (z_fresh)
-        lda #1
-        sta z_fresh
-        clc
+y40:    .byte 0, 40, 80, 120, 160, 200
+; by a column's cells (1-4): where fblock is entered, its first y, the
+; pixels' place against the record's
+fbn_lo:
+        .repeat 5, I
+        .byte <(fblock + 5 * (STRIP - 8 * I))
+        .endrepeat
+fbn_hi:
+        .repeat 5, I
+        .byte >(fblock + 5 * (STRIP - 8 * I))
+        .endrepeat
+fy_of:
+        .repeat 5, I
+        .byte STRIP - 8 * I
+        .endrepeat
+fr_off:
+        .repeat 5, I
+        .byte <(2 + 8 - STRIP + 8 * I)
+        .endrepeat
+row40s_lo:                      ; rows -3 .. 27, times 40
+        .repeat 31, I
+        .byte <((I - 3) * SCR_W)
+        .endrepeat
+row40s_hi:
+        .repeat 31, I
+        .byte >((I - 3) * SCR_W)
+        .endrepeat
+
+bit_of: .byte 1, 2, 4, 8
+
+; fblock, mblock: lines of a strip at z_fnt from y on to its end, the
+; strip's last line (31) - straight from the pixels at z_d, or through
+; the mask: what is there, the bits at z_kp, the pixels at z_d. Entered at
+; the first line's entry (fb_*, mb_*).
+fblock:
+        .repeat STRIP
+        lda (z_d),y
+        sta (z_fnt),y
+        iny
+        .endrepeat
         rts
-pc_copy:  lda #0
-        sta z_fresh
-        lda z_fnt
-        sta z_dst
-        lda z_fnt + 1
-        sta z_dst + 1
-        lda z_t
-        jsr char_at
-        ldy #7
-:       lda (z_fnt),y
-        sta (z_dst),y
-        dey
-        bpl :-
-        lda z_dst
-        sta z_fnt
-        lda z_dst + 1
-        sta z_fnt + 1
-        clc
+mblock:
+        .repeat STRIP
+        lda (z_fnt),y
+        and (z_kp),y
+        ora (z_d),y
+        sta (z_fnt),y
+        iny
+        .endrepeat
         rts
-pc_have:  jsr char_at
-        lda #0
-        sta z_fresh
-        clc
-        rts
-pc_full:  lda #COL_LINE           ; the colour back; the cell stays the
-                                ; ground's
-        sta (z_att),y
-        sec
-        rts
+fb_lo:
+        .repeat STRIP + 1, I
+        .byte <(fblock + 5 * I)
+        .endrepeat
+fb_hi:
+        .repeat STRIP + 1, I
+        .byte >(fblock + 5 * I)
+        .endrepeat
+mb_lo:
+        .repeat STRIP + 1, I
+        .byte <(mblock + 9 * I)
+        .endrepeat
+mb_hi:
+        .repeat STRIP + 1, I
+        .byte >(mblock + 9 * I)
+        .endrepeat
 
 ; char_at: z_fnt = the pixels of code A in the back picture's set
 char_at:

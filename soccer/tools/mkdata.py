@@ -95,6 +95,9 @@ PITCH_Y = (49, 369, 689)
 GROUND_Y = (107.5, 291.5, 466.5)
 
 
+PAD = 8
+
+
 def sprites():
     txt = open(os.path.join(DATA, 'sprites.txt')).read()
     return {int(m.group(1), 16): m.group(2).split()
@@ -105,9 +108,9 @@ def figure(pic, black=False):
     """A sprite cut to its pixels: (ox, oy, records): its first column and
     row in the sprite, and for each shift 0-3 (pixels to the right in its
     first character) the bytes the draw takes - the number of columns,
-    then per column its first line, its lines, the lines' pixels and the
-    bits to keep of what is under them (a column only as tall as its
-    pixels go)."""
+    then per column its first line, its lines, PAD empty lines, the
+    lines' pixels, PAD empty lines, and the bits to keep of what is under
+    them (a column only as tall as its pixels go)."""
     rows = [i for i, l in enumerate(pic) if l.strip('.')]
     cols = [i for i in range(12) if any(l[i] != '.' for l in pic)]
     oy, h = rows[0], rows[-1] - rows[0] + 1
@@ -131,7 +134,9 @@ def figure(pic, black=False):
                 keep.append(k)
             top = next(i for i in range(h) if keep[i] != 0xFF)
             bot = max(i for i in range(h) if keep[i] != 0xFF) + 1
-            out += [top, bot - top] + data[top:bot] + keep[top:bot]
+            # eight empty lines before the pixels and after them: over
+            # grass the draw copies whole cells (engine.s, fig_draw)
+            out += [top, bot - top] + [0] * PAD + data[top:bot] + [0] * PAD + keep[top:bot]
         recs.append(out)
     return ox, oy, recs
 
