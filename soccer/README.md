@@ -7,8 +7,9 @@ with their shadows, the stands and the boards around the pitch.
 
 **Work in progress.** What is there: the whole ground, both teams lined up
 for the kick-off, the ball, and the player of yours nearest to it, who
-dribbles it and passes it; the view follows the ball. Still to come: the
-shot, the other players running, the keepers, the rules, the match.
+dribbles it, passes it and shoots, with aftertouch; the view follows the
+ball. Still to come: the other players running, the keepers, the rules,
+the match.
 
 ![The kick-off](screenshots/kickoff.png)
 
@@ -17,7 +18,8 @@ shot, the other players running, the keepers, the rules, the match.
 | Joystick (either port) | Keyboard | |
 | --- | --- | --- |
 | directions | cursor keys | run, and dribble the ball at your feet |
-| fire | space | pass, to the team-mate the way you face |
+| fire, tapped | space | pass, to the team-mate the way you face |
+| fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 
 ## Building and running
 
@@ -39,7 +41,10 @@ heads for a point at a speed, the ball rolls and flies with its friction,
 gravity and bounce, a dribbled ball is kicked on just ahead of the player
 whenever it is at his feet, and a pass goes to the nearest team-mate
 within an eighth of a turn of the way you face, harder the further he
-is. The ground the C64 draws is shorter than Sensible Soccer's pitch, so
+is. Fire held for nine frames shoots instead, rising; for the next ten
+frames the stick bends the ball to one side if it is pushed across the
+shot, and on the fifth it lifts it - high when pulled back, less when let
+go or across. The ground the C64 draws is shorter than Sensible Soccer's pitch, so
 the game's lengths are squeezed onto it: across one to one, along by
 about nine sixteenths.
 

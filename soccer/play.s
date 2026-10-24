@@ -41,6 +41,12 @@ SPEED_RUN   = $04E0             ; a player running
 SPEED_BALL  = 896               ; and with the ball at his feet
 NEAR        = 32                ; distance squared: the ball at his feet
 CLOSE       = 72                ; near enough to kick it
+KICK_Z      = 4                 ; and low enough
+SHOT_HOLD   = 9                 ; frames fire is held for a shot
+SHOT_SPEED  = 2208
+SHOT_DZ     = $0140             ; its rise, 8.8: 1.25
+LIFT_DZ     = $0160             ; the aftertouch's lift: 1.375,
+LIFT_HI_DZ  = $0200             ;   pulled back 2
 
         .zeropage
 z_ax:       .res 2              ; aim's: the way to the destination
@@ -53,6 +59,7 @@ z_m:        .res 1
 z_ms:       .res 1
 z_ptr:      .res 2
 z_obj:      .res 1
+z_t8:       .res 1
 smul_l:     .res 1              ; smul's multiplier
 smul_h:     .res 1
 z_q:        .res 2              ; mul8's
@@ -93,7 +100,11 @@ c_spl:  .res NOBJ
 c_sph:  .res NOBJ
 
 ctrl:       .res 1              ; the joystick's player
-fire_was:   .res 1              ; fire held last frame
+fire_n:     .res 1              ; frames fire has been held
+at_n:       .res 1              ; the aftertouch's frame, $FF none
+at_dir:     .res 1              ; the shot's way
+at_side:    .res 1              ; the side it bends to, $FF none yet
+at_j:       .res 1              ; the joystick's way
 drib_dir:   .res 1              ; dribbling: the way, and the touches
 drib_n:     .res 1
 switch_t:   .res 1              ; frames to the next look for a player
@@ -199,6 +210,8 @@ play_init:
         jsr stand
         lda #9
         sta ctrl
+        lda #$FF                ; no aftertouch
+        sta at_n
         rts
 
 ; stand: object X stopped, its destination where it is
@@ -234,6 +247,7 @@ play_frame:
         ldx z_obj
 @next:  dex
         bpl @pl
+        jsr aftertouch
         jsr ball_move
         jmp switch
 
@@ -288,26 +302,231 @@ control:
         bcs @far
         jsr dribble
 @far:
-@fire:  lda joy                 ; fire: a pass, when it is pressed
-        and #J_FIRE
-        tay
-        eor fire_was
-        and #J_FIRE
-        sty fire_was
-        beq @done
-        tya
-        beq @done
+@fire:  lda joy                 ; fire: let go within SHOT_HOLD - 1
+        and #J_FIRE             ; frames a pass, held SHOT_HOLD frames
+        beq @let                ; a shot - as soon as the ball is at his
+        lda fire_n              ; feet, once held so long
+        cmp #$FF
+        beq @done               ; (shot)
+        cmp #SHOT_HOLD
+        bcs :+
+        inc fire_n
+        lda fire_n
+        cmp #SHOT_HOLD
+        bne @done
+:       jsr can_kick
+        bcs @done
+        lda #$FF
+        sta fire_n
+        jmp shot
+@let:   lda fire_n
+        ldy #0
+        sty fire_n
+        cmp #1
+        bcc @done               ; (not held)
+        cmp #SHOT_HOLD
+        bcs @done               ; (the shot taken, or held for one)
+        jsr can_kick
+        bcs @done
+        jmp pass
+@done:  rts
+
+; can_kick: carry clear if the joystick's player can kick the ball: at
+; his feet, near enough, and low. Keeps X.
+can_kick:
         jsr dist2
         lda d2 + 1
-        bne @done
+        bne @no
         lda d2
         cmp #CLOSE + 1
-        bcs @done
+        bcs @no
         lda o_zl + BALL
-        cmp #13
-        bcs @done
-        jsr pass
+        cmp #KICK_Z + 1
+        rts
+@no:    sec
+        rts
+
+; shot: the ball the way the joystick's player faces, hard and rising;
+; the aftertouch on
+shot:
+        ldx ctrl
+        ldy o_dir,x
+        sty at_dir
+        jsr ball_ahead
+        lda #<SHOT_SPEED
+        sta o_spl + BALL
+        lda #>SHOT_SPEED
+        sta o_sph + BALL
+        lda #<SHOT_DZ
+        sta o_dzf + BALL
+        lda #>SHOT_DZ
+        sta o_dzl + BALL
+        lda #0
+        sta at_n
+        lda #$FF
+        sta drib_dir
+        lda #8                  ; the next player soon
+        sta switch_t
+        rts
+
+; aftertouch: for ten frames after a shot, the joystick bends it - the
+; first way it is pushed across the shot (or across and back) sends the
+; ball's destination that side, less each frame; and on the fifth frame
+; pulled back it lifts the ball high and faster, let go or across a
+; little less, pushed on not at all
+aftertouch:
+        ldx at_n
+        bpl :+
+        rts                     ; (none)
+:       bne :+
+        lda #$FF                ; frame 0: no side yet
+        sta at_side
+:       lda joy                 ; the joystick's way, 8 none
+        and #$0F
+        tay
+        lda joy_dir,y
+        sta at_j
+        lda at_side
+        bpl @bend
+        lda at_j                ; no side yet: across the shot latches it
+        cmp #8
+        beq @lift
+        lda at_dir
+        sec
+        sbc at_j
+        and #7
+        beq @lift               ; (on, or back: no side)
+        cmp #4
+        beq @lift
+        lda #0
+        bcc :+                  ; 1-3: side 0, 5-7: side 1
+        lda #1
+:       sta at_side
+@bend:  lda at_dir              ; the destination on by curl * weight
+        asl a
+        ora at_side
+        tay
+        lda curl_x,y
+        sta tmp
+        lda curl_y,y
+        sta tmp + 1
+        ldy at_w,x
+@add:   lda tmp
+        jsr add_tx
+        lda tmp + 1
+        jsr add_ty
+        dey
+        bne @add
+@lift:  ldx at_n
+        cpx #4
+        bne @next
+        lda at_j
+        cmp #8
+        beq @mid                ; let go
+        lda at_dir
+        sec
+        sbc at_j
+        and #7
+        cmp #2
+        beq @mid                ; across
+        cmp #6
+        beq @mid
+        cmp #3
+        bcc @next               ; on: nothing
+        cmp #6
+        bcs @next
+        lda #<LIFT_HI_DZ        ; back: high
+        ldx #>LIFT_HI_DZ
+        ldy #0
+        beq @lifted
+@mid:   lda #<LIFT_DZ
+        ldx #>LIFT_DZ
+        ldy #1
+@lifted:
+        sta o_dzf + BALL
+        stx o_dzl + BALL
+        lda lift_lo,y
+        sta o_spl + BALL
+        lda lift_hi,y
+        sta o_sph + BALL
+        lda at_dir              ; slower diagonally (7/8) and up or down (3/4)
+        lsr a
+        bcs @diag
+        lda at_dir
+        and #3
+        bne @next
+        jsr spd_quarter         ; up, down: - 1/4
+        jmp @next
+@diag:  lda o_sph + BALL        ; - 1/4 + 1/8
+        lsr a
+        sta tmp + 1
+        lda o_spl + BALL
+        ror a
+        lsr tmp + 1
+        ror a
+        lsr tmp + 1
+        ror a
+        sta tmp                 ; speed / 8
+        jsr spd_quarter
+        lda o_spl + BALL
+        clc
+        adc tmp
+        sta o_spl + BALL
+        lda o_sph + BALL
+        adc tmp + 1
+        sta o_sph + BALL
+@next:  inc at_n
+        lda at_n
+        cmp #10
+        bne @done
+        lda #$FF
+        sta at_n
 @done:  rts
+
+; spd_quarter: the ball's speed less a quarter
+spd_quarter:
+        lda o_sph + BALL
+        lsr a
+        sta z_p
+        lda o_spl + BALL
+        ror a
+        lsr z_p
+        ror a
+        sta z_p + 1             ; speed / 4: z_p + 1 low, z_p high
+        lda o_spl + BALL
+        sec
+        sbc z_p + 1
+        sta o_spl + BALL
+        lda o_sph + BALL
+        sbc z_p
+        sta o_sph + BALL
+        rts
+
+; add_tx, add_ty: A (signed) onto the ball's destination. Keep X and Y.
+add_tx:
+        sta z_t8
+        clc
+        adc o_txl + BALL
+        sta o_txl + BALL
+        lda z_t8
+        and #$80
+        beq :+
+        lda #$FF
+:       adc o_txh + BALL
+        sta o_txh + BALL
+        rts
+add_ty:
+        sta z_t8
+        clc
+        adc o_tyl + BALL
+        sta o_tyl + BALL
+        lda z_t8
+        and #$80
+        beq :+
+        lda #$FF
+:       adc o_tyh + BALL
+        sta o_tyh + BALL
+        rts
 
 ; dist2: d2 = the distance squared from the joystick's player to the
 ; ball, $FFFF when it is 64 or more either way. Keeps X.
@@ -538,6 +757,13 @@ pass:
         sta switch_t
         rts
 
+; the aftertouch: the bend for each way of the shot and side, a step
+; (times the frame's weight); the speeds of a lift, high and less high
+curl_x:     .byte <(-32), 32, 0, 23, 0, 0, 23, 0, 32, <(-32), 0, <(-23), 0, 0, <(-23), 0
+curl_y:     .byte 0, 0, <(-23), 0, <(-32), 32, 0, 23, 0, 0, 23, 0, 32, <(-32), 0, <(-23)
+at_w:       .byte 5, 4, 3, 2, 2, 2, 2, 1, 1, 1
+lift_lo:    .byte <2688, <2560
+lift_hi:    .byte >2688, >2560
 pass_lo:    .byte <1536, <1792, <2048
 pass_hi:    .byte >1536, >1792, >2048
 
