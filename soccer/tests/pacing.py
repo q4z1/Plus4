@@ -28,7 +28,7 @@ def main():
         run_pictures(v, lab, 20)
         bits = 0
         for p in d.split('+'):
-            bits |= BITS[p]
+            bits |= BITS.get(p, 0)
         v.poke(lab['dbg_joy'], [bits])
         run_pictures(v, lab, 20)
         v.cmd('watch store %04x' % lab['shown'])

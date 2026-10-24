@@ -4,11 +4,11 @@
 ; Three pictures, each a colour matrix, a code matrix and a character set
 ; of its own: one is shown, one finished may wait to be, and the third is
 ; drawn. The interrupt puts a waiting picture on screen in the vertical
-; blank, together with the fine scroll it was drawn for - two frames after
-; the last at the earliest, so that they come at an even 25 a second. The
-; game draws on as soon as a picture is handed over, and waits only while
-; one is still waiting: a picture that costs more than two frames borrows
-; from the one before.
+; blank, together with the fine scroll it was drawn for - PACE frames
+; after the last at the earliest (game.inc: 3, an even 16.7 pictures a
+; second; build.sh's PACE=2 for 25). The game draws on as soon as a
+; picture is handed over, and waits only while one is still waiting: a
+; picture that costs more than PACE frames borrows from the one before.
 ;
 ; The ground (data/pitch.txt) is 79 x 67 cells of 221 different characters,
 ; more than fit into a set with the figures' beside them. A picture's set
@@ -34,6 +34,7 @@
         .import img_ox, img_oy, img_lo, img_hi
 
 POOL        = 112               ; first code for figures
+FLUSH_EARLY = 86                ; a cache this full is emptied when it suits
 STRIP       = 32                ; a figure's column: four cells at most
 VBL_LINE    = 205               ; the interrupt: below the picture
 
@@ -112,6 +113,7 @@ b_fx:       .res 3              ; what the interrupt sets for it
 b_fy:       .res 3
 b_next:     .res 3              ; next free code in its set
 b_nlist:    .res 3              ; figures in its list
+since_full: .res 1              ; turns since a picture was built anew
 pool_next:  .res 1              ; next code for a figure, 0 when used up
 fig_x:      .res 2              ; fig_draw's figure: on the ground,
 fig_y:      .res 2              ; its sprite's top left corner
@@ -232,8 +234,8 @@ irq:    pha
         ldx queued
         bmi @done               ; (none waiting)
         lda since
-        cmp #2
-        bcc @done               ; (the last only a frame ago)
+        cmp #PACE
+        bcc @done               ; (the last too short a while ago)
         lda vm_of,x
         sta TED_VMBASE
         lda TED_CHBASE
@@ -342,7 +344,22 @@ eng_begin:
         sta b_fy,x
         tsx                     ; alloc's way out when the cache is full
         stx z_sp
-        ldx back
+        lda since_full          ; turns since a picture was built anew
+        cmp #255
+        beq :+
+        inc since_full
+:       ldx back                ; a cache filling up: emptied, and the
+        lda b_next,x            ; picture built anew, before it runs full -
+        cmp #FLUSH_EARLY        ; not two turns running, so that the
+        bcc :+                  ; pictures between make up the time
+        lda since_full
+        cmp #3
+        bcc :+
+        jsr mapbase
+        clc                     ; (the figures' colours back first)
+        jsr restore
+        jmp full_now
+:       ldx back
         lda col0
         sec
         sbc b_col,x
@@ -391,6 +408,9 @@ eng_pool:
 ; - from an empty cache they cannot fill it
 full:   ldx z_sp
         txs
+full_now:
+        lda #0
+        sta since_full
         ldx back
         jsr flush
         jsr mapbase

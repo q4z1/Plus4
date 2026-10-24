@@ -24,6 +24,12 @@ KEY_ROW     = $FD30
 SCR_W       = 40                ; built: 40 x 25 cells, of which the TED
 SCR_H       = 25                ; shows 38 x 24 and a bit, by the scroll
 
+; frames a picture stays on screen at least: 3, 16.7 pictures a second
+; (build.sh: PACE=2 for 25)
+.ifndef PACE
+PACE        = 3
+.endif
+
 MAT0        = $C000             ; picture 0: colours, codes at +$400
 FNT0        = $C800             ;   its characters
 MAT1        = $D000             ; picture 1
