@@ -16,3 +16,14 @@ pokerth/proxy/gen/
 __pycache__/
 
 .claude/settings.local.json
+
+# Game disks and archives (copyrighted, local only)
+/disks/
+
+# toolchain: third-party files, restored by toolchain/setup.sh - the vAmiga
+# sources, the emulator built from them, Python modules - and the Kickstart
+# ROM (Commodore copyright, may not be redistributed)
+toolchain/tools/src/
+toolchain/tools/python/
+toolchain/tools/bin/amiga-run
+toolchain/*.rom

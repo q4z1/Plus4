@@ -1,0 +1,16 @@
+#!/bin/sh
+# Build the soccer game: build/soccer.prg, one file with everything in it.
+# The data first (tools/mkdata.py: build/gen/, from data/), then the
+# assembly (cl65 only assembles it and links).
+set -e
+cd "$(dirname "$0")"
+B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
+mkdir -p build/gen
+python3 tools/mkdata.py
+for f in soccer engine; do
+    $B/cl65 -t plus4 -g --asm-include-dir build/gen -c -o build/$f.o $f.s
+done
+$B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
+$B/cl65 -t plus4 -C soccer.cfg -m build/soccer.map -Ln build/soccer.lbl \
+    -o build/soccer.prg build/soccer.o build/engine.o build/data.o
+echo "build/soccer.prg: $(stat -c%s build/soccer.prg) bytes"
