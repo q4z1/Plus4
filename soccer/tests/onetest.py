@@ -7,6 +7,23 @@ import os
 import signal
 import time
 
+# Only this project's tests count: other projects on the machine have test
+# scripts under tests/ too, and they are not ours to end
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+
+def _ours(pid, args):
+    try:
+        cwd = os.readlink('/proc/%s/cwd' % pid)
+    except OSError:
+        return False
+    for a in args:
+        if b'tests/' in a and a.endswith(b'.py'):
+            path = os.path.realpath(os.path.join(cwd, os.fsdecode(a)))
+            if path.startswith(ROOT + os.sep):
+                return True
+    return False
+
 
 def _others():
     me = os.getpid()
@@ -26,8 +43,7 @@ def _others():
             cmd = open('/proc/%s/cmdline' % d, 'rb').read().split(b'\0')
         except OSError:
             continue
-        if cmd and os.path.basename(cmd[0]).startswith(b'python') and any(
-                b'tests/' in a and a.endswith(b'.py') for a in cmd[1:]):
+        if cmd and os.path.basename(cmd[0]).startswith(b'python') and _ours(d, cmd[1:]):
             out.append(int(d))
     return out
 
