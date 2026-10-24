@@ -29,6 +29,18 @@ def labels():
     return out
 
 
+def held_from_start(v, lab, d):
+    """Stop the program at main (VICE just started) and hold direction d
+    from its first frame on: the match goes the same way each time."""
+    bits = 0
+    for p in d.split('+'):
+        bits |= BITS.get(p, 0)
+    v.cmd('break %04x' % lab['main'])
+    v.cmd('x')
+    v.cmd('del')
+    v.poke(lab['dbg_joy'], [bits])
+
+
 def run_pictures(v, lab, n):
     """Let the game run n pictures of 50 a second (its frames counter)."""
     while n > 0:

@@ -29,9 +29,11 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame
+        .export play_init, play_frame, play_others
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
+        .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
+        .import s_off
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -39,6 +41,10 @@ NOBJ        = PLAYERS + 1
 
 SPEED_RUN   = $04E0             ; a player running
 SPEED_BALL  = 896               ; and with the ball at his feet
+SPEED_JOG   = 1024              ; going to his place
+SLACK       = 6                 ; a place this near the last one is the same
+SPEED_CHASE = 1102              ; after the ball
+SHOOT_FROM  = 150               ; the other team shoots from this near
 NEAR        = 32                ; distance squared: the ball at his feet
 CLOSE       = 72                ; near enough to kick it
 KICK_Z      = 4                 ; and low enough
@@ -60,10 +66,20 @@ z_ms:       .res 1
 z_ptr:      .res 2
 z_obj:      .res 1
 z_t8:       .res 1
+z_px:       .res 2              ; place_formation's place
+z_py:       .res 2
+z_nf:       .res 1              ; play_others': frames at once
+z_k:        .res 1              ; (in threes)
+z_f2:       .res 2              ; mul_f's
+z_f10:      .res 2
+z_f16:      .res 2
 smul_l:     .res 1              ; smul's multiplier
 smul_h:     .res 1
-z_q:        .res 2              ; mul8's
-z_b:        .res 1
+z_q:        .res 2              ; mul8's product
+z_qp:       .res 2              ; mul8's pointers into its tables: qs_lo + a,
+z_qph:      .res 2              ; qs_hi + a, qn_lo + 255 - a, qn_hi + 255 - a
+z_qn:       .res 2
+z_qnh:      .res 2
 d_ax:       .res 1              ; dist2's
 d_ay:       .res 1
 
@@ -92,15 +108,44 @@ o_tyh:  .res NOBJ
 o_dir:  .res NOBJ               ; the way it faces, 0 up .. 7, clockwise
 o_step: .res NOBJ               ; its running picture (players), turn (ball)
 o_run:  .res NOBJ               ; frames to its next step
+o_mov:  .res NOBJ               ; players: 1 while on the way somewhere
+o_new:  .res NOBJ               ; 1: a new destination, the way not yet worked out
+o_skip: .res NOBJ               ; 1: passed over by play_others last time
+o_snf:  .res NOBJ               ; 1: the step times 3 in o_s*, 0: not yet
+o_sxf:  .res NOBJ
+o_sxl:  .res NOBJ
+o_syf:  .res NOBJ
+o_syl:  .res NOBJ
 c_axl:  .res NOBJ               ; aim's last way and speed: the same
 c_axh:  .res NOBJ               ; again, the step is still right
 c_ayl:  .res NOBJ
 c_ayh:  .res NOBJ
 c_spl:  .res NOBJ
 c_sph:  .res NOBJ
+c_txl:  .res NOBJ               ; its last destination, and the angle to it
+c_txh:  .res NOBJ               ; ($FF: there)
+c_tyl:  .res NOBJ
+c_tyh:  .res NOBJ
+c_th:   .res NOBJ
 
 ctrl:       .res 1              ; the joystick's player
 fire_n:     .res 1              ; frames fire has been held
+frame_n:    .res 1              ; frames played
+frames_due: .res 1              ; frames the others have not been moved for
+b_th:       .res 1              ; the ball's angle, speed, product's low
+b_spl:      .res 1              ; bytes as aim last worked them out,
+b_sph:      .res 1
+b_px0:      .res 1
+b_py0:      .res 1
+b_d:        .res 8              ; and sin * 16 (x, y), sin * 10 (x, y)
+po_nf1:     .res 1              ; play_others': this time's frames in threes,
+po_nf2:     .res 1              ; this and the last time's,
+po_last:    .res 1              ; the last time's,
+po_turn:    .res 1              ; and which half waits
+kickoff:    .res 1              ; 1 till the kick-off is taken
+chaser:     .res 1              ; the other team's player after the ball,
+                                ; $FF none
+formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
 at_n:       .res 1              ; the aftertouch's frame, $FF none
 at_dir:     .res 1              ; the shot's way
 at_side:    .res 1              ; the side it bends to, $FF none yet
@@ -144,14 +189,6 @@ sq_hi:
         .repeat 64, I
         .byte >(I * I)
         .endrepeat
-qs_lo:                          ; n * n / 4, n = 0..511
-        .repeat 512, I
-        .byte <(I * I / 4)
-        .endrepeat
-qs_hi:
-        .repeat 512, I
-        .byte >(I * I / 4)
-        .endrepeat
 sq8_lo:
         .repeat 256, I
         .byte <(I * I)
@@ -166,6 +203,14 @@ sq8_hi:
 ; play_init: both teams lined up, the ball on the centre spot, the
 ; joystick on a forward
 play_init:
+        lda #>qs_lo             ; mul8's tables
+        sta z_qp + 1
+        lda #>qs_hi
+        sta z_qph + 1
+        lda #>qn_lo
+        sta z_qn + 1
+        lda #>qn_hi
+        sta z_qnh + 1
         ldx #0
 @pl:    txa
         asl a
@@ -210,8 +255,11 @@ play_init:
         jsr stand
         lda #9
         sta ctrl
-        lda #$FF                ; no aftertouch
+        lda #$FF                ; no aftertouch, no one after the ball
         sta at_n
+        sta chaser
+        lda #1
+        sta kickoff
         rts
 
 ; stand: object X stopped, its destination where it is
@@ -227,29 +275,199 @@ stand:
         lda #0
         sta o_spl,x
         sta o_sph,x
+        sta o_mov,x
         sta o_step,x            ; (the standing picture)
         sta o_vxf,x
         sta o_vxl,x
         sta o_vyf,x
         sta o_vyl,x
+        sta o_snf,x
         rts
 
 ; ---- a frame --------------------------------------------------------------
 
 play_frame:
+        inc frame_n
+        inc frames_due
         jsr control
-        ldx #PLAYERS - 1
-@pl:    lda o_spl,x             ; (the standing ones passed over)
-        ora o_sph,x
-        beq @next
+        lda frame_n             ; the others' minds every second frame, as
+        lsr a                   ; Sensible Soccer's
+        bcs :+
+        jsr team_ai
+:       ldx ctrl                ; the two at the ball, every frame
+        jsr @one
+        ldx chaser
+        bmi :+
+        jsr @one
+:       jsr aftertouch
+        jsr ball_move
+        lda frame_n
+        lsr a
+        bcs :+
+        jmp switch              ; (every second frame)
+:       rts
+@one:   lda o_mov,x
+        beq :+
         stx z_obj
         jsr player_move
+:       rts
+
+frames3: .byte 0, 3, 6, 9, 12
+
+; play_others: everyone else on his way somewhere, once for all the
+; frames played since the last time - they only have to be where they
+; are when the picture is drawn (soccer.s, each turn). Those out of the
+; last picture only every second time, for both times' frames: half of
+; them one time, half the next. Always 3 frames at a time, or 6 (the rest
+; left for next time): the step times so many stays the same.
+play_others:
+        lda frames_due
+        cmp #3
+        bcs :+
+        rts                     ; (not yet)
+:       ldy #1                  ; (3 frames)
+        sbc #3
+        cmp #3
+        bcc :+
+        iny                     ; (6)
+        sbc #3
+:       cmp #3                  ; (more than 2 left: forgotten)
+        bcc :+
+        lda #0
+:       sta frames_due
+        sty po_nf1
+        tya
+        clc
+        adc po_last
+        sta po_nf2              ; (with the last time's: at most 4)
+        sty po_last
+        inc po_turn
+        ldx #PLAYERS - 1
+@pl:    stx z_obj
+        cpx ctrl
+        beq @next
+        cpx chaser
+        beq @next
+        lda o_mov,x             ; (those standing passed over)
+        bne :+
+        sta o_skip,x
+        beq @next
+:       ldy po_nf1
+        lda o_skip,x            ; passed over last time: both times' frames
+        beq :+
+        lda #0
+        sta o_skip,x
+        ldy po_nf2
+        bne @move
+:       lda s_off,x             ; out of the picture, his half's time: next time
+        beq @move
+        txa
+        eor po_turn
+        lsr a
+        bcc @move
+        lda #1
+        sta o_skip,x
+        bne @next
+@move:  sty z_k
+        lda frames3,y
+        sta z_nf
+        lda o_new,x             ; the way anew only for a new destination:
+        beq :+                  ; on a straight run it stays the same
+        lda #0
+        sta o_new,x
+        jsr aim
         ldx z_obj
-@next:  dex
-        bpl @pl
-        jsr aftertouch
-        jsr ball_move
-        jmp switch
+:       jsr step_n
+        jsr arrive
+        lda o_vxf,x             ; there: the standing picture, passed over
+        ora o_vxl,x             ; till he has somewhere to go
+        ora o_vyf,x
+        ora o_vyl,x
+        bne :+
+        sta o_step,x
+        sta o_mov,x
+        beq @next
+:       lda o_run,x             ; a step every four frames
+        sec
+        sbc z_nf
+        bpl @ran
+:       inc o_step,x
+        clc
+        adc #4
+        bmi :-
+@ran:   sta o_run,x
+@next:  ldx z_obj
+        dex
+        bmi @done
+        jmp @pl
+@done:  rts
+
+; step_n: player X on by z_k times 3 frames' steps at once - three
+; steps kept till the step changes (o_snf 0)
+step_n:
+        lda o_snf,x
+        bne @go
+        lda #1
+        sta o_snf,x
+        lda o_vxf,x             ; the step times 3: twice, plus once more
+        asl a
+        sta o_sxf,x
+        lda o_vxl,x
+        rol a
+        sta o_sxl,x
+        lda o_sxf,x
+        clc
+        adc o_vxf,x
+        sta o_sxf,x
+        lda o_sxl,x
+        adc o_vxl,x
+        sta o_sxl,x
+        lda o_vyf,x
+        asl a
+        sta o_syf,x
+        lda o_vyl,x
+        rol a
+        sta o_syl,x
+        lda o_syf,x
+        clc
+        adc o_vyf,x
+        sta o_syf,x
+        lda o_syl,x
+        adc o_vyl,x
+        sta o_syl,x
+@go:    lda z_k
+        sta z_t8
+@again: ldy #0                  ; (sign-extended)
+        lda o_sxl,x
+        bpl :+
+        dey
+:       lda o_xf,x
+        clc
+        adc o_sxf,x
+        sta o_xf,x
+        lda o_xl,x
+        adc o_sxl,x
+        sta o_xl,x
+        tya
+        adc o_xh,x
+        sta o_xh,x
+        ldy #0
+        lda o_syl,x
+        bpl :+
+        dey
+:       lda o_yf,x
+        clc
+        adc o_syf,x
+        sta o_yf,x
+        lda o_yl,x
+        adc o_syl,x
+        sta o_yl,x
+        tya
+        adc o_yh,x
+        sta o_yh,x
+        dec z_t8
+        bne @again
+        rts
 
 ; control: the joystick's player - where he runs, dribbling, fire
 control:
@@ -266,6 +484,8 @@ control:
         jmp @fire
 @run:   sta o_dir,x
         tay
+        lda #1
+        sta o_mov,x
         lda o_xl,x              ; 1000 pixels the way the stick points
         clc
         adc vec_xl,y
@@ -299,6 +519,9 @@ control:
         bcs @far
         lda o_zl + BALL
         cmp #13
+        bcs @far
+        lda frame_n             ; (a touch every second frame)
+        lsr a
         bcs @far
         jsr dribble
 @far:
@@ -365,7 +588,7 @@ shot:
         sta at_n
         lda #$FF
         sta drib_dir
-        lda #8                  ; the next player soon
+        lda #4                  ; the next player soon (8 frames)
         sta switch_t
         rts
 
@@ -753,7 +976,7 @@ pass:
         sta o_dzf + BALL
         lda #$FF
         sta drib_dir
-        lda #8                  ; the next player soon
+        lda #4                  ; the next player soon (8 frames)
         sta switch_t
         rts
 
@@ -835,14 +1058,13 @@ mate_dist:
 ; 256)
 abs16:
         bpl :+
-        eor #$FF
-        pha
-        lda tmp
-        eor #$FF
-        clc
-        adc #1
+        tay
+        lda #0
+        sec
+        sbc tmp
         sta tmp
-        pla
+        tya
+        eor #$FF
         adc #0
 :       tay
         lda tmp
@@ -857,12 +1079,66 @@ player_move:
         jsr aim
         ldx z_obj
         jsr step
-        dec o_run,x             ; a step every four frames
+        jsr arrive
+        lda o_vxf,x             ; still: there - the standing picture, and
+        ora o_vxl,x             ; passed over till he has somewhere to go
+        ora o_vyf,x
+        ora o_vyl,x
+        bne :+
+        sta o_step,x
+        sta o_mov,x
+        rts
+:       dec o_run,x             ; a step every four frames
         bpl :+
         lda #3
         sta o_run,x
         inc o_step,x
 :       rts
+
+; arrive: player X, if a step has taken him to his destination or past
+; it on either axis, put on it there, that axis's step 0 (as Sensible
+; Soccer stops its players)
+arrive:
+        lda o_vxl,x
+        ora o_vxf,x
+        beq @y
+        lda o_xl,x              ; past it: (x - dest) has the step's sign,
+        sec                     ; or is 0
+        sbc o_txl,x
+        sta tmp
+        lda o_xh,x
+        sbc o_txh,x
+        eor o_vxl,x
+        bmi @y                  ; (not there yet)
+        lda o_txl,x
+        sta o_xl,x
+        lda o_txh,x
+        sta o_xh,x
+        lda #0
+        sta o_xf,x
+        sta o_vxf,x
+        sta o_vxl,x
+        sta o_snf,x
+@y:     lda o_vyl,x
+        ora o_vyf,x
+        beq @done
+        lda o_yl,x
+        sec
+        sbc o_tyl,x
+        lda o_yh,x
+        sbc o_tyh,x
+        eor o_vyl,x
+        bmi @done
+        lda o_tyl,x
+        sta o_yl,x
+        lda o_tyh,x
+        sta o_yh,x
+        lda #0
+        sta o_yf,x
+        sta o_vyf,x
+        sta o_vyl,x
+        sta o_snf,x
+@done:  rts
 
 ; ball_move: the ball a frame - see the top
 ball_move:
@@ -1119,45 +1395,72 @@ aim:
         lda o_tyh,x
         sbc o_yh,x
         sta z_ay + 1
-        cmp c_ayh,x             ; the way and the speed as last frame:
-        bne @new                ; the step as it is
+        ; the angle as last time: the same way to the destination (the
+        ; joystick's player), or the same destination - he runs straight
+        ; at it; the ball's anew each eighth frame, as rounding turns it a
+        ; little on the way
+        cmp c_ayh,x
+        bne @dest
         lda z_ay
         cmp c_ayl,x
-        bne @new
+        bne @dest
         lda z_ax
         cmp c_axl,x
-        bne @new
+        bne @dest
         lda z_ax + 1
         cmp c_axh,x
+        beq @same
+@dest:  cpx #BALL               ; (the ball's angle anew each eighth frame)
+        bne :+
+        lda frame_n
+        and #7
+        beq @new
+:
+        lda o_txl,x
+        cmp c_txl,x
         bne @new
-        lda o_spl,x
-        cmp c_spl,x
+        lda o_txh,x
+        cmp c_txh,x
         bne @new
+        lda o_tyl,x
+        cmp c_tyl,x
+        bne @new
+        lda o_tyh,x
+        cmp c_tyh,x
+        bne @new
+        jsr @keep               ; (the way changed: remembered)
+@same:  lda o_spl,x             ; the angle and the speed as last time:
+        cmp c_spl,x             ; the step as it is
+        bne @step
         lda o_sph,x
         cmp c_sph,x
-        bne @new
+        bne @step
         rts
-@new:   lda z_ax
-        sta c_axl,x
-        lda z_ax + 1
-        sta c_axh,x
-        lda z_ay
-        sta c_ayl,x
-        lda z_ay + 1
-        sta c_ayh,x
-        lda o_spl,x
-        sta c_spl,x
-        lda o_sph,x
-        sta c_sph,x
+@new:   jsr @keep
+        lda o_txl,x
+        sta c_txl,x
+        lda o_txh,x
+        sta c_txh,x
+        lda o_tyl,x
+        sta c_tyl,x
+        lda o_tyh,x
+        sta c_tyh,x
         jsr angle
         bcc :+
-        lda #0                  ; there: no step
+        lda #$FF                ; there: no step
+        sta c_th,x
+        lda #0
         sta o_vxf,x
         sta o_vxl,x
         sta o_vyf,x
         sta o_vyl,x
+        sta c_spl,x             ; (a speed of 0 noted: anew next time)
+        sta c_sph,x
+        sta o_snf,x
         rts
-:       lda #128                ; the way it faces: ((128 - theta) + 16) / 32
+:       lda z_th
+        sta c_th,x
+        lda #128                ; the way it faces: ((128 - theta) + 16) / 32
         sec
         sbc z_th
         clc
@@ -1168,20 +1471,35 @@ aim:
         lsr a
         lsr a
         cpx #BALL
-        beq :+
+        beq @step
         sta o_dir,x
-:       lda o_spl,x
+@step:  lda c_th,x              ; the step: 127 sin * speed per axis
+        cmp #$FF
+        bne :+
+        rts                     ; (at the destination)
+:       lda #0
+        sta o_snf,x
+        cpx #BALL               ; the ball slowed only by its friction:
+        bne @full               ; less of the same (fric)
+        jsr fric
+        bcs @full
+        rts
+@full:  lda o_spl,x
+        sta c_spl,x
         sta smul_l
         lda o_sph,x
+        sta c_sph,x
         sta smul_h
-        ldy z_th
+        ldy c_th,x
         lda sin_tab,y
         jsr smul
+        lda z_p
+        sta b_px0               ; (the ball's, for its friction)
         lda z_p + 1
         sta o_vxf,x
         lda z_p + 2
         sta o_vxl,x
-        lda z_th
+        lda c_th,x
         clc
         adc #64
         tay
@@ -1191,6 +1509,148 @@ aim:
         sta o_vyf,x
         lda z_p + 2
         sta o_vyl,x
+        cpx #BALL
+        beq :+
+        rts
+:       lda z_p                 ; the ball's: noted for its friction
+        sta b_py0
+        lda c_th,x
+        sta b_th
+        lda o_spl,x
+        sta b_spl
+        lda o_sph,x
+        sta b_sph
+        ldy c_th,x              ; sin * 16 and * 10, per axis
+        lda sin_tab,y
+        jsr mul_f
+        lda z_f16
+        sta b_d
+        lda z_f16 + 1
+        sta b_d + 1
+        lda z_f10
+        sta b_d + 4
+        lda z_f10 + 1
+        sta b_d + 5
+        lda c_th,x
+        clc
+        adc #64
+        tay
+        lda sin_tab,y
+        jsr mul_f
+        lda z_f16
+        sta b_d + 2
+        lda z_f16 + 1
+        sta b_d + 3
+        lda z_f10
+        sta b_d + 6
+        lda z_f10 + 1
+        sta b_d + 7
+        rts
+
+@keep:  lda z_ax                ; the way to the destination remembered
+        sta c_axl,x
+        lda z_ax + 1
+        sta c_axh,x
+        lda z_ay
+        sta c_ayl,x
+        lda z_ay + 1
+        sta c_ayh,x
+        rts
+
+; fric: carry clear if the ball's step could be had from the last one,
+; the same way and the speed just its friction (16 or 10) less: sin *
+; friction off the product (the step's two bytes and the one below) -
+; the same as a new product, much cheaper. Keeps X.
+fric:
+        lda c_th,x
+        cmp b_th
+        bne @no
+        lda b_spl
+        sec
+        sbc o_spl,x
+        tay
+        lda b_sph
+        sbc o_sph,x
+        bne @no
+        cpy #16
+        beq @f16
+        cpy #10
+        beq @f10
+@no:    sec
+        rts
+@f10:   ldy #4                  ; (the deltas for 10)
+        bne @fric
+@f16:   ldy #0
+@fric:  lda b_px0
+        sec
+        sbc b_d,y
+        sta b_px0
+        lda o_vxf,x
+        sbc b_d + 1,y
+        sta o_vxf,x
+        lda b_d + 1,y           ; (sign-extended)
+        and #$80
+        beq :+
+        lda #$FF
+:       sta tmp
+        lda o_vxl,x
+        sbc tmp
+        sta o_vxl,x
+        lda b_py0
+        sec
+        sbc b_d + 2,y
+        sta b_py0
+        lda o_vyf,x
+        sbc b_d + 3,y
+        sta o_vyf,x
+        lda b_d + 3,y
+        and #$80
+        beq :+
+        lda #$FF
+:       sta tmp
+        lda o_vyl,x
+        sbc tmp
+        sta o_vyl,x
+        lda o_spl,x
+        sta c_spl,x
+        sta b_spl
+        lda o_sph,x
+        sta c_sph,x
+        sta b_sph
+        clc
+        rts
+
+; mul_f: z_f16, z_f10 = A (signed) * 16, * 10. Keeps X.
+mul_f:
+        sta z_f2
+        ldy #0
+        cmp #$80
+        bcc :+
+        dey
+:       sty z_f2 + 1
+        asl z_f2                ; 2a
+        rol z_f2 + 1
+        lda z_f2                ; 8a
+        asl a
+        sta z_f10
+        lda z_f2 + 1
+        rol a
+        sta z_f10 + 1
+        asl z_f10
+        rol z_f10 + 1
+        lda z_f10               ; 16a
+        asl a
+        sta z_f16
+        lda z_f10 + 1
+        rol a
+        sta z_f16 + 1
+        lda z_f10               ; 10a = 8a + 2a
+        clc
+        adc z_f2
+        sta z_f10
+        lda z_f10 + 1
+        adc z_f2 + 1
+        sta z_f10 + 1
         rts
 
 ; angle: z_th = the angle (256 to the circle, 0 down, 64 right,
@@ -1217,19 +1677,32 @@ angle:
         lda #0
         sbc z_ay + 1
         sta z_ay + 1
-:                               ; halved till both are under 32
-@half:  lda z_ax + 1
+:                               ; halved till both are under 256,
+@half:  lda z_ax + 1            ; then under 32
         ora z_ay + 1
-        bne :+
-        lda z_ax
-        ora z_ay
-        and #$E0
-        beq @look
+        beq @lo
 :       lsr z_ax + 1
         ror z_ax
         lsr z_ay + 1
         ror z_ay
-        jmp @half
+        lda z_ax + 1
+        ora z_ay + 1
+        bne :-
+@lo:    lda z_ax
+        ora z_ay
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        tay
+        lda halves,y
+        beq @look
+        tay
+:       lsr z_ax
+        lsr z_ay
+        dey
+        bne :-
 @look:  lda z_ay                ; atan_tab[ay * 32 + ax]
         lsr a
         lsr a
@@ -1278,6 +1751,8 @@ angle:
 @none:  sec
         rts
 
+halves: .byte 0, 1, 2, 2, 3, 3, 3, 3   ; (for the top three bits of 8)
+
 ; smul: z_p (24 bits, signed) = A (signed) * smul_l/h; the step is its
 ; upper two bytes. Two products of bytes from tables of squares / 4 (a * b
 ; = (a + b)^2 / 4 - (a - b)^2 / 4). Keeps X.
@@ -1287,15 +1762,15 @@ smul:
         eor #$FF
         clc
         adc #1
-:       sta z_m
-        lda smul_l              ; |A| * the low byte
-        jsr mul8
+:       jsr mul_set
+        ldy smul_l              ; |A| * the low byte
+        jsr mul_by
         lda z_q
         sta z_p
         lda z_q + 1
         sta z_p + 1
-        lda smul_h              ; and the high byte, 8 bits up
-        jsr mul8
+        ldy smul_h              ; and the high byte, 8 bits up
+        jsr mul_by
         lda z_p + 1
         clc
         adc z_q
@@ -1319,34 +1794,399 @@ smul:
 
 ; mul8: z_q = z_m * A (bytes, unsigned). Keeps X.
 mul8:
-        sta z_b
+        tay
+        lda z_m
+        jsr mul_set
+; mul_by: z_q = a * Y, a the factor mul_set was given: a * b = (a + b)^2 / 4
+; - (b - a)^2 / 4, the squares / 4 from tables the pointers point into a
+; place along (both sums of the same evenness: nothing lost rounding).
+; Keeps X.
+mul_by:
+        lda (z_qp),y
+        sec
+        sbc (z_qn),y
+        sta z_q
+        lda (z_qph),y
+        sbc (z_qnh),y
+        sta z_q + 1
+        rts
+
+; mul_set: A the factor for mul_by. Keeps X, Y.
+mul_set:
+        sta z_qp
+        sta z_qph
+        eor #$FF
+        sta z_qn
+        sta z_qnh
+        rts
+
+        .segment "SQUARES"      ; (each table on a page of its own)
+qs_lo:                          ; n * n / 4, n = 0..511
+        .repeat 512, I
+        .byte <(I * I / 4)
+        .endrepeat
+qs_hi:
+        .repeat 512, I
+        .byte >(I * I / 4)
+        .endrepeat
+qn_lo:                          ; (n - 255)^2 / 4, n = 0..511
+        .repeat 512, I
+        .byte <((I - 255) * (I - 255) / 4)
+        .endrepeat
+qn_hi:
+        .repeat 512, I
+        .byte >((I - 255) * (I - 255) / 4)
+        .endrepeat
+        .code
+
+; ---- the other players ----------------------------------------------------
+;
+; Everyone the joystick does not run keeps to his place in the formation:
+; an area for each player (data/tactics.txt), the ball's place on the
+; pitch put into it - from the touch line to the other, from goal line to
+; goal line. He runs there (speed 1024) and stands. Each gets his place
+; worked out anew every 32nd frame, a different few each time; a place
+; hardly away from the last is not a new one. The other team sends the
+; player nearest the ball after it; with it at his feet he takes it
+; towards the goal and shoots from close to it. Before the kick-off no
+; one moves.
+
+team_ai:
+        lda kickoff
+        beq :+
+        lda o_spl + BALL        ; the ball moving: the kick-off taken
+        ora o_sph + BALL
+        beq @done
+        lda #0
+        sta kickoff
+:       lda frame_n
+        and #7
+        bne :+
+        jsr pick_chaser         ; (every eighth frame)
+:       lda frame_n             ; those with the frame's number, every 32
+        lsr a                   ; frames (team_ai: every second one)
+        and #15
+        tax
+@pl:    cpx ctrl
+        beq @next
+        cpx chaser
+        beq @next
+        jsr place_formation
+@next:  txa
+        clc
+        adc #16
+        tax
+        cpx #PLAYERS
+        bcc @pl
+        jmp chase
+@done:  rts
+
+; place_formation: player X's destination, his place in the formation for
+; where the ball is; jogging. Keeps X.
+place_formation:
+        stx z_obj
+        txa                     ; the team's formation
+        ldy formation
+        cpx #11
+        bcc :+
+        ldy formation + 1
+:       clc                     ; (formation * 22 + player)
+        adc form22,y
+        tay
+        lda tac_xs,y
+        sta z_m
+        lda o_xl + BALL         ; x: from + (ball x - 49) * slope / 256
+        sec
+        sbc #49
+        sta z_t8
+        lda o_xh + BALL
+        sbc #0
+        bpl :+
+        lda #0                  ; (left of the touch line: there)
+        sta z_t8
+:       sta tmp + 1             ; (the high byte: 0, 1)
+        lda z_t8
+        jsr mul8
+        lda z_q + 1
+        sta tmp
+        lda #0
+        ldx tmp + 1
+        beq :++
+:       lda tmp
         clc
         adc z_m
-        tay
-        bcs @hi
-        lda qs_lo,y             ; (a + b)^2 / 4
-        sta z_q
-        lda qs_hi,y
-        sta z_q + 1
-        jmp @sub
-@hi:    lda qs_lo + 256,y
-        sta z_q
-        lda qs_hi + 256,y
-        sta z_q + 1
-@sub:   lda z_b                 ; - (a - b)^2 / 4
+        sta tmp
+        lda #0
+        adc #0
+        dex
+        bne :-
+:       sta tmp + 1
+        lda tmp
+        clc
+        adc tac_x0l,y
+        sta z_px
+        lda tmp + 1
+        adc tac_x0h,y
+        sta z_px + 1
+        lda tac_ys,y            ; y likewise, over 641
+        sta z_m
+        lda o_yl + BALL
         sec
-        sbc z_m
-        bcs :+
-        eor #$FF
-        adc #1
-:       tay
-        lda z_q
-        sec
-        sbc qs_lo,y
-        sta z_q
+        sbc #49
+        sta z_t8
+        lda o_yh + BALL
+        sbc #0
+        bpl :+
+        lda #0
+        sta z_t8
+:       sta tmp + 1             ; (0, 1, 2)
+        lda z_t8
+        jsr mul8
         lda z_q + 1
-        sbc qs_hi,y
-        sta z_q + 1
+        sta tmp
+        lda #0
+        sta z_t8
+        ldx tmp + 1
+        beq :+++
+:       lda tmp
+        clc
+        adc z_m
+        sta tmp
+        bcc :+
+        inc z_t8
+:       dex
+        bne :--
+:       ldx z_obj
+        lda tmp
+        clc
+        adc tac_y0l,y
+        sta z_py
+        lda z_t8
+        adc tac_y0h,y
+        sta z_py + 1
+        ; hardly away from the last place (the ball has hardly moved):
+        ; that one kept - a new way would cost a new angle; standing, and
+        ; hardly away from where he stands, he stays
+        lda z_px
+        sec
+        sbc o_txl,x
+        tay
+        lda z_px + 1
+        sbc o_txh,x
+        jsr slack
+        bcs :+
+        lda z_py
+        sec
+        sbc o_tyl,x
+        tay
+        lda z_py + 1
+        sbc o_tyh,x
+        jsr slack
+        bcc @keep
+:       lda o_mov,x
+        bne @go
+        lda z_px
+        sec
+        sbc o_xl,x
+        tay
+        lda z_px + 1
+        sbc o_xh,x
+        jsr slack
+        bcs @go
+        lda z_py
+        sec
+        sbc o_yl,x
+        tay
+        lda z_py + 1
+        sbc o_yh,x
+        jsr slack
+        bcc @keep
+@go:    lda z_px
+        sta o_txl,x
+        lda z_px + 1
+        sta o_txh,x
+        lda z_py
+        sta o_tyl,x
+        lda z_py + 1
+        sta o_tyh,x
+        lda #<SPEED_JOG
+        sta o_spl,x
+        lda #>SPEED_JOG
+        sta o_sph,x
+        lda #1
+        sta o_mov,x
+        sta o_new,x
+@keep:  rts
+
+; slack: carry clear if the difference A:Y is within SLACK either way
+slack:
+        cmp #0
+        beq @pos
+        cmp #$FF
+        bne @no
+        cpy #<(-SLACK)          ; -SLACK..-1
+        bcs @in
+@no:    sec
+        rts
+@in:    clc
+        rts
+@pos:   cpy #SLACK + 1
+        rts
+
+form22: .byte 0, 22, 44, 66, 88, 110, 132, 154
+
+; pick_chaser: the other team's player nearest the ball (not the keeper)
+pick_chaser:
+        lda kickoff
+        bne @done
+        lda #$FF
+        sta mate_d
+        sta mate_d + 1
+        ldx #PLAYERS - 1
+@look:  jsr mate_dist
+        lda tmp
+        cmp mate_d
+        lda tmp + 1
+        sbc mate_d + 1
+        bcs :+
+        lda tmp
+        sta mate_d
+        lda tmp + 1
+        sta mate_d + 1
+        stx mate
+:       dex
+        cpx #11
+        bne @look
+        lda mate
+        sta chaser
+@done:  rts
+
+; chase: the chaser after the ball - at his feet, towards the goal at the
+; bottom, and a shot from close to it
+chase:
+        ldx chaser
+        bmi @done
+        stx z_obj
+        lda #1
+        sta o_mov,x
+        jsr ball_near           ; at his feet?
+        bcc @have
+        lda frame_n             ; after it (where it is, each fourth frame)
+        and #3
+        bne @done
+        lda o_xl + BALL
+        sta o_txl,x
+        lda o_xh + BALL
+        sta o_txh,x
+        lda o_yl + BALL
+        sta o_tyl,x
+        lda o_yh + BALL
+        sta o_tyh,x
+        lda #<SPEED_CHASE
+        sta o_spl,x
+        lda #>SPEED_CHASE
+        sta o_sph,x
+@done:  rts
+@have:  ; near the goal: a shot at it
+        lda o_yl,x
+        cmp #<(689 - SHOOT_FROM)
+        lda o_yh,x
+        sbc #>(689 - SHOOT_FROM)
+        bcc @run
+        lda #<304               ; the ball's destination: 32 times the
+        sec                     ; way to the middle of the goal
+        sbc o_xl + BALL
+        sta tmp
+        lda #>304
+        sbc o_xh + BALL
+        ldy #5
+:       asl tmp
+        rol a
+        dey
+        bne :-
+        sta tmp + 1
+        lda tmp
+        clc
+        adc o_xl + BALL
+        sta o_txl + BALL
+        lda tmp + 1
+        adc o_xh + BALL
+        sta o_txh + BALL
+        lda #<1000
+        clc
+        adc o_yl + BALL
+        sta o_tyl + BALL
+        lda #>1000
+        adc o_yh + BALL
+        sta o_tyh + BALL
+        lda #<SHOT_SPEED
+        sta o_spl + BALL
+        lda #>SHOT_SPEED
+        sta o_sph + BALL
+        lda #<SHOT_DZ
+        sta o_dzf + BALL
+        lda #>SHOT_DZ
+        sta o_dzl + BALL
+        lda #$FF                ; (a moment before he goes after it again)
+        sta chaser
+        rts
+@run:   ldy #4                  ; towards the goal: down, or down and in
+        lda o_xl,x
+        cmp #<(304 - 40)
+        lda o_xh,x
+        sbc #>(304 - 40)
+        bcs :+
+        ldy #3                  ; (left of it: down and right)
+        bne @dir
+:       lda #<(304 + 40)
+        cmp o_xl,x
+        lda #>(304 + 40)
+        sbc o_xh,x
+        bcs @dir
+        ldy #5                  ; (right of it: down and left)
+@dir:   tya
+        sta o_dir,x
+        lda o_xl,x              ; he runs that way, with it
+        clc
+        adc vec_xl,y
+        sta o_txl,x
+        lda o_xh,x
+        adc vec_xh,y
+        sta o_txh,x
+        lda o_yl,x
+        clc
+        adc vec_yl,y
+        sta o_tyl,x
+        lda o_yh,x
+        adc vec_yh,y
+        sta o_tyh,x
+        lda #<SPEED_BALL
+        sta o_spl,x
+        lda #>SPEED_BALL
+        sta o_sph,x
+        lda frame_n             ; and kicks it on ahead, every second frame
+        lsr a
+        bcs :+
+        jsr ball_ahead
+        lda #<1024
+        sta o_spl + BALL
+        lda #>1024
+        sta o_sph + BALL
+:       rts
+
+; ball_near: carry clear if the ball is at player X's feet (distance
+; squared at most 32) and low. Keeps X.
+ball_near:
+        jsr mate_dist
+        lda tmp + 1
+        bne @no
+        lda tmp
+        cmp #NEAR + 1
+        bcs @no
+        lda o_zl + BALL
+        cmp #13
+        rts
+@no:    sec
         rts
 
 ; ---- whose the joystick is ------------------------------------------------
@@ -1356,7 +2196,7 @@ mul8:
 switch:
         dec switch_t
         bpl @done
-        lda #4
+        lda #2                  ; (each sixth frame)
         sta switch_t
         ldx ctrl
         jsr dist2
@@ -1389,7 +2229,6 @@ switch:
         ldx ctrl
         cpx mate
         beq @done
-        jsr stand               ; the last one stops where he is
-        lda mate
-        sta ctrl
+        lda mate                ; (the last one goes back to his place:
+        sta ctrl                ; team_ai)
 @done:  rts

@@ -12,10 +12,11 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame
+        .import play_init, play_frame, play_others
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__
+        .export s_off
 
 MAX_X       = (MAP_W - SCR_W) * 8 + 7
 MAX_Y       = (MAP_H - SCR_H) * 8 + 7
@@ -80,6 +81,7 @@ s_yh:   .res FIGS
 tick:   .res 1                  ; turns of the loop
 played: .res 1                  ; frames played up to
 order:  .res FIGS               ; the figures from the top down
+s_off:  .res FIGS               ; 1: not in the last picture (play.s)
 tmp:    .res 1
 tmp2:   .res 1
 s_i:    .res 1                  ; sort's
@@ -120,7 +122,8 @@ loop:
 :       jsr play_frame
         dec tmp
         bne :-
-@go:    jsr place
+@go:    jsr play_others         ; (the rest of them, once a turn)
+        jsr place
         jsr follow
         jsr eng_begin
         jsr sort
@@ -129,34 +132,41 @@ loop:
         jmp loop
 
 ; place: each figure's feet on the ground - the ball's where it would lie
+; (ymap_lo/hi[y], y < 768: by its high byte, straight from the table)
 place:
         ldx #FIGS - 1
-:       lda o_xl,x
+@fig:   lda o_xl,x
         sec
         sbc #GROUND_X
         sta s_xl,x
         lda o_xh,x
         sbc #0
         sta s_xh,x
-        lda #<ymap_lo           ; ymap_lo/hi[y]
-        clc
-        adc o_yl,x
-        sta ptr
-        lda #>ymap_lo
-        adc o_yh,x
-        sta ptr + 1
-        ldy #0
-        lda (ptr),y
+        ldy o_yl,x
+        lda o_yh,x
+        beq @y0
+        lsr a
+        bcs @y1
+        lda ymap_lo + 512,y
         sta s_yl,x
-        ldy #<YMAP              ; (ymap_hi follows ymap_lo)
-        lda ptr + 1
-        clc
-        adc #>YMAP
-        sta ptr + 1
-        lda (ptr),y
+        lda ymap_hi + 512,y
         sta s_yh,x
         dex
-        bpl :-
+        bpl @fig
+        rts
+@y1:    lda ymap_lo + 256,y
+        sta s_yl,x
+        lda ymap_hi + 256,y
+        sta s_yh,x
+        dex
+        bpl @fig
+        rts
+@y0:    lda ymap_lo,y
+        sta s_yl,x
+        lda ymap_hi,y
+        sta s_yh,x
+        dex
+        bpl @fig
         rts
 
 ; follow: the view on the ball, as far as the ground goes
@@ -210,7 +220,16 @@ follow:
 sort:
         lda #1
         sta s_i
-@next:  ldx s_i
+@next:  ldx s_i                 ; (mostly no lower than the one above: next)
+        ldy order,x
+        lda order - 1,x
+        tax
+        lda s_yl,y
+        cmp s_yl,x
+        lda s_yh,y
+        sbc s_yh,x
+        bcs @in
+        ldx s_i
         lda order,x
         sta tmp
         stx s_j                 ; the gap
@@ -231,7 +250,7 @@ sort:
 @put:   ldx s_j
         lda tmp
         sta order,x
-        inc s_i
+@in:    inc s_i
         lda s_i
         cmp #FIGS
         bne @next
@@ -245,7 +264,10 @@ draw:
         lda order,x
         tax
         jsr seen
-        bcs @skip
+        lda #0
+        rol a
+        sta s_off,x
+        bne @skip
         cpx #BALL
         bne @pl
         jsr draw_ball

@@ -20,11 +20,11 @@ from yape import Yape, SHOT, host  # noqa: E402
 from shot import HERE, PRG, BITS, labels  # noqa: E402
 
 FRAMES = 950
-# (direction, seconds): the kick-off, a dribble up, a shot pulled back
-# (high), the ball flying; the next player after it, a dribble to the
-# right and a shot bent with the stick across
-PLAN = [('none', 1.0), ('up', 1.6), ('up+fire', 0.3), ('down', 0.4), ('none', 2.5),
-        ('down', 2.0), ('right', 1.2), ('right+fire', 0.3), ('up', 0.4), ('none', 3.0)]
+# (direction, seconds): the kick-off, a dribble up and a pass to the
+# left, the other team going after the ball, chasing it back, a shot
+PLAN = [('none', 1.0), ('up', 1.2), ('up+left', 0.6), ('left+fire', 0.1), ('none', 2.0),
+        ('down', 2.5), ('down+left', 1.5), ('up+fire', 0.3), ('none', 2.5),
+        ('right', 2.0), ('none', 1.5)]
 
 
 def main():

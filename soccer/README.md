@@ -48,6 +48,16 @@ go or across. The ground the C64 draws is shorter than Sensible Soccer's pitch, 
 the game's lengths are squeezed onto it: across one to one, along by
 about nine sixteenths.
 
+Everyone else keeps to his place in the team's formation (`data/tactics.txt`,
+eight of them, 4-4-2 for now): each player has an area, and where the ball
+is on the pitch decides where in it he stands - he runs there. The yellow
+team sends its player nearest the ball after it; with it at his feet he
+takes it towards the cyan goal and shoots from close in. The joystick
+moves to the cyan player nearest the ball. As in Sensible Soccer, the
+players make up their minds every second frame; the ball and the two at
+it move every frame, the others once for each picture, by all the frames
+since the last.
+
 ## How it is drawn
 
 The Plus/4 has no sprites, so a player is drawn into the characters under

@@ -15,6 +15,11 @@ and the colours, for the code):
                Sensible Soccer steers by, linear in dy/dx rather than a
                true arc tangent
   sin_tab      127 * sin, 256 steps to a circle (signed)
+  tac_*        the formations (data/tactics.txt): for each of the eight
+               and each player (0-10 the team at the bottom, 11-21 the
+               one at the top) his area's corner and how far across it
+               he goes for each pixel the ball goes (x / 510, y / 641,
+               times 256)
   ymap_*       where a place on the pitch is on the ground: the game
                runs on Sensible Soccer's pitch, 640 long, the ground
                shows it 363 high
@@ -206,6 +211,23 @@ def ymap(y):
                / (PITCH_Y[i + 1] - PITCH_Y[i]))
 
 
+def tactics():
+    """[formation][player 0-21] = (x from, x slope, y from, y slope): the
+    team at the bottom (0-10) has the second area of each line, the team
+    at the top (11-21) the first"""
+    forms = []
+    for line in open(os.path.join(DATA, 'tactics.txt')):
+        if line.startswith('formation'):
+            forms.append([None] * 22)
+        elif line.strip() and not line.startswith('#'):
+            v = [int(x) for x in line.split()]
+            pl = v[0] - 1
+            for team, (x0, y0, x1, y1) in ((0, v[5:9]), (1, v[1:5])):
+                forms[-1][team * 11 + pl] = (x0, min(255, round((x1 - x0 + 1) * 256 / 510)),
+                                             y0, min(255, round((y1 - y0 + 1) * 256 / 641)))
+    return forms
+
+
 def hexrows(out, data, per=16):
     for i in range(0, len(data), per):
         out.write('        .byte ' + ', '.join('$%02X' % b for b in data[i:i + per]) + '\n')
@@ -240,6 +262,13 @@ def main():
             for sh, rec in enumerate(f[2]):
                 out.write('img%d_%d:\n' % (i, sh))
                 hexrows(out, rec)
+        out.write('\n        .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys\n        .rodata\n')
+        forms = tactics()
+        for name, f in (('tac_x0l', lambda t: t[0] & 255), ('tac_x0h', lambda t: t[0] >> 8),
+                        ('tac_xs', lambda t: t[1]), ('tac_y0l', lambda t: t[2] & 255),
+                        ('tac_y0h', lambda t: t[2] >> 8), ('tac_ys', lambda t: t[3])):
+            out.write(name + ':                ; formation * 22 + player\n')
+            hexrows(out, bytes(f(t) for form in forms for t in form), 22)
         out.write('\n        .export atan_tab, sin_tab, ymap_lo, ymap_hi\n        .segment "TABLES"\n')
         out.write('atan_tab:               ; |dy| * 32 + |dx|\n')
         hexrows(out, bytes(atan(dx, dy) for dy in range(32) for dx in range(32)))

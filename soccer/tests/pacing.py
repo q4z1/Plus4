@@ -3,7 +3,10 @@
 screen and the next (the interrupt's swap), counted while the player
 runs, and how often each gap came.
 
-    tests/pacing.py [dir] [swaps]     dir as in shot.py
+    tests/pacing.py [dir] [swaps] [--fixed]     dir as in shot.py
+
+--fixed: the direction held from the program's start, the first 40
+pictures left out - the same match each time, to compare builds.
 """
 import collections
 import os
@@ -12,15 +15,23 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vice import Vice  # noqa: E402
-from shot import PRG, WORK, BITS, labels, run_pictures  # noqa: E402
+from shot import PRG, WORK, BITS, labels, run_pictures, held_from_start  # noqa: E402
 
 
 def main():
-    d = sys.argv[1] if len(sys.argv) > 1 else 'up'
-    n = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+    fixed = '--fixed' in sys.argv
+    args = [a for a in sys.argv[1:] if a != '--fixed']
+    d = args[0] if len(args) > 0 else 'up'
+    n = int(args[1]) if len(args) > 1 else 100
     lab = labels()
     v = Vice(PRG, WORK)
     try:
+        if fixed:
+            held_from_start(v, lab, d)
+            v.cmd('watch store %04x' % lab['shown'])
+            for _ in range(40):
+                v.cmd('x')
+            return count(v, lab, n)
         for _ in range(200):
             v.run_for(0.1)
             if lab['main'] <= int(v.cmd('r').splitlines()[1].split()[0][2:], 16) < 0xC000:
@@ -32,18 +43,22 @@ def main():
         v.poke(lab['dbg_joy'], [bits])
         run_pictures(v, lab, 20)
         v.cmd('watch store %04x' % lab['shown'])
-        gaps = collections.Counter()
-        last = None
-        for _ in range(n):
-            v.cmd('x')
-            f = v.mem(lab['frames'], 1)[0]
-            if last is not None:
-                gaps[(f - last) & 255] += 1
-            last = f
-        for g in sorted(gaps):
-            print('%d frames: %d times' % (g, gaps[g]))
+        count(v, lab, n)
     finally:
         v.stop()
+
+
+def count(v, lab, n):
+    gaps = collections.Counter()
+    last = None
+    for _ in range(n):
+        v.cmd('x')
+        f = v.mem(lab['frames'], 1)[0]
+        if last is not None:
+            gaps[(f - last) & 255] += 1
+        last = f
+    for g in sorted(gaps):
+        print('%d frames: %d times' % (g, gaps[g]))
 
 
 if __name__ == '__main__':

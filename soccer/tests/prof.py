@@ -4,9 +4,10 @@ history from one turn of the loop (loop) to its eng_end, the cycles summed up
 by the label each instruction is under (the interrupt included, where
 it falls), and by address for the busiest.
 
-    tests/prof.py [dir] [top] [routine]
+    tests/prof.py [dir] [top] [routine] [--match]
                                  dir as in shot.py, held while measuring;
-                                 routine: a picture that called it (shift)
+                                 routine: a picture that called it (shift);
+                                 --match: only the match's part (to place)
 """
 import bisect
 import collections
@@ -22,15 +23,24 @@ LINE = re.compile(r'\.C:([0-9a-f]{4})  .*?(\d+)\s*$')
 
 
 def main():
-    d = sys.argv[1] if len(sys.argv) > 1 else ''
-    top = int(sys.argv[2]) if len(sys.argv) > 2 else 12
-    want = sys.argv[3] if len(sys.argv) > 3 else None
+    match = '--match' in sys.argv
+    args = [a for a in sys.argv[1:] if a != '--match']
+    d = args[0] if len(args) > 0 else ''
+    top = int(args[1]) if len(args) > 1 else 12
+    want = args[2] if len(args) > 2 else None
     lab = labels()
     names = {}
-    for n, a in lab.items():
+    for n, a in sorted(lab.items(), key=lambda t: (t[1], t[0].startswith('@'))):
         if 0x1000 <= a < 0xC000 and not n.startswith('__'):
             names.setdefault(a, n)
     addrs = sorted(names)
+    owner = None                        # @locals under their routine's name
+    for a in addrs:
+        if names[a].startswith('@'):
+            if owner:
+                names[a] = owner + names[a]
+        else:
+            owner = names[a]
     v = Vice(PRG, WORK)
     try:
         for _ in range(200):
@@ -58,6 +68,11 @@ def main():
                 continue
             start = starts[-1]
             hist = hist[start:]
+            if match:
+                ends = [i for i, (a, _) in enumerate(hist) if a == lab['place']]
+                if not ends:
+                    continue
+                hist = hist[:ends[0] + 1]
             if not want or any(a == lab[want] for a, _ in hist):
                 break
     finally:
