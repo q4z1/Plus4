@@ -133,9 +133,19 @@ def figure(pic, black=False, light=False):
     cols = [i for i in range(12) if any(l[i] != '.' for l in pic)]
     oy, h = rows[0], rows[-1] - rows[0] + 1
     ox, w = cols[0], cols[-1] - cols[0] + 1
+    # the shadow: black below the last line with skin or shirt in it. A
+    # column at the right with nothing but shadow in it is left out - a
+    # column costs the draw as much as a full one, and the shadow is a
+    # little shorter for it
+    body = [i for i, l in enumerate(pic) if 's' in l or 'c' in l]
+    last_body = body[-1] if body else len(pic)
     recs = []
     for s in range(4):
         ncol = (s + w + 3) // 4
+        while ncol > 1 and not any(
+                pic[y][x] != '.' for y in range(oy, min(oy + h, last_body + 1))
+                for x in range((ncol - 1) * 4 - s + ox, ncol * 4 - s + ox) if ox <= x < ox + w):
+            ncol -= 1
         out = [ncol]
         for c in range(ncol):
             data, keep = [], []
