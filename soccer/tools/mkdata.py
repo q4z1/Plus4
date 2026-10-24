@@ -59,10 +59,23 @@ def ted_of(c64, hues=range(16)):
     return best[1]
 
 
+# The boards round the pitch: the C64's name on them gives way to this
+# game's - in the boards' own letters (code $D8 + the letter, $FD blank),
+# as wide, the words in the middle
+BOARD_OLD = 'ARLASOFT SOCCER'
+BOARD_NEW = ' SIMPLE SOCCER '
+
+
+def board(text):
+    return bytes(0xFD if ch == ' ' else 0xD8 + ord(ch) - 64 for ch in text)
+
+
 def pitch():
     rows = [bytes.fromhex(l.strip()) for l in open(os.path.join(DATA, 'pitch.txt'))
             if l.strip() and not l.startswith('#')]
-    return rows
+    old, new = board(BOARD_OLD), board(BOARD_NEW)
+    assert len(old) == len(new)
+    return [r.replace(old, new) for r in rows]
 
 
 def chars():
