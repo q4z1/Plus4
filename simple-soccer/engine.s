@@ -33,6 +33,7 @@
         .import _pitch_map, _pitch_font
         .import img_ox, img_oy, img_lo, img_hi, light11
         .import crow_of, cmap_lo, cmap_hi
+        .import snd_init, snd_tick
 
 POOL        = 112               ; first code for figures
 EVICT_AT    = 86                ; a cache this full gives codes back (evict)
@@ -239,6 +240,7 @@ eng_init:
         sta $FFFB
         lda #VBL_LINE
         sta TED_RCMP
+        jsr snd_init
         lda #$02                ; raster interrupt, compare bit 8 = 0
         sta TED_IRQEN
         cli
@@ -251,8 +253,11 @@ nmi:    rti
 irq:    pha
         txa
         pha
+        tya
+        pha
         lda TED_IRQ
         sta TED_IRQ
+        jsr snd_tick            ; (the sounds, 50 times a second)
         inc frames
         inc since
         ldx queued
@@ -278,6 +283,8 @@ irq:    pha
         lda #0
         sta since
 @done:  pla
+        tay
+        pla
         tax
         pla
         rti

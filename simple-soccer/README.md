@@ -82,6 +82,11 @@ off him, only win it with a sliding tackle - fire for you, the yellow
 chaser when he gets near. A tackle reaching the ball knocks it on the
 way the player slides.
 
+The TED's two voices give the match its sounds, played by the interrupt
+50 times a second: a thump for every pass and shot, a softer one for
+the keeper's catch, the referee's whistle - a trill - at a kick-off,
+three blasts at half and full time, and the crowd roaring at a goal.
+
 A match is 90 minutes in three real ones. At 45 the referee blows for
 half time and the yellow team kicks off again; at 90 the result stays
 till fire starts a new match. While the ball is dead for a kick-off -

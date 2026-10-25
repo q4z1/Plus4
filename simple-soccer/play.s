@@ -33,6 +33,7 @@
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
+        .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
@@ -310,7 +311,7 @@ play_init:
         sta recv
         lda #1
         sta kickoff
-        rts
+        jmp sfx_whistle
 
 ; line_up: both teams lined up for a kick-off, standing
 line_up:
@@ -792,6 +793,7 @@ shot:
         sta o_dzf + BALL
         lda #>SHOT_DZ
         sta o_dzl + BALL
+        jsr sfx_kick
         lda #0
         sta at_n
         lda #$FF
@@ -1205,6 +1207,7 @@ kicked: ; (on the ground)
         sta drib_dir
         lda #4                  ; the next player soon (8 frames)
         sta switch_t
+        jsr sfx_kick
         rts
 
 ; the aftertouch: the bend for each way of the shot and side, a step
@@ -2492,6 +2495,7 @@ chase:
         sta last_team
         jsr touch
         stx last_pl
+        jsr sfx_kick
         lda #$FF                ; (a moment before he goes after it again)
         sta chaser
         rts
@@ -2708,6 +2712,7 @@ rules:
         clc
         adc #1
         sta score,y
+        jsr sfx_goal
         lda #1
         sta goal
         tya
@@ -2823,6 +2828,7 @@ restart:
         jsr stand
         lda rs_kind
         bne @set
+        jsr sfx_whistle
         jsr line_up             ; a kick-off: everyone back in line, the
         ldx #9                  ; centre forward at the ball
         lda rs_team
@@ -3404,6 +3410,7 @@ within:
 ; hold: keeper X has the ball - it lies still before him, and he kicks it
 ; out as a set piece
 hold:
+        jsr sfx_catch
         stx taker
         stx last_pl
         lda #0                  ; (caught: up with it)
@@ -3580,6 +3587,7 @@ slides:
         lda #0
         sta o_dzl + BALL
         sta o_dzf + BALL
+        jmp sfx_kick
 @done:  rts
 
 ; cpu_tackle: the yellow chaser X, the cyan team holding the ball and it
@@ -3708,6 +3716,7 @@ clock:
 ; whistle: the ball dead A frames, for a kick-off in the middle (rs_team's)
 whistle:
         sta dead_t
+        jsr sfx_halftime
         lda #R_KICKOFF
         sta rs_kind
         lda #0
