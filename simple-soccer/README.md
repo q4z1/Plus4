@@ -73,6 +73,12 @@ after a goal - then it is put down with the taker behind it. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot); the yellow team passes to the nearest team-mate.
 
+A throw-in is thrown: the taker stands behind the touch line facing the
+pitch, the ball held up behind his head, and throws it with his arms
+going forward - the ball leaving his hands from up there and dropping
+in a short curve. Its two pictures, each way, are drawn for this game,
+not the C64's.
+
 A pass takes the joystick to the player it goes to; with the stick let
 go he runs to meet it, and stops a ball that comes to his feet.
 

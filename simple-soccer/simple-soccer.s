@@ -12,11 +12,11 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, pose_of, score, game_min, hud
+        .import play_init, play_frame, pose_of, score, game_min, hud, lift
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
-        .import __BSS_RUN__, __BSS_SIZE__
+        .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
 
 MAX_X       = (MAP_W - SCR_W) * 8 + 7
 MAX_Y       = (MAP_H - SCR_H) * 8 + 7
@@ -70,9 +70,16 @@ ptr:    .res 2
         sta (ptr),y
         iny
         jmp @rest
-@done:  jmp main
+@done:  ldx #0                  ; and those down low (LOWV: 256 to 511
+:       sta __LOWV_START__,x    ; bytes, up to the test's word at $0FF8)
+        cpx #<(__LOWV_SIZE__ - $100)
+        bcs :+
+        sta __LOWV_START__ + $100,x
+:       inx
+        bne :--
+        jmp main
 
-        .bss
+        .segment "HIBSS2"       ; (not cleared: simple-soccer.cfg)
 ; the figures on the ground, worked out each turn: where their feet are
 s_xl:   .res FIGS
 s_xh:   .res FIGS
@@ -299,6 +306,15 @@ draw:
         adc tmp2                ; direction * 3
         adc step_img,y
 @img:   sta fig_img
+        cmp #IMG_THROW_RA       ; (a throw-in: three lines higher, the hands
+        bcc :+                  ; over the head)
+        lda fig_y
+        sec
+        sbc #3
+        sta fig_y
+        bcs :+
+        dec fig_y + 1
+:
         lda #COL_TEAM1
         cpx #11
         bcc :+
@@ -349,6 +365,8 @@ draw_ball:
         lsr a
         clc
         adc tmp2
+        clc
+        adc lift                ; (a throw-in's: over the taker's head)
         sta tmp2
         lda s_yl,x
         sec

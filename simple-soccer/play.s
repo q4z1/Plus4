@@ -30,6 +30,7 @@
         .include "data.inc"
 
         .export play_init, play_frame, pose_of, score, game_min, hud, min_frames
+        .export lift
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
@@ -59,6 +60,8 @@ R_THROW     = 1
 R_GOALKICK  = 2
 R_CORNER    = 3
 R_KEEPER    = 4                 ; (the keeper has it)
+THROW_T     = 10                ; a throw-in: frames the ball flies from the
+THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 SPEED_DIVE  = 1280              ; the keeper going for a shot
 RECV_T      = 100               ; frames a pass's receiver runs to meet it
 HOLD_T      = 8                 ; a ball touched this few frames ago is held,
@@ -161,6 +164,7 @@ o_slide: .res NOBJ              ; frames left of a sliding tackle, 0 none
 o_hit:  .res NOBJ               ; 1: the tackle has reached the ball
 o_dive: .res NOBJ               ; a keeper's frames left of a dive, 0 none
 o_dvd:  .res NOBJ               ; its way: 0 right, 1 left
+        .segment "LOWBSS"       ; (down low: simple-soccer.cfg)
 c_axl:  .res NOBJ               ; aim's last way and speed: the same
 c_axh:  .res NOBJ               ; again, the step is still right
 c_ayl:  .res NOBJ
@@ -172,6 +176,8 @@ c_txh:  .res NOBJ               ; ($FF: there)
 c_tyl:  .res NOBJ
 c_tyh:  .res NOBJ
 c_th:   .res NOBJ
+dbg_plan:   .res 3 * 64         ; (a test's plan: see dbg_on)
+        .bss
 
 ctrl:       .res 1              ; the joystick's player
 fire_n:     .res 1              ; frames fire has been held
@@ -214,6 +220,9 @@ cpu_slide:  .res 1              ; frames till the yellow chaser may slide again
 recv:       .res 1              ; the cyan player a pass went to, $FF none,
 recv_t:     .res 1              ; and the frames he still goes to meet it
 score:      .res 2              ; goals, cyan and yellow
+thrower:    .res 1              ; who takes the throw-in,
+throw_t:    .res 1              ; frames left of its throw (THROW_T held)
+lift:       .res 1              ; how high the ball is drawn over where it is
 r_t:        .res 1              ; the rules': attackers, the team's last
 r_s:        .res 1              ; (the side: 0 top, 1 bottom)
 ; a test's plan for the joystick, by the match's frames: (frame low, high,
@@ -224,7 +233,6 @@ dbg_on:     .res 1
 dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
-dbg_plan:   .res 3 * 64
 chaser2:    .res 1              ; the next nearest: in support, $FF none
 y_pass_t:   .res 1              ; frames till the yellow team passes again
 chaser:     .res 1              ; the other team's player after the ball,
@@ -429,6 +437,7 @@ stand:
 
 play_frame:
         jsr clock
+        jsr throwing
         inc frame_n
         lda dbg_on              ; (a test's plan: the stick as it says,
         beq :+                  ; frame by frame)
@@ -2694,7 +2703,8 @@ switch:
 
 ; rules: after the ball's frame, while it is in play
 rules:
-        lda kickoff             ; (a set piece not yet taken: it lies still)
+        lda kickoff             ; (a set piece not yet taken: it lies still,
+        ora throw_t             ; nor a throw-in flying in from outside)
         beq :+
         rts
 :       ldx #BALL
@@ -2962,8 +2972,73 @@ restart:
         lda tmp
         adc o_yh + BALL
         sta o_yh,x
+        jsr throw_in
         jsr stand
         jmp await
+
+; throw_in: a throw-in's taker X behind the touch line, 5 pixels out
+; (clear of it: his arms and the ball are as light as the lines), the
+; ball 7 out, behind his head (throwing) - rules lets it fly in. Keeps X.
+throw_in:
+        lda rs_kind
+        cmp #R_THROW
+        bne @done
+        stx thrower
+        lda o_xl + BALL
+        ldy o_xh + BALL
+        bne @right
+        sec                     ; the left line
+        sbc #7
+        sta o_xl + BALL
+        clc
+        adc #2
+        bne @x
+@right: clc
+        adc #7
+        sta o_xl + BALL
+        sec
+        sbc #2
+@x:     sta o_xl,x
+        lda o_xh + BALL
+        sta o_xh,x
+        lda o_yl + BALL
+        sta o_yl,x
+        lda o_yh + BALL
+        sta o_yh,x
+        lda #THROW_T
+        sta throw_t
+        lda #THROW_HOLD
+        sta lift
+@done:  rts
+
+; throwing: a frame of the throw-in's look - the ball up over the taker's
+; head while he holds it, then thrown from there: lift, how high it is
+; drawn over where it is (on the ground, as far as the match goes)
+throwing:
+        lda kickoff
+        beq @thrown
+        lda rs_kind
+        cmp #R_THROW
+        bne @none
+        lda #THROW_T
+        sta throw_t
+        lda #THROW_HOLD
+        sta lift
+        rts
+@thrown:
+        ldy throw_t
+        beq @none
+        dey
+        sty throw_t
+        lda throw_arc,y
+        sta lift
+        rts
+@none:  lda #0
+        sta throw_t
+        sta lift
+        rts
+
+throw_arc:  .byte 0, 5, 9, 13, 16, 18, 20, 21, 21, 20   ; (from the last)
 
 ; await: the set piece ready, for taker to take: the cyan team's with
 ; the joystick (fire held on from before does not kick), the yellow
@@ -3699,7 +3774,22 @@ cpu_tackle:
 ; sliding tackle lying feet first (down when it has stopped), a keeper
 ; diving (down after it), or holding the ball up. Keeps X.
 pose_of:
-        lda o_slide,x
+        cpx thrower             ; a throw-in, held or thrown, facing the
+        bne @slide              ; pitch
+        lda throw_t
+        beq @slide
+        ldy #0
+        lda o_xh,x
+        beq :+
+        ldy #IMG_THROW_LA - IMG_THROW_RA
+:       lda kickoff
+        bne :+
+        iny                     ; (the ball gone: thrown)
+:       tya
+        clc
+        adc #IMG_THROW_RA
+        rts
+@slide: lda o_slide,x
         beq @keeper
         lda o_spl,x
         ora o_sph,x

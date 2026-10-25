@@ -1285,15 +1285,17 @@ fig_draw:
         asl a
         sta z_t                 ; col0 * 4: half of col0 * 8
         lda fig_x + 1
-        lsr a
+        cmp #$80                ; fig_x / 2, its sign kept (the ground is
+        ror a                   ; 632 wide: over 512)
+        sta z_mx + 1
         lda fig_x
-        ror a                   ; fig_x / 2 (the ground is under 512)
+        ror a
         sec
         sbc z_t
         sta z_mx
-        lda #0
-        sbc #0
-        sta z_mx + 1
+        bcs :+
+        dec z_mx + 1
+:
         ldx fig_img
         lda img_ox,x
         clc

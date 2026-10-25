@@ -366,10 +366,13 @@ RUN_BASE = [0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C]
 # black, from the C64's).
 RUN_FRAMES = [b + f for b in RUN_BASE for f in (0, 1, 3)]
 # Then the poses: lying feet first (sliding tackles, one each way), the
-# keeper's dives (in the air, one each way), down on the ground, and
-# holding the ball up
+# keeper's dives (in the air, one each way), down on the ground,
+# holding the ball up, and a throw-in (our own: facing right, the ball
+# held and thrown, then the same facing left)
 POSES = [('SLIDE_A', 0x4E), ('SLIDE_B', 0x52), ('DIVE_A', 0x57), ('DIVE_B', 0x5B),
-         ('DOWN', 0x59), ('HOLD', 0x5A)]
+         ('DOWN', 0x59), ('HOLD', 0x5A),
+         ('THROW_RA', 0x60), ('THROW_RB', 0x61), ('THROW_LA', 0x62), ('THROW_LB', 0x63)]
+THROWS = {0x60, 0x61, 0x62, 0x63}
 # Then the figures of the score and the minute shown while the ball is
 # dead: digits 3 x 7 multicolour pixels, and a dash, drawn like players
 DIGITS = {
@@ -444,6 +447,15 @@ def sprites():
     txt = open(os.path.join(DATA, 'sprites.txt')).read()
     return {int(m.group(1), 16): m.group(2).split()
             for m in re.finditer(r'sprite ([0-9a-f]{2})\n((?:[.sck]{12}\n){21})', txt)}
+
+
+def throw_pic(pic):
+    """A throw-in's picture as the running ones: no shadow, black socks
+    (its last line)"""
+    pic = no_shadow(pic)
+    body = [i for i, l in enumerate(pic) if 's' in l or 'c' in l]
+    pic[body[-1]] = pic[body[-1]].replace('c', 'k')
+    return pic
 
 
 def no_shadow(pic):
@@ -587,6 +599,7 @@ def main():
         spr = sprites()
         figs = [figure(digit_pic(b[5]) if isinstance(b, str) else
                        black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else
+                       throw_pic(spr[b]) if b in THROWS else
                        no_shadow(spr[b]) if b in dict(POSES).values() else spr[b],
                        b in BLACK, b in BALL_IMAGES) for b in IMAGES]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi, light11\n        .rodata\n')
