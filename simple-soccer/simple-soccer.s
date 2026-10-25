@@ -1,4 +1,4 @@
-; soccer.s - a soccer game for the Commodore Plus/4, after Sensible Soccer
+; simple-soccer.s - Simple Soccer for the Commodore Plus/4, after Sensible Soccer
 ; (Sensible Software, Amiga), looking like Arlasoft Soccer on the C64.
 ;
 ; For now: both teams lined up, the ball on the centre spot; the joystick

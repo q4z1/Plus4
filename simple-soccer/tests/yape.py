@@ -13,8 +13,8 @@ import os, re, struct, subprocess, time, zlib
 from onetest import kill_other_tests
 
 YAPE = os.path.expanduser('~/.cache/paradroid/yapesdl/yapesdl')
-HOME = os.path.expanduser('~/.cache/soccer/yapehome')
-SHOT = os.path.expanduser('~/.cache/soccer/test/yape.ppm')
+HOME = os.path.expanduser('~/.cache/simple-soccer/yapehome')
+SHOT = os.path.expanduser('~/.cache/simple-soccer/test/yape.ppm')
 EMULATORS = ('yapesdl', 'yape', 'xplus4', 'x64sc')
 CONF = '''[Yape configuration file]
 DisplayFrameRate = 0

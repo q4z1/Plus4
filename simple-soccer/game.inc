@@ -1,4 +1,4 @@
-; game.inc - what all of the soccer game's files share
+; game.inc - what all of Simple Soccer's files share
 
 ; ---- TED ------------------------------------------------------------------
 

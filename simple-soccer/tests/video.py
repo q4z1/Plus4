@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A video of the game as Yape shows it, every frame (50 a second), with
-the joystick moved to a plan: build/soccer.mp4.
+the joystick moved to a plan: build/simple-soccer.mp4.
 
     tests/video.py [out.mp4]
 
@@ -31,7 +31,7 @@ PLAN = [('none', 1.0), ('fire', 0.1), ('none', 0.4), ('up', 1.5), ('up+left', 0.
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    out = args[0] if args else os.path.join(HERE, 'build', 'soccer.mp4')
+    out = args[0] if args else os.path.join(HERE, 'build', 'simple-soccer.mp4')
     lab = labels()
     if '--again' in sys.argv:           # (the pictures of the last run)
         return encode(out)

@@ -1,15 +1,16 @@
-# Soccer for the Commodore Plus/4
+# Simple Soccer for the Commodore Plus/4
 
 A soccer game after **Sensible Soccer** (Sensible Software, 1992-1994,
 Amiga), drawn the way **Arlasoft Soccer** draws it on the C64: a ground
 larger than the screen that scrolls in eight directions, small players
 with their shadows, the stands and the boards around the pitch.
 
-**Work in progress.** What is there: the whole ground, both teams lined up
-for the kick-off, the ball, and the player of yours nearest to it, who
-dribbles it, passes it and shoots, with aftertouch; the view follows the
-ball. Still to come: the other players running, the keepers, the rules,
-the match.
+**Work in progress.** What is there: the whole ground, both teams in
+their formation, the player of yours nearest the ball, who dribbles it,
+passes it and shoots, with aftertouch, the other team going for the
+ball, and the rules - throw-ins, goal kicks, corners, goals and
+kick-offs; the view follows the ball. Still to come: the keepers,
+tackles, the score on screen, the time.
 
 ![The kick-off](screenshots/kickoff.png)
 
@@ -18,15 +19,15 @@ the match.
 | Joystick (either port) | Keyboard | |
 | --- | --- | --- |
 | directions | cursor keys | run, and dribble the ball at your feet |
-| fire, tapped | space | pass, to the team-mate the way you face |
+| fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 
 ## Building and running
 
 ```sh
-soccer/build.sh          # -> soccer/build/soccer.prg
-soccer/run-yape.sh       # in Yape, with the gamepad set up as for Paradroid
-soccer/run.sh            # in VICE
+simple-soccer/build.sh       # -> simple-soccer/build/simple-soccer.prg
+simple-soccer/run-yape.sh    # in Yape, with the gamepad set up as for Paradroid
+simple-soccer/run.sh         # in VICE
 ```
 
 In VS Code, F5 with any file of the folder open builds and starts it.
@@ -74,7 +75,7 @@ and a character set of its own: one is shown, a finished one may be
 waiting, and the third is being drawn. The interrupt puts the waiting one
 on screen in the vertical blank, with the fine scroll it was drawn for,
 never sooner than three frames after the last - an even 16.7 pictures a
-second (`PACE=2 soccer/build.sh` for 25, which a full screen of players
+second (`PACE=2 simple-soccer/build.sh` for 25, which a full screen of players
 cannot keep up). A picture that costs more than three frames to draw
 borrows the time from the cheaper one before it. The match itself runs
 50 times a second whatever the pictures do.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The soccer game in Yape (without a window): a screenshot after some
+"""Simple Soccer in Yape (without a window): a screenshot after some
 seconds, with directions held first as in shot.py.
 
     tests/yape_shot.py [seconds] [out.png] [dir=seconds ...]

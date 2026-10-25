@@ -3,7 +3,7 @@
 ;
 ; The game runs on Sensible Soccer's pitch and in its units: touchlines
 ; at x 49 and 558, goal lines at y 49 and 689, the centre spot at 304,
-; 369; soccer.s shows it on the C64's ground (ymap_*). Positions are
+; 369; simple-soccer.s shows it on the C64's ground (ymap_*). Positions are
 ; 16.8 fixed point (a fraction byte, then the pixel), steps 8.8.
 ;
 ; Everything moves the same way: towards a destination, at a speed. Each
@@ -371,7 +371,7 @@ frames3: .byte 0, 3, 6, 9, 12
 
 ; play_others: everyone else on his way somewhere, once for all the
 ; frames played since the last time - they only have to be where they
-; are when the picture is drawn (soccer.s, each turn). Those out of the
+; are when the picture is drawn (simple-soccer.s, each turn). Those out of the
 ; last picture only every second time, for both times' frames: half of
 ; them one time, half the next. Always 3 frames at a time, or 6 (the rest
 ; left for next time): the step times so many stays the same.

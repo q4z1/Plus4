@@ -1,4 +1,4 @@
-; engine.s - the Plus/4 end of the soccer game: the pictures, the
+; engine.s - the Plus/4 end of Simple Soccer: the pictures, the
 ; interrupt, the joystick
 ;
 ; Three pictures, each a colour matrix, a code matrix and a character set
