@@ -57,6 +57,11 @@ R_KICKOFF   = 0                 ; restarts
 R_THROW     = 1
 R_GOALKICK  = 2
 R_CORNER    = 3
+R_KEEPER    = 4                 ; (the keeper has it)
+SPEED_DIVE  = 1280              ; the keeper going for a shot
+CATCH_X     = 8                 ; the keeper catches the ball this near,
+CATCH_Y     = 6
+CATCH_Z     = 13                ; and under this high (a lob goes over him)
 SLACK       = 6                 ; a place this near the last one is the same
 SPEED_CHASE = 1102              ; after the ball
 SHOOT_FROM  = 150               ; the other team shoots from this near
@@ -83,6 +88,11 @@ z_obj:      .res 1
 z_t8:       .res 1
 z_px:       .res 2              ; place_formation's place
 z_ti:       .res 1              ; (its index into the tables)
+z_ks:       .res 2              ; keeper's speed,
+z_sg:       .res 1              ; k_shot's sign across
+z_dvd:      .res 2              ; div16's: dividend, then quotient,
+z_dvs:      .res 2              ; divisor,
+z_rem:      .res 2              ; remainder
 z_py:       .res 2
 z_nf:       .res 1              ; play_others': frames at once
 z_k:        .res 1              ; (in threes)
@@ -167,7 +177,8 @@ rs_team:    .res 1              ; for which team,
 rs_x:       .res 2              ; where
 rs_y:       .res 2
 cpu_t:      .res 1              ; the yellow team's: till they take it
-last_team:  .res 1              ; who touched the ball last
+last_team:  .res 1              ; who touched the ball last: the team,
+last_pl:    .res 1              ; the player
 score:      .res 2              ; goals, cyan and yellow
 r_t:        .res 1              ; the rules': attackers, the team's last
 chaser:     .res 1              ; the other team's player after the ball,
@@ -341,20 +352,23 @@ play_frame:
         lsr a
         bcs :+
         jsr team_ai
-:       jsr ball_move
+:       jsr keepers_move
+        jsr ball_move
         jmp net
 @live:  jsr control
         lda frame_n             ; the others' minds every second frame, as
         lsr a                   ; Sensible Soccer's
         bcs :+
         jsr team_ai
-:       ldx ctrl                ; the two at the ball, every frame
-        jsr @one
+:       ldx ctrl                ; the two at the ball and the keepers,
+        jsr @one                ; every frame
         ldx chaser
         bmi :+
         jsr @one
-:       jsr aftertouch
+:       jsr keepers_move
+        jsr aftertouch
         jsr ball_move
+        jsr catch
         jsr rules
         lda frame_n
         lsr a
@@ -362,6 +376,22 @@ play_frame:
         jmp switch              ; (every second frame)
 :       rts
 @one:   lda o_mov,x
+        beq :+
+        stx z_obj
+        jsr player_move
+:       rts
+
+; keepers_move: both keepers a frame (unless one is the joystick's or the
+; chaser, moved already)
+keepers_move:
+        ldx #0
+        jsr @one
+        ldx #11
+@one:   cpx ctrl
+        beq :+
+        cpx chaser
+        beq :+
+        lda o_mov,x
         beq :+
         stx z_obj
         jsr player_move
@@ -399,7 +429,12 @@ play_others:
         inc po_turn
         ldx #PLAYERS - 1
 @pl:    stx z_obj
-        cpx ctrl
+        txa                     ; (the keepers: every frame)
+        beq :+
+        cpx #11
+        bne :++
+:       jmp @next
+:       cpx ctrl
         beq @next
         cpx chaser
         beq @next
@@ -644,6 +679,8 @@ can_kick:
 shot:
         lda #0
         sta last_team
+        lda ctrl
+        sta last_pl
         ldx ctrl
         ldy o_dir,x
         sty at_dir
@@ -886,6 +923,8 @@ d_abs:
 dribble:
         lda #0
         sta last_team
+        lda ctrl
+        sta last_pl
         ldy o_dir,x
         cpy drib_dir
         beq :+
@@ -940,6 +979,8 @@ ball_ahead:
 pass:
         lda #0
         sta last_team
+        lda ctrl
+        sta last_pl
         lda #$FF
         sta mate
         sta mate_d
@@ -1949,7 +1990,11 @@ team_ai:
         lsr a                   ; frames (team_ai: every second one)
         and #15
         tax
-@pl:    cpx ctrl
+@pl:    txa                     ; (the keepers: keeper)
+        beq @next
+        cpx #11
+        beq @next
+        cpx ctrl
         beq @next
         cpx chaser
         beq @next
@@ -1962,7 +2007,14 @@ team_ai:
         tax
         cpx #PLAYERS
         bcc @pl
-        jmp chase
+        lda frame_n             ; the keepers each fourth frame
+        and #2
+        bne :+
+        ldx #0
+        jsr keeper
+        ldx #11
+        jsr keeper
+:       jmp chase
 
 ; place_formation: player X's destination, his place in the formation for
 ; where the ball is; jogging. Keeps X.
@@ -2216,6 +2268,7 @@ chase:
         sta o_dzl + BALL
         lda #1
         sta last_team
+        stx last_pl
         lda #$FF                ; (a moment before he goes after it again)
         sta chaser
         rts
@@ -2263,6 +2316,7 @@ chase:
         sta o_sph + BALL
         lda #1
         sta last_team
+        stx last_pl
 :       rts
 
 ; ball_near: carry clear if the ball is at player X's feet (distance
@@ -2487,10 +2541,10 @@ corner_xl:  .byte <54, <553     ; left, right
 corner_xh:  .byte >54, >553
 corner_yl:  .byte <54, <684     ; top, bottom
 corner_yh:  .byte >54, >684
-gkick_xl:   .byte <270, <338
-gkick_xh:   .byte >270, >338
-gkick_yl:   .byte <69, <669
-gkick_yh:   .byte >69, >669
+gkick_xl:   .byte <244, <364
+gkick_xh:   .byte >244, >364
+gkick_yl:   .byte <74, <664
+gkick_yh:   .byte >74, >664
 
 ; net: the dead ball after a goal stopped by the net, NET behind the line
 net:
@@ -2540,7 +2594,7 @@ restart:
         beq :+
         ldx #20
 :       stx taker
-        jmp @who
+        jmp await
 @set:   ldx #0                  ; the taker: a goal kick the keeper's, else
         lda rs_team             ; the team's player nearest the ball
         beq :+
@@ -2601,13 +2655,19 @@ restart:
         adc o_yh + BALL
         sta o_yh,x
         jsr stand
-@who:   lda #$FF
+        jmp await
+
+; await: the set piece ready, for taker to take: the cyan team's with
+; the joystick (fire held on from before does not kick), the yellow
+; team's after a while
+await:
+        lda #$FF
         sta chaser
         sta at_n
         lda rs_team
         bne @cpu
-        lda taker               ; the cyan team's: the joystick's (fire held
-        sta ctrl                ; on from before does not kick)
+        lda taker
+        sta ctrl
         lda #$FF
         sta fire_n
         bne @go
@@ -2684,6 +2744,8 @@ cpu_take:
         bne @done
         lda #1
         sta last_team
+        lda taker
+        sta last_pl
         lda #$FF                ; the nearest, not the keeper, not the taker
         sta mate
         sta mate_d
@@ -2717,3 +2779,399 @@ cpu_take:
         sta o_sph + BALL
         jmp kicked
 @done:  rts
+
+; ---- the keepers ----------------------------------------------------------
+;
+; A keeper stands between his posts, 8 to 19 pixels out from his line -
+; the further the ball, the further out - and a quarter of the ball's way
+; from the middle across. A hard ball coming at his goal: he runs to where
+; it crosses his line, faster. One within his reach and under the bar he
+; catches, and holds till he kicks it out (the joystick's team: fire).
+
+; keeper: keeper X's place, worked out anew. Keeps X.
+keeper:
+        cpx ctrl                ; (not while the joystick has him, nor
+        beq @done               ; while he holds the ball)
+        cpx taker
+        bne :+
+@done:  rts
+:       stx z_obj
+        lda o_xl + BALL         ; across: 304 + (ball - 304) / 4, between
+        sec                     ; the posts
+        sbc #<304
+        sta tmp
+        lda o_xh + BALL
+        sbc #>304
+        cmp #$80
+        ror a
+        ror tmp
+        cmp #$80
+        ror a
+        ror tmp
+        sta tmp + 1
+        lda tmp
+        clc
+        adc #<304
+        sta z_px
+        lda tmp + 1
+        adc #>304
+        sta z_px + 1
+        jsr k_posts
+        ; out from his line: 8 + the ball's way from it / 32, at most 19
+        jsr k_line              ; (tmp: the line, z_t8 bit 7: the top one)
+        lda o_yl + BALL
+        sec
+        sbc tmp
+        sta z_py
+        lda o_yh + BALL
+        sbc tmp + 1
+        bpl :+
+        eor #$FF                ; (|way|, near enough)
+        sta z_py + 1
+        lda z_py
+        eor #$FF
+        sta z_py
+        lda z_py + 1
+:       ldy #5                  ; / 32
+:       lsr a
+        ror z_py
+        dey
+        bne :-
+        cmp #0
+        bne @far
+        lda z_py
+        cmp #12
+        bcc :+
+@far:   lda #11
+:       clc
+        adc #8                  ; (8-19)
+        bit z_t8
+        bpl :+
+        eor #$FF                ; (the top keeper: down from it)
+        clc
+        adc #1
+:       sta z_py                ; the line - (8-19), or + (8-19)
+        ldy #0
+        ora #0
+        bpl :+
+        dey
+:       sty z_py + 1
+        lda tmp
+        sec
+        sbc z_py
+        sta z_py
+        lda tmp + 1
+        sbc z_py + 1
+        sta z_py + 1
+        lda #<SPEED_JOG
+        sta z_ks
+        lda #>SPEED_JOG
+        sta z_ks + 1
+        ldx z_obj
+        jsr k_shot              ; (a shot at him: across to it, faster)
+        ldx z_obj
+        lda z_px                ; somewhere else: there
+        cmp o_txl,x
+        bne :+
+        lda z_px + 1
+        cmp o_txh,x
+        bne :+
+        lda z_py
+        cmp o_tyl,x
+        bne :+
+        lda z_py + 1
+        cmp o_tyh,x
+        beq @same
+:       lda z_px
+        sta o_txl,x
+        lda z_px + 1
+        sta o_txh,x
+        lda z_py
+        sta o_tyl,x
+        lda z_py + 1
+        sta o_tyh,x
+        lda z_ks
+        sta o_spl,x
+        lda z_ks + 1
+        sta o_sph,x
+        lda #1
+        sta o_mov,x
+        sta o_new,x
+@same:  rts
+
+; k_line: tmp = keeper X's goal line; z_t8 bit 7 set for the top one
+; (the yellow keeper's), out from it downwards. Keeps X.
+k_line:
+        lda #<LINE_B
+        ldy #>LINE_B
+        cpx #11
+        bcc :+
+        lda #<LINE_T
+        ldy #>LINE_T
+:       sta tmp
+        sty tmp + 1
+        lda #0
+        cpx #11
+        bcc :+
+        lda #$80
+:       sta z_t8
+        rts
+
+; k_posts: z_px between the posts (POST_L + 7 .. POST_R - 2)
+k_posts:
+        lda z_px
+        cmp #<(POST_L + 7)
+        lda z_px + 1
+        sbc #>(POST_L + 7)
+        bcs :+
+        lda #<(POST_L + 7)
+        sta z_px
+        lda #>(POST_L + 7)
+        sta z_px + 1
+        rts
+:       lda #<(POST_R - 2)
+        cmp z_px
+        lda #>(POST_R - 2)
+        sbc z_px + 1
+        bcs :+
+        lda #<(POST_R - 2)
+        sta z_px
+        lda #>(POST_R - 2)
+        sta z_px + 1
+:       rts
+
+; k_shot: a hard ball (1536 or more) coming at keeper X's goal, less than
+; 256 from his line z_py (z_t8 bit 7: the top keeper): z_px = where it
+; crosses it (x + the frames till then * its step across), z_ks =
+; SPEED_DIVE. Keeps X.
+k_shot:
+        lda o_sph + BALL
+        cmp #>1536
+        bcs :+
+@no:    rts
+:       lda z_py                ; dy = his line - the ball's y
+        sec
+        sbc o_yl + BALL
+        sta z_dvd + 1           ; (* 256 for the frames)
+        lda z_py + 1
+        sbc o_yh + BALL
+        tay                     ; (the high byte: the sign, or too far)
+        lda o_vyl + BALL        ; coming his way: the step's sign the same
+        bit z_t8
+        bmi @top
+        cpy #0                  ; (the bottom keeper: dy 0..255, vy > 0)
+        bne @no
+        ora #0
+        bmi @no
+        sta z_dvs + 1
+        lda o_vyf + BALL
+        sta z_dvs
+        jmp @div
+@top:   cpy #$FF                ; (the top one: dy -255..-1, vy < 0)
+        bne @no
+        ora #0
+        bpl @no
+        lda #0                  ; |dy|, |vy|
+        sec
+        sbc z_dvd + 1
+        sta z_dvd + 1
+        lda #0
+        sec
+        sbc o_vyf + BALL
+        sta z_dvs
+        lda #0
+        sbc o_vyl + BALL
+        sta z_dvs + 1
+@div:   lda z_dvs + 1           ; (at least half a pixel a frame)
+        bne :+
+        lda z_dvs
+        bpl @no
+:       lda #0
+        sta z_dvd
+        jsr div16               ; the frames till it is there
+        lda z_dvd + 1
+        bne @no                 ; (256 or more: not coming)
+        lda o_vxl + BALL        ; x + frames * |vx|, signed
+        sta z_sg
+        bpl :+
+        lda #0
+        sec
+        sbc o_vxf + BALL
+        sta z_dvs
+        lda #0
+        sbc o_vxl + BALL
+        sta z_dvs + 1
+        jmp :++
+:       lda o_vxf + BALL
+        sta z_dvs
+        lda o_vxl + BALL
+        sta z_dvs + 1
+:       lda z_dvd
+        jsr mul_set
+        ldy z_dvs               ; (|vx| low * frames) / 256
+        jsr mul_by
+        lda z_q + 1
+        sta tmp
+        ldy z_dvs + 1           ; + |vx| high * frames
+        jsr mul_by
+        lda tmp
+        clc
+        adc z_q
+        sta tmp
+        lda z_q + 1
+        adc #0
+        sta tmp + 1
+        bit z_sg
+        bpl :+
+        lda #0
+        sec
+        sbc tmp
+        sta tmp
+        lda #0
+        sbc tmp + 1
+        sta tmp + 1
+:       lda o_xl + BALL
+        clc
+        adc tmp
+        sta z_px
+        lda o_xh + BALL
+        adc tmp + 1
+        sta z_px + 1
+        jsr k_posts             ; (as far as he gets: about his posts)
+        lda #<SPEED_DIVE
+        sta z_ks
+        lda #>SPEED_DIVE
+        sta z_ks + 1
+        rts
+
+; div16: z_dvd = z_dvd / z_dvs (16 bits, unsigned). Keeps X.
+div16:
+        lda #0
+        sta z_rem
+        sta z_rem + 1
+        ldy #16
+@bit:   asl z_dvd
+        rol z_dvd + 1
+        rol z_rem
+        rol z_rem + 1
+        lda z_rem
+        sec
+        sbc z_dvs
+        sta tmp
+        lda z_rem + 1
+        sbc z_dvs + 1
+        bcc :+
+        sta z_rem + 1
+        lda tmp
+        sta z_rem
+        inc z_dvd
+:       dey
+        bne @bit
+        rts
+
+; catch: a keeper with the ball within his reach, under the bar, not his
+; own kick: he holds it
+catch:
+        lda kickoff
+        bne @done
+        lda o_zl + BALL
+        cmp #CATCH_Z
+        bcs @done
+        ldx #0
+        jsr reach
+        bcc :+
+        ldx #11
+        jsr reach
+        bcs @done
+:       jmp hold
+@done:  rts
+
+; reach: carry clear if the ball is within keeper X's reach, and not
+; from his own kick. Keeps X.
+reach:
+        cpx last_pl
+        beq @no
+        lda #CATCH_X
+        sta z_t8
+        lda o_xl + BALL
+        sec
+        sbc o_xl,x
+        tay
+        lda o_xh + BALL
+        sbc o_xh,x
+        jsr within
+        bcs @no
+        lda #CATCH_Y
+        sta z_t8
+        lda o_yl + BALL
+        sec
+        sbc o_yl,x
+        tay
+        lda o_yh + BALL
+        sbc o_yh,x
+        jmp within
+@no:    sec
+        rts
+
+; within: carry clear if A:Y (high, low) is within z_t8 either way
+within:
+        cmp #0
+        beq @pos
+        cmp #$FF
+        bne @no
+        tya                     ; -z_t8 .. -1
+        clc
+        adc z_t8
+        bcs @in
+@no:    sec
+        rts
+@pos:   cpy z_t8
+        beq @in
+        bcs @no
+@in:    clc
+        rts
+
+; hold: keeper X has the ball - it lies still before him, and he kicks it
+; out as a set piece
+hold:
+        stx taker
+        stx last_pl
+        lda #R_KEEPER
+        sta rs_kind
+        ldy #0                  ; his team, the way he faces
+        lda #0
+        cpx #11
+        bcc :+
+        iny
+        lda #4
+:       sty rs_team
+        sty last_team
+        sta o_dir,x
+        jsr stand
+        ldx #BALL
+        jsr stand
+        lda #0
+        sta o_zl,x
+        sta o_zf,x
+        sta o_dzl,x
+        sta o_dzf,x
+        ldx taker               ; just before him
+        lda o_xl,x
+        sta o_xl + BALL
+        lda o_xh,x
+        sta o_xh + BALL
+        ldy #<(-5)
+        cpx #11
+        bcc :+
+        ldy #5
+:       tya
+        jsr sext
+        clc
+        adc o_yl,x
+        sta o_yl + BALL
+        lda tmp
+        adc o_yh,x
+        sta o_yh + BALL
+        ldx #BALL
+        jsr stand
+        jmp await

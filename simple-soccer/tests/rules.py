@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vice import Vice  # noqa: E402
 from shot import PRG, WORK, BITS, labels, held_from_start  # noqa: E402
 
-KINDS = ['kick-off', 'throw-in', 'goal kick', 'corner']
+KINDS = ['kick-off', 'throw-in', 'goal kick', 'corner', 'keeper\'s']
 TEAMS = ['cyan', 'yellow']
 PLAN = '0:none,5:left+fire,12:left,30:none,600:end'
 
@@ -59,8 +59,9 @@ def main():
                     text += ', taker %d' % taker
                 if goal:
                     text += ' (goal)'
-                print('picture %4d: %-40s ball %3d,%3d  score %d-%d  ctrl %d' % (
-                    pic, text, bx, by, score[0], score[1], m('ctrl')[0]))
+                print('picture %4d: %-40s ball %3d,%3d z %2d  score %d-%d  ctrl %d  last %d' % (
+                    pic, text, bx, by, m('o_zl', 23)[22], score[0], score[1], m('ctrl')[0],
+                    m('last_pl')[0]))
                 last = state
     finally:
         v.stop()

@@ -8,9 +8,9 @@ with their shadows, the stands and the boards around the pitch.
 **Work in progress.** What is there: the whole ground, both teams in
 their formation, the player of yours nearest the ball, who dribbles it,
 passes it and shoots, with aftertouch, the other team going for the
-ball, and the rules - throw-ins, goal kicks, corners, goals and
-kick-offs; the view follows the ball. Still to come: the keepers,
-tackles, the score on screen, the time.
+ball, the keepers, and the rules - throw-ins, goal kicks, corners,
+goals and kick-offs; the view follows the ball. Still to come: the
+keepers' dives, tackles, the score on screen, the time.
 
 ![The kick-off](screenshots/kickoff.png)
 
@@ -66,6 +66,12 @@ last. The ball is dead for a moment first - it rolls on, the net holds it
 after a goal - then it is put down with the taker behind it. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot); the yellow team passes to the nearest team-mate.
+
+A keeper stands between his posts a little out from his line, further
+out the further the ball, and goes a quarter of the ball's way across.
+A hard ball coming at his goal sends him, faster, to where it will
+cross his line; one within his reach he catches - unless it is higher
+than he gets, a lob - and kicks out like a set piece.
 
 ## How it is drawn
 
