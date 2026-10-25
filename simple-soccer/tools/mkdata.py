@@ -174,11 +174,12 @@ def pitch():
 
 
 # The goals without the shadows they cast: the band of black below each
-# goal and the wedge right of its right post. Only black pixels go (the
-# posts, the nets, the lines stay). (pixel rows of the band, of the
-# wedge; the right post's x)
-GOAL_SHADOWS = [(range(109, 116), range(99, 107), 158),     # the top goal
-                (range(477, 484), range(469, 477), 158)]    # the bottom one
+# goal and the wedge right of its right post gone, and the posts, shaded
+# black in places, light all the way down. Only black pixels change (the
+# nets, the lines stay). (pixel rows of the band, of the wedge and the
+# right post; the right post's x; the left post's x and rows)
+GOAL_SHADOWS = [(range(109, 116), range(88, 109), 158, 124, range(107, 109)),   # top
+                (range(477, 484), range(464, 477), 158, 123, range(464, 477))]  # bottom
 
 
 @functools.lru_cache(None)
@@ -192,7 +193,7 @@ def ground_and_font():
         b = font[rows[y // 8][x // 4] * 8 + y % 8]
         return b >> (6 - 2 * (x % 4)) & 3
     canvas = {}
-    for band, wedge, post in GOAL_SHADOWS:
+    for band, wedge, post, left, left_rows in GOAL_SHADOWS:
         x0, x1 = 30 * 4, 44 * 4
         old = {(x, y): px(x, y) for y in list(band) + list(wedge) for x in range(x0, x1)}
         new = dict(old)
@@ -203,6 +204,12 @@ def ground_and_font():
             for y in wedge:
                 if x > post and old[(x, y)] == 2:
                     new[(x, y)] = 0
+                if x == post and old[(x, y)] == 2:
+                    new[(x, y)] = 1         # (the post: light)
+        for y in left_rows:
+            old.setdefault((left, y), px(left, y))
+            if old[(left, y)] == 2:
+                new[(left, y)] = 1
         canvas.update({k: v for k, v in new.items() if v != old[k]})
     cells = {}
     for (x, y), v in canvas.items():
