@@ -120,8 +120,8 @@ colour - the shirt alone, the socks are black, so the cells at a
 player's feet stay white for the lines and the ball - and what was
 white in them turns black instead of to the shirt's colour: in front of
 the net it passes for its shade. The ball is drawn last and keeps its
-cells white. A player's shadow is half its height, and cut where it
-would need a column of characters of its own.
+cells white. The players have no shadow: it only put more black over
+the lines.
 
 Where the TED does more than the C64, the game uses it: a cell's own
 colour can be any of eight hues in eight shades, so every spectator in

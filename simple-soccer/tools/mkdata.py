@@ -250,17 +250,13 @@ def sprites():
             for m in re.finditer(r'sprite ([0-9a-f]{2})\n((?:[.sck]{12}\n){21})', txt)}
 
 
-def half_shadow(pic):
-    """A player's shadow at half its height: the black below the last line
-    with skin or shirt, two lines at a time made one (black where either
-    is) - a figure that goes into a third row of cells less often."""
+def no_shadow(pic):
+    """A player without his shadow: the black below the last line with
+    skin or shirt in it gone - no cell of the ground under it darkened"""
     body = [i for i, l in enumerate(pic) if 's' in l or 'c' in l]
     if not body:
         return pic
-    top, rest = pic[:body[-1] + 1], pic[body[-1] + 1:]
-    shadow = [''.join('k' if 'k' in (a[x], b[x]) else '.' for x in range(len(a)))
-              for a, b in zip(rest[0::2], rest[1::2] + ['.' * len(rest[0])])]
-    return top + shadow + ['.' * len(pic[0])] * (len(pic) - len(top) - len(shadow))
+    return pic[:body[-1] + 1] + ['.' * len(pic[0])] * (len(pic) - body[-1] - 1)
 
 
 def figure(pic, black=False):
@@ -379,7 +375,7 @@ def main():
             out.write('cmap%d:                  ; ground row %d\n' % (i, y))
             hexrows(out, bytes(cols), 40)
         spr = sprites()
-        figs = [figure(black_socks(half_shadow(spr[b])) if b in RUN_FRAMES else spr[b], b in BLACK)
+        figs = [figure(black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else spr[b], b in BLACK)
                 for b in IMAGES]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi, black11\n        .rodata\n')
         out.write('black11:                ; a byte\'s %11 pixels made %10\n')
