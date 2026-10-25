@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A video of the game as Yape shows it, every frame (50 a second), with
-the joystick moved to a plan: build/simple-soccer.mp4.
+the joystick moved to a plan, and its sound: build/simple-soccer.mp4.
 
     tests/video.py [out.mp4] [--plan name] [--title]
 
@@ -11,7 +11,13 @@ video, twice the size, sharp pixels. With --plan, the joystick follows
 one of tests/plan.py's plans instead, by the match's own frames: the same
 moves every time, started once the teams stand in their places. With
 --title it begins with the title, fire pressed after a moment.
+
+The sound is the emulation's own (Yape's $YAPE_WAV, written by the
+machine's clock while the pictures are saved, not the sound card's): it
+keeps in step with the pictures, the monitor's pauses and all. The
+video's frame rate is the machine's (PAL: a little over 50).
 """
+import array
 import glob
 import os
 import subprocess
@@ -24,6 +30,8 @@ from shot import HERE, PRG, BITS, labels  # noqa: E402
 import plan  # noqa: E402
 
 FRAMES = 1500
+WAV = SHOT + '.raw'                     # the series' sound
+RATE = 48000                            # (Yape's samples a second)
 # (direction, seconds): the kick-off passed on, a run up and a pass to the
 # left, the other team going after the ball, chasing it back, a shot, and
 # whatever restarts follow - fire now and then to take them
@@ -43,7 +51,8 @@ def main():
     for f in glob.glob(SHOT + '.*'):
         os.remove(f)
     title = '--title' in sys.argv
-    y = Yape(PRG, series=FRAMES, title=title)
+    y = Yape(PRG, series=FRAMES, title=title,
+             env=('YAPE_WAV=' + WAV, 'SDL_AUDIODRIVER=dummy'))
     try:
         y.run_for(4)                    # loading and the start
         host('pkill', '-USR2', '-x', 'yapesdl')
@@ -70,10 +79,22 @@ def main():
 
 def encode(out):
     frames = [f for f in glob.glob(SHOT + '.*') if f.rsplit('.', 1)[1].isdigit()]
-    print('%d frames' % len(frames))
-    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', '50',
-                    '-f', 'image2', '-c:v', 'ppm', '-i', SHOT + '.%03d', '-vf', 'scale=iw*2:ih*2:flags=neighbor',
-                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', out],
+    samples = os.path.getsize(WAV) // 2 if os.path.exists(WAV) else 0
+    print('%d frames, %.2f s of sound' % (len(frames), samples / RATE))
+    fps = '50'
+    sound = []
+    if samples:                         # (the frames as long as the sound)
+        fps = '%.4f' % (len(frames) * RATE / samples)
+        sound = ['-f', 's16le', '-ar', str(RATE), '-ac', '1', '-i', WAV]
+        r = array.array('h', open(WAV, 'rb').read())
+        gain = 0.45 * 65535 / max(1, max(r) - min(r))
+        # (the TED's sound is all above 0: that taken out, louder)
+        sound += ['-af', 'highpass=f=15,volume=%.2f' % gain]
+    subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', fps,
+                    '-f', 'image2', '-c:v', 'ppm', '-i', SHOT + '.%03d'] + sound +
+                   ['-vf', 'scale=iw*2:ih*2:flags=neighbor',
+                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18'] +
+                   (['-c:a', 'aac', '-b:a', '128k', '-shortest'] if sound else []) + [out],
                    check=True)
     print(out)
 

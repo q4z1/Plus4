@@ -6,7 +6,9 @@ Paradroid's changes to Yape (github.com/calmopyrin/yapesdl, at f5fcf8d):
 - for the tests: SIGUSR1 enters the monitor, reading stdin; SIGUSR2 saves
   the TED's picture as a PPM to $YAPE_SHOT ($YAPE_SHOTN of them, one a
   frame); YAPE_WARP starts without the speed limit; YAPE_JOYLOG writes each
-  change of the joystick ports as read, with the time.
+  change of the joystick ports as read, with the time; YAPE_WAV writes the
+  sound while a $YAPE_SHOTN series runs, by the machine's clock (raw signed
+  16 bit, mono, 48 kHz), for videos with sound.
 - the ROMs the settings name are loaded at start-up, not only at the next
   hard reset: a cartridge in yape.conf (Demon Attack's run-yape.sh puts one
   there) starts with the machine.
@@ -41,7 +43,7 @@ index f1c63a5..da9d284 100644
  }
  
 diff --git a/main.cpp b/main.cpp
-index 9859b40..7e59d12 100644
+index 9859b40..8aa4d93 100644
 --- a/main.cpp
 +++ b/main.cpp
 @@ -7,7 +7,7 @@
@@ -87,7 +89,7 @@ index 9859b40..7e59d12 100644
  				if (event.jbutton.button == 5 || event.jbutton.button == 14) { // START button
  					enterMenu();
  				} else if (event.jbutton.button == 4) {
-@@ -1355,9 +1364,72 @@ static void app_initialise()
+@@ -1355,9 +1364,83 @@ static void app_initialise()
  	KEYS::initPcJoys();
  }
  
@@ -114,6 +116,11 @@ index 9859b40..7e59d12 100644
 +		shotLeft = n ? atoi(n) : 1;
 +		shotSeries = n != NULL;
 +		shotIdx = 0;
++		// $YAPE_WAV: the sound of the series too, raw (sound.cpp)
++		extern FILE *g_audioRec;
++		const char *w = getenv("YAPE_WAV");
++		if (w && shotSeries && !g_audioRec)
++			g_audioRec = fopen(w, "wb");
 +	}
 +	if (shotLeft) {
 +		shotLeft--;
@@ -144,8 +151,14 @@ index 9859b40..7e59d12 100644
 +				}
 +			fclose(fp);
 +			rename(tmp, f);
-+			if (!shotLeft)
++			if (!shotLeft) {
++				extern FILE *g_audioRec;
++				if (g_audioRec) {
++					fclose(g_audioRec);
++					g_audioRec = NULL;
++				}
 +				printf("SHOT SAVED %s\n", f);
++			}
 +		} else {
 +			shotLeft = 0;
 +			printf("SHOT FAILED\n");
@@ -160,7 +173,7 @@ index 9859b40..7e59d12 100644
  	// hook into the emulation loop if active
  	if (g_bActive) {
  		ted8360->ted_process(1);
-@@ -1413,6 +1485,9 @@ static void printSpecialKeys()
+@@ -1413,6 +1496,9 @@ static void printSpecialKeys()
  /* ---------- MAIN ---------- */
  int main(int argc, char *argv[])
  {
@@ -170,7 +183,7 @@ index 9859b40..7e59d12 100644
  	machineInit();
  	uinterface = new UI(ted8360);
  
-@@ -1441,7 +1516,9 @@ int main(int argc, char *argv[])
+@@ -1441,7 +1527,9 @@ int main(int argc, char *argv[])
  		ad_get_curr_dir(tmpStr);
  		fprintf(stderr, "IEC drive path: %s\n", tmpStr);
  		setEmulationLevel(g_iEmulationLevel);
@@ -181,7 +194,7 @@ index 9859b40..7e59d12 100644
  	} else
  		fprintf(stderr,"Error loading settings or no .ini file present...\n");
  #endif
-@@ -1501,6 +1578,8 @@ int main(int argc, char *argv[])
+@@ -1501,6 +1589,8 @@ int main(int argc, char *argv[])
  	setMainLoop(1);
  #else
  	printSpecialKeys();
@@ -190,3 +203,34 @@ index 9859b40..7e59d12 100644
  	ad_vsync_init(50);
  	for (;;) {
  		mainLoop();
+diff --git a/sound.cpp b/sound.cpp
+index f1ed7b2..4bcdd17 100644
+--- a/sound.cpp
++++ b/sound.cpp
+@@ -163,10 +163,25 @@ static inline unsigned int getNrOfSamplesToGenerate(ClockCycle clock, unsigned i
+ 	return samplesToDo;
+ }
+ 
++// (test hook) while set, the samples go here instead, by the emulation's
++// own clock: raw signed 16 bit, mono, MixingFreq
++FILE *g_audioRec = NULL;
++
+ void flushBuffer(ClockCycle cycle, unsigned int frq)
+ {
+ 	unsigned int samplesToDo = getNrOfSamplesToGenerate(cycle, frq);
+-	if (samplesToDo) {
++	if (samplesToDo && g_audioRec) {
++		static short rec[8192];
++		unsigned int n = samplesToDo;
++		while (n) {
++			unsigned int k = n > 8192 ? 8192 : n;
++			SoundSource::bufferFill(k, rec);
++			fwrite(rec, 2, k, g_audioRec);
++			n -= k;
++		}
++		lastUpdateCycle = cycle;
++		lastSamplePos += samplesToDo;
++	} else if (samplesToDo) {
+ 		updateAudio(samplesToDo);
+ 		lastUpdateCycle = cycle;
+ 		lastSamplePos += samplesToDo;
