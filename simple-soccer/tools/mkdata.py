@@ -96,6 +96,81 @@ CROWD = [(2, 4), (2, 6), (6, 4), (6, 6), (3, 6), (4, 4), (4, 6), (7, 7), (7, 5),
 CROWD_CHARS = {0x01, 0x03, 0x04, 0x05, 0x07, 0xCF, 0xD0, 0xD1, 0xD2}
 
 
+# The title's characters (hires, a colour each cell): a 5 x 7 font by
+# ASCII code, and the boards' wide letters at twice the size, four cells
+# each, for the name
+FONT5 = {
+    'A': '.XXX. X...X X...X XXXXX X...X X...X X...X',
+    'B': 'XXXX. X...X X...X XXXX. X...X X...X XXXX.',
+    'C': '.XXX. X...X X.... X.... X.... X...X .XXX.',
+    'D': 'XXXX. X...X X...X X...X X...X X...X XXXX.',
+    'E': 'XXXXX X.... X.... XXXX. X.... X.... XXXXX',
+    'F': 'XXXXX X.... X.... XXXX. X.... X.... X....',
+    'G': '.XXX. X...X X.... X.XXX X...X X...X .XXXX',
+    'H': 'X...X X...X X...X XXXXX X...X X...X X...X',
+    'I': '.XXX. ..X.. ..X.. ..X.. ..X.. ..X.. .XXX.',
+    'J': '..XXX ...X. ...X. ...X. ...X. X..X. .XX..',
+    'K': 'X...X X..X. X.X.. XX... X.X.. X..X. X...X',
+    'L': 'X.... X.... X.... X.... X.... X.... XXXXX',
+    'M': 'X...X XX.XX X.X.X X.X.X X...X X...X X...X',
+    'N': 'X...X XX..X X.X.X X..XX X...X X...X X...X',
+    'O': '.XXX. X...X X...X X...X X...X X...X .XXX.',
+    'P': 'XXXX. X...X X...X XXXX. X.... X.... X....',
+    'Q': '.XXX. X...X X...X X...X X.X.X X..X. .XX.X',
+    'R': 'XXXX. X...X X...X XXXX. X.X.. X..X. X...X',
+    'S': '.XXXX X.... X.... .XXX. ....X ....X XXXX.',
+    'T': 'XXXXX ..X.. ..X.. ..X.. ..X.. ..X.. ..X..',
+    'U': 'X...X X...X X...X X...X X...X X...X .XXX.',
+    'V': 'X...X X...X X...X X...X X...X .X.X. ..X..',
+    'W': 'X...X X...X X...X X.X.X X.X.X X.X.X .X.X.',
+    'X': 'X...X X...X .X.X. ..X.. .X.X. X...X X...X',
+    'Y': 'X...X X...X .X.X. ..X.. ..X.. ..X.. ..X..',
+    'Z': 'XXXXX ....X ...X. ..X.. .X... X.... XXXXX',
+    '0': '.XXX. X...X X..XX X.X.X XX..X X...X .XXX.',
+    '1': '..X.. .XX.. ..X.. ..X.. ..X.. ..X.. .XXX.',
+    '2': '.XXX. X...X ....X ...X. ..X.. .X... XXXXX',
+    '3': 'XXXXX ...X. ..X.. ...X. ....X X...X .XXX.',
+    '4': '...X. ..XX. .X.X. X..X. XXXXX ...X. ...X.',
+    '5': 'XXXXX X.... XXXX. ....X ....X X...X .XXX.',
+    '6': '..XX. .X... X.... XXXX. X...X X...X .XXX.',
+    '7': 'XXXXX ....X ...X. ..X.. .X... .X... .X...',
+    '8': '.XXX. X...X X...X .XXX. X...X X...X .XXX.',
+    '9': '.XXX. X...X X...X .XXXX ....X ...X. .XX..',
+    '/': '....X ...X. ...X. ..X.. .X... .X... X....',
+    '<': '...X. ..X.. .X... X.... .X... ..X.. ...X.',
+    '>': '.X... ..X.. ...X. ....X ...X. ..X.. .X...',
+    '-': '..... ..... ..... XXXXX ..... ..... .....',
+    '.': '..... ..... ..... ..... ..... .XX.. .XX..',
+    ':': '..... .XX.. .XX.. ..... .XX.. .XX.. .....',
+    '!': '..X.. ..X.. ..X.. ..X.. ..X.. ..... ..X..',
+}
+LOGO_LETTERS = 'SIMPLECOR'           # their four cells each from code 128
+
+
+def title_font():
+    """the title's characters from code 32: the font (32-95), the
+    letters of the name at twice the size (128 on, four each: top left,
+    top right, bottom left, bottom right)"""
+    font = bytearray(8 * (128 + 4 * len(LOGO_LETTERS) - 32))
+    for ch, rows in FONT5.items():
+        c = ord(ch) - 32
+        for y, row in enumerate(rows.split()):
+            font[c * 8 + y] = sum(1 << (6 - x) for x, v in enumerate(row) if v == 'X')
+    for k, ch in enumerate(LOGO_LETTERS):
+        big = [[0] * 16 for _ in range(16)]
+        for y, row in enumerate(GLYPHS[ch]):
+            for x, v in enumerate(row):
+                if v == 'X':
+                    for dy in range(2):
+                        for dx in range(2):
+                            big[2 + 2 * y + dy][1 + 2 * x + dx] = 1
+        for q, (qx, qy) in enumerate(((0, 0), (8, 0), (0, 8), (8, 8))):
+            c = 128 + 4 * k + q - 32
+            for y in range(8):
+                font[c * 8 + y] = sum(big[qy + y][qx + x] << (7 - x) for x in range(8))
+    return font
+
+
 def mc(hue, lum):
     """a multicolour cell's own colour (bit 3: multicolour)"""
     return lum << 4 | hue | 0x08
@@ -482,6 +557,9 @@ def main():
             hexrows(out, r, 40)
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
+        out.write('\n        .export title_font\n        .segment "TITLE"\n')
+        out.write('title_font:              ; characters 32 on\n')
+        hexrows(out, bytes(title_font()))
         tint = colours()
         out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
         out.write('crow_of:                ; each ground row: its colours\' number, $FF white\n')

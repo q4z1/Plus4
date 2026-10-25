@@ -29,7 +29,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, pose_of, score, game_min, hud
+        .export play_init, play_frame, pose_of, score, game_min, hud, min_frames
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
@@ -76,7 +76,6 @@ PRESSED     = 784               ; a cyan player this near (squared) the ball
                                 ; makes the yellow one on it pass,
 PASS_MIN    = 900               ; to a team-mate this far (squared) at least,
 PASS_WAIT   = 60                ; then not again for so many frames
-MIN_FRAMES  = 100               ; frames to a minute of the match (90 in 3)
 DEAD_HALF   = 150               ; frames dead at half time and full time
 DIVE_T      = 28                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
@@ -196,6 +195,8 @@ last_team:  .res 1              ; who touched the ball last: the team,
 last_pl:    .res 1              ; the player
 touch_t:    .res 1              ; frames since the ball was touched
 min_t:      .res 1              ; frames into the minute
+min_frames: .res 1              ; frames to a minute (the title's choice:
+                                ; 100, 167, 233 - 90 in 3, 5, 7 minutes)
 game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
 flip:       .res 1              ; 1: the sides changed - the cyan team at the
@@ -3759,7 +3760,7 @@ clock:
         bne @done
         inc min_t
         lda min_t
-        cmp #MIN_FRAMES
+        cmp min_frames
         bcc @done
         lda #0
         sta min_t
@@ -3810,7 +3811,7 @@ whistle:
 ; a new match: no goals, the first minute, the cyan team to kick off
 new_match:
         lda min_t               ; (the result shown 2 seconds at least:
-        cmp #MIN_FRAMES         ; min_t counts them, the clock stopped)
+        cmp #100                ; min_t counts them, the clock stopped)
         bcs :+
         inc min_t
         bcc @on

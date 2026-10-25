@@ -57,7 +57,7 @@ def kill_emulators():
 class Vice:
     settle = 0.02            # after a prompt, how long to wait for more output
 
-    def __init__(self, image, workdir, warp=True, wav=None, drive=None):
+    def __init__(self, image, workdir, warp=True, wav=None, drive=None, title=False):
         kill_emulators()
         os.makedirs(workdir, exist_ok=True)
         self.pidfile = os.path.join(workdir, 'vice.pid')
@@ -95,6 +95,8 @@ class Vice:
         self.sock.settimeout(30)
         self.sock.sendall(b'\n')
         self._read_prompt()
+        if not title:   # no title: title.s looks for "TS" at $0FF8 (not loaded, not cleared)
+            self.cmd('> 0ff8 54 53')
 
     def _read_prompt(self):
         """Read until the output ends in a prompt and nothing more follows."""

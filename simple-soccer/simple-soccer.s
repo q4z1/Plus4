@@ -13,6 +13,7 @@
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
         .import play_init, play_frame, pose_of, score, game_min, hud
+        .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__
@@ -95,6 +96,7 @@ step_img: .byte 0, 1, 0, 2
         .code
 
 main:
+        jsr title               ; (the title first: the length of the match)
         jsr eng_init
         jsr play_init
         ldx #0                  ; an order to sort from

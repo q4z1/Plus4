@@ -87,7 +87,11 @@ The TED's two voices give the match its sounds, played by the interrupt
 the keeper's catch, the referee's whistle - a trill - at a kick-off,
 three blasts at half and full time, and the crowd roaring at a goal.
 
-A match is 90 minutes in three real ones. At 45 the referee blows for
+A title comes first: the name, the length of the match to choose with
+the stick (3, 5 or 7 minutes), fire to kick off. It is loaded where the
+pictures go once the match is on, and runs before them.
+
+A match is 90 minutes in three real ones (or five, or seven). At 45 the referee blows for
 half time, the teams change ends and the yellow team kicks off; at 90 the result stays
 till fire starts a new match. While the ball is dead for a kick-off -
 after a goal, at half time, at the start - the score and the minute

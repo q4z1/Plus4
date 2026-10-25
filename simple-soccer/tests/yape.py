@@ -61,7 +61,7 @@ def ppm_to_png(src, dst):
 
 
 class Yape:
-    def __init__(self, image, warp=False, series=0, env=()):
+    def __init__(self, image, warp=False, series=0, env=(), title=False):
         kill_emulators()
         conf = os.path.join(HOME, 'Gaia', 'yapeSDL')
         os.makedirs(conf, exist_ok=True)
@@ -83,6 +83,8 @@ class Yape:
             bufsize=0)
         self.buf = b''
         time.sleep(3)
+        if not title:               # no title: title.s looks for "TS" at $0FF8
+            self.poke(0x0FF8, [0x54, 0x53])
 
     def _read_until(self, marker, timeout=20):
         t = time.time() + timeout
