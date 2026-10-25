@@ -197,6 +197,13 @@ def chars():
             for p in line:
                 v = v << 2 | '.bkw'.index(p)
             font[c * 8 + y] = v
+    # the ground's white (the lines, the nets, the flags) in the shared
+    # light colour, as the players' skin and the ball are: a cell a shirt
+    # colours has nothing under it to change. Only the crowd keeps its
+    # shirts in the cell's own colour - no player gets there.
+    for c in range(256):
+        if c not in CROWD_CHARS:
+            font[c * 8:c * 8 + 8] = bytes(light11(b) for b in font[c * 8:c * 8 + 8])
     codes, shapes = board_chars()
     for k, c in codes.items():
         font[c * 8:c * 8 + 8] = bytes(shapes[k])
@@ -213,6 +220,7 @@ RUN_BASE = [0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C]
 RUN_FRAMES = [b + f for b in RUN_BASE for f in (0, 1, 3)]
 IMAGES = RUN_FRAMES + [0x40, 0x41, 0x42, 0x43, 0x54]
 BLACK = {0x54}
+BALL_IMAGES = {0x40, 0x41, 0x42, 0x43}  # white in the shared light colour
 
 # The pitch: Sensible Soccer's lines (goal lines at y 49 and 689, the
 # halfway line at 369) onto the ground's (pixel rows 107.5, 291.5, 466.5 -
@@ -228,12 +236,12 @@ def has11(b):
     return any(b >> (2 * p) & 3 == 3 for p in range(4))
 
 
-def black11(b):
-    """b with its pixels in the cell's colour (%11) black (%10): what a
-    player's cell shows of the white under it"""
+def light11(b):
+    """b with its pixels in the cell's colour (%11) in the shared light
+    colour (%01)"""
     for p in range(4):
         if b >> (2 * p) & 3 == 3:
-            b &= ~(1 << (2 * p))
+            b &= ~(2 << (2 * p))
     return b
 
 
@@ -259,7 +267,7 @@ def no_shadow(pic):
     return pic[:body[-1] + 1] + ['.' * len(pic[0])] * (len(pic) - body[-1] - 1)
 
 
-def figure(pic, black=False):
+def figure(pic, black=False, light=False):
     """A sprite cut to its pixels: (ox, oy, records): its first column and
     row in the sprite, and for each shift 0-3 (pixels to the right in its
     first character) the bytes the draw takes - the number of columns,
@@ -295,6 +303,8 @@ def figure(pic, black=False):
                     v = '.skc'.index(pic[y][x]) if ox <= x < ox + w else 0
                     if black and v == 3:
                         v = 2
+                    if light and v == 3:
+                        v = 1
                     d = d << 2 | v      # s %01 skin, k %10 black, c %11 the cell's colour
                     k = k << 2 | (0 if v else 3)
                 data.append(d)
@@ -375,11 +385,11 @@ def main():
             out.write('cmap%d:                  ; ground row %d\n' % (i, y))
             hexrows(out, bytes(cols), 40)
         spr = sprites()
-        figs = [figure(black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else spr[b], b in BLACK)
-                for b in IMAGES]
-        out.write('\n        .export img_ox, img_oy, img_lo, img_hi, black11\n        .rodata\n')
-        out.write('black11:                ; a byte\'s %11 pixels made %10\n')
-        hexrows(out, bytes(black11(b) for b in range(256)))
+        figs = [figure(black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else spr[b], b in BLACK,
+                       b in BALL_IMAGES) for b in IMAGES]
+        out.write('\n        .export img_ox, img_oy, img_lo, img_hi, light11\n        .rodata\n')
+        out.write('light11:                ; a byte\'s %11 pixels made %01\n')
+        hexrows(out, bytes(light11(b) for b in range(256)))
         out.write('img_ox: .byte ' + ', '.join(str(f[0]) for f in figs) + '\n')
         out.write('img_oy: .byte ' + ', '.join(str(f[1]) for f in figs) + '\n')
         names = ['img%d_%d' % (i, s) for i in range(len(figs)) for s in range(4)]
@@ -416,9 +426,9 @@ def main():
         out.write('YMAP        = %d            ; ymap_*: pitch y 0..YMAP-1\n\n' % YMAP)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))
         # the skin a little lighter than the C64's light red
-        skin = ted_of(10)
-        skin = min(skin + 0x20, 0x70 | skin & 15)
-        out.write('COL_SKIN    = $%02X           ; C64 light red, lighter: the shared colour\n' % skin)
+        # the shared light colour: the lines, the ball and the players' skin
+        skin = int(os.environ.get('COL_SHARED', '72'), 16)  # red, the lightest: near white
+        out.write('COL_SKIN    = $%02X           ; the shared light colour: lines, ball, skin\n' % skin)
         out.write('COL_BLACK   = $%02X\n' % ted_of(0))
         out.write('COL_LINE    = $%02X           ; white, multicolour (the cells\' own)\n'
                   % (ted_of(1, range(8)) | 0x08))

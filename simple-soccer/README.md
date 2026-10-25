@@ -113,15 +113,13 @@ runs full, and never for two pictures running.
 
 The C64 has two colours for a sprite besides its own; a multicolour
 character on the TED shares three with the whole screen and has one of
-its own. The grass, black and the players' skin are the shared ones, and
-a cell's own colour is white, for the lines and the nets - or the shirt
-of a player in it. Only the cells with a bit of shirt in them take its
-colour - the shirt alone, the socks are black, so the cells at a
-player's feet stay white for the lines and the ball - and what was
-white in them turns black instead of to the shirt's colour: in front of
-the net it passes for its shade. The ball is drawn last and keeps its
-cells white. The players have no shadow: it only put more black over
-the lines.
+its own. The shared ones are the grass, black, and one light colour -
+the lightest red, near white - that is the lines, the nets, the ball
+and the players' skin at once. A cell's own colour is a player's shirt
+where he has a bit of shirt in it; with nothing on the pitch in that
+colour, a player can take any cell and nothing under him changes. (Two
+players of different teams in one cell: the one behind loses his shirt
+there.) The socks are black, and the players have no shadow.
 
 Where the TED does more than the C64, the game uses it: a cell's own
 colour can be any of eight hues in eight shades, so every spectator in

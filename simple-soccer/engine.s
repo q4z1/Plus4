@@ -31,7 +31,7 @@
         .export cam_x, cam_y, frames, joy, dbg_joy
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_map, _pitch_font
-        .import img_ox, img_oy, img_lo, img_hi, black11
+        .import img_ox, img_oy, img_lo, img_hi, light11
         .import crow_of, cmap_lo, cmap_hi
 
 POOL        = 112               ; first code for figures
@@ -1422,23 +1422,19 @@ fd_skip:
         ldx z_cl                ; (X: the list, Y: the cell)
         stx z_x0
 fd_cell:                        ; its colour, where it has pixels in it and
-        lda #0                  ; the cell another: the ball (drawn last)
-        sta z_rmp               ; takes the cell, a shirt under it white; a
-        lda z_kk                ; player takes it, what is under it in the
-        cmp z_kc0               ; cell's colour - white lines, the net -
-        bcc fd_keep             ; turned black
+        lda #0                  ; the cell another: he takes it, what is
+        sta z_rmp               ; under it in the cell's colour (another
+        lda z_kk                ; player's shirt - the ground's white, the
+        cmp z_kc0               ; ball's, is in the shared light colour)
+        bcc fd_keep             ; turned to the light one
         lda z_kc1
         cmp z_kk
         bcc fd_keep
         lda (z_att),y
         cmp fig_col
         beq fd_keep
-        lda fig_col
-        cmp #COL_LINE
-        beq fd_white            ; (the ball)
         lda #$80
         sta z_rmp
-fd_white:
         lda fig_col
         sta (z_att),y
 fd_keep:
@@ -1479,10 +1475,10 @@ fd_bg:  stx z_ix                ; more than grass: its pixels into the strip
         dey
         bpl :-
         bmi fd_copied
-fd_light:                       ; (its white black)
+fd_light:                       ; (its own colour light)
         lda (z_src),y
         tax
-        lda black11,x
+        lda light11,x
         sta (z_fnt),y
         dey
         bpl fd_light
