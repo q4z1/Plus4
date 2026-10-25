@@ -5,11 +5,14 @@ ground's character for its place: its code's pixels in the picture's set
 against the ground's character from the map. Runs the player about in
 every direction meanwhile, dribbling and passing.
 
-    tests/consistency.py [pictures per direction] [jump]
+    tests/consistency.py [pictures per direction] [jump] [ends]
 
 With jump, the ball (which the view follows) is also moved by up to that
 many pixels either way before each picture, so the view moves by several cells between a
-picture's builds (shift's longer moves, and full builds).
+picture's builds (shift's longer moves, and full builds). With ends, it
+is kept near the top and the bottom of the ground by turns, where the
+stands and the boards have colours of their own. Each such cell's colour
+is checked too (white elsewhere).
 """
 import random
 import os
@@ -30,9 +33,12 @@ FNT = (0xC800, 0xD800, 0xF000)
 def main():
     per = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     jump = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+    ends = 'ends' in sys.argv[3:]
     rnd = random.Random(1)
     rows = mkdata.pitch()
     font = mkdata.chars()
+    white = mkdata.ted_of(1, range(8)) | 0x08
+    tint = dict(mkdata.colours())
     lab = labels()
     v = Vice(PRG, WORK)
     bad = checked = 0
@@ -45,13 +51,16 @@ def main():
         v.cmd('break %04x' % lab['eng_end'])
         moves = [8 + 16, 2 + 16, 4 + 16, 1 + 16, 8 + 2 + 16, 4 + 1 + 16, 8, 2, 4, 1,
                  8 + 1 + 16, 4 + 2 + 16, 2 + 16, 2 + 16, 8 + 16, 8 + 16]
-        for m in moves * 2:
+        for turn, m in enumerate(moves * 2):
             v.poke(lab['dbg_joy'], [m])
             for _ in range(per):
                 if jump:                # the ball, which the view follows
-                    for lo, hi, top in (('o_xl', 'o_xh', 560), ('o_yl', 'o_yh', 700)):
+                    ylo, yhi = 40, 700
+                    if ends:
+                        ylo, yhi = (40, 110) if turn & 1 else (620, 700)
+                    for lo, hi, bot, top in (('o_xl', 'o_xh', 40, 560), ('o_yl', 'o_yh', ylo, yhi)):
                         p = v.mem(lab[lo] + 22, 1)[0] + 256 * v.mem(lab[hi] + 22, 1)[0]
-                        p = min(max(p + rnd.randint(-jump, jump), 40), top)
+                        p = min(max(p + rnd.randint(-jump, jump), bot), top)
                         v.poke(lab[lo] + 22, [p & 255])
                         v.poke(lab[hi] + 22, [p >> 8])
                 v.cmd('x')
@@ -76,6 +85,7 @@ def main():
                             o = o0 + offs[(c + i) & 255]
                             figs.add((o % 40, o // 40))
                 codes = v.mem(MAT[b] + 0x400, 1000)
+                cols = v.mem(MAT[b], 1000)
                 fnt = v.mem(FNT[b], 2048)
                 for r in range(25):
                     for c in range(40):
@@ -89,6 +99,12 @@ def main():
                             if bad <= 10:
                                 print('picture %d at %d,%d: cell %d,%d code %d is not character %02x'
                                       % (b, col, row, c, r, code, ch))
+                        want = tint[row + r][col + c] if row + r in tint else white
+                        if cols[r * 40 + c] != want:
+                            bad += 1
+                            if bad <= 10:
+                                print('picture %d at %d,%d: cell %d,%d colour %02x, not %02x'
+                                      % (b, col, row, c, r, cols[r * 40 + c], want))
         print('%d cells checked, %d wrong' % (checked, bad))
     finally:
         v.stop()

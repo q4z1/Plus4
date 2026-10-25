@@ -602,6 +602,7 @@ control:
         lda o_yh,x
         adc vec_yh,y
         sta o_tyh,x
+        jsr inside
         jsr dist2               ; slower with the ball close
         lda #<SPEED_RUN
         sta o_spl,x
@@ -658,6 +659,51 @@ control:
         bcs @done
         jmp pass
 @done:  rts
+
+; inside: player X's destination inside the walls round the pitch (the
+; ball's, x 19-588, y 20-719) - no one runs into the stands. Keeps X.
+inside:
+        lda o_txh,x
+        bmi @x0
+        lda o_txl,x
+        cmp #<19
+        lda o_txh,x
+        sbc #>19
+        bcs :+
+@x0:    lda #<19
+        sta o_txl,x
+        lda #>19
+        sta o_txh,x
+:       lda #<588
+        cmp o_txl,x
+        lda #>588
+        sbc o_txh,x
+        bcs :+
+        lda #<588
+        sta o_txl,x
+        lda #>588
+        sta o_txh,x
+:       lda o_tyh,x
+        bmi @y0
+        lda o_tyl,x
+        cmp #<20
+        lda o_tyh,x
+        sbc #>20
+        bcs :+
+@y0:    lda #<20
+        sta o_tyl,x
+        lda #>20
+        sta o_tyh,x
+:       lda #<719
+        cmp o_tyl,x
+        lda #>719
+        sbc o_tyh,x
+        bcs :+
+        lda #<719
+        sta o_tyl,x
+        lda #>719
+        sta o_tyh,x
+:       rts
 
 ; can_kick: carry clear if the joystick's player can kick the ball: at
 ; his feet, near enough, and low. Keeps X.

@@ -32,6 +32,7 @@
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_map, _pitch_font
         .import img_ox, img_oy, img_lo, img_hi, black11
+        .import crow_of, cmap_lo, cmap_hi
 
 POOL        = 112               ; first code for figures
 EVICT_AT    = 86                ; a cache this full gives codes back (evict)
@@ -123,6 +124,11 @@ b_next:     .res 3              ; next code never given out in its set
 fl_n:       .res 3              ; codes given back, in its fl
 b_nlist:    .res 3              ; figures in its list
 since_full: .res 1              ; turns since a picture was built anew
+tc_col:     .res 3              ; tint's: each picture's col0 when tinted,
+tc_row:     .res 3 * SCR_H      ; and each of its rows' ground row's
+                                ; colours (crow_of), $FF white
+z_tr:       .res 1              ; (the row tinting, its place in tc_row)
+z_ti:       .res 1
 pool_next:  .res 1              ; next code for a figure, 0 when used up
 fig_x:      .res 2              ; fig_draw's figure: on the ground,
 fig_y:      .res 2              ; its sprite's top left corner
@@ -212,6 +218,11 @@ eng_init:
         sta b_next,x
         lda #$FF
         sta b_col,x
+        sta tc_col,x
+        dex
+        bpl :-
+        ldx #3 * SCR_H - 1      ; (the matrices all white)
+:       sta tc_row,x
         dex
         bpl :-
         sta shown
@@ -424,6 +435,7 @@ eng_begin:
         sta since_full
 :       jsr cells
 eng_pool:
+        jsr tint
         lda #POOL
         sta pool_next
         ldx back
@@ -432,6 +444,85 @@ eng_pool:
         lda #0
         sta z_cl
         rts
+
+; tint: the back picture's cells their own colours where the ground has
+; them (the crowd's shirts, the boards: mkdata's colour rows), white
+; elsewhere - only the rows whose colours its view changed since it was
+; last tinted. No figure gets into those rows (the players keep inside
+; the walls), so restore can put white back.
+tint:
+        ldx back
+        lda tc_base,x
+        sta z_ti
+        lda #0
+        sta z_tr
+@row:   lda row0
+        clc
+        adc z_tr
+        tay
+        lda crow_of,y           ; the colours it wants
+        ldx z_ti
+        cmp #$FF
+        bne @own
+        cmp tc_row,x            ; white, and white already
+        beq @next
+        sta tc_row,x
+        jsr @dst
+        lda #COL_LINE
+        ldy #SCR_W - 1
+:       sta (z_dst),y
+        dey
+        bpl :-
+        bmi @next
+@own:   cmp tc_row,x            ; its own: the same, and the view not moved
+        bne @copy               ; across
+        ldy back
+        lda tc_col,y
+        cmp col0
+        beq @next
+        lda tc_row,x
+@copy:  sta tc_row,x
+        tay
+        lda cmap_lo,y
+        clc
+        adc col0
+        sta z_src
+        lda cmap_hi,y
+        adc #0
+        sta z_src + 1
+        jsr @dst
+        ldy #SCR_W - 1
+:       lda (z_src),y
+        sta (z_dst),y
+        dey
+        bpl :-
+@next:  inc z_ti
+        inc z_tr
+        lda z_tr
+        cmp #SCR_H
+        bne @row
+        ldx back
+        lda col0
+        sta tc_col,x
+        rts
+@dst:   ldy z_tr                ; z_dst = the row in the colour matrix
+        lda r40_lo,y
+        sta z_dst
+        lda r40_hi,y
+        clc
+        adc z_atthi
+        sta z_dst + 1
+        rts
+
+tc_base:    .byte 0, SCR_H, 2 * SCR_H
+r40_lo:
+        .repeat SCR_H, I
+        .byte <(I * SCR_W)
+        .endrepeat
+r40_hi:
+        .repeat SCR_H, I
+        .byte >(I * SCR_W)
+        .endrepeat
 
 ; full: alloc's way out when the cache ran into the pool during a build
 ; (the stack as eng_begin had it): the cache emptied, the cells built anew

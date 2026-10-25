@@ -117,6 +117,15 @@ the net it passes for its shade. The ball is drawn last and keeps its
 cells white. A player's shadow is half its height, and cut where it
 would need a column of characters of its own.
 
+Where the TED does more than the C64, the game uses it: a cell's own
+colour can be any of eight hues in eight shades, so every spectator in
+the stands wears a shirt of his own instead of the C64's white, and the
+boards along the pitch show the name in letters two cells wide - the
+C64's one-cell letters cannot make an M - each in a colour of a sweep
+from yellow to red or cyan to blue, on black. Those cells get their
+colours from a map of the rows that have them, put in again only when
+the view has moved.
+
 ![Running, the view following](screenshots/running.png)
 
 It is a fan-made proof of concept, not affiliated with or endorsed by

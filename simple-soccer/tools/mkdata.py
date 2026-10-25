@@ -29,6 +29,7 @@ against the one Yape shows, tools/yape-pal.txt).
 """
 import math
 import os
+import random
 import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -64,23 +65,126 @@ def ted_of(c64, hues=range(16)):
     return best[1]
 
 
-# The boards round the pitch: the C64's name on them gives way to this
-# game's - in the boards' own letters (code $D8 + the letter, $FD blank),
-# as wide, the words in the middle
-BOARD_OLD = 'ARLASOFT SOCCER'
-BOARD_NEW = ' SIMPLE SOCCER '
+# The boards along the top of the pitch, in place of the C64's: the
+# game's name twice on black, its letters two cells wide (the C64's were
+# one, too narrow for an M) and each in a colour of its own, and boards
+# in one colour round them. Their characters take codes the ground
+# does not use.
+BOARD_ROW = 8
+BOARD_WIDTH = 71                # cells 0-70 (the benches' grass after)
+BOARD_TEXT = 'SIMPLE SOCCER'
+GLYPHS = {                      # 7 x 6 multicolour pixels, a gap after
+    'S': ['.XXXXX.', 'XX.....', '.XXXXX.', '.....XX', '.....XX', 'XXXXXX.'],
+    'I': ['XXXXXX.', '..XX...', '..XX...', '..XX...', '..XX...', 'XXXXXX.'],
+    'M': ['XX...XX', 'XXX.XXX', 'XX.X.XX', 'XX...XX', 'XX...XX', 'XX...XX'],
+    'P': ['XXXXXX.', 'XX...XX', 'XX...XX', 'XXXXXX.', 'XX.....', 'XX.....'],
+    'L': ['XX.....', 'XX.....', 'XX.....', 'XX.....', 'XX.....', 'XXXXXXX'],
+    'E': ['XXXXXXX', 'XX.....', 'XXXXX..', 'XX.....', 'XX.....', 'XXXXXXX'],
+    'O': ['.XXXXX.', 'XX...XX', 'XX...XX', 'XX...XX', 'XX...XX', '.XXXXX.'],
+    'C': ['.XXXXX.', 'XX...XX', 'XX.....', 'XX.....', 'XX...XX', '.XXXXX.'],
+    'R': ['XXXXXX.', 'XX...XX', 'XX...XX', 'XXXXXX.', 'XX..XX.', 'XX...XX'],
+}
+# (TED hue, luminance) of each letter: warm and cool, the second name the
+# other way round; the board between
+WARM = [(7, 7), (7, 6), (7, 5), (2, 6), (2, 5), (2, 4)]
+COOL = [(3, 7), (3, 6), (3, 5), (6, 6), (6, 5), (6, 4)]
+PLAIN = (6, 3)
+# the crowd: a shirt colour each, the cell's own (the C64 has them all white)
+CROWD = [(2, 4), (2, 6), (6, 4), (6, 6), (3, 6), (4, 4), (4, 6), (7, 7), (7, 5), (1, 7),
+         (3, 4), (5, 7)]
+CROWD_CHARS = {0x01, 0x03, 0x04, 0x05, 0x07, 0xCF, 0xD0, 0xD1, 0xD2}
 
 
-def board(text):
-    return bytes(0xFD if ch == ' ' else 0xD8 + ord(ch) - 64 for ch in text)
+def mc(hue, lum):
+    """a multicolour cell's own colour (bit 3: multicolour)"""
+    return lum << 4 | hue | 0x08
+
+
+def ground():
+    return [bytearray.fromhex(l.strip()) for l in open(os.path.join(DATA, 'pitch.txt'))
+            if l.strip() and not l.startswith('#')]
+
+
+def board_chars():
+    """code -> eight bytes for the boards' characters, and the codes in
+    order: the letters' halves, black, the plain board"""
+    rows = ground()
+    rows[BOARD_ROW][:BOARD_WIDTH] = bytes(BOARD_WIDTH)
+    used = set(b for r in rows for b in r)
+    free = [c for c in range(1, 256) if c not in used]
+    letters = sorted(set(BOARD_TEXT) - {' '})
+    shapes = {}
+    for ch in letters:
+        g = [l + '.' for l in GLYPHS[ch]]
+        for half in range(2):
+            # the letter in the cell's colour (%11) on black (%10), a black
+            # line above and below
+            shapes[(ch, half)] = [0xAA] + [
+                sum((3 if l[half * 4 + p] == 'X' else 2) << (6 - 2 * p) for p in range(4))
+                for l in g] + [0xAA]
+    shapes['black'] = [0xAA] * 8
+    shapes['plain'] = [0xAA] + [0xFF] * 6 + [0xAA]
+    codes = dict(zip(sorted(shapes, key=str), free))
+    return codes, shapes
+
+
+def board_row():
+    """the cells of the board row and their colours"""
+    codes, _ = board_chars()
+    cells, cols = [], []
+
+    def name(sweep):
+        cells.append(codes['black'])
+        cols.append(mc(1, 7))
+        i = 0
+        for ch in BOARD_TEXT:
+            if ch == ' ':
+                cells.append(codes['black'])
+                cols.append(mc(1, 7))
+                sweep = COOL if sweep is WARM else WARM
+                i = 0
+                continue
+            for half in range(2):
+                cells.append(codes[(ch, half)])
+                cols.append(mc(*sweep[i]))
+            i += 1
+        cells.append(codes['black'])
+        cols.append(mc(1, 7))
+    def plain(n):
+        cells.extend([codes['plain']] * n)
+        cols.extend([mc(*PLAIN)] * n)
+    plain(4)
+    name(WARM)
+    plain(9)
+    name(COOL)
+    plain(4)
+    assert len(cells) == BOARD_WIDTH, len(cells)
+    return bytes(cells), cols
 
 
 def pitch():
-    rows = [bytes.fromhex(l.strip()) for l in open(os.path.join(DATA, 'pitch.txt'))
-            if l.strip() and not l.startswith('#')]
-    old, new = board(BOARD_OLD), board(BOARD_NEW)
-    assert len(old) == len(new)
-    return [r.replace(old, new) for r in rows]
+    rows = ground()
+    rows[BOARD_ROW][:BOARD_WIDTH] = board_row()[0]
+    return [bytes(r) for r in rows]
+
+
+def colours():
+    """the cells' own colours where they are not white: [(row, 79
+    colours)] - the crowd's shirts, the boards"""
+    rnd = random.Random(1)
+    rows = pitch()
+    white = ted_of(1, range(8)) | 0x08
+    out = []
+    for y, r in enumerate(rows):
+        cols = [white] * len(r)
+        for x, c in enumerate(r):
+            if c in CROWD_CHARS:
+                cols[x] = mc(*rnd.choice(CROWD))
+        if y == BOARD_ROW:
+            cols[:BOARD_WIDTH] = board_row()[1]
+        if any(c != white for c in cols):
+            out.append((y, cols))
+    return out
 
 
 def chars():
@@ -93,6 +197,9 @@ def chars():
             for p in line:
                 v = v << 2 | '.bkw'.index(p)
             font[c * 8 + y] = v
+    codes, shapes = board_chars()
+    for k, c in codes.items():
+        font[c * 8:c * 8 + 8] = bytes(shapes[k])
     return font
 
 
@@ -261,6 +368,16 @@ def main():
             hexrows(out, r, 40)
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
+        tint = colours()
+        out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
+        out.write('crow_of:                ; each ground row: its colours\' number, $FF white\n')
+        idx = {y: i for i, (y, _) in enumerate(tint)}
+        hexrows(out, bytes(idx.get(y, 255) for y in range(h)))
+        out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
+        out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')
+        for i, (y, cols) in enumerate(tint):
+            out.write('cmap%d:                  ; ground row %d\n' % (i, y))
+            hexrows(out, bytes(cols), 40)
         spr = sprites()
         figs = [figure(black_socks(half_shadow(spr[b])) if b in RUN_FRAMES else spr[b], b in BLACK)
                 for b in IMAGES]
