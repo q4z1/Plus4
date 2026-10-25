@@ -56,9 +56,13 @@ is on the pitch decides where in it he stands - he runs there. The yellow
 team sends its player nearest the ball after it; with it at his feet he
 takes it towards the cyan goal and shoots from close in. The joystick
 moves to the cyan player nearest the ball. As in Sensible Soccer, the
-players make up their minds every second frame; the ball and the two at
-it move every frame, the others once for each picture, by all the frames
-since the last.
+players make up their minds every second frame; the ball, the two at it
+and the keepers move every frame, the others every third, and each
+picture shows those where they are by then - their way is straight and
+steady, so it is their place frame by frame however the pictures fall.
+A new place in the formation does not send a player sprinting: he goes
+as fast as gets him there by about when the next one comes, his feet as
+fast as he goes, gliding along with the play instead of hopping.
 
 Over a touch line the ball goes to the other team for a throw-in; over a
 goal line, between the posts and under the bar, it is a goal and the

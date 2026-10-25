@@ -29,7 +29,8 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, score
+        .export play_init, play_frame, play_show, score
+        .export sh_xl, sh_xh, sh_yl, sh_yh
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
@@ -64,7 +65,7 @@ KEEPER_SEES = 32                ; the keeper goes for a ball this near his line
 CATCH_X     = 8                 ; the keeper catches the ball this near,
 CATCH_Y     = 6
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
-SLACK       = 6                 ; a place this near the last one is the same
+SLACK       = 2                 ; a place this near the last one is the same
 SPEED_CHASE = 1102              ; after the ball
 SHOOT_FROM  = 150               ; the other team shoots from this near
 NEAR        = 32                ; distance squared: the ball at his feet
@@ -139,6 +140,10 @@ o_run:  .res NOBJ               ; frames to its next step
 o_mov:  .res NOBJ               ; players: 1 while on the way somewhere
 o_new:  .res NOBJ               ; 1: a new destination, the way not yet worked out
 o_skip: .res NOBJ               ; 1: passed over by play_others last time
+sh_xl:  .res NOBJ               ; where to show each: play_show
+sh_xh:  .res NOBJ
+sh_yl:  .res NOBJ
+sh_yh:  .res NOBJ
 o_snf:  .res NOBJ               ; 1: the step times 3 in o_s*, 0: not yet
 o_sxf:  .res NOBJ
 o_sxl:  .res NOBJ
@@ -438,6 +443,87 @@ dbg_step:
         sta joy
         rts
 
+; play_show: where each is to be shown, sh_*: where he is - the others,
+; moved only every third frame (play_others), on by their step for each
+; frame since (they run straight at their speed), so that the picture
+; shows them where they are, frame by frame, however the pictures fall
+play_show:
+        ldx #NOBJ - 1
+@one:   lda o_xl,x
+        sta sh_xl,x
+        lda o_xh,x
+        sta sh_xh,x
+        lda o_yl,x
+        sta sh_yl,x
+        lda o_yh,x
+        sta sh_yh,x
+        cpx #PLAYERS            ; (the ball, the two at it and the keepers
+        bcs @next               ; move every frame; those standing are
+        txa                     ; where they are)
+        beq @next
+        cpx #11
+        beq @next
+        cpx ctrl
+        beq @next
+        cpx chaser
+        beq @next
+        lda o_mov,x
+        beq @next
+        lda #3                  ; the frames since he moved
+        sec
+        sbc po_cnt
+        ldy o_skip,x
+        beq :+
+        clc
+        adc #3
+:       tay
+        beq @next
+        jsr sh_on
+@next:  dex
+        bpl @one
+        rts
+
+; sh_on: sh_* of X on by Y of its steps (sign-extended, with what it has
+; below the pixel). Keeps X.
+sh_on:
+        lda o_xf,x
+        sta z_t8
+        lda o_yf,x
+        sta tmp + 1
+@add:   lda z_t8
+        clc
+        adc o_vxf,x
+        sta z_t8
+        lda o_vxl,x
+        bmi :+
+        adc sh_xl,x
+        sta sh_xl,x
+        bcc @y
+        inc sh_xh,x
+        bcs @y
+:       adc sh_xl,x
+        sta sh_xl,x
+        bcs @y
+        dec sh_xh,x
+@y:     lda tmp + 1
+        clc
+        adc o_vyf,x
+        sta tmp + 1
+        lda o_vyl,x
+        bmi :+
+        adc sh_yl,x
+        sta sh_yl,x
+        bcc @more
+        inc sh_yh,x
+        bcs @more
+:       adc sh_yl,x
+        sta sh_yl,x
+        bcs @more
+        dec sh_yh,x
+@more:  dey
+        bne @add
+        rts
+
 ; others: the others moved every third frame
 others:
         dec po_cnt
@@ -496,8 +582,8 @@ play_others:
         iny
         bne @move
 :       jsr far                 ; far from the ball, his half's time: next
-        bcc @move               ; time
-        ldy #1
+        ldy #1                  ; time (far takes Y)
+        bcc @move
         txa
         eor po_turn
         lsr a
@@ -524,15 +610,7 @@ play_others:
         sta o_step,x
         sta o_mov,x
         beq @next
-:       lda o_run,x             ; a step every four frames
-        sec
-        sbc z_nf
-        bpl @ran
-:       inc o_step,x
-        clc
-        adc #4
-        bmi :-
-@ran:   sta o_run,x
+:       jsr stride
 @next:  ldx z_obj
         dex
         bmi @done
@@ -2323,14 +2401,88 @@ place_formation:
         sta o_tyl,x
         lda z_py + 1
         sta o_tyh,x
-        lda #<SPEED_JOG
-        sta o_spl,x
-        lda #>SPEED_JOG
-        sta o_sph,x
-        lda #1
+        jsr pace                ; as fast as gets him there by the next
+        lda #1                  ; place: gliding along with the ball
         sta o_mov,x
         sta o_new,x
 @keep:  rts
+
+; stride: player X's running picture on for z_nf frames: a step every
+; 16 / (speed / 256) frames - every 4 at full speed, slower when he goes
+; slower (no feet faster than the ground goes by). Keeps X.
+stride:
+        ldy o_sph,x
+        bne :+
+        iny                     ; (under 256: as 256)
+:       lda #0
+:       clc
+        adc z_nf
+        dey
+        bne :-
+        sta z_t8                ; (speed / 256 * frames)
+        lda o_run,x
+        sec
+        sbc z_t8
+        bpl @ran
+:       inc o_step,x
+        clc
+        adc #16
+        bmi :-
+@ran:   sta o_run,x
+        rts
+
+; pace: player X's speed for his new place: its way from him (the
+; longer way across or along) * 12 - there in about 43 frames, still
+; going when the next place comes (32) - from 192 up to SPEED_JOG.
+; Keeps X.
+pace:
+        lda o_txl,x
+        sec
+        sbc o_xl,x
+        sta tmp
+        lda o_txh,x
+        sbc o_xh,x
+        jsr abs16
+        bne @fast
+        sta z_t8
+        lda o_tyl,x
+        sec
+        sbc o_yl,x
+        sta tmp
+        lda o_tyh,x
+        sbc o_yh,x
+        jsr abs16
+        bne @fast
+        cmp z_t8
+        bcs :+
+        lda z_t8
+:       cmp #SPEED_JOG / 12 + 1
+        bcs @fast
+        cmp #16
+        bcs :+
+        lda #16                 ; (192 at least)
+:       ldy #0                  ; * 4
+        sty tmp
+        asl a
+        rol tmp
+        asl a
+        rol tmp
+        sta z_t8
+        ldy tmp
+        asl a                   ; + * 8
+        rol tmp
+        clc
+        adc z_t8
+        sta o_spl,x
+        tya
+        adc tmp
+        sta o_sph,x
+        rts
+@fast:  lda #<SPEED_JOG
+        sta o_spl,x
+        lda #>SPEED_JOG
+        sta o_sph,x
+        rts
 
 ; slack: carry clear if the difference A:Y is within SLACK either way
 slack:

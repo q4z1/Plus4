@@ -12,7 +12,7 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame
+        .import play_init, play_frame, play_show, sh_xl, sh_xh, sh_yl, sh_yh
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__
@@ -121,7 +121,8 @@ loop:
 :       jsr play_frame
         dec tmp
         bne :-
-@go:    jsr place
+@go:    jsr play_show           ; (where each is, frame by frame)
+        jsr place
         jsr follow
         jsr eng_begin
         jsr sort
@@ -133,15 +134,15 @@ loop:
 ; (ymap_lo/hi[y], y < 768: by its high byte, straight from the table)
 place:
         ldx #FIGS - 1
-@fig:   lda o_xl,x
+@fig:   lda sh_xl,x
         sec
         sbc #GROUND_X
         sta s_xl,x
-        lda o_xh,x
+        lda sh_xh,x
         sbc #0
         sta s_xh,x
-        ldy o_yl,x
-        lda o_yh,x
+        ldy sh_yl,x
+        lda sh_yh,x
         beq @y0
         lsr a
         bcs @y1
