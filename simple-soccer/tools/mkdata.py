@@ -285,7 +285,12 @@ RUN_BASE = [0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C]
 # Then the ball turning (four pictures), and its shadow (its own colour
 # black, from the C64's).
 RUN_FRAMES = [b + f for b in RUN_BASE for f in (0, 1, 3)]
-IMAGES = RUN_FRAMES + [0x40, 0x41, 0x42, 0x43, 0x54]
+# Then the poses: lying feet first (sliding tackles, one each way), the
+# keeper's dives (in the air, one each way), down on the ground, and
+# holding the ball up
+POSES = [('SLIDE_A', 0x4E), ('SLIDE_B', 0x52), ('DIVE_A', 0x57), ('DIVE_B', 0x5B),
+         ('DOWN', 0x59), ('HOLD', 0x5A)]
+IMAGES = RUN_FRAMES + [0x40, 0x41, 0x42, 0x43, 0x54] + [b for _, b in POSES]
 BLACK = {0x54}
 BALL_IMAGES = {0x40, 0x41, 0x42, 0x43}  # white in the shared light colour
 
@@ -452,7 +457,8 @@ def main():
             out.write('cmap%d:                  ; ground row %d\n' % (i, y))
             hexrows(out, bytes(cols), 40)
         spr = sprites()
-        figs = [figure(black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else spr[b], b in BLACK,
+        figs = [figure(black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else
+                       no_shadow(spr[b]) if b in dict(POSES).values() else spr[b], b in BLACK,
                        b in BALL_IMAGES) for b in IMAGES]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi, light11\n        .rodata\n')
         out.write('light11:                ; a byte\'s %11 pixels made %01\n')
@@ -490,6 +496,8 @@ def main():
         out.write('IMAGES      = %d\n' % len(IMAGES))
         out.write('IMG_BALL    = %d            ; four, turning\n' % IMAGES.index(0x40))
         out.write('IMG_SHADOW  = %d\n' % IMAGES.index(0x54))
+        for name, b in POSES:
+            out.write('IMG_%-8s= %d\n' % (name, IMAGES.index(b)))
         out.write('YMAP        = %d            ; ymap_*: pitch y 0..YMAP-1\n\n' % YMAP)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))
         # the skin a little lighter than the C64's light red

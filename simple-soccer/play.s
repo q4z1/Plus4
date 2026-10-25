@@ -29,7 +29,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, score
+        .export play_init, play_frame, pose_of, score
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
@@ -71,6 +71,9 @@ SLIDE_REACH = 225               ; the ball this near (squared) it reaches,
 SLIDE_Z     = 8                 ; this low
 SLIDE_FROM  = 576               ; the yellow chaser slides from 24 away,
 SLIDE_WAIT  = 100               ; and not again for so many frames
+DIVE_T      = 28                ; a keeper's dive: frames in the air and down,
+DIVE_AIR    = 16                ; the first so many in the air
+DIVE_FROM   = 8                 ; and he dives for a ball this far across
 KEEPER_SEES = 32                ; the keeper goes for a ball this near his line
 CATCH_X     = 8                 ; the keeper catches the ball this near,
 CATCH_Y     = 6
@@ -150,6 +153,8 @@ o_mov:  .res NOBJ               ; players: 1 while on the way somewhere
 o_new:  .res NOBJ               ; 1: a new destination, the way not yet worked out
 o_slide: .res NOBJ              ; frames left of a sliding tackle, 0 none
 o_hit:  .res NOBJ               ; 1: the tackle has reached the ball
+o_dive: .res NOBJ               ; a keeper's frames left of a dive, 0 none
+o_dvd:  .res NOBJ               ; its way: 0 right, 1 left
 c_axl:  .res NOBJ               ; aim's last way and speed: the same
 c_axh:  .res NOBJ               ; again, the step is still right
 c_ayl:  .res NOBJ
@@ -457,7 +462,10 @@ keepers_move:
         ldx #0
         jsr @one
         ldx #11
-@one:   cpx ctrl
+@one:   lda o_dive,x            ; (a dive's time)
+        beq :+
+        dec o_dive,x
+:       cpx ctrl
         beq :+
         cpx chaser
         beq :+
@@ -2966,7 +2974,12 @@ keeper:
         cpx ctrl                ; (not while the joystick has him, nor
         beq @done               ; while he holds the ball)
         cpx taker
-        bne :+
+        beq @done
+        lda o_dive,x            ; diving: in the air his dive goes on, down
+        beq :+                  ; he stays down
+        cmp #DIVE_T - DIVE_AIR + 1
+        bcs @done
+        jmp stand
 @done:  rts
 :       stx z_obj
         lda o_xl + BALL         ; across: 304 + (ball - 304) / 4, between
@@ -3218,7 +3231,32 @@ k_shot:
         sta z_ks
         lda #>SPEED_DIVE
         sta z_ks + 1
-        rts
+        lda o_dive,x            ; far across from him: a dive that way
+        bne @in
+        ldy #0
+        lda z_px
+        sec
+        sbc o_xl,x
+        sta tmp
+        lda z_px + 1
+        sbc o_xh,x
+        bpl :+
+        iny                     ; (left)
+        eor #$FF
+        sta tmp + 1
+        lda tmp
+        eor #$FF
+        sta tmp
+        lda tmp + 1
+:       bne :+
+        lda tmp
+        cmp #DIVE_FROM
+        bcc @in
+:       tya
+        sta o_dvd,x
+        lda #DIVE_T
+        sta o_dive,x
+@in:    rts
 
 ; div16: z_dvd = z_dvd / z_dvs (16 bits, unsigned). Keeps X.
 div16:
@@ -3312,6 +3350,8 @@ within:
 hold:
         stx taker
         stx last_pl
+        lda #0                  ; (caught: up with it)
+        sta o_dive,x
         lda #R_KEEPER
         sta rs_kind
         ldy #0                  ; his team, the way he faces
@@ -3517,4 +3557,50 @@ cpu_tackle:
         clc
         rts
 @no:    sec
+        rts
+
+; ---- poses ------------------------------------------------------------------
+
+; pose_of: A = the picture for player X other than running, $FF none: a
+; sliding tackle lying feet first (down when it has stopped), a keeper
+; diving (down after it), or holding the ball up. Keeps X.
+pose_of:
+        lda o_slide,x
+        beq @keeper
+        lda o_spl,x
+        ora o_sph,x
+        beq @down
+        lda o_dir,x             ; feet first: the right half of the ways
+        cmp #4                  ; one picture, the left half the other
+        lda #IMG_SLIDE_B
+        bcc :+
+        lda #IMG_SLIDE_A
+:       rts
+@keeper:
+        txa
+        beq :+
+        cpx #11
+        bne @none
+:       lda o_dive,x
+        beq @hold
+        cmp #DIVE_T - DIVE_AIR + 1
+        bcc @down
+        lda o_dvd,x
+        beq :+
+        lda #IMG_DIVE_B
+        rts
+:       lda #IMG_DIVE_A
+        rts
+@hold:  lda kickoff             ; holding the ball, his to kick out
+        beq @none
+        cpx taker
+        bne @none
+        lda rs_kind
+        cmp #R_KEEPER
+        bne @none
+        lda #IMG_HOLD
+        rts
+@down:  lda #IMG_DOWN
+        rts
+@none:  lda #$FF
         rts

@@ -12,7 +12,7 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame
+        .import play_init, play_frame, pose_of
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__
@@ -283,6 +283,9 @@ draw:
         lda s_yh,x
         sbc #0
         sta fig_y + 1
+        jsr pose_of             ; (lying, diving, holding the ball)
+        cmp #$FF
+        bne @img
         lda o_step,x
         and #3
         tay
@@ -291,7 +294,7 @@ draw:
         asl a
         adc tmp2                ; direction * 3
         adc step_img,y
-        sta fig_img
+@img:   sta fig_img
         lda #COL_TEAM1
         cpx #11
         bcc :+
