@@ -290,7 +290,43 @@ RUN_FRAMES = [b + f for b in RUN_BASE for f in (0, 1, 3)]
 # holding the ball up
 POSES = [('SLIDE_A', 0x4E), ('SLIDE_B', 0x52), ('DIVE_A', 0x57), ('DIVE_B', 0x5B),
          ('DOWN', 0x59), ('HOLD', 0x5A)]
-IMAGES = RUN_FRAMES + [0x40, 0x41, 0x42, 0x43, 0x54] + [b for _, b in POSES]
+# Then the figures of the score and the minute shown while the ball is
+# dead: digits 3 x 7 multicolour pixels, and a dash, drawn like players
+DIGITS = {
+    '0': ['ccc', 'c.c', 'c.c', 'c.c', 'c.c', 'c.c', 'ccc'],
+    '1': ['.c.', 'cc.', '.c.', '.c.', '.c.', '.c.', 'ccc'],
+    '2': ['ccc', '..c', '..c', 'ccc', 'c..', 'c..', 'ccc'],
+    '3': ['ccc', '..c', '..c', '.cc', '..c', '..c', 'ccc'],
+    '4': ['c.c', 'c.c', 'c.c', 'ccc', '..c', '..c', '..c'],
+    '5': ['ccc', 'c..', 'c..', 'ccc', '..c', '..c', 'ccc'],
+    '6': ['ccc', 'c..', 'c..', 'ccc', 'c.c', 'c.c', 'ccc'],
+    '7': ['ccc', '..c', '..c', '.c.', '.c.', '.c.', '.c.'],
+    '8': ['ccc', 'c.c', 'c.c', 'ccc', 'c.c', 'c.c', 'ccc'],
+    '9': ['ccc', 'c.c', 'c.c', 'ccc', '..c', '..c', 'ccc'],
+    '-': ['...', '...', '...', 'ccc', '...', '...', '...'],
+}
+DIGIT_ORDER = '0123456789-'
+
+
+def digit_pic(ch):
+    """a digit as a sprite: 12 x 21, its pixels in the cell's colour, a
+    black edge round them so it reads over the grass and the lines"""
+    rows = [['.'] * 12 for _ in range(21)]
+    for y, line in enumerate(DIGITS[ch]):
+        for x, v in enumerate(line):
+            if v == 'c':
+                rows[y + 1][x + 1] = 'c'
+    for y in range(21):
+        for x in range(12):
+            if rows[y][x] == '.' and any(0 <= y + dy < 21 and 0 <= x + dx < 12
+                                         and rows[y + dy][x + dx] == 'c'
+                                         for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                rows[y][x] = 'k'
+    return [''.join(r) for r in rows]
+
+
+IMAGES = RUN_FRAMES + [0x40, 0x41, 0x42, 0x43, 0x54] + [b for _, b in POSES] \
+    + ['digit' + ch for ch in DIGIT_ORDER]
 BLACK = {0x54}
 BALL_IMAGES = {0x40, 0x41, 0x42, 0x43}  # white in the shared light colour
 
@@ -457,9 +493,10 @@ def main():
             out.write('cmap%d:                  ; ground row %d\n' % (i, y))
             hexrows(out, bytes(cols), 40)
         spr = sprites()
-        figs = [figure(black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else
-                       no_shadow(spr[b]) if b in dict(POSES).values() else spr[b], b in BLACK,
-                       b in BALL_IMAGES) for b in IMAGES]
+        figs = [figure(digit_pic(b[5]) if isinstance(b, str) else
+                       black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else
+                       no_shadow(spr[b]) if b in dict(POSES).values() else spr[b],
+                       b in BLACK, b in BALL_IMAGES) for b in IMAGES]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi, light11\n        .rodata\n')
         out.write('light11:                ; a byte\'s %11 pixels made %01\n')
         hexrows(out, bytes(light11(b) for b in range(256)))
@@ -498,6 +535,7 @@ def main():
         out.write('IMG_SHADOW  = %d\n' % IMAGES.index(0x54))
         for name, b in POSES:
             out.write('IMG_%-8s= %d\n' % (name, IMAGES.index(b)))
+        out.write('IMG_DIGIT   = %d            ; 0-9, then the dash\n' % IMAGES.index('digit0'))
         out.write('YMAP        = %d            ; ymap_*: pitch y 0..YMAP-1\n\n' % YMAP)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))
         # the skin a little lighter than the C64's light red

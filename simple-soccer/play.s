@@ -29,7 +29,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, pose_of, score
+        .export play_init, play_frame, pose_of, score, game_min, hud
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
@@ -71,6 +71,8 @@ SLIDE_REACH = 225               ; the ball this near (squared) it reaches,
 SLIDE_Z     = 8                 ; this low
 SLIDE_FROM  = 576               ; the yellow chaser slides from 24 away,
 SLIDE_WAIT  = 100               ; and not again for so many frames
+MIN_FRAMES  = 100               ; frames to a minute of the match (90 in 3)
+DEAD_HALF   = 150               ; frames dead at half time and full time
 DIVE_T      = 28                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
 DIVE_FROM   = 8                 ; and he dives for a ball this far across
@@ -188,6 +190,11 @@ cpu_t:      .res 1              ; the yellow team's: till they take it
 last_team:  .res 1              ; who touched the ball last: the team,
 last_pl:    .res 1              ; the player
 touch_t:    .res 1              ; frames since the ball was touched
+min_t:      .res 1              ; frames into the minute
+game_min:   .res 1              ; the match's minute, 0-90
+half:       .res 1              ; 1: the second half
+full:       .res 1              ; 1: full time - till fire starts a new match
+hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (held's)
 hd_y:       .res 1
 cpu_slide:  .res 1              ; frames till the yellow chaser may slide again
@@ -364,6 +371,7 @@ stand:
 ; ---- a frame --------------------------------------------------------------
 
 play_frame:
+        jsr clock
         inc frame_n
         lda dbg_on              ; (a test's plan: the stick as it says,
         beq :+                  ; frame by frame)
@@ -371,7 +379,10 @@ play_frame:
 :
         lda dead_t              ; the ball dead: it rolls on, no one has
         beq @live               ; it, the others go to their places
-        dec dead_t
+        lda full                ; (full time: dead till fire)
+        beq :+
+        jsr new_match
+:       dec dead_t
         bne :+
         jmp restart
 :       lda frame_n
@@ -3542,8 +3553,8 @@ cpu_tackle:
         sbc #>(SLIDE_FROM + 1)
         bcs @no
         jsr mate_way            ; facing the ball: the way from it to him
-        bcs @no                 ; turned round, in eighths
-        clc
+        bcs :+                  ; turned round, in eighths (on it: the way
+        clc                     ; he faces)
         adc #128 + 16
         lsr a
         lsr a
@@ -3551,7 +3562,7 @@ cpu_tackle:
         lsr a
         lsr a
         sta o_dir,x
-        jsr slide
+:       jsr slide
         lda #SLIDE_WAIT
         sta cpu_slide
         clc
@@ -3603,4 +3614,95 @@ pose_of:
 @down:  lda #IMG_DOWN
         rts
 @none:  lda #$FF
+        rts
+
+; ---- the match's time ---------------------------------------------------
+
+; clock: a frame of the match's time (not while a set piece waits, nor
+; after full time): at 45 minutes half time, the yellow team to kick
+; off, at 90 full time; and hud, the score and minute shown, while the
+; ball is dead for a kick-off
+clock:
+        lda #0
+        ldy rs_kind
+        bne :+
+        ldy kickoff
+        bne @hud
+        ldy dead_t
+        beq :+
+@hud:   lda #1
+:       sta hud
+        lda kickoff
+        ora full
+        bne @done
+        inc min_t
+        lda min_t
+        cmp #MIN_FRAMES
+        bcc @done
+        lda #0
+        sta min_t
+        inc game_min
+        lda game_min
+        cmp #45
+        bne :+
+        lda #1
+        sta half
+        sta rs_team             ; (the yellow team kicks off again)
+        bne @whistle
+:       cmp #90
+        bne @done
+        lda #1
+        sta full
+        lda #0
+        sta rs_team
+@whistle:
+        lda #DEAD_HALF
+        jmp whistle
+@done:  rts
+
+; whistle: the ball dead A frames, for a kick-off in the middle (rs_team's)
+whistle:
+        sta dead_t
+        lda #R_KICKOFF
+        sta rs_kind
+        lda #0
+        sta goal
+        lda #<304
+        sta rs_x
+        lda #>304
+        sta rs_x + 1
+        lda #<369
+        sta rs_y
+        lda #>369
+        sta rs_y + 1
+        lda #$FF
+        sta chaser
+        sta at_n
+        sta recv
+        ldx ctrl
+        jmp stand
+
+; new_match: after full time, the ball kept dead till fire, which starts
+; a new match: no goals, the first minute, the cyan team to kick off
+new_match:
+        lda min_t               ; (the result shown 2 seconds at least:
+        cmp #MIN_FRAMES         ; min_t counts them, the clock stopped)
+        bcs :+
+        inc min_t
+        bcc @on
+:       lda joy
+        and #J_FIRE
+        bne :+
+@on:    inc dead_t              ; (dead on)
+        rts
+:       lda #0
+        sta full
+        sta half
+        sta game_min
+        sta min_t
+        sta score
+        sta score + 1
+        sta rs_team
+        lda #1
+        sta dead_t              ; (the kick-off next frame)
         rts

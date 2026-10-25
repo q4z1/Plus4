@@ -12,7 +12,7 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, pose_of
+        .import play_init, play_frame, pose_of, score, game_min, hud
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__
@@ -83,6 +83,7 @@ order:  .res FIGS               ; the figures from the top down
 s_off:  .res FIGS               ; 1: not in this picture (seen)
 tmp:    .res 1
 tmp2:   .res 1
+hud_n:  .res 1                  ; draw_hud's place
 s_i:    .res 1                  ; sort's
 s_j:    .res 1
 
@@ -126,6 +127,7 @@ loop:
         jsr eng_begin
         jsr sort
         jsr draw
+        jsr draw_hud
         jsr eng_end             ; (waits while a picture is still waiting)
         jmp loop
 
@@ -364,6 +366,69 @@ draw_ball:
         clc
         adc #IMG_BALL
         sta fig_img
+        jmp fig_draw
+
+; draw_hud: while the ball is dead for a kick-off, the score and the
+; minute at the top left of the view - drawn as figures, at a place on
+; the ground that moves with the view, so they keep still on the screen
+HUD_X       = 20                ; (from the view's left, top)
+HUD_Y       = 10
+draw_hud:
+        lda hud
+        bne :+
+        rts
+:       lda #COL_LINE
+        sta fig_col
+        lda #0
+        sta hud_n
+        lda score               ; cyan - yellow
+        jsr hud_digit
+        lda #10                 ; (the dash)
+        jsr hud_digit
+        lda score + 1
+        jsr hud_digit
+        inc hud_n               ; (a gap)
+        lda game_min            ; the minute
+        ldx #0
+:       cmp #10
+        bcc :+
+        sbc #10
+        inx
+        bne :-
+:       pha
+        txa
+        jsr hud_digit
+        pla
+        jmp hud_digit
+
+; hud_digit: digit A (9 at most; 10 the dash) at the HUD's next place
+hud_digit:
+        cmp #11
+        bcc :+
+        lda #9
+:       clc
+        adc #IMG_DIGIT
+        sta fig_img
+        lda hud_n               ; x: the view's + HUD_X + n * 9
+        asl a
+        asl a
+        asl a
+        adc hud_n               ; (* 9)
+        adc #HUD_X
+        clc
+        adc cam_x
+        sta fig_x
+        lda cam_x + 1
+        adc #0
+        sta fig_x + 1
+        lda cam_y
+        clc
+        adc #HUD_Y
+        sta fig_y
+        lda cam_y + 1
+        adc #0
+        sta fig_y + 1
+        inc hud_n
         jmp fig_draw
 
 ; seen: carry clear if figure X may be in the view at all - its feet

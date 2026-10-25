@@ -19,6 +19,9 @@ from shot import PRG, WORK, BITS, labels, held_from_start  # noqa: E402
 
 # (frame, direction): from that frame on; none lets go, end ends it
 PLANS = {
+    # the kick-off passed on, then the stick left alone: the yellow team
+    # goes for it
+    'idle': [(0, 'none'), (20, 'right'), (30, 'right+fire'), (33, 'none'), (1000, 'end')],
     # out to the wing, the winger standing with the ball: the yellow
     # chaser comes for it
     'standing': [(0, 'none'), (20, 'right'), (30, 'right+fire'), (33, 'none'),

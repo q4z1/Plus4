@@ -9,8 +9,8 @@ with their shadows, the stands and the boards around the pitch.
 their formation, the player of yours nearest the ball, who dribbles it,
 passes it and shoots, with aftertouch, the other team going for the
 ball, the keepers, sliding tackles, and the rules - throw-ins, goal
-kicks, corners, goals and kick-offs; the view follows the ball. Still to
-come: the keepers' dives, the score on screen, the time.
+kicks, corners, goals and kick-offs, the score and the time; the view
+follows the ball.
 
 ![The kick-off](screenshots/kickoff.png)
 
@@ -78,6 +78,12 @@ or for a few frames after a kick: the other team cannot just run it
 off him, only win it with a sliding tackle - fire for you, the yellow
 chaser when he gets near. A tackle reaching the ball knocks it on the
 way the player slides.
+
+A match is 90 minutes in three real ones. At 45 the referee blows for
+half time and the yellow team kicks off again; at 90 the result stays
+till fire starts a new match. While the ball is dead for a kick-off -
+after a goal, at half time, at the start - the score and the minute
+show at the top left of the view.
 
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.
