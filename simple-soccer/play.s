@@ -198,6 +198,8 @@ touch_t:    .res 1              ; frames since the ball was touched
 min_t:      .res 1              ; frames into the minute
 game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
+flip:       .res 1              ; 1: the sides changed - the cyan team at the
+                                ; top, attacking down
 full:       .res 1              ; 1: full time - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (held's)
@@ -205,12 +207,14 @@ cp_from:    .res 1              ; cpu_pass's: the passer, the receiver,
 cp_to:      .res 1
 cp_y:       .res 2              ; his y,
 cp_d:       .res 2              ; his way squared
+cp_k:       .res 2              ; (how far on a team-mate is)
 hd_y:       .res 1
 cpu_slide:  .res 1              ; frames till the yellow chaser may slide again
 recv:       .res 1              ; the cyan player a pass went to, $FF none,
 recv_t:     .res 1              ; and the frames he still goes to meet it
 score:      .res 2              ; goals, cyan and yellow
 r_t:        .res 1              ; the rules': attackers, the team's last
+r_s:        .res 1              ; (the side: 0 top, 1 bottom)
 ; a test's plan for the joystick, by the match's frames: (frame low, high,
 ; J_ bits) each, $FFFF the end; dbg_on set to 2 starts it - the frames
 ; counted from then, and the match's own counters from 0 too, so that it
@@ -353,10 +357,50 @@ line_up:
         inx
         cpx #11
         bne @pl
-        ldx #PLAYERS - 1        ; standing where they are
+        lda flip                ; the sides changed: each team where the
+        beq @stand              ; other was
+        ldx #10
+@swap:  lda o_xl,x
+        ldy o_xl + 11,x
+        sta o_xl + 11,x
+        tya
+        sta o_xl,x
+        lda o_xh,x
+        ldy o_xh + 11,x
+        sta o_xh + 11,x
+        tya
+        sta o_xh,x
+        lda o_yl,x
+        ldy o_yl + 11,x
+        sta o_yl + 11,x
+        tya
+        sta o_yl,x
+        lda o_yh,x
+        ldy o_yh + 11,x
+        sta o_yh + 11,x
+        tya
+        sta o_yh,x
+        lda o_dir,x
+        ldy o_dir + 11,x
+        sta o_dir + 11,x
+        tya
+        sta o_dir,x
+        dex
+        bpl @swap
+@stand: ldx #PLAYERS - 1        ; standing where they are
 :       jsr stand
         dex
         bpl :-
+        rts
+
+; top_of: A = 1 if player X's team plays from the top (attacking down),
+; 0 from the bottom; Z set for 0. Keeps X, Y.
+top_of:
+        lda #0
+        cpx #11
+        bcc :+
+        lda #1
+:       eor flip
         rts
 
 ; stand: object X stopped, its destination where it is
@@ -2136,6 +2180,17 @@ place_formation:
         cpx #11
         bcc :+
         ldy formation + 1
+:       sta z_ti                ; (the sides changed: the other team's
+        lda flip                ; areas - the tables have the team at the
+        beq :+                  ; bottom first)
+        lda z_ti
+        clc
+        adc #11
+        cmp #22
+        bcc :++
+        sbc #22
+        bcs :++
+:       lda z_ti
 :       clc                     ; (formation * 22 + player)
         adc form22,y
         sta z_ti
@@ -2446,10 +2501,7 @@ chase:
         sta o_sph,x
 @done:  rts
 @have:  ; near the goal: a shot at it
-        lda o_yl,x
-        cmp #<(689 - SHOOT_FROM)
-        lda o_yh,x
-        sbc #>(689 - SHOOT_FROM)
+        jsr in_range
         bcs @shoot
         jsr cpu_pass            ; (a cyan player close: a pass on)
         bcc @done2
@@ -2476,11 +2528,12 @@ chase:
         lda tmp + 1
         adc o_xh + BALL
         sta o_txh + BALL
-        lda #<1000
+        ldy flip                ; (1000 on towards it)
+        lda shot_dyl,y
         clc
         adc o_yl + BALL
         sta o_tyl + BALL
-        lda #>1000
+        lda shot_dyh,y
         adc o_yh + BALL
         sta o_tyh + BALL
         lda #<SHOT_SPEED
@@ -2513,7 +2566,15 @@ chase:
         sbc o_xh,x
         bcs @dir
         ldy #5                  ; (right of it: down and left)
-@dir:   tya
+@dir:   lda flip                ; (the sides changed: up, or up and in)
+        beq :+
+        tya
+        eor #$FF
+        sec
+        adc #4
+        and #7
+        tay
+:       tya
         sta o_dir,x
         lda o_xl,x              ; he runs that way, with it
         clc
@@ -2681,20 +2742,25 @@ rules:
         eor #1
         sta rs_team
         jmp @dead
-@y:     ldy #0                  ; the top goal line: the cyan team attacks it
+@y:     ldy #0                  ; the top goal line (the cyan team attacks
+                                ; it, sides not changed)
         lda o_yl,x
         cmp #<LINE_T
         lda o_yh,x
         sbc #>LINE_T
         bcc @line
-        iny                     ; the bottom one: the yellow team
+        iny                     ; the bottom one
         lda #<LINE_B
         cmp o_yl,x
         lda #>LINE_B
         sbc o_yh,x
         bcc @line
         rts
-@line:  sty r_t                ; (the attackers)
+@line:  sty r_s                ; (the side)
+        tya                     ; (the attackers: the side's other team,
+        eor flip                ; the sides changed)
+        sta r_t
+        tay
         lda o_xl,x
         cmp #<POST_L
         lda o_xh,x
@@ -2748,7 +2814,7 @@ rules:
         sta rs_x
         lda corner_xh,y
         sta rs_x + 1
-        ldy r_t
+        ldy r_s
         lda corner_yl,y
         sta rs_y
         lda corner_yh,y
@@ -2763,7 +2829,7 @@ rules:
         sta rs_x
         lda gkick_xh,y
         sta rs_x + 1
-        ldy r_t
+        ldy r_s
         lda gkick_yl,y
         sta rs_y
         lda gkick_yh,y
@@ -3150,19 +3216,21 @@ keeper:
 ; k_line: tmp = keeper X's goal line; z_t8 bit 7 set for the top one
 ; (the yellow keeper's), out from it downwards. Keeps X.
 k_line:
-        lda #<LINE_B
-        ldy #>LINE_B
-        cpx #11
-        bcc :+
+        jsr top_of
+        beq :+
         lda #<LINE_T
         ldy #>LINE_T
-:       sta tmp
+        sta tmp
+        sty tmp + 1
+        lda #$80
+        sta z_t8
+        rts
+:       lda #<LINE_B
+        ldy #>LINE_B
+        sta tmp
         sty tmp + 1
         lda #0
-        cpx #11
-        bcc :+
-        lda #$80
-:       sta z_t8
+        sta z_t8
         rts
 
 ; k_posts: z_px between the posts (POST_L + 7 .. POST_R - 2)
@@ -3417,11 +3485,12 @@ hold:
         sta o_dive,x
         lda #R_KEEPER
         sta rs_kind
-        ldy #0                  ; his team, the way he faces
-        lda #0
-        cpx #11
+        ldy #0                  ; his team, the way he faces: out from
+        cpx #11                 ; his goal
         bcc :+
         iny
+:       jsr top_of
+        beq :+
         lda #4
 :       sty rs_team
         sty last_team
@@ -3441,8 +3510,8 @@ hold:
         lda o_xh,x
         sta o_xh + BALL
         ldy #<(-5)
-        cpx #11
-        bcc :+
+        jsr top_of
+        beq :+
         ldy #5
 :       tya
         jsr sext
@@ -3700,6 +3769,7 @@ clock:
         bne :+
         lda #1
         sta half
+        sta flip                ; (the sides change)
         sta rs_team             ; (the yellow team kicks off again)
         bne @whistle
 :       cmp #90
@@ -3757,6 +3827,7 @@ new_match:
         sta score
         sta score + 1
         sta rs_team
+        sta flip
         lda #1
         sta dead_t              ; (the kick-off next frame)
         rts
@@ -3803,14 +3874,27 @@ cpu_pass:
         lda tmp + 1
         sbc #>PASS_MIN
         bcc @next               ; (too near)
-        lda o_yl,x
-        cmp cp_y
+        lda o_yl,x              ; how far on: y, or 738 - y the sides
+        sta cp_k                ; changed
         lda o_yh,x
+        sta cp_k + 1
+        lda flip
+        beq :+
+        lda #<738
+        sec
+        sbc o_yl,x
+        sta cp_k
+        lda #>738
+        sbc o_yh,x
+        sta cp_k + 1
+:       lda cp_k
+        cmp cp_y
+        lda cp_k + 1
         sbc cp_y + 1
         bcc @next
-        lda o_yl,x
+        lda cp_k
         sta cp_y
-        lda o_yh,x
+        lda cp_k + 1
         sta cp_y + 1
         lda tmp
         sta cp_d
@@ -3850,24 +3934,27 @@ cpu_pass:
 support:
         lda kickoff
         ora dead_t
-        bne @done
+        bne @out
         lda frame_n
         and #6
-        bne @done
+        bne @out
         ldx chaser2
-        bmi @done
+        bmi @out
         cpx chaser
-        beq @done
+        beq @out
         lda o_slide,x
-        bne @done
-        ldy #0                  ; (goal side: 24 up)
+        beq :+
+@out:   rts
+:       ldy #0                  ; (goal side: 24 up)
         lda last_team
         bne :+
         lda #<(-24)
+        jsr updown
         sta tmp + 1
         lda #0
         beq @set
 :       lda #72                 ; (ahead: 72 down, 48 towards the middle)
+        jsr updown
         sta tmp + 1
         lda #48
         ldy o_xh + BALL
@@ -3902,4 +3989,41 @@ support:
         lda #1
         sta o_mov,x
         sta o_new,x
-@done:  rts
+        rts
+
+; in_range: carry set if the yellow chaser X is close enough to the goal
+; his team attacks to shoot (SHOOT_FROM). Keeps X.
+in_range:
+        lda flip
+        bne :+
+        lda o_yl,x              ; (down: from 689 - SHOOT_FROM on)
+        cmp #<(LINE_B - SHOOT_FROM)
+        lda o_yh,x
+        sbc #>(LINE_B - SHOOT_FROM)
+        rts
+:       lda o_yl,x              ; (up: below 49 + SHOOT_FROM)
+        cmp #<(LINE_T + SHOOT_FROM)
+        lda o_yh,x
+        sbc #>(LINE_T + SHOOT_FROM)
+        bcc :+
+        clc
+        rts
+:       sec
+        rts
+
+; updown: A (signed) for the yellow team going down; negated the sides
+; changed. Keeps X, Y.
+updown:
+        pha
+        lda flip
+        beq :+
+        pla
+        eor #$FF
+        clc
+        adc #1
+        rts
+:       pla
+        rts
+
+shot_dyl:   .byte <1000, <(-1000)
+shot_dyh:   .byte >1000, >(-1000)
