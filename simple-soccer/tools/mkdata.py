@@ -28,6 +28,7 @@ The colours are the TED's nearest to the C64's (VICE's "pepto" palette
 against the one Yape shows, tools/yape-pal.txt).
 """
 import math
+import functools
 import os
 import random
 import re
@@ -162,10 +163,69 @@ def board_row():
     return bytes(cells), cols
 
 
-def pitch():
+def board_pitch():
     rows = ground()
     rows[BOARD_ROW][:BOARD_WIDTH] = board_row()[0]
     return [bytes(r) for r in rows]
+
+
+def pitch():
+    return ground_and_font()[0]
+
+
+# The goals' shadows at half their size: the band of black below each goal
+# 7 lines high, the wedge right of its right post 6 pixels wide. Of the
+# band the first 3 lines stay and its edge comes right after them; of the
+# wedge, 2 pixels from the post. Only black pixels go (posts, nets, lines
+# stay). (pixel rows of the band, of the wedge; the right post's x)
+GOAL_SHADOWS = [(range(109, 116), range(99, 107), 158),     # the top goal
+                (range(477, 484), range(469, 477), 158)]    # the bottom one
+
+
+@functools.lru_cache(None)
+def ground_and_font():
+    """the ground (79 x 67 codes) and its characters, the boards in and
+    the goals' shadows halved - cells changed get codes of their own"""
+    rows = [bytearray(r) for r in board_pitch()]
+    font = base_chars()
+
+    def px(x, y):
+        b = font[rows[y // 8][x // 4] * 8 + y % 8]
+        return b >> (6 - 2 * (x % 4)) & 3
+    canvas = {}
+    for band, wedge, post in GOAL_SHADOWS:
+        x0, x1 = 30 * 4, 44 * 4
+        old = {(x, y): px(x, y) for y in list(band) + list(wedge) for x in range(x0, x1)}
+        new = dict(old)
+        b = list(band)
+        for x in range(x0, x1):
+            def keep(y):                # (what is not black stays)
+                return old[(x, y)] if old[(x, y)] != 2 else 0
+            new[(x, b[3])] = 2 if old[(x, b[6])] == 2 else keep(b[3])    # the edge
+            for y in b[4:]:
+                new[(x, y)] = keep(y)
+            for y in wedge:
+                if x > post + 2 and old[(x, y)] == 2:
+                    new[(x, y)] = 0
+        canvas.update({k: v for k, v in new.items() if v != old[k]})
+    cells = {}
+    for (x, y), v in canvas.items():
+        cells.setdefault((x // 4, y // 8), {})[(x % 4, y % 8)] = v
+    used = set(c for r in rows for c in r)
+    free = [c for c in range(1, 256) if c not in used]
+    made = {}
+    for (cx, cy), ch in sorted(cells.items()):
+        c = rows[cy][cx]
+        data = bytearray(font[c * 8:c * 8 + 8])
+        for (px_, py), v in ch.items():
+            sh = 6 - 2 * px_
+            data[py] = data[py] & ~(3 << sh) & 255 | v << sh
+        data = bytes(data)
+        if data not in made:
+            made[data] = free.pop(0)
+            font[made[data] * 8:made[data] * 8 + 8] = data
+        rows[cy][cx] = made[data]
+    return [bytes(r) for r in rows], font
 
 
 def colours():
@@ -188,6 +248,10 @@ def colours():
 
 
 def chars():
+    return ground_and_font()[1]
+
+
+def base_chars():
     txt = open(os.path.join(DATA, 'chars.txt')).read()
     font = bytearray(256 * 8)
     for m in re.finditer(r'char ([0-9a-f]{2})\n((?:[.bkw]{4}\n){8})', txt):

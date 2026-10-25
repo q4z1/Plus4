@@ -119,7 +119,8 @@ and the players' skin at once. A cell's own colour is a player's shirt
 where he has a bit of shirt in it; with nothing on the pitch in that
 colour, a player can take any cell and nothing under him changes. (Two
 players of different teams in one cell: the one behind loses his shirt
-there.) The socks are black, and the players have no shadow.
+there.) The socks are black, the players have no shadow, and the goals'
+shadows are half the C64's.
 
 Where the TED does more than the C64, the game uses it: a cell's own
 colour can be any of eight hues in eight shades, so every spectator in
