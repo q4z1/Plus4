@@ -373,8 +373,10 @@ draw_ball:
 ; draw_hud: while the ball is dead for a kick-off, the score and the
 ; minute at the top left of the view - drawn as figures, at a place on
 ; the ground that moves with the view, so they keep still on the screen
-HUD_X       = 20                ; (from the view's left, top)
-HUD_Y       = 10
+HUD_X       = 20                ; (from the view's left, top - or bottom,
+HUD_Y       = 10                ; the stands at the top of the view: no
+HUD_LOW     = 170               ; figure goes over them, see engine.s tint)
+HUD_HIGH    = 80                ; (the view higher than this: at the bottom)
 draw_hud:
         lda hud
         bne :+
@@ -423,9 +425,16 @@ hud_digit:
         lda cam_x + 1
         adc #0
         sta fig_x + 1
+        ldx #HUD_Y              ; (the stands in view at the top: at the
+        lda cam_y + 1           ; bottom)
+        bne :+
         lda cam_y
+        cmp #HUD_HIGH
+        bcs :+
+        ldx #HUD_LOW
+:       txa
         clc
-        adc #HUD_Y
+        adc cam_y
         sta fig_y
         lda cam_y + 1
         adc #0

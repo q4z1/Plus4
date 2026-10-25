@@ -38,6 +38,8 @@ def main():
     rows = mkdata.pitch()
     font = mkdata.chars()
     white = mkdata.ted_of(1, range(8)) | 0x08
+    # the wave's spectators: as they sit, or a pixel up
+    up = {c: list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]] for c, _ in mkdata.WAVE}
     tint = dict(mkdata.colours())
     lab = labels()
     v = Vice(PRG, WORK)
@@ -94,7 +96,8 @@ def main():
                         ch = rows[row + r][col + c]
                         code = codes[r * 40 + c]
                         checked += 1
-                        if fnt[code * 8:code * 8 + 8] != list(font[ch * 8:ch * 8 + 8]):
+                        got = fnt[code * 8:code * 8 + 8]
+                        if got != list(font[ch * 8:ch * 8 + 8]) and got != up.get(ch):
                             bad += 1
                             if bad <= 10:
                                 print('picture %d at %d,%d: cell %d,%d code %d is not character %02x'

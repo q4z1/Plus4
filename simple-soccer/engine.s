@@ -33,6 +33,7 @@
         .import _pitch_map, _pitch_font
         .import img_ox, img_oy, img_lo, img_hi, light11
         .import crow_of, cmap_lo, cmap_hi
+        .import la_codes, la_step, la_norm, la_up
         .import snd_init, snd_tick
 
 POOL        = 112               ; first code for figures
@@ -125,6 +126,12 @@ b_next:     .res 3              ; next code never given out in its set
 fl_n:       .res 3              ; codes given back, in its fl
 b_nlist:    .res 3              ; figures in its list
 since_full: .res 1              ; turns since a picture was built anew
+la_last:    .res 1              ; wave's: frames at the last picture,
+la_w:       .res 1              ; frames left of a wave, 0 none,
+la_t:       .res 1              ; frames till the next,
+la_th:      .res 1
+la_rnd:     .res 1              ; (its random)
+la_s:       .res 1              ; (the step raised, $FF none)
 tc_col:     .res 3              ; tint's: each picture's col0 when tinted,
 tc_row:     .res 3 * SCR_H      ; and each of its rows' ground row's
                                 ; colours (crow_of), $FF white
@@ -241,6 +248,8 @@ eng_init:
         lda #VBL_LINE
         sta TED_RCMP
         jsr snd_init
+        lda #$5A                ; (the wave's random: anything but 0)
+        sta la_rnd
         lda #$02                ; raster interrupt, compare bit 8 = 0
         sta TED_IRQEN
         cli
@@ -443,6 +452,7 @@ eng_begin:
 :       jsr cells
 eng_pool:
         jsr tint
+        jsr wave
         lda #POOL
         sta pool_next
         ldx back
@@ -522,6 +532,101 @@ tint:
         rts
 
 tc_base:    .byte 0, SCR_H, 2 * SCR_H
+
+; wave: the back picture's spectators of the wave (la_codes) as they sit,
+; or a pixel up those of its step while a wave runs - in the characters
+; the picture's cache has them in, whichever those are. A wave every few
+; seconds (150 frames and up to 255 more, at random), its steps 8 frames
+; each.
+WAVE_STEP   = 8
+WAVE_STEPS  = 3
+wave:
+        lda frames              ; the frames since the last picture
+        sec
+        sbc la_last
+        sta z_t
+        lda frames
+        sta la_last
+        lda la_w                ; a wave running: on
+        beq @idle
+        sec
+        sbc z_t
+        bcs :+
+        lda #0
+:       sta la_w
+        jmp @show
+@idle:  lda la_t                ; till the next
+        sec
+        sbc z_t
+        sta la_t
+        lda la_th
+        sbc #0
+        sta la_th
+        bcs @show
+        lda #WAVE_STEP * WAVE_STEPS
+        sta la_w
+        lda la_rnd              ; the one after: 150 + 0-255 frames on
+        lsr a
+        bcc :+
+        eor #$B8
+:       sta la_rnd
+        clc
+        adc #150
+        sta la_t
+        lda #0
+        adc #0
+        sta la_th
+@show:  lda #$FF                ; the step raised: (24 - left) / 8, $FF
+        ldx la_w                ; none
+        beq :+
+        lda #WAVE_STEP * WAVE_STEPS
+        sec
+        sbc la_w
+        lsr a
+        lsr a
+        lsr a
+:       sta la_s
+        ldx back
+        lda xlat_hi,x
+        sta z_src + 1
+        lda #0
+        sta z_src
+        ldx #LA_N - 1
+@one:   ldy la_codes,x          ; in the cache?
+        lda (z_src),y
+        beq @next
+        stx z_t
+        jsr char_at             ; (z_fnt: its pixels)
+        ldx z_t
+        txa
+        asl a
+        asl a
+        asl a
+        tax                     ; (its eight bytes)
+        ldy z_t
+        lda la_step,y
+        cmp la_s
+        beq @up
+        ldy #0
+:       lda la_norm,x
+        sta (z_fnt),y
+        inx
+        iny
+        cpy #8
+        bne :-
+        beq @back
+@up:    ldy #0
+:       lda la_up,x
+        sta (z_fnt),y
+        inx
+        iny
+        cpy #8
+        bne :-
+@back:  ldx z_t
+@next:  dex
+        bpl @one
+        rts
+LA_N        = 7
 r40_lo:
         .repeat SCR_H, I
         .byte <(I * SCR_W)

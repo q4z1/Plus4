@@ -155,7 +155,10 @@ boards along the pitch show the name in letters two cells wide - the
 C64's one-cell letters cannot make an M - each in a colour of a sweep
 from yellow to red or cyan to blue, on black. Those cells get their
 colours from a map of the rows that have them, put in again only when
-the view has moved.
+the view has moved. Now and then a wave runs through the stands: the
+spectators of one kind after another raised a pixel - they sit side by
+side in that order, so the raise runs along the rows (the characters
+in each picture's cache rewritten, whatever codes they have there).
 
 ![Running, the view following](screenshots/running.png)
 

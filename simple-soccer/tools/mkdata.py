@@ -171,6 +171,11 @@ def title_font():
     return font
 
 
+# The wave in the stands: these spectators raised a pixel by turns - in
+# a row they stand side by side in this order, so the raise runs along it
+WAVE = [(0x05, 0), (0x03, 1), (0x04, 2), (0xCF, 0), (0xD0, 1), (0xD1, 0), (0xD2, 1)]
+
+
 def mc(hue, lum):
     """a multicolour cell's own colour (bit 3: multicolour)"""
     return lum << 4 | hue | 0x08
@@ -560,6 +565,15 @@ def main():
         out.write('\n        .export title_font\n        .segment "TITLE"\n')
         out.write('title_font:              ; characters 32 on\n')
         hexrows(out, bytes(title_font()))
+        out.write('\n        .export la_codes, la_step, la_norm, la_up\n        .rodata\n')
+        font = chars()
+        out.write('la_codes: .byte ' + ', '.join('$%02X' % c for c, _ in WAVE) + '    ; the wave\'s\n')
+        out.write('la_step:  .byte ' + ', '.join(str(k) for _, k in WAVE) + '    ; raised at\n')
+        out.write('la_norm:                ; as they sit\n')
+        hexrows(out, bytes(b for c, _ in WAVE for b in font[c * 8:c * 8 + 8]), 8)
+        out.write('la_up:                  ; a pixel up\n')
+        hexrows(out, bytes(b for c, _ in WAVE
+                           for b in list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]]), 8)
         tint = colours()
         out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
         out.write('crow_of:                ; each ground row: its colours\' number, $FF white\n')
