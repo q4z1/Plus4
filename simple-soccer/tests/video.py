@@ -2,14 +2,15 @@
 """A video of the game as Yape shows it, every frame (50 a second), with
 the joystick moved to a plan: build/simple-soccer.mp4.
 
-    tests/video.py [out.mp4] [--plan name]
+    tests/video.py [out.mp4] [--plan name] [--title]
 
 Yape (without a window) saves each frame's picture while the plan runs:
 directions held for so many seconds, through dbg_joy (Yape stops for a
 moment each time, the pictures go on where they were). ffmpeg makes the
 video, twice the size, sharp pixels. With --plan, the joystick follows
 one of tests/plan.py's plans instead, by the match's own frames: the same
-moves every time, started once the teams stand in their places.
+moves every time, started once the teams stand in their places. With
+--title it begins with the title, fire pressed after a moment.
 """
 import glob
 import os
@@ -41,10 +42,16 @@ def main():
         return encode(out)
     for f in glob.glob(SHOT + '.*'):
         os.remove(f)
-    y = Yape(PRG, series=FRAMES)
+    title = '--title' in sys.argv
+    y = Yape(PRG, series=FRAMES, title=title)
     try:
         y.run_for(4)                    # loading and the start
         host('pkill', '-USR2', '-x', 'yapesdl')
+        if title:                       # the title a moment, then fire
+            y.run_for(3)
+            y.poke(lab['dbg_joy'], [BITS['fire']])
+            y.run_for(0.3)
+            y.poke(lab['dbg_joy'], [0])
         if name:
             y.run_for(3)                # (the teams in their places)
             plan.start(y, lab, plan.PLANS[name])

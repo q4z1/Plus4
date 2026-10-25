@@ -12,7 +12,7 @@ ball, the keepers, sliding tackles, and the rules - throw-ins, goal
 kicks, corners, goals and kick-offs, the score and the time; the view
 follows the ball.
 
-![The kick-off](screenshots/kickoff.png)
+![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
 ## Controls
 
@@ -159,6 +159,8 @@ the view has moved. Now and then a wave runs through the stands: the
 spectators of one kind after another raised a pixel - they sit side by
 side in that order, so the raise runs along the rows (the characters
 in each picture's cache rewritten, whatever codes they have there).
+
+![The stands and the boards](screenshots/stands.png)
 
 ![Running, the view following](screenshots/running.png)
 
