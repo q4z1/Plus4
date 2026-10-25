@@ -29,11 +29,11 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, play_others, score
+        .export play_init, play_frame, score
+        .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
-        .import s_off
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -59,6 +59,8 @@ R_GOALKICK  = 2
 R_CORNER    = 3
 R_KEEPER    = 4                 ; (the keeper has it)
 SPEED_DIVE  = 1280              ; the keeper going for a shot
+RECV_T      = 100               ; frames a pass's receiver runs to meet it
+KEEPER_SEES = 32                ; the keeper goes for a ball this near his line
 CATCH_X     = 8                 ; the keeper catches the ball this near,
 CATCH_Y     = 6
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
@@ -157,17 +159,14 @@ c_th:   .res NOBJ
 ctrl:       .res 1              ; the joystick's player
 fire_n:     .res 1              ; frames fire has been held
 frame_n:    .res 1              ; frames played
-frames_due: .res 1              ; frames the others have not been moved for
+po_cnt:     .res 1              ; frames till the others move (play_others)
 b_th:       .res 1              ; the ball's angle, speed, product's low
 b_spl:      .res 1              ; bytes as aim last worked them out,
 b_sph:      .res 1
 b_px0:      .res 1
 b_py0:      .res 1
 b_d:        .res 8              ; and sin * 16 (x, y), sin * 10 (x, y)
-po_nf1:     .res 1              ; play_others': this time's frames in threes,
-po_nf2:     .res 1              ; this and the last time's,
-po_last:    .res 1              ; the last time's,
-po_turn:    .res 1              ; and which half waits
+po_turn:    .res 1              ; play_others': which half waits
 kickoff:    .res 1              ; 1 till the kick-off or set piece is taken
 taker:      .res 1              ; who takes it, $FF none
 dead_t:     .res 1              ; frames the ball is still dead, 0 in play
@@ -179,8 +178,19 @@ rs_y:       .res 2
 cpu_t:      .res 1              ; the yellow team's: till they take it
 last_team:  .res 1              ; who touched the ball last: the team,
 last_pl:    .res 1              ; the player
+recv:       .res 1              ; the cyan player a pass went to, $FF none,
+recv_t:     .res 1              ; and the frames he still goes to meet it
 score:      .res 2              ; goals, cyan and yellow
 r_t:        .res 1              ; the rules': attackers, the team's last
+; a test's plan for the joystick, by the match's frames: (frame low, high,
+; J_ bits) each, $FFFF the end; dbg_on set to 2 starts it - the frames
+; counted from then, and the match's own counters from 0 too, so that it
+; goes the same way in any emulator
+dbg_on:     .res 1
+dbg_i:      .res 1              ; the next entry's place
+dbg_t:      .res 2              ; frames since
+dbg_bits:   .res 1              ; the stick as the plan has it
+dbg_plan:   .res 3 * 64
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
 formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
@@ -266,6 +276,9 @@ play_init:
         lda #$FF                ; no aftertouch, no one after the ball
         sta at_n
         sta chaser
+        sta recv
+        lda #3
+        sta po_cnt
         lda #1
         sta kickoff
         rts
@@ -342,7 +355,10 @@ stand:
 
 play_frame:
         inc frame_n
-        inc frames_due
+        lda dbg_on              ; (a test's plan: the stick as it says,
+        beq :+                  ; frame by frame)
+        jsr dbg_step
+:
         lda dead_t              ; the ball dead: it rolls on, no one has
         beq @live               ; it, the others go to their places
         dec dead_t
@@ -353,6 +369,7 @@ play_frame:
         bcs :+
         jsr team_ai
 :       jsr keepers_move
+        jsr others
         jsr ball_move
         jmp net
 @live:  jsr control
@@ -366,6 +383,7 @@ play_frame:
         bmi :+
         jsr @one
 :       jsr keepers_move
+        jsr others
         jsr aftertouch
         jsr ball_move
         jsr catch
@@ -379,6 +397,54 @@ play_frame:
         beq :+
         stx z_obj
         jsr player_move
+:       rts
+
+; dbg_step: the joystick a frame on in a test's plan
+dbg_step:
+        lda dbg_on
+        cmp #2
+        bne :+
+        lda #1                  ; (starting)
+        sta dbg_on
+        sta frame_n
+        lda #0
+        sta dbg_t
+        sta dbg_t + 1
+        sta dbg_i
+        sta dbg_bits
+        sta switch_t
+        sta po_turn
+        lda #3
+        sta po_cnt
+:       inc dbg_t
+        bne :+
+        inc dbg_t + 1
+:       ldy dbg_i
+@look:  lda dbg_t + 1           ; its next entry due: taken
+        cmp dbg_plan + 1,y
+        bcc @hold
+        bne @take
+        lda dbg_t
+        cmp dbg_plan,y
+        bcc @hold
+@take:  lda dbg_plan + 2,y
+        sta dbg_bits
+        iny
+        iny
+        iny
+        sty dbg_i
+        bne @look
+@hold:  lda dbg_bits
+        sta joy
+        rts
+
+; others: the others moved every third frame
+others:
+        dec po_cnt
+        bne :+
+        lda #3
+        sta po_cnt
+        jmp play_others
 :       rts
 
 ; keepers_move: both keepers a frame (unless one is the joystick's or the
@@ -399,33 +465,13 @@ keepers_move:
 
 frames3: .byte 0, 3, 6, 9, 12
 
-; play_others: everyone else on his way somewhere, once for all the
-; frames played since the last time - they only have to be where they
-; are when the picture is drawn (simple-soccer.s, each turn). Those out of the
-; last picture only every second time, for both times' frames: half of
-; them one time, half the next. Always 3 frames at a time, or 6 (the rest
-; left for next time): the step times so many stays the same.
+; play_others: everyone else on his way somewhere, 3 frames at once
+; (play_frame, every third frame - a picture shows every third, and the
+; step times 3 stays the same). Those far from the ball, out of the
+; picture, only every second time, for 6: half of them one time, half
+; the next. All by the match's frames, nothing by the pictures: the
+; match goes the same way however fast they come.
 play_others:
-        lda frames_due
-        cmp #3
-        bcs :+
-        rts                     ; (not yet)
-:       ldy #1                  ; (3 frames)
-        sbc #3
-        cmp #3
-        bcc :+
-        iny                     ; (6)
-        sbc #3
-:       cmp #3                  ; (more than 2 left: forgotten)
-        bcc :+
-        lda #0
-:       sta frames_due
-        sty po_nf1
-        tya
-        clc
-        adc po_last
-        sta po_nf2              ; (with the last time's: at most 4)
-        sty po_last
         inc po_turn
         ldx #PLAYERS - 1
 @pl:    stx z_obj
@@ -442,15 +488,16 @@ play_others:
         bne :+
         sta o_skip,x
         beq @next
-:       ldy po_nf1
+:       ldy #1
         lda o_skip,x            ; passed over last time: both times' frames
         beq :+
         lda #0
         sta o_skip,x
-        ldy po_nf2
+        iny
         bne @move
-:       lda s_off,x             ; out of the picture, his half's time: next time
-        beq @move
+:       jsr far                 ; far from the ball, his half's time: next
+        bcc @move               ; time
+        ldy #1
         txa
         eor po_turn
         lsr a
@@ -491,6 +538,32 @@ play_others:
         bmi @done
         jmp @pl
 @done:  rts
+
+; far: carry set if player X is far from the ball - more than 170 across
+; or 180 along: out of the picture the view on the ball shows. Keeps X.
+far:
+        lda o_xl,x
+        sec
+        sbc o_xl + BALL
+        sta tmp
+        lda o_xh,x
+        sbc o_xh + BALL
+        jsr abs16
+        bne @yes
+        cmp #171
+        bcs @yes
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        sta tmp
+        lda o_yh,x
+        sbc o_yh + BALL
+        jsr abs16
+        bne @yes
+        cmp #181
+        rts
+@yes:   sec
+        rts
 
 ; step_n: player X on by z_k times 3 frames' steps at once - three
 ; steps kept till the step changes (o_snf 0)
@@ -561,7 +634,10 @@ step_n:
 
 ; control: the joystick's player - where he runs, dribbling, fire
 control:
-        ldx ctrl
+        lda recv_t
+        beq :+
+        dec recv_t
+:       ldx ctrl
         lda kickoff             ; the cyan team's set piece: the stick
         beq @stick              ; turns the taker, fire kicks
         lda rs_team
@@ -580,8 +656,8 @@ control:
         lda joy_dir,y
         cmp #8
         bne @run
-        jsr stand               ; the stick let go: he stops
-        lda #$FF
+        jsr meet                ; the stick let go: he stops, or meets a
+        lda #$FF                ; pass, or stops the ball at his feet
         sta drib_dir
         jmp @fire
 @run:   sta o_dir,x
@@ -659,6 +735,53 @@ control:
         bcs @done
         jmp pass
 @done:  rts
+
+; meet: the joystick's player X, the stick let go: a ball come to his
+; feet from someone else he stops there; a pass to him he goes to meet;
+; else he stands. Keeps X.
+meet:
+        jsr dist2
+        lda last_pl             ; (his own kick runs on)
+        cmp ctrl
+        beq @stand
+        lda d2 + 1
+        bne @go
+        lda d2
+        cmp #NEAR + 1
+        bcs @go
+        lda o_zl + BALL
+        cmp #13
+        bcs @go
+        ldx #BALL               ; at his feet: stopped there, his
+        jsr stand
+        lda ctrl
+        sta last_pl
+        lda #0
+        sta last_team
+        lda #$FF
+        sta recv
+        ldx ctrl
+        jmp stand
+@go:    cpx recv                ; a pass to him: after it, while it runs
+        bne @stand
+        lda recv_t
+        beq @stand
+        lda o_xl + BALL
+        sta o_txl,x
+        lda o_xh + BALL
+        sta o_txh,x
+        lda o_yl + BALL
+        sta o_tyl,x
+        lda o_yh + BALL
+        sta o_tyh,x
+        lda #<SPEED_RUN
+        sta o_spl,x
+        lda #>SPEED_RUN
+        sta o_sph,x
+        lda #1
+        sta o_mov,x
+        rts
+@stand: jmp stand
 
 ; inside: player X's destination inside the walls round the pitch (the
 ; ball's, x 19-588, y 20-719) - no one runs into the stands. Keeps X.
@@ -971,6 +1094,8 @@ dribble:
         sta last_team
         lda ctrl
         sta last_pl
+        lda #$FF                ; (a pass met)
+        sta recv
         ldy o_dir,x
         cpy drib_dir
         beq :+
@@ -1064,8 +1189,13 @@ pass:
 @next:  dex
         bpl @look
         ldx mate
-        bpl kick_to
-        ldx ctrl                ; no one: straight on
+        bmi :+
+        stx recv                ; the joystick to him, to meet it
+        stx ctrl
+        lda #RECV_T
+        sta recv_t
+        jmp kick_to
+:       ldx ctrl                ; no one: straight on
         ldy o_dir,x
         jsr ball_ahead
         lda #<1792
@@ -2390,6 +2520,12 @@ switch:
         lda rs_team
         bne :+
         rts
+:       lda recv_t              ; (nor the one a pass goes to)
+        beq :+
+        lda recv
+        cmp ctrl
+        bne :+
+        rts
 :       dec switch_t
         bpl @done
         lda #2                  ; (each sixth frame)
@@ -2580,6 +2716,7 @@ rules:
         lda #$FF                ; no one after it, no more aftertouch
         sta chaser
         sta at_n
+        sta recv
         ldx ctrl
         jmp stand
 
@@ -2710,6 +2847,7 @@ await:
         lda #$FF
         sta chaser
         sta at_n
+        sta recv
         lda rs_team
         bne @cpu
         lda taker
@@ -2830,7 +2968,7 @@ cpu_take:
 ;
 ; A keeper stands between his posts, 8 to 19 pixels out from his line -
 ; the further the ball, the further out - and a quarter of the ball's way
-; from the middle across. A hard ball coming at his goal: he runs to where
+; from the middle across. A ball coming at his goal: he runs to where
 ; it crosses his line, faster. One within his reach and under the bar he
 ; catches, and holds till he kicks it out (the joystick's team: fire).
 
@@ -2986,13 +3124,13 @@ k_posts:
         sta z_px + 1
 :       rts
 
-; k_shot: a hard ball (1536 or more) coming at keeper X's goal, less than
-; 256 from his line z_py (z_t8 bit 7: the top keeper): z_px = where it
+; k_shot: a ball (768 or more) coming at keeper X's goal, KEEPER_SEES
+; from his line z_py or nearer (z_t8 bit 7: the top keeper): z_px = where it
 ; crosses it (x + the frames till then * its step across), z_ks =
 ; SPEED_DIVE. Keeps X.
 k_shot:
         lda o_sph + BALL
-        cmp #>1536
+        cmp #>768
         bcs :+
 @no:    rts
 :       lda z_py                ; dy = his line - the ball's y
@@ -3028,7 +3166,10 @@ k_shot:
         lda #0
         sbc o_vyl + BALL
         sta z_dvs + 1
-@div:   lda z_dvs + 1           ; (at least half a pixel a frame)
+@div:   lda z_dvd + 1           ; (late, as Sensible Soccer's: near his line)
+        cmp #KEEPER_SEES + 1
+        bcs @no
+        lda z_dvs + 1           ; (at least half a pixel a frame)
         bne :+
         lda z_dvs
         bpl @no

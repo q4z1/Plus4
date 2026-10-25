@@ -19,6 +19,7 @@ keepers' dives, tackles, the score on screen, the time.
 | Joystick (either port) | Keyboard | |
 | --- | --- | --- |
 | directions | cursor keys | run, and dribble the ball at your feet |
+| none | | stand - meet a pass, stop a ball that comes to you |
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 
@@ -67,11 +68,16 @@ after a goal - then it is put down with the taker behind it. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot); the yellow team passes to the nearest team-mate.
 
+A pass takes the joystick to the player it goes to; with the stick let
+go he runs to meet it, and stops a ball that comes to his feet.
+
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.
-A hard ball coming at his goal sends him, faster, to where it will
-cross his line; one within his reach he catches - unless it is higher
-than he gets, a lob - and kicks out like a set piece.
+A ball coming at his goal sends him, faster, to where it will cross his
+line - late, as in Sensible Soccer, once it is close: a hard shot into a
+corner beats him, a slow one he gets to. One within his reach he catches
+- unless it is higher than he gets, a lob - and kicks out like a set
+piece.
 
 ## How it is drawn
 

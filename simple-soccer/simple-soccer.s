@@ -12,11 +12,10 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, play_others
+        .import play_init, play_frame
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__
-        .export s_off
 
 MAX_X       = (MAP_W - SCR_W) * 8 + 7
 MAX_Y       = (MAP_H - SCR_H) * 8 + 7
@@ -81,7 +80,7 @@ s_yh:   .res FIGS
 tick:   .res 1                  ; turns of the loop
 played: .res 1                  ; frames played up to
 order:  .res FIGS               ; the figures from the top down
-s_off:  .res FIGS               ; 1: not in the last picture (play.s)
+s_off:  .res FIGS               ; 1: not in this picture (seen)
 tmp:    .res 1
 tmp2:   .res 1
 s_i:    .res 1                  ; sort's
@@ -122,8 +121,7 @@ loop:
 :       jsr play_frame
         dec tmp
         bne :-
-@go:    jsr play_others         ; (the rest of them, once a turn)
-        jsr place
+@go:    jsr place
         jsr follow
         jsr eng_begin
         jsr sort

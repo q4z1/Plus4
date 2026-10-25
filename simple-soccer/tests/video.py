@@ -2,12 +2,14 @@
 """A video of the game as Yape shows it, every frame (50 a second), with
 the joystick moved to a plan: build/simple-soccer.mp4.
 
-    tests/video.py [out.mp4]
+    tests/video.py [out.mp4] [--plan name]
 
 Yape (without a window) saves each frame's picture while the plan runs:
 directions held for so many seconds, through dbg_joy (Yape stops for a
 moment each time, the pictures go on where they were). ffmpeg makes the
-video, twice the size, sharp pixels.
+video, twice the size, sharp pixels. With --plan, the joystick follows
+one of tests/plan.py's plans instead, by the match's own frames: the same
+moves every time, started once the teams stand in their places.
 """
 import glob
 import os
@@ -18,6 +20,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from yape import Yape, SHOT, host  # noqa: E402
 from shot import HERE, PRG, BITS, labels  # noqa: E402
+import plan  # noqa: E402
 
 FRAMES = 1500
 # (direction, seconds): the kick-off passed on, a run up and a pass to the
@@ -30,7 +33,8 @@ PLAN = [('none', 1.0), ('fire', 0.1), ('none', 0.4), ('up', 1.5), ('up+left', 0.
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    name = sys.argv[sys.argv.index('--plan') + 1] if '--plan' in sys.argv else None
+    args = [a for a in sys.argv[1:] if not a.startswith('--') and a != name]
     out = args[0] if args else os.path.join(HERE, 'build', 'simple-soccer.mp4')
     lab = labels()
     if '--again' in sys.argv:           # (the pictures of the last run)
@@ -41,7 +45,10 @@ def main():
     try:
         y.run_for(4)                    # loading and the start
         host('pkill', '-USR2', '-x', 'yapesdl')
-        for d, secs in PLAN:
+        if name:
+            y.run_for(3)                # (the teams in their places)
+            plan.start(y, lab, plan.PLANS[name])
+        for d, secs in ([] if name else PLAN):
             bits = 0
             for p in d.split('+'):
                 bits |= BITS.get(p, 0)
