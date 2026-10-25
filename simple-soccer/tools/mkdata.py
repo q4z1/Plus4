@@ -173,11 +173,10 @@ def pitch():
     return ground_and_font()[0]
 
 
-# The goals' shadows at half their size: the band of black below each goal
-# 7 lines high, the wedge right of its right post 6 pixels wide. Of the
-# band the first 3 lines stay and its edge comes right after them; of the
-# wedge, 2 pixels from the post. Only black pixels go (posts, nets, lines
-# stay). (pixel rows of the band, of the wedge; the right post's x)
+# The goals without the shadows they cast: the band of black below each
+# goal and the wedge right of its right post. Only black pixels go (the
+# posts, the nets, the lines stay). (pixel rows of the band, of the
+# wedge; the right post's x)
 GOAL_SHADOWS = [(range(109, 116), range(99, 107), 158),     # the top goal
                 (range(477, 484), range(469, 477), 158)]    # the bottom one
 
@@ -185,7 +184,7 @@ GOAL_SHADOWS = [(range(109, 116), range(99, 107), 158),     # the top goal
 @functools.lru_cache(None)
 def ground_and_font():
     """the ground (79 x 67 codes) and its characters, the boards in and
-    the goals' shadows halved - cells changed get codes of their own"""
+    the goals' shadows gone - cells changed get codes of their own"""
     rows = [bytearray(r) for r in board_pitch()]
     font = base_chars()
 
@@ -197,15 +196,12 @@ def ground_and_font():
         x0, x1 = 30 * 4, 44 * 4
         old = {(x, y): px(x, y) for y in list(band) + list(wedge) for x in range(x0, x1)}
         new = dict(old)
-        b = list(band)
         for x in range(x0, x1):
-            def keep(y):                # (what is not black stays)
-                return old[(x, y)] if old[(x, y)] != 2 else 0
-            new[(x, b[3])] = 2 if old[(x, b[6])] == 2 else keep(b[3])    # the edge
-            for y in b[4:]:
-                new[(x, y)] = keep(y)
+            for y in band:
+                if old[(x, y)] == 2:
+                    new[(x, y)] = 0
             for y in wedge:
-                if x > post + 2 and old[(x, y)] == 2:
+                if x > post and old[(x, y)] == 2:
                     new[(x, y)] = 0
         canvas.update({k: v for k, v in new.items() if v != old[k]})
     cells = {}
