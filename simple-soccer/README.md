@@ -55,7 +55,10 @@ Everyone else keeps to his place in the team's formation (`data/tactics.txt`,
 eight of them, 4-4-2 for now): each player has an area, and where the ball
 is on the pitch decides where in it he stands - he runs there. The yellow
 team sends its player nearest the ball after it; with it at his feet he
-takes it towards the cyan goal and shoots from close in. The joystick
+takes it towards the cyan goal and shoots from close in - or, a cyan
+player at him, passes to the team-mate furthest on, who goes to meet it.
+Its next nearest goes along: between the ball and his goal while the
+cyan team has it, ahead of it, there to be passed to, while his own does. The joystick
 moves to the cyan player nearest the ball. As in Sensible Soccer, the
 players make up their minds every second frame; everyone moves every
 frame. A new place in the formation does not send a player sprinting: he goes

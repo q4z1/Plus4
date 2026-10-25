@@ -71,6 +71,10 @@ SLIDE_REACH = 225               ; the ball this near (squared) it reaches,
 SLIDE_Z     = 8                 ; this low
 SLIDE_FROM  = 576               ; the yellow chaser slides from 24 away,
 SLIDE_WAIT  = 100               ; and not again for so many frames
+PRESSED     = 784               ; a cyan player this near (squared) the ball
+                                ; makes the yellow one on it pass,
+PASS_MIN    = 900               ; to a team-mate this far (squared) at least,
+PASS_WAIT   = 60                ; then not again for so many frames
 MIN_FRAMES  = 100               ; frames to a minute of the match (90 in 3)
 DEAD_HALF   = 150               ; frames dead at half time and full time
 DIVE_T      = 28                ; a keeper's dive: frames in the air and down,
@@ -196,6 +200,10 @@ half:       .res 1              ; 1: the second half
 full:       .res 1              ; 1: full time - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (held's)
+cp_from:    .res 1              ; cpu_pass's: the passer, the receiver,
+cp_to:      .res 1
+cp_y:       .res 2              ; his y,
+cp_d:       .res 2              ; his way squared
 hd_y:       .res 1
 cpu_slide:  .res 1              ; frames till the yellow chaser may slide again
 recv:       .res 1              ; the cyan player a pass went to, $FF none,
@@ -211,6 +219,8 @@ dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 dbg_plan:   .res 3 * 64
+chaser2:    .res 1              ; the next nearest: in support, $FF none
+y_pass_t:   .res 1              ; frames till the yellow team passes again
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
 formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
@@ -296,6 +306,7 @@ play_init:
         lda #$FF                ; no aftertouch, no one after the ball
         sta at_n
         sta chaser
+        sta chaser2
         sta recv
         lda #1
         sta kickoff
@@ -400,6 +411,9 @@ play_frame:
 :       lda cpu_slide
         beq :+
         dec cpu_slide
+:       lda y_pass_t
+        beq :+
+        dec y_pass_t
 :       jsr control
         lda frame_n             ; the others' minds every second frame, as
         lsr a                   ; Sensible Soccer's
@@ -2089,6 +2103,8 @@ team_ai:
         beq @next
         cpx chaser
         beq @next
+        cpx chaser2
+        beq @next
         cpx taker
         beq @next
         jsr place_formation
@@ -2105,7 +2121,8 @@ team_ai:
         jsr keeper
         ldx #11
         jsr keeper
-:       jmp chase
+:       jsr support
+        jmp chase
 
 ; place_formation: player X's destination, his place in the formation for
 ; where the ball is; jogging. Keeps X.
@@ -2351,19 +2368,41 @@ pick_chaser:
         lda #$FF
         sta mate_d
         sta mate_d + 1
+        sta mate_t              ; (the next nearest's)
+        sta mate_t + 1
+        sta chaser2
+        sta mate
         ldx #PLAYERS - 1
 @look:  jsr mate_dist
         lda tmp
         cmp mate_d
         lda tmp + 1
         sbc mate_d + 1
-        bcs :+
+        bcs @second
+        lda mate_d              ; nearest: the one before is next
+        sta mate_t
+        lda mate_d + 1
+        sta mate_t + 1
+        lda mate
+        sta chaser2
         lda tmp
         sta mate_d
         lda tmp + 1
         sta mate_d + 1
         stx mate
-:       dex
+        jmp @on
+@second:
+        lda tmp
+        cmp mate_t
+        lda tmp + 1
+        sbc mate_t + 1
+        bcs @on
+        lda tmp
+        sta mate_t
+        lda tmp + 1
+        sta mate_t + 1
+        stx chaser2
+@on:    dex
         cpx #11
         bne @look
         lda mate
@@ -2408,7 +2447,13 @@ chase:
         cmp #<(689 - SHOOT_FROM)
         lda o_yh,x
         sbc #>(689 - SHOOT_FROM)
-        bcc @run
+        bcs @shoot
+        jsr cpu_pass            ; (a cyan player close: a pass on)
+        bcc @done2
+        ldx z_obj
+        jmp @run
+@done2: rts
+@shoot:
         lda #<304               ; the ball's destination: 32 times the
         sec                     ; way to the middle of the goal
         sbc o_xl + BALL
@@ -3706,3 +3751,146 @@ new_match:
         lda #1
         sta dead_t              ; (the kick-off next frame)
         rts
+
+; ---- the yellow team's play ---------------------------------------------
+
+; cpu_pass: the yellow chaser X has the ball: with a cyan player close
+; (PRESSED, squared) it goes on to the team-mate furthest towards the
+; cyan goal, PASS_MIN or more away; he is the chaser now, to meet it.
+; Carry clear if passed.
+cpu_pass:
+        lda y_pass_t
+        beq :+
+        sec
+        rts
+:       stx cp_from
+        ldx #10                 ; a cyan player close?
+@near:  jsr mate_dist
+        lda tmp
+        cmp #<PRESSED
+        lda tmp + 1
+        sbc #>PRESSED
+        bcc @press
+        dex
+        bpl @near
+        ldx cp_from             ; (none: on with it)
+        sec
+        rts
+@press: lda #0                  ; the team-mate furthest on
+        sta cp_y
+        sta cp_y + 1
+        lda #$FF
+        sta cp_to
+        ldx #PLAYERS - 1
+@look:  cpx cp_from
+        beq @next
+        jsr mate_dist
+        lda tmp + 1             ; (within 256 either way: not $FFFF)
+        and tmp
+        cmp #$FF
+        beq @next
+        lda tmp
+        cmp #<PASS_MIN
+        lda tmp + 1
+        sbc #>PASS_MIN
+        bcc @next               ; (too near)
+        lda o_yl,x
+        cmp cp_y
+        lda o_yh,x
+        sbc cp_y + 1
+        bcc @next
+        lda o_yl,x
+        sta cp_y
+        lda o_yh,x
+        sta cp_y + 1
+        lda tmp
+        sta cp_d
+        lda tmp + 1
+        sta cp_d + 1
+        stx cp_to
+@next:  dex
+        cpx #11
+        bne @look
+        ldx cp_to
+        bmi @none
+        lda cp_d
+        sta mate_d
+        lda cp_d + 1
+        sta mate_d + 1
+        jsr kick_to
+        lda #1
+        sta last_team
+        jsr touch
+        lda cp_from
+        sta last_pl
+        lda cp_to
+        sta chaser
+        lda #$FF
+        sta chaser2
+        lda #PASS_WAIT
+        sta y_pass_t
+        clc
+        rts
+@none:  ldx cp_from
+        sec
+        rts
+
+; support: the yellow team's next nearest, every eighth frame: the cyan
+; team on the ball, between it and his goal; the yellow team on it,
+; ahead of it, towards the middle - there to be passed to
+support:
+        lda kickoff
+        ora dead_t
+        bne @done
+        lda frame_n
+        and #6
+        bne @done
+        ldx chaser2
+        bmi @done
+        cpx chaser
+        beq @done
+        lda o_slide,x
+        bne @done
+        ldy #0                  ; (goal side: 24 up)
+        lda last_team
+        bne :+
+        lda #<(-24)
+        sta tmp + 1
+        lda #0
+        beq @set
+:       lda #72                 ; (ahead: 72 down, 48 towards the middle)
+        sta tmp + 1
+        lda #48
+        ldy o_xh + BALL
+        cpy #>304
+        bcc :+
+        bne @left
+        ldy o_xl + BALL
+        cpy #<304
+        bcc :+
+@left:  lda #<(-48)
+:
+@set:   jsr sext                ; x: the ball's + A
+        clc
+        adc o_xl + BALL
+        sta o_txl,x
+        lda tmp
+        adc o_xh + BALL
+        sta o_txh,x
+        lda tmp + 1             ; y: the ball's + that
+        jsr sext
+        clc
+        adc o_yl + BALL
+        sta o_tyl,x
+        lda tmp
+        adc o_yh + BALL
+        sta o_tyh,x
+        jsr inside
+        lda #<SPEED_JOG
+        sta o_spl,x
+        lda #>SPEED_JOG
+        sta o_sph,x
+        lda #1
+        sta o_mov,x
+        sta o_new,x
+@done:  rts
