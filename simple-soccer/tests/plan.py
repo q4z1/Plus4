@@ -19,6 +19,21 @@ from shot import PRG, WORK, BITS, labels, held_from_start  # noqa: E402
 
 # (frame, direction): from that frame on; none lets go, end ends it
 PLANS = {
+    # out to the wing, the winger standing with the ball: the yellow
+    # chaser comes for it
+    'standing': [(0, 'none'), (20, 'right'), (30, 'right+fire'), (33, 'none'),
+                 (70, 'up'), (72, 'up+fire'), (75, 'none'),
+                 (86, 'up'), (87, 'up+fire'), (90, 'none'),
+                 (110, 'right'), (111, 'right+fire'), (114, 'none'),
+                 (600, 'end')],
+    # the same, and then the cyan player going for the yellow one with the
+    # ball, and a sliding tackle
+    'tackle': [(0, 'none'), (20, 'right'), (30, 'right+fire'), (33, 'none'),
+               (70, 'up'), (72, 'up+fire'), (75, 'none'),
+               (86, 'up'), (87, 'up+fire'), (90, 'none'),
+               (110, 'right'), (111, 'right+fire'), (114, 'none'),
+               (165, 'down+left'), (175, 'left'), (178, 'left+fire'), (181, 'none'),
+               (600, 'end')],
     # three passes from the kick-off, each met and stopped, out to the
     # right wing, a run up it, a shot bent in from the wing - saved
     'passes': [(0, 'none'), (20, 'right'), (30, 'right+fire'), (33, 'none'),

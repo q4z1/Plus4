@@ -8,9 +8,9 @@ with their shadows, the stands and the boards around the pitch.
 **Work in progress.** What is there: the whole ground, both teams in
 their formation, the player of yours nearest the ball, who dribbles it,
 passes it and shoots, with aftertouch, the other team going for the
-ball, the keepers, and the rules - throw-ins, goal kicks, corners,
-goals and kick-offs; the view follows the ball. Still to come: the
-keepers' dives, tackles, the score on screen, the time.
+ball, the keepers, sliding tackles, and the rules - throw-ins, goal
+kicks, corners, goals and kick-offs; the view follows the ball. Still to
+come: the keepers' dives, the score on screen, the time.
 
 ![The kick-off](screenshots/kickoff.png)
 
@@ -21,6 +21,7 @@ keepers' dives, tackles, the score on screen, the time.
 | directions | cursor keys | run, and dribble the ball at your feet |
 | none | | stand - meet a pass, stop a ball that comes to you |
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
+| fire, the other team on the ball | space | sliding tackle, the way you face |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 
 ## Building and running
@@ -56,11 +57,8 @@ is on the pitch decides where in it he stands - he runs there. The yellow
 team sends its player nearest the ball after it; with it at his feet he
 takes it towards the cyan goal and shoots from close in. The joystick
 moves to the cyan player nearest the ball. As in Sensible Soccer, the
-players make up their minds every second frame; the ball, the two at it
-and the keepers move every frame, the others every third, and each
-picture shows those where they are by then - their way is straight and
-steady, so it is their place frame by frame however the pictures fall.
-A new place in the formation does not send a player sprinting: he goes
+players make up their minds every second frame; everyone moves every
+frame. A new place in the formation does not send a player sprinting: he goes
 as fast as gets him there by about when the next one comes, his feet as
 fast as he goes, gliding along with the play instead of hopping.
 
@@ -74,6 +72,12 @@ a shot); the yellow team passes to the nearest team-mate.
 
 A pass takes the joystick to the player it goes to; with the stick let
 go he runs to meet it, and stops a ball that comes to his feet.
+
+A ball is a team's while its player who touched it last has it by him,
+or for a few frames after a kick: the other team cannot just run it
+off him, only win it with a sliding tackle - fire for you, the yellow
+chaser when he gets near. A tackle reaching the ball knocks it on the
+way the player slides.
 
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.

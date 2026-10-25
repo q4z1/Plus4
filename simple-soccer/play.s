@@ -29,8 +29,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, play_show, score
-        .export sh_xl, sh_xh, sh_yl, sh_yh
+        .export play_init, play_frame, score
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
         .import joy, atan_tab, sin_tab
@@ -61,6 +60,17 @@ R_CORNER    = 3
 R_KEEPER    = 4                 ; (the keeper has it)
 SPEED_DIVE  = 1280              ; the keeper going for a shot
 RECV_T      = 100               ; frames a pass's receiver runs to meet it
+HOLD_T      = 8                 ; a ball touched this few frames ago is held,
+HOLD_D2     = 144               ; and one this near (squared) the player who
+HOLD_Z      = 12                ; touched it, this low: the other team
+                                ; takes it only by a tackle
+SLIDE_T     = 50                ; a sliding tackle's frames,
+SPEED_SLIDE = 1792              ; its speed at first,
+SLIDE_DECEL = 48                ; less each frame,
+SLIDE_REACH = 225               ; the ball this near (squared) it reaches,
+SLIDE_Z     = 8                 ; this low
+SLIDE_FROM  = 576               ; the yellow chaser slides from 24 away,
+SLIDE_WAIT  = 100               ; and not again for so many frames
 KEEPER_SEES = 32                ; the keeper goes for a ball this near his line
 CATCH_X     = 8                 ; the keeper catches the ball this near,
 CATCH_Y     = 6
@@ -98,7 +108,6 @@ z_dvs:      .res 2              ; divisor,
 z_rem:      .res 2              ; remainder
 z_py:       .res 2
 z_nf:       .res 1              ; play_others': frames at once
-z_k:        .res 1              ; (in threes)
 z_f2:       .res 2              ; mul_f's
 z_f10:      .res 2
 z_f16:      .res 2
@@ -139,16 +148,8 @@ o_step: .res NOBJ               ; its running picture (players), turn (ball)
 o_run:  .res NOBJ               ; frames to its next step
 o_mov:  .res NOBJ               ; players: 1 while on the way somewhere
 o_new:  .res NOBJ               ; 1: a new destination, the way not yet worked out
-o_skip: .res NOBJ               ; 1: passed over by play_others last time
-sh_xl:  .res NOBJ               ; where to show each: play_show
-sh_xh:  .res NOBJ
-sh_yl:  .res NOBJ
-sh_yh:  .res NOBJ
-o_snf:  .res NOBJ               ; 1: the step times 3 in o_s*, 0: not yet
-o_sxf:  .res NOBJ
-o_sxl:  .res NOBJ
-o_syf:  .res NOBJ
-o_syl:  .res NOBJ
+o_slide: .res NOBJ              ; frames left of a sliding tackle, 0 none
+o_hit:  .res NOBJ               ; 1: the tackle has reached the ball
 c_axl:  .res NOBJ               ; aim's last way and speed: the same
 c_axh:  .res NOBJ               ; again, the step is still right
 c_ayl:  .res NOBJ
@@ -164,14 +165,12 @@ c_th:   .res NOBJ
 ctrl:       .res 1              ; the joystick's player
 fire_n:     .res 1              ; frames fire has been held
 frame_n:    .res 1              ; frames played
-po_cnt:     .res 1              ; frames till the others move (play_others)
 b_th:       .res 1              ; the ball's angle, speed, product's low
 b_spl:      .res 1              ; bytes as aim last worked them out,
 b_sph:      .res 1
 b_px0:      .res 1
 b_py0:      .res 1
 b_d:        .res 8              ; and sin * 16 (x, y), sin * 10 (x, y)
-po_turn:    .res 1              ; play_others': which half waits
 kickoff:    .res 1              ; 1 till the kick-off or set piece is taken
 taker:      .res 1              ; who takes it, $FF none
 dead_t:     .res 1              ; frames the ball is still dead, 0 in play
@@ -183,6 +182,10 @@ rs_y:       .res 2
 cpu_t:      .res 1              ; the yellow team's: till they take it
 last_team:  .res 1              ; who touched the ball last: the team,
 last_pl:    .res 1              ; the player
+touch_t:    .res 1              ; frames since the ball was touched
+hd_x:       .res 1              ; (held's)
+hd_y:       .res 1
+cpu_slide:  .res 1              ; frames till the yellow chaser may slide again
 recv:       .res 1              ; the cyan player a pass went to, $FF none,
 recv_t:     .res 1              ; and the frames he still goes to meet it
 score:      .res 2              ; goals, cyan and yellow
@@ -282,8 +285,6 @@ play_init:
         sta at_n
         sta chaser
         sta recv
-        lda #3
-        sta po_cnt
         lda #1
         sta kickoff
         rts
@@ -353,7 +354,6 @@ stand:
         sta o_vxl,x
         sta o_vyf,x
         sta o_vyl,x
-        sta o_snf,x
         rts
 
 ; ---- a frame --------------------------------------------------------------
@@ -377,12 +377,20 @@ play_frame:
         jsr others
         jsr ball_move
         jmp net
-@live:  jsr control
+@live:  lda touch_t             ; (frames since the ball's last touch)
+        cmp #255
+        beq :+
+        inc touch_t
+:       lda cpu_slide
+        beq :+
+        dec cpu_slide
+:       jsr control
         lda frame_n             ; the others' minds every second frame, as
         lsr a                   ; Sensible Soccer's
         bcs :+
         jsr team_ai
-:       ldx ctrl                ; the two at the ball and the keepers,
+:       jsr slides
+        ldx ctrl                ; the two at the ball and the keepers,
         jsr @one                ; every frame
         ldx chaser
         bmi :+
@@ -418,9 +426,6 @@ dbg_step:
         sta dbg_i
         sta dbg_bits
         sta switch_t
-        sta po_turn
-        lda #3
-        sta po_cnt
 :       inc dbg_t
         bne :+
         inc dbg_t + 1
@@ -443,95 +448,8 @@ dbg_step:
         sta joy
         rts
 
-; play_show: where each is to be shown, sh_*: where he is - the others,
-; moved only every third frame (play_others), on by their step for each
-; frame since (they run straight at their speed), so that the picture
-; shows them where they are, frame by frame, however the pictures fall
-play_show:
-        ldx #NOBJ - 1
-@one:   lda o_xl,x
-        sta sh_xl,x
-        lda o_xh,x
-        sta sh_xh,x
-        lda o_yl,x
-        sta sh_yl,x
-        lda o_yh,x
-        sta sh_yh,x
-        cpx #PLAYERS            ; (the ball, the two at it and the keepers
-        bcs @next               ; move every frame; those standing are
-        txa                     ; where they are)
-        beq @next
-        cpx #11
-        beq @next
-        cpx ctrl
-        beq @next
-        cpx chaser
-        beq @next
-        lda o_mov,x
-        beq @next
-        lda #3                  ; the frames since he moved
-        sec
-        sbc po_cnt
-        ldy o_skip,x
-        beq :+
-        clc
-        adc #3
-:       tay
-        beq @next
-        jsr sh_on
-@next:  dex
-        bpl @one
-        rts
-
-; sh_on: sh_* of X on by Y of its steps (sign-extended, with what it has
-; below the pixel). Keeps X.
-sh_on:
-        lda o_xf,x
-        sta z_t8
-        lda o_yf,x
-        sta tmp + 1
-@add:   lda z_t8
-        clc
-        adc o_vxf,x
-        sta z_t8
-        lda o_vxl,x
-        bmi :+
-        adc sh_xl,x
-        sta sh_xl,x
-        bcc @y
-        inc sh_xh,x
-        bcs @y
-:       adc sh_xl,x
-        sta sh_xl,x
-        bcs @y
-        dec sh_xh,x
-@y:     lda tmp + 1
-        clc
-        adc o_vyf,x
-        sta tmp + 1
-        lda o_vyl,x
-        bmi :+
-        adc sh_yl,x
-        sta sh_yl,x
-        bcc @more
-        inc sh_yh,x
-        bcs @more
-:       adc sh_yl,x
-        sta sh_yl,x
-        bcs @more
-        dec sh_yh,x
-@more:  dey
-        bne @add
-        rts
-
-; others: the others moved every third frame
-others:
-        dec po_cnt
-        bne :+
-        lda #3
-        sta po_cnt
-        jmp play_others
-:       rts
+; others: the others moved, every frame
+others  = play_others
 
 ; keepers_move: both keepers a frame (unless one is the joystick's or the
 ; chaser, moved already)
@@ -549,58 +467,30 @@ keepers_move:
         jsr player_move
 :       rts
 
-frames3: .byte 0, 3, 6, 9, 12
-
-; play_others: everyone else on his way somewhere, 3 frames at once
-; (play_frame, every third frame - a picture shows every third, and the
-; step times 3 stays the same). Those far from the ball, out of the
-; picture, only every second time, for 6: half of them one time, half
-; the next. All by the match's frames, nothing by the pictures: the
-; match goes the same way however fast they come.
+; play_others: everyone else on his way somewhere a frame on - all of
+; them every frame, as the ball: each picture shows them where they are
 play_others:
-        inc po_turn
+        lda #1                  ; (a frame of running picture)
+        sta z_nf
         ldx #PLAYERS - 1
 @pl:    stx z_obj
-        txa                     ; (the keepers: every frame)
-        beq :+
+        txa                     ; (the keepers, the two at the ball: their
+        beq @next               ; own way)
         cpx #11
-        bne :++
-:       jmp @next
-:       cpx ctrl
+        beq @next
+        cpx ctrl
         beq @next
         cpx chaser
         beq @next
         lda o_mov,x             ; (those standing passed over)
-        bne :+
-        sta o_skip,x
         beq @next
-:       ldy #1
-        lda o_skip,x            ; passed over last time: both times' frames
-        beq :+
-        lda #0
-        sta o_skip,x
-        iny
-        bne @move
-:       jsr far                 ; far from the ball, his half's time: next
-        ldy #1                  ; time (far takes Y)
-        bcc @move
-        txa
-        eor po_turn
-        lsr a
-        bcc @move
-        lda #1
-        sta o_skip,x
-        bne @next
-@move:  sty z_k
-        lda frames3,y
-        sta z_nf
         lda o_new,x             ; the way anew only for a new destination:
         beq :+                  ; on a straight run it stays the same
         lda #0
         sta o_new,x
         jsr aim
         ldx z_obj
-:       jsr step_n
+:       jsr step
         jsr arrive
         lda o_vxf,x             ; there: the standing picture, passed over
         ora o_vxl,x             ; till he has somewhere to go
@@ -613,101 +503,7 @@ play_others:
 :       jsr stride
 @next:  ldx z_obj
         dex
-        bmi @done
-        jmp @pl
-@done:  rts
-
-; far: carry set if player X is far from the ball - more than 170 across
-; or 180 along: out of the picture the view on the ball shows. Keeps X.
-far:
-        lda o_xl,x
-        sec
-        sbc o_xl + BALL
-        sta tmp
-        lda o_xh,x
-        sbc o_xh + BALL
-        jsr abs16
-        bne @yes
-        cmp #171
-        bcs @yes
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        sta tmp
-        lda o_yh,x
-        sbc o_yh + BALL
-        jsr abs16
-        bne @yes
-        cmp #181
-        rts
-@yes:   sec
-        rts
-
-; step_n: player X on by z_k times 3 frames' steps at once - three
-; steps kept till the step changes (o_snf 0)
-step_n:
-        lda o_snf,x
-        bne @go
-        lda #1
-        sta o_snf,x
-        lda o_vxf,x             ; the step times 3: twice, plus once more
-        asl a
-        sta o_sxf,x
-        lda o_vxl,x
-        rol a
-        sta o_sxl,x
-        lda o_sxf,x
-        clc
-        adc o_vxf,x
-        sta o_sxf,x
-        lda o_sxl,x
-        adc o_vxl,x
-        sta o_sxl,x
-        lda o_vyf,x
-        asl a
-        sta o_syf,x
-        lda o_vyl,x
-        rol a
-        sta o_syl,x
-        lda o_syf,x
-        clc
-        adc o_vyf,x
-        sta o_syf,x
-        lda o_syl,x
-        adc o_vyl,x
-        sta o_syl,x
-@go:    lda z_k
-        sta z_t8
-@again: ldy #0                  ; (sign-extended)
-        lda o_sxl,x
-        bpl :+
-        dey
-:       lda o_xf,x
-        clc
-        adc o_sxf,x
-        sta o_xf,x
-        lda o_xl,x
-        adc o_sxl,x
-        sta o_xl,x
-        tya
-        adc o_xh,x
-        sta o_xh,x
-        ldy #0
-        lda o_syl,x
-        bpl :+
-        dey
-:       lda o_yf,x
-        clc
-        adc o_syf,x
-        sta o_yf,x
-        lda o_yl,x
-        adc o_syl,x
-        sta o_yl,x
-        tya
-        adc o_yh,x
-        sta o_yh,x
-        dec z_t8
-        bne @again
+        bpl @pl
         rts
 
 ; control: the joystick's player - where he runs, dribbling, fire
@@ -716,7 +512,10 @@ control:
         beq :+
         dec recv_t
 :       ldx ctrl
-        lda kickoff             ; the cyan team's set piece: the stick
+        lda o_slide,x           ; (sliding: the stick has no say)
+        beq :+
+        rts
+:       lda kickoff             ; the cyan team's set piece: the stick
         beq @stick              ; turns the taker, fire kicks
         lda rs_team
         bne @stick
@@ -782,6 +581,9 @@ control:
         bcs @far
         lda kickoff             ; (not the other team's set piece)
         bne @far
+        lda #0                  ; (nor while the other team holds it)
+        jsr held
+        bcs @far
         jsr dribble
 @far:   lda kickoff
         bne @done
@@ -795,6 +597,18 @@ control:
         bcs :+
         inc fire_n
         lda fire_n
+        cmp #1                  ; just pressed, the other team holding the
+        bne @held               ; ball: a sliding tackle
+        lda kickoff
+        bne @held
+        lda #0
+        jsr held
+        bcc @held
+        lda #$FF
+        sta fire_n
+        ldx ctrl
+        jmp slide
+@held:  lda fire_n
         cmp #SHOT_HOLD
         bne @done
 :       jsr can_kick
@@ -822,6 +636,9 @@ meet:
         lda last_pl             ; (his own kick runs on)
         cmp ctrl
         beq @stand
+        lda #0                  ; (one the other team holds: only a tackle)
+        jsr held
+        bcs @go
         lda d2 + 1
         bne @go
         lda d2
@@ -836,6 +653,7 @@ meet:
         sta last_pl
         lda #0
         sta last_team
+        jsr touch
         lda #$FF
         sta recv
         ldx ctrl
@@ -926,6 +744,7 @@ can_kick:
 shot:
         lda #0
         sta last_team
+        jsr touch
         lda ctrl
         sta last_pl
         ldx ctrl
@@ -1170,6 +989,7 @@ d_abs:
 dribble:
         lda #0
         sta last_team
+        jsr touch
         lda ctrl
         sta last_pl
         lda #$FF                ; (a pass met)
@@ -1228,6 +1048,7 @@ ball_ahead:
 pass:
         lda #0
         sta last_team
+        jsr touch
         lda ctrl
         sta last_pl
         lda #$FF
@@ -1461,7 +1282,9 @@ player_move:
         sta o_step,x
         sta o_mov,x
         rts
-:       dec o_run,x             ; a step every four frames
+:       lda o_slide,x           ; (sliding: the stride as it is)
+        bne :+
+        dec o_run,x             ; a step every four frames
         bpl :+
         lda #3
         sta o_run,x
@@ -1491,7 +1314,6 @@ arrive:
         sta o_xf,x
         sta o_vxf,x
         sta o_vxl,x
-        sta o_snf,x
 @y:     lda o_vyl,x
         ora o_vyf,x
         beq @done
@@ -1510,7 +1332,6 @@ arrive:
         sta o_yf,x
         sta o_vyf,x
         sta o_vyl,x
-        sta o_snf,x
 @done:  rts
 
 ; ball_move: the ball a frame - see the top
@@ -1829,7 +1650,6 @@ aim:
         sta o_vyl,x
         sta c_spl,x             ; (a speed of 0 noted: anew next time)
         sta c_sph,x
-        sta o_snf,x
         rts
 :       lda z_th
         sta c_th,x
@@ -1850,9 +1670,7 @@ aim:
         cmp #$FF
         bne :+
         rts                     ; (at the destination)
-:       lda #0
-        sta o_snf,x
-        cpx #BALL               ; the ball slowed only by its friction:
+:       cpx #BALL               ; the ball slowed only by its friction:
         bne @full               ; less of the same (fric)
         jsr fric
         bcs @full
@@ -2506,6 +2324,11 @@ pick_chaser:
         lda kickoff
         ora dead_t
         bne @done
+        ldx chaser              ; (not while he slides)
+        bmi :+
+        lda o_slide,x
+        bne @done
+:
         lda #$FF
         sta mate_d
         sta mate_d + 1
@@ -2534,10 +2357,17 @@ chase:
         ldx chaser
         bmi @done
         stx z_obj
+        lda o_slide,x           ; (sliding: slides has him)
+        bne @done
         lda #1
         sta o_mov,x
-        jsr ball_near           ; at his feet?
+        jsr ball_near           ; at his feet, and not the cyan team's?
+        bcs :+
+        lda #1
+        jsr held
         bcc @have
+:       jsr cpu_tackle          ; (theirs, and near: a tackle)
+        bcc @done
         lda frame_n             ; after it (where it is, each fourth frame)
         and #3
         bne @done
@@ -2596,6 +2426,7 @@ chase:
         sta o_dzl + BALL
         lda #1
         sta last_team
+        jsr touch
         stx last_pl
         lda #$FF                ; (a moment before he goes after it again)
         sta chaser
@@ -2644,6 +2475,7 @@ chase:
         sta o_sph + BALL
         lda #1
         sta last_team
+        jsr touch
         stx last_pl
 :       rts
 
@@ -2671,6 +2503,10 @@ switch:
         beq :+                  ; keeps it)
         lda rs_team
         bne :+
+        rts
+:       ldx ctrl                ; (nor from one sliding)
+        lda o_slide,x
+        beq :+
         rts
 :       lda recv_t              ; (nor the one a pass goes to)
         beq :+
@@ -3080,6 +2916,7 @@ cpu_take:
         bne @done
         lda #1
         sta last_team
+        jsr touch
         lda taker
         sta last_pl
         lda #$FF                ; the nearest, not the keeper, not the taker
@@ -3485,6 +3322,7 @@ hold:
         lda #4
 :       sty rs_team
         sty last_team
+        jsr touch
         sta o_dir,x
         jsr stand
         ldx #BALL
@@ -3514,3 +3352,169 @@ hold:
         ldx #BALL
         jsr stand
         jmp await
+
+; ---- holding the ball, tackles -------------------------------------------
+;
+; A ball a team has touched in the last HOLD_T frames is that team's: the
+; other cannot stop it or dribble it away, only win it with a sliding
+; tackle - fire for the cyan player, the yellow chaser when he is near.
+; A tackle goes the way the player faces, fast and slower each frame;
+; reaching the ball low, it knocks it on that way.
+
+; touch: the ball just touched (touch_t from 0). Keeps A, X, Y.
+touch:
+        pha
+        lda #0
+        sta touch_t
+        pla
+        rts
+
+; held: carry set if the ball is held by the team other than A's: it
+; touched it HOLD_T frames ago or less, or its player who did has it by
+; him, low. Keeps X, Y.
+held:
+        cmp last_team
+        beq @no
+        lda touch_t
+        cmp #HOLD_T + 1
+        bcc @yes
+        lda o_zl + BALL
+        cmp #HOLD_Z + 1
+        bcs @no
+        stx hd_x
+        sty hd_y
+        ldx last_pl
+        jsr mate_dist
+        ldx hd_x
+        ldy hd_y
+        lda tmp + 1
+        bne @no
+        lda tmp
+        cmp #HOLD_D2 + 1
+        bcs @no
+@yes:   sec
+        rts
+@no:    clc
+        rts
+
+; slide: player X starts a sliding tackle the way he faces. Keeps X.
+slide:
+        lda #SLIDE_T
+        sta o_slide,x
+        lda #0
+        sta o_hit,x
+        lda #1
+        sta o_step,x            ; (a foot forward)
+        sta o_mov,x
+        lda #<SPEED_SLIDE
+        sta o_spl,x
+        lda #>SPEED_SLIDE
+        sta o_sph,x
+        ldy o_dir,x
+        lda o_xl,x
+        clc
+        adc vec_xl,y
+        sta o_txl,x
+        lda o_xh,x
+        adc vec_xh,y
+        sta o_txh,x
+        lda o_yl,x
+        clc
+        adc vec_yl,y
+        sta o_tyl,x
+        lda o_yh,x
+        adc vec_yh,y
+        sta o_tyh,x
+        lda #$FF
+        sta drib_dir
+        rts
+
+; slides: the sliding tackles on a frame (the joystick's player, the
+; chaser): slower, the ball knocked on if reached, up at the end
+slides:
+        ldx ctrl
+        jsr @one
+        ldx chaser
+        bmi @done
+@one:   lda o_slide,x
+        beq @done
+        dec o_slide,x
+        bne :+
+        jmp stand               ; (over: up again)
+:       lda o_spl,x             ; slower
+        sec
+        sbc #SLIDE_DECEL
+        sta o_spl,x
+        lda o_sph,x
+        sbc #0
+        sta o_sph,x
+        bcs :+
+        lda #0
+        sta o_spl,x
+        sta o_sph,x
+:       lda o_hit,x             ; the ball reached, low: knocked on
+        bne @done
+        lda o_zl + BALL
+        cmp #SLIDE_Z + 1
+        bcs @done
+        jsr mate_dist
+        lda tmp + 1
+        bne @done
+        lda tmp
+        cmp #SLIDE_REACH + 1
+        bcs @done
+        lda #1
+        sta o_hit,x
+        stx last_pl
+        lda #0
+        cpx #11
+        bcc :+
+        lda #1
+:       sta last_team
+        jsr touch
+        ldy o_dir,x
+        jsr ball_ahead
+        lda o_spl,x             ; as fast as he slides, and some
+        clc
+        adc #<256
+        sta o_spl + BALL
+        lda o_sph,x
+        adc #>256
+        sta o_sph + BALL
+        lda #0
+        sta o_dzl + BALL
+        sta o_dzf + BALL
+@done:  rts
+
+; cpu_tackle: the yellow chaser X, the cyan team holding the ball and it
+; near him (SLIDE_FROM, squared): a sliding tackle at it. Carry clear
+; if he slides. Keeps X.
+cpu_tackle:
+        lda cpu_slide
+        bne @no
+        lda #1
+        jsr held
+        bcc @no
+        jsr mate_dist
+        lda tmp
+        cmp #<(SLIDE_FROM + 1)
+        lda tmp + 1
+        sbc #>(SLIDE_FROM + 1)
+        bcs @no
+        jsr mate_way            ; facing the ball: the way from it to him
+        bcs @no                 ; turned round, in eighths
+        clc
+        adc #128 + 16
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta o_dir,x
+        jsr slide
+        lda #SLIDE_WAIT
+        sta cpu_slide
+        clc
+        rts
+@no:    sec
+        rts
