@@ -256,7 +256,8 @@ sort:
         bne @next
         rts
 
-; draw: every figure, from the top down - the lower in front
+; draw: every figure, from the top down - the lower in front; the ball
+; last
 draw:
         lda #0
         sta tmp
@@ -269,10 +270,8 @@ draw:
         sta s_off,x
         bne @skip
         cpx #BALL
-        bne @pl
-        jsr draw_ball
-        jmp @skip
-@pl:    lda s_xl,x
+        beq @skip               ; (the ball last)
+        lda s_xl,x
         sec
         sbc #FOOT_X
         sta fig_x
@@ -305,7 +304,11 @@ draw:
         lda tmp
         cmp #FIGS
         bne @next
-        rts
+        ldx #BALL               ; the ball in front of all: its cells white
+        lda s_off,x             ; (engine.s)
+        bne :+
+        jmp draw_ball
+:       rts
 
 ; draw_ball: its shadow on the ground when it is up, and the ball as high
 ; above it as it is - its height squeezed as the pitch is (9 / 16)

@@ -103,11 +103,12 @@ character on the TED shares three with the whole screen and has one of
 its own. The grass, black and the players' skin are the shared ones, and
 a cell's own colour is white, for the lines and the nets - or the shirt
 of a player in it. Only the cells with a bit of shirt in them take its
-colour, and what was white in them turns to the light skin colour
-instead of to the shirt's (trainschedule does the same with its track
-under a train). The ball gives way: over a cell a shirt has coloured,
-its white is drawn in that light colour too. A player's shadow is cut
-where it would need a column of characters of its own.
+colour - the shirt alone, the socks are black, so the cells at a
+player's feet stay white for the lines and the ball - and what was
+white in them turns black instead of to the shirt's colour: in front of
+the net it passes for its shade. The ball is drawn last and keeps its
+cells white. A player's shadow is half its height, and cut where it
+would need a column of characters of its own.
 
 ![Running, the view following](screenshots/running.png)
 

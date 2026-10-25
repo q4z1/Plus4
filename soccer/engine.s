@@ -31,7 +31,7 @@
         .export cam_x, cam_y, frames, joy, dbg_joy
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_map, _pitch_font
-        .import img_ox, img_oy, img_lo, img_hi, img_alt, light11
+        .import img_ox, img_oy, img_lo, img_hi, black11
 
 POOL        = 112               ; first code for figures
 EVICT_AT    = 86                ; a cache this full gives codes back (evict)
@@ -81,10 +81,7 @@ z_mix:      .res 1              ; bit 7: a cell showed more than grass
 z_grass:    .res 1              ; a bit for each cell to be cleared
 z_d:        .res 2              ; the column's pixels, less its first line
 z_kp:       .res 2              ; and its bits to keep
-z_cd:       .res 2              ; the column's record (or its giving way's)
-z_alt:      .res 2              ; how far the giving way picture's record is
-z_yield:    .res 1              ; bit 7: the figure gives way (the ball)
-z_ycol:     .res 1              ; bit 7: this column gives way
+z_cd:       .res 2              ; the column's record
 z_rmp:      .res 1              ; bit 7: the cell's white turns light
 z_kc0:      .res 1              ; the column's cells with pixels in the
 z_kc1:      .res 1              ;   cell's colour, in the strip
@@ -1183,31 +1180,7 @@ fd_yok:   lda z_ty
         sta z_dat
         lda img_hi,x
         sta z_dat + 1
-        ; giving way (the ball): its picture with its white in the light
-        ; shared colour, the same shape - how far its record is
-        lda #0
-        sta z_yield
-        ldy fig_img
-        lda img_alt,y
-        cmp #$FF
-        beq :+
-        asl a
-        asl a
-        sta z_t
-        txa
-        and #3
-        ora z_t
-        tay
-        lda img_lo,y
-        sec
-        sbc z_dat
-        sta z_alt
-        lda img_hi,y
-        sbc z_dat + 1
-        sta z_alt + 1
-        lda #$80
-        sta z_yield
-:       ldy #0
+        ldy #0
         lda (z_dat),y
         sta z_ncol
         inc z_dat               ; the first column
@@ -1353,32 +1326,30 @@ fd_skip:
         tay
         lda #0
         sta z_mix
-        sta z_ycol
         lda z_k0
         sta z_kk
         ldx z_cl                ; (X: the list, Y: the cell)
         stx z_x0
-fd_cell:                        ; its colour: where it has pixels in it and
-        lda #0                  ; the cell another - a player takes the cell,
-        sta z_rmp               ; what is under it in that colour turned to
-        lda z_kk                ; the light shared one; the ball gives way,
-        cmp z_kc0               ; its white in the light shared colour
-        bcc fd_keep
+fd_cell:                        ; its colour, where it has pixels in it and
+        lda #0                  ; the cell another: the ball (drawn last)
+        sta z_rmp               ; takes the cell, a shirt under it white; a
+        lda z_kk                ; player takes it, what is under it in the
+        cmp z_kc0               ; cell's colour - white lines, the net -
+        bcc fd_keep             ; turned black
         lda z_kc1
         cmp z_kk
         bcc fd_keep
         lda (z_att),y
         cmp fig_col
         beq fd_keep
-        bit z_yield
-        bpl :+
-        lda #$80
-        sta z_ycol
-        bne fd_keep
-:       lda fig_col
-        sta (z_att),y
+        lda fig_col
+        cmp #COL_LINE
+        beq fd_white            ; (the ball)
         lda #$80
         sta z_rmp
+fd_white:
+        lda fig_col
+        sta (z_att),y
 fd_keep:
         lda (z_scr),y
 pc_code = *
@@ -1417,10 +1388,10 @@ fd_bg:  stx z_ix                ; more than grass: its pixels into the strip
         dey
         bpl :-
         bmi fd_copied
-fd_light:                       ; (its white in the light shared colour)
+fd_light:                       ; (its white black)
         lda (z_src),y
         tax
-        lda light11,x
+        lda black11,x
         sta (z_fnt),y
         dey
         bpl fd_light
@@ -1430,21 +1401,12 @@ fd_copied:
         ldx z_ix
         ldy z_yy
         jmp fd_put
-fd_strip:                       ; the column's record, or the giving-way
-        lda z_dat               ; picture's
+fd_strip:                       ; the column's record
+        lda z_dat
         sta z_cd
         lda z_dat + 1
         sta z_cd + 1
-        bit z_ycol
-        bpl :+
-        lda z_cd
-        clc
-        adc z_alt
-        sta z_cd
-        lda z_cd + 1
-        adc z_alt + 1
-        sta z_cd + 1
-:       bit z_mix
+        bit z_mix
         bmi fd_mixed0
         ; all grass: the whole strip straight from the pixels, the empty
         ; lines before and after them included - entered so that it ends
