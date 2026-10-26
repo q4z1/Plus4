@@ -110,6 +110,15 @@ from a shell:
 .vscode/run-current.sh pacman/pacman.c
 ```
 
+Every program it builds is also copied into [RetroDeck](../RetroDeck)'s
+games folder, `~/Games/Retro/Plus4`: its disk image `build/<name>.d64` if
+it has one, else `build/<name>.prg`, replacing the one before - so the
+latest build can be played and compared there next to the rest
+(*Bibliothek neu einlesen* in RetroDeck's menu if it is already running).
+A program with a file `.no-retrodeck` in its folder is left out (`main/`,
+the PokerTH client); `RETRO_GAMES=<dir>` copies elsewhere,
+`RETRO_GAMES=` (empty) not at all.
+
 ### 2. Open a single program folder — full debugger
 
 Open `main/` or `pacman/` directly and `F5` uses VS64's own VICE debugger with

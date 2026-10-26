@@ -79,6 +79,28 @@ else
 fi
 echo "Fertig: $OUT/$START.prg"
 
+# Every build also goes into RetroDeck's games folder for the Plus/4
+# (~/Games/Retro/Plus4), its disk image build/<name>.d64 if it has one,
+# else build/<name>.prg, replacing the one before: there it can be played
+# and compared with the rest. Not for a program with a file .no-retrodeck
+# in its folder (main/, the PokerTH client, which needs its proxy).
+# RETRO_GAMES=<dir>: another folder; RETRO_GAMES= (empty): not at all.
+publish() {
+    dest=${RETRO_GAMES-$HOME/Games/Retro/Plus4}
+    [ -n "$dest" ] && [ ! -f "$DIR/.no-retrodeck" ] || return 0
+    file="$OUT/$NAME.prg" other="$NAME.d64"
+    if [ -f "$OUT/$NAME.d64" ]; then
+        file="$OUT/$NAME.d64" other="$NAME.prg"
+    fi
+    [ -f "$file" ] || return 0
+    mkdir -p "$dest"
+    cp "$file" "$dest/.$NAME.part" && mv "$dest/.$NAME.part" "$dest/$(basename "$file")"
+    # what an earlier build of it left there in the other form
+    rm -f "$dest/$other"
+    echo "RetroDeck: $dest/$(basename "$file")"
+}
+publish
+
 # The emulator: VICE, or Yape with PLUS4_EMU=yape (the F5 configuration
 # "... in Yape"), whose TED is closer to the real chip, or plus4emu with
 # PLUS4_EMU=plus4emu. A program may bring
