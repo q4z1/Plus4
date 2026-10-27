@@ -5,7 +5,9 @@ mkdata.py - the game's data, from the text files in data/, as assembly
 Writes build/gen/data.s (the tables) and build/gen/data.inc (their sizes
 and the colours, for the code):
 
-  pitch_map    the ground, 79 x 67 character codes, row by row
+  pitch_map    the ground's rows, 79 character codes each (data/pitch.txt)
+  wrow_*       the ground as it is shown (data/rows.txt): each of its
+               rows' place in pitch_map
   pitch_font   its characters, 8 bytes each, multicolour
   img_*        the figures (data/sprites.txt), cut to what they cover and
                shifted to each of the four pixels in a character, ready
@@ -20,9 +22,6 @@ and the colours, for the code):
                one at the top) his area's corner and how far across it
                he goes for each pixel the ball goes (x / 510, y / 641,
                times 256)
-  ymap_*       where a place on the pitch is on the ground: the game
-               runs on Sensible Soccer's pitch, 640 long, the ground
-               shows it 363 high
 
 The colours are the TED's nearest to the C64's (VICE's "pepto" palette
 against the one Yape shows, tools/yape-pal.txt).
@@ -413,11 +412,6 @@ IMAGES = RUN_FRAMES + [0x40, 0x41, 0x42, 0x43, 0x54] + [b for _, b in POSES] \
 BLACK = {0x54}
 BALL_IMAGES = {0x40, 0x41, 0x42, 0x43}  # white in the shared light colour
 
-# The pitch: Sensible Soccer's lines (goal lines at y 49 and 689, the
-# halfway line at 369) onto the ground's (pixel rows 107.5, 291.5, 466.5 -
-# the C64's near half is a little shorter than its far one)
-PITCH_Y = (49, 369, 689)
-GROUND_Y = (107.5, 291.5, 466.5)
 
 
 PAD = 8
@@ -523,9 +517,6 @@ def figure(pic, black=False, light=False):
     return ox, oy, recs
 
 
-YMAP = 768
-
-
 def atan(dx, dy):
     if dx == 0 and dy == 0:
         return 0xFF
@@ -534,10 +525,14 @@ def atan(dx, dy):
     return 64 - int(32 * dx / dy + 0.5)
 
 
-def ymap(y):
-    i = 0 if y < PITCH_Y[1] else 1
-    return int(GROUND_Y[i] + (y - PITCH_Y[i]) * (GROUND_Y[i + 1] - GROUND_Y[i])
-               / (PITCH_Y[i + 1] - PITCH_Y[i]))
+def shown_rows():
+    """the ground as it is shown: for each of its rows, top to bottom,
+    which row of pitch.txt it is"""
+    out = []
+    for line in open(os.path.join(DATA, 'rows.txt')):
+        if not line.startswith('#'):
+            out += [int(v) for v in line.split()]
+    return out
 
 
 def tactics():
@@ -572,6 +567,10 @@ def main():
         out.write('_pitch_map:\n')
         for r in rows:
             hexrows(out, r, 40)
+        shown = shown_rows()
+        out.write('\n        .export wrow_lo, wrow_hi\n        .rodata\n')
+        out.write('wrow_lo: .lobytes ' + ', '.join('_pitch_map + %d' % (r * w) for r in shown) + '\n')
+        out.write('wrow_hi: .hibytes ' + ', '.join('_pitch_map + %d' % (r * w) for r in shown) + '\n')
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
         out.write('\n        .export title_font\n        .segment "TITLE"\n')
@@ -588,9 +587,9 @@ def main():
                            for b in list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]]), 8)
         tint = colours()
         out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
-        out.write('crow_of:                ; each ground row: its colours\' number, $FF white\n')
+        out.write('crow_of:                ; each row shown: its colours\' number, $FF white\n')
         idx = {y: i for i, (y, _) in enumerate(tint)}
-        hexrows(out, bytes(idx.get(y, 255) for y in range(h)))
+        hexrows(out, bytes(idx.get(y, 255) for y in shown))
         out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
         out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')
         for i, (y, cols) in enumerate(tint):
@@ -621,27 +620,22 @@ def main():
                         ('tac_y0h', lambda t: t[2] >> 8), ('tac_ys', lambda t: t[3])):
             out.write(name + ':                ; formation * 22 + player\n')
             hexrows(out, bytes(f(t) for form in forms for t in form), 22)
-        out.write('\n        .export atan_tab, sin_tab, ymap_lo, ymap_hi\n        .segment "TABLES"\n')
+        out.write('\n        .export atan_tab, sin_tab\n        .segment "TABLES"\n')
         out.write('atan_tab:               ; |dy| * 32 + |dx|\n')
         hexrows(out, bytes(atan(dx, dy) for dy in range(32) for dx in range(32)))
         out.write('sin_tab:\n')
         hexrows(out, bytes((int(round(32767 * math.sin(2 * math.pi * i / 256))) >> 8) & 255
                            for i in range(256)))
-        ym = [ymap(y) for y in range(YMAP)]
-        out.write('ymap_lo:\n')
-        hexrows(out, bytes(v & 255 for v in ym))
-        out.write('ymap_hi:\n')
-        hexrows(out, bytes(v >> 8 for v in ym))
     with open(os.path.join(GEN, 'data.inc'), 'w') as out:
         out.write('; made by tools/mkdata.py from data/ - do not edit\n\n')
-        out.write('MAP_W       = %d\nMAP_H       = %d\n\n' % (w, h))
+        out.write('MAP_W       = %d\nMAP_H       = %d            ; rows shown (wrow_*)\n\n'
+                  % (w, len(shown_rows())))
         out.write('IMAGES      = %d\n' % len(IMAGES))
         out.write('IMG_BALL    = %d            ; four, turning\n' % IMAGES.index(0x40))
         out.write('IMG_SHADOW  = %d\n' % IMAGES.index(0x54))
         for name, b in POSES:
             out.write('IMG_%-8s= %d\n' % (name, IMAGES.index(b)))
         out.write('IMG_DIGIT   = %d            ; 0-9, then the dash\n' % IMAGES.index('digit0'))
-        out.write('YMAP        = %d            ; ymap_*: pitch y 0..YMAP-1\n\n' % YMAP)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))
         # the skin a little lighter than the C64's light red
         # the shared light colour: the lines, the ball and the players' skin

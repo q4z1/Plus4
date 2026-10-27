@@ -8,8 +8,11 @@ loaded. This script reads a dump of the C64's 64 KB, taken in VICE's
 monitor while a match is running (`bank ram`, `save "ram.bin" 0 0000 ffff`),
 and writes what the Plus/4 version uses as text files into data/:
 
-  pitch.txt    the whole ground, 79 x 67 character codes: stands, boards,
-               pitch, goals, benches
+  pitch.txt    the ground's 67 different rows of 79 character codes:
+               stands, boards, pitch, goals, benches
+  rows.txt     the ground as it is shown, 103 rows: which of those each
+               is (the grass between the boxes and the centre circle,
+               the touchlines beside the goals, are one row many times)
   chars.txt    the characters, as pictures
   sprites.txt  the players, the ball and the keepers, as pictures
 
@@ -23,6 +26,7 @@ DATA = os.path.join(HERE, '..', 'data')
 
 MAP = 0xA006            # the ground, row by row
 MAP_W, MAP_H = 79, 67
+ROWS, ROWS_N = 0x148F, 103  # the ground's rows: which of the map's each is
 FONT = 0xF000           # its character set (multicolour)
 SPR_BANK = 0xC000       # sprite block n at SPR_BANK + 64 * n
 SPR_FIRST, SPR_LAST = 0x20, 0x5D
@@ -47,6 +51,13 @@ def main():
         for r in range(MAP_H):
             row = ram[MAP + r * MAP_W:MAP + (r + 1) * MAP_W]
             f.write(row.hex() + '\n')
+
+    with open(os.path.join(DATA, 'rows.txt'), 'w') as f:
+        f.write('# The ground as it is shown, top to bottom: %d rows, each one of\n'
+                '# pitch.txt\'s (its number, from 0).\n' % ROWS_N)
+        rows = ram[ROWS:ROWS + ROWS_N]
+        for i in range(0, ROWS_N, 16):
+            f.write(' '.join('%d' % r for r in rows[i:i + 16]) + '\n')
 
     with open(os.path.join(DATA, 'chars.txt'), 'w') as f:
         f.write('# The characters, multicolour, 4 x 8 pixels each: . the grass,\n'

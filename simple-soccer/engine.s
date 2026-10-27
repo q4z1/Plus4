@@ -30,7 +30,7 @@
         .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read
         .export cam_x, cam_y, frames, joy, dbg_joy
         .export fig_x, fig_y, fig_img, fig_col
-        .import _pitch_map, _pitch_font
+        .import _pitch_font, wrow_lo, wrow_hi
         .import img_ox, img_oy, img_lo, img_hi, light11
         .import crow_of, cmap_lo, cmap_hi
         .import la_codes, la_step, la_norm, la_up
@@ -43,7 +43,7 @@ MOVE_U      = 16                ; bytes a turn when the codes are moved
 VBL_LINE    = 205               ; the interrupt: below the picture
 
         .zeropage
-z_map:      .res 2              ; the ground row being copied
+z_map:      .res 2              ; the ground row being copied, from col0
 z_scr:      .res 2              ; the code matrix row it goes to
 z_src:      .res 2
 z_dst:      .res 2
@@ -51,7 +51,7 @@ z_t:        .res 1
 z_t2:       .res 1
 z_row:      .res 1
 z_n:        .res 1
-z_mb:       .res 2              ; the ground cell at the picture's top left
+z_wr:       .res 1              ; the ground's row shown next (map_row)
 z_att:      .res 2              ; a cell's colour
 z_fnt:      .res 2              ; a character's pixels
 z_atthi:    .res 1              ; the back picture: its colour matrix,
@@ -418,8 +418,7 @@ eng_begin:
         sta z_dr
         ora z_dc
         bne @moved
-        jsr mapbase             ; the same cells: the figures' put back
-        sec
+        sec                     ; the same cells: the figures' put back
         jsr restore
         bit z_ev
         bpl :+
@@ -440,8 +439,8 @@ eng_begin:
         bcs @far
         jsr shift
         jmp eng_pool
-@far:   jsr mapbase             ; else built anew; the figures' colours
-        clc                     ; back first
+@far:   clc                     ; else built anew; the figures' colours
+                                ; back first
         jsr restore
         bit z_ev                ; (built anew anyway: the cache emptied)
         bpl :+
@@ -646,7 +645,6 @@ full_now:
         sta since_full
         ldx back
         jsr flush
-        jsr mapbase
         jsr cells
         jmp eng_pool
 
@@ -662,49 +660,18 @@ eng_end:
         stx queued
         rts
 
-; mapbase: z_mb = the ground cell at row0, col0
-;        = the ground + row0 * 79 + col0 = row0 * 80 - row0 + col0
-mapbase:
-        lda row0
-        sta z_mb
-        lda #0
-        sta z_mb + 1
-        ldy #4
-:       asl z_mb
-        rol z_mb + 1
-        dey
-        bne :-
-        lda z_mb                ; * 16, then * 5
-        ldy z_mb + 1
-        asl z_mb
-        rol z_mb + 1
-        asl z_mb
-        rol z_mb + 1
-        clc
-        adc z_mb
-        sta z_mb
-        tya
-        adc z_mb + 1
-        sta z_mb + 1
-        lda z_mb
-        sec
-        sbc row0
-        sta z_mb
-        bcs :+
-        dec z_mb + 1
-:       lda z_mb
+; map_row: z_map = the ground's row z_wr (as it is shown: wrow_*) from
+; col0, and z_wr the next. Keeps Y.
+map_row:
+        ldx z_wr
+        lda wrow_lo,x
         clc
         adc col0
-        sta z_mb
-        bcc :+
-        inc z_mb + 1
-:       lda z_mb
-        clc
-        adc #<_pitch_map
-        sta z_mb
-        lda z_mb + 1
-        adc #>_pitch_map
-        sta z_mb + 1
+        sta z_map
+        lda wrow_hi,x
+        adc #0
+        sta z_map + 1
+        inc z_wr
         rts
 
 ; restore: the cells the back picture's figures took, from its list,
@@ -764,10 +731,7 @@ cells:
         sta b_col,x
         lda row0
         sta b_row,x
-        lda z_mb
-        sta z_map
-        lda z_mb + 1
-        sta z_map + 1
+        sta z_wr
         lda z_atthi
         clc
         adc #4
@@ -776,10 +740,11 @@ cells:
         sta z_scr
         lda #SCR_H
         sta z_row
-; cl_rows: z_row rows of cells, from the ground at z_map to the codes at
-; z_scr
+; cl_rows: z_row rows of cells, from the ground's row z_wr on to the codes
+; at z_scr
 cl_rows:
-cl_row:   ldy #SCR_W - 1
+cl_row:   jsr map_row
+        ldy #SCR_W - 1
 cl_cell:  lda (z_map),y
         tax
 cl_look = *
@@ -788,13 +753,7 @@ cl_look = *
 cl_put:   sta (z_scr),y
         dey
         bpl cl_cell
-        lda z_map
-        clc
-        adc #MAP_W
-        sta z_map
-        bcc :+
-        inc z_map + 1
-:       lda z_scr
+        lda z_scr
         clc
         adc #SCR_W
         sta z_scr
@@ -822,7 +781,6 @@ shift:
         sta col0
         lda b_row,x
         sta row0
-        jsr mapbase
         sec
         jsr restore
         bit z_ev
@@ -832,7 +790,6 @@ shift:
         sta row0
         pla
         sta col0
-        jsr mapbase
         ldx back
         lda col0
         sta b_col,x
@@ -919,13 +876,9 @@ shift:
 ; fill_row: row A of the back picture's codes looked up afresh
 fill_row:
         tay
-        lda row79_lo,y
         clc
-        adc z_mb
-        sta z_map
-        lda row79_hi,y
-        adc z_mb + 1
-        sta z_map + 1
+        adc row0
+        sta z_wr
         lda row40_lo,y
         sta z_scr
         lda row40_hi,y
@@ -940,10 +893,8 @@ fill_row:
 ; fill_col: column A of the back picture's codes looked up afresh
 fill_col:
         sta z_c
-        lda z_mb
-        sta z_map
-        lda z_mb + 1
-        sta z_map + 1
+        lda row0
+        sta z_wr
         lda z_atthi
         clc
         adc #4
@@ -953,6 +904,7 @@ fill_col:
         lda #SCR_H
         sta z_row
 fc_cell:
+        jsr map_row
         ldy z_c
         lda (z_map),y
         tax
@@ -963,13 +915,7 @@ fc_look = *
         beq fc_put
         jsr alloc
 fc_put: sta (z_scr),y
-        lda z_map
-        clc
-        adc #MAP_W
-        sta z_map
-        bcc :+
-        inc z_map + 1
-:       lda z_scr
+        lda z_scr
         clc
         adc #SCR_W
         sta z_scr
@@ -1104,14 +1050,6 @@ row40_lo:
 row40_hi:
         .repeat SCR_H, I
         .byte >(I * SCR_W)
-        .endrepeat
-row79_lo:
-        .repeat SCR_H, I
-        .byte <(I * MAP_W)
-        .endrepeat
-row79_hi:
-        .repeat SCR_H, I
-        .byte >(I * MAP_W)
         .endrepeat
 
 ; alloc: a code in the back picture's set for ground character X, its

@@ -3,7 +3,8 @@
 ;
 ; The game runs on Sensible Soccer's pitch and in its units: touchlines
 ; at x 49 and 558, goal lines at y 49 and 689, the centre spot at 304,
-; 369; simple-soccer.s shows it on the C64's ground (ymap_*). Positions are
+; 369 - as the C64's does; simple-soccer.s shows it on the C64's ground, a
+; pixel of the pitch a pixel on the screen. Positions are
 ; 16.8 fixed point (a fraction byte, then the pixel), steps 8.8.
 ;
 ; Everything moves the same way: towards a destination, at a speed. Each
@@ -73,12 +74,12 @@ SPEED_SLIDE = 1792              ; its speed at first,
 SLIDE_DECEL = 48                ; less each frame,
 SLIDE_REACH = 225               ; the ball this near (squared) it reaches,
 SLIDE_Z     = 8                 ; this low
-SLIDE_FROM  = 576               ; the yellow chaser slides from 24 away,
-SLIDE_WAIT  = 100               ; and not again for so many frames
 PRESSED     = 784               ; a cyan player this near (squared) the ball
                                 ; makes the yellow one on it pass,
 PASS_MIN    = 900               ; to a team-mate this far (squared) at least,
-PASS_WAIT   = 60                ; then not again for so many frames
+CPU_HOLD    = 8                 ; or else once he has had it so many looks
+                                ; (every second frame), as Arlasoft Soccer's
+PASS_WAIT   = 30                ; then not again for so many frames
 DEAD_HALF   = 150               ; frames dead at half time and full time
 DIVE_T      = 28                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
@@ -89,8 +90,10 @@ CATCH_Y     = 6
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
 SLACK       = 2                 ; a place this near the last one is the same
 SPEED_CHASE = 1102              ; after the ball
-SHOOT_FROM  = 150               ; the other team shoots from this near
+SHOOT_FROM  = 100               ; the other team shoots from this near
 NEAR        = 32                ; distance squared: the ball at his feet
+TAKE_D2     = 9                 ; the other team's, this close: the yellow
+                                ; chaser takes it (nearer)
 CLOSE       = 72                ; near enough to kick it
 KICK_Z      = 4                 ; and low enough
 SHOT_HOLD   = 9                 ; frames fire is held for a shot
@@ -216,7 +219,6 @@ cp_y:       .res 2              ; his y,
 cp_d:       .res 2              ; his way squared
 cp_k:       .res 2              ; (how far on a team-mate is)
 hd_y:       .res 1
-cpu_slide:  .res 1              ; frames till the yellow chaser may slide again
 recv:       .res 1              ; the cyan player a pass went to, $FF none,
 recv_t:     .res 1              ; and the frames he still goes to meet it
 score:      .res 2              ; goals, cyan and yellow
@@ -235,6 +237,7 @@ dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 chaser2:    .res 1              ; the next nearest: in support, $FF none
 y_pass_t:   .res 1              ; frames till the yellow team passes again
+cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
 formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
@@ -256,11 +259,18 @@ old_y:      .res 3
 old_z:      .res 2
 
         .rodata
-; 4-4-2 for the kick-off: keeper, defence, midfield, attack, one forward
-; at the ball; x as the yellow team stands, y as the cyan team (line_up
-; mirrors x for the cyan team, y for the yellow)
-line_x:     .word 304, 174, 264, 344, 434, 144, 274, 334, 464, 300, 334
-line_y:     .word 678, 556, 556, 556, 556, 445, 489, 489, 445, 373, 382
+; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
+; defence, midfield, attack - x as the yellow team stands, then y as the
+; cyan team (line_up mirrors x for the cyan team, y for the yellow). The
+; team kicking off has a forward at the ball, the other beside him and
+; the wingers up on the halfway line; the other team keeps out of the
+; centre circle.
+line_kick:  .word 304, 155, 255, 355, 455, 115, 245, 365, 409, 304, 275
+            .word 689, 535, 557, 557, 535, 369, 445, 445, 369, 370, 369
+line_back:  .word 304, 174, 264, 344, 434, 144, 274, 334, 464, 254, 354
+            .word 678, 556, 556, 556, 556, 445, 489, 489, 445, 413, 413
+line_lo:    .byte <line_kick, <line_back
+line_hi:    .byte >line_kick, >line_back
 
 ; the joystick as a way to go (8: none)
 joy_dir:    .byte 8, 0, 4, 8, 6, 7, 5, 6, 2, 1, 3, 2, 8, 0, 4, 8
@@ -314,8 +324,8 @@ play_init:
         sta o_yh + BALL
         ldx #BALL
         jsr stand
-        lda #9                  ; the cyan team kicks off
-        sta ctrl
+        lda #9                  ; the cyan team kicks off (line_up: rs_team
+        sta ctrl                ; 0, as the program starts)
         sta taker
         lda #$FF                ; no aftertouch, no one after the ball
         sta at_n
@@ -326,46 +336,15 @@ play_init:
         sta kickoff
         jmp sfx_whistle
 
-; line_up: both teams lined up for a kick-off, standing
+; line_up: both teams lined up for a kick-off (rs_team's), standing
 line_up:
-        ldx #0
-@pl:    txa
-        asl a
-        tay
-        lda line_x,y            ; (the yellow team as the line; the cyan
-        sta o_xl + 11,x         ; team, facing the other way, mirrored:
-        lda line_x + 1,y        ; 608 - x - its right back on the right)
-        sta o_xh + 11,x
-        lda #<608
-        sec
-        sbc line_x,y
-        sta o_xl,x
-        lda #>608
-        sbc line_x + 1,y
-        sta o_xh,x
-        lda line_y,y
-        sta o_yl,x
-        lda line_y + 1,y
-        sta o_yh,x
-        lda #<738               ; mirrored: 738 - y
-        sec
-        sbc line_y,y
-        sta o_yl + 11,x
-        lda #>738
-        sbc line_y + 1,y
-        sta o_yh + 11,x
-        lda #0
-        sta o_dir,x
-        lda #4
-        sta o_dir + 11,x
-        lda #0
-        sta o_xf,x
-        sta o_yf,x
-        sta o_xf + 11,x
-        sta o_yf + 11,x
-        inx
-        cpx #11
-        bne @pl
+        lda rs_team             ; the cyan team: the kick-off's line if it
+        ldx #0                  ; takes it, else the other
+        jsr @team
+        lda rs_team             ; the yellow team likewise
+        eor #1
+        ldx #11
+        jsr @team
         lda flip                ; the sides changed: each team where the
         beq @stand              ; other was
         ldx #10
@@ -400,6 +379,66 @@ line_up:
 :       jsr stand
         dex
         bpl :-
+        rts
+; (A: 0 the kick-off's line, 1 the other; X the team's first)
+@team:  tay
+        lda line_lo,y
+        sta z_ptr
+        lda line_hi,y
+        sta z_ptr + 1
+        ldy #0
+@pl:    lda (z_ptr),y           ; x
+        sta z_ax
+        iny
+        lda (z_ptr),y
+        sta z_ax + 1
+        tya                     ; y, 11 words on
+        clc
+        adc #21
+        tay
+        lda (z_ptr),y
+        sta z_ay
+        iny
+        lda (z_ptr),y
+        sta z_ay + 1
+        tya
+        sec
+        sbc #21
+        tay                     ; (the next one's x)
+        cpx #11
+        bcs @top
+        lda #<608               ; the cyan team: x mirrored, facing up
+        sec
+        sbc z_ax
+        sta o_xl,x
+        lda #>608
+        sbc z_ax + 1
+        sta o_xh,x
+        lda z_ay
+        sta o_yl,x
+        lda z_ay + 1
+        sta o_yh,x
+        lda #0
+        beq @dir
+@top:   lda z_ax                ; the yellow team: y mirrored, facing down
+        sta o_xl,x
+        lda z_ax + 1
+        sta o_xh,x
+        lda #<738
+        sec
+        sbc z_ay
+        sta o_yl,x
+        lda #>738
+        sbc z_ay + 1
+        sta o_yh,x
+        lda #4
+@dir:   sta o_dir,x
+        lda #0
+        sta o_xf,x
+        sta o_yf,x
+        inx
+        cpy #22
+        bne @pl
         rts
 
 ; top_of: A = 1 if player X's team plays from the top (attacking down),
@@ -463,9 +502,6 @@ play_frame:
         cmp #255
         beq :+
         inc touch_t
-:       lda cpu_slide
-        beq :+
-        dec cpu_slide
 :       lda y_pass_t
         beq :+
         dec y_pass_t
@@ -768,7 +804,8 @@ meet:
 @stand: jmp stand
 
 ; inside: player X's destination inside the walls round the pitch (the
-; ball's, x 19-588, y 20-719) - no one runs into the stands. Keeps X.
+; ball's, x 19-588, y 20-719; at the top 30: his head below the boards'
+; row - simple-soccer.s TOP_Y) - no one runs into the stands. Keeps X.
 inside:
         lda o_txh,x
         bmi @x0
@@ -793,13 +830,13 @@ inside:
 :       lda o_tyh,x
         bmi @y0
         lda o_tyl,x
-        cmp #<20
+        cmp #<30
         lda o_tyh,x
-        sbc #>20
+        sbc #>30
         bcs :+
-@y0:    lda #<20
+@y0:    lda #<30
         sta o_tyl,x
-        lda #>20
+        lda #>30
         sta o_tyh,x
 :       lda #<719
         cmp o_tyl,x
@@ -2129,7 +2166,7 @@ qn_hi:
 ; worked out anew every 32nd frame, a different few each time; a place
 ; hardly away from the last is not a new one. The other team sends the
 ; player nearest the ball after it; with it at his feet he takes it
-; towards the goal and shoots from close to it. Before the kick-off no
+; towards the goal and shoots from close to it. Before a kick-off no
 ; one moves.
 
 team_ai:
@@ -2144,6 +2181,9 @@ team_ai:
         sta taker
         bne @play
 :       jsr cpu_take            ; (the yellow team's, after a while)
+        lda rs_kind             ; a kick-off: everyone stays in line
+        bne @play
+        rts
 @play:  lda frame_n
         and #7
         bne :+
@@ -2478,7 +2518,9 @@ pick_chaser:
 @done:  rts
 
 ; chase: the chaser after the ball - at his feet, towards the goal at the
-; bottom, and a shot from close to it
+; bottom, and a shot from close to it. A cyan player with the ball he
+; stays on, as Arlasoft Soccer's do, and it is his once it is at his feet
+; nearer him than the cyan player - kicked on into him, or let go.
 chase:
         ldx chaser
         bmi @done
@@ -2492,11 +2534,13 @@ chase:
         lda #1
         jsr held
         bcc @have
-:       jsr cpu_tackle          ; (theirs, and near: a tackle)
-        bcc @done
-        lda frame_n             ; after it (where it is, each fourth frame)
-        and #3
-        bne @done
+        jsr nearer
+        bcc @have
+:       lda #0                  ; (not his)
+        sta cpu_hold
+        lda frame_n             ; after it (where it is, each second frame:
+        and #1                  ; a little faster than one running with it,
+        bne @done               ; he catches up)
         lda o_xl + BALL
         sta o_txl,x
         lda o_xh + BALL
@@ -2511,9 +2555,11 @@ chase:
         sta o_sph,x
 @done:  rts
 @have:  ; near the goal: a shot at it
+        inc cpu_hold
         jsr in_range
         bcs @shoot
-        jsr cpu_pass            ; (a cyan player close: a pass on)
+        jsr cpu_pass            ; (a cyan player close, or had it a while:
+                                ; a pass on)
         bcc @done2
         ldx z_obj
         jmp @run
@@ -3735,35 +3781,26 @@ slides:
         jmp sfx_kick
 @done:  rts
 
-; cpu_tackle: the yellow chaser X, the cyan team holding the ball and it
-; near him (SLIDE_FROM, squared): a sliding tackle at it. Carry clear
-; if he slides. Keeps X.
-cpu_tackle:
-        lda cpu_slide
-        bne @no
-        lda #1
-        jsr held
-        bcc @no
+; nearer: carry clear if the ball is right at player X's feet (TAKE_D2),
+; nearer him than the player who touched it last. Keeps X.
+nearer:
         jsr mate_dist
-        lda tmp
-        cmp #<(SLIDE_FROM + 1)
         lda tmp + 1
-        sbc #>(SLIDE_FROM + 1)
+        bne @no
+        lda tmp
+        cmp #TAKE_D2 + 1
         bcs @no
-        jsr mate_way            ; facing the ball: the way from it to him
-        bcs :+                  ; turned round, in eighths (on it: the way
-        clc                     ; he faces)
-        adc #128 + 16
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        sta o_dir,x
-:       jsr slide
-        lda #SLIDE_WAIT
-        sta cpu_slide
-        clc
+        sta cp_d
+        lda tmp + 1
+        sta cp_d + 1
+        stx hd_x
+        ldx last_pl
+        jsr mate_dist
+        ldx hd_x
+        lda cp_d
+        cmp tmp
+        lda cp_d + 1
+        sbc tmp + 1
         rts
 @no:    sec
         rts
@@ -3926,15 +3963,18 @@ new_match:
 ; ---- the yellow team's play ---------------------------------------------
 
 ; cpu_pass: the yellow chaser X has the ball: with a cyan player close
-; (PRESSED, squared) it goes on to the team-mate furthest towards the
-; cyan goal, PASS_MIN or more away; he is the chaser now, to meet it.
-; Carry clear if passed.
+; (PRESSED, squared), or once he has had it a moment (CPU_HOLD), it goes
+; on to the team-mate furthest towards the cyan goal, PASS_MIN or more
+; away; he is the chaser now, to meet it. Carry clear if passed.
 cpu_pass:
         lda y_pass_t
         beq :+
         sec
         rts
 :       stx cp_from
+        lda cpu_hold            ; (had it long enough: on)
+        cmp #CPU_HOLD
+        bcs @press
         ldx #10                 ; a cyan player close?
 @near:  jsr mate_dist
         lda tmp

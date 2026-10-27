@@ -12,10 +12,9 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, pose_of, score, game_min, hud, lift
+        .import play_init, play_frame, pose_of, score, game_min, hud, lift, ctrl
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
-        .import ymap_lo, ymap_hi
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
 
 MAX_X       = (MAP_W - SCR_W) * 8 + 7
@@ -25,9 +24,12 @@ PLAYERS     = 22                ; 0-10 cyan, the joystick's; 11-21 yellow
 BALL        = PLAYERS           ; the figures' last
 FIGS        = PLAYERS + 1
 
-; the pitch onto the ground: x - 23 (the touchlines at 49 and 558 onto
-; the ground's at 26 and 535; y through ymap_*)
+; the pitch onto the ground: x - 23, y + 58 (the touchlines at 49 and 558
+; onto the ground's at 26 and 535, the goal lines at 49 and 689 onto its
+; rows 107 and 747 - the ground as the C64 shows it, the grass rows
+; repeated: wrow_*)
 GROUND_X    = 23
+GROUND_Y    = 58
 
 ; where a figure's feet are in its sprite; the ball's middle in its
 ; sprite, and its shadow's
@@ -140,8 +142,7 @@ loop:
         jsr eng_end             ; (waits while a picture is still waiting)
         jmp loop
 
-; place: each figure's feet on the ground - the ball's where it would lie
-; (ymap_lo/hi[y], y < 768: by its high byte, straight from the table)
+; place: each figure's feet on the ground
 place:
         ldx #FIGS - 1
 @fig:   lda o_xl,x
@@ -151,28 +152,12 @@ place:
         lda o_xh,x
         sbc #0
         sta s_xh,x
-        ldy o_yl,x
+        lda o_yl,x
+        clc
+        adc #GROUND_Y
+        sta s_yl,x
         lda o_yh,x
-        beq @y0
-        lsr a
-        bcs @y1
-        lda ymap_lo + 512,y
-        sta s_yl,x
-        lda ymap_hi + 512,y
-        sta s_yh,x
-        dex
-        bpl @fig
-        rts
-@y1:    lda ymap_lo + 256,y
-        sta s_yl,x
-        lda ymap_hi + 256,y
-        sta s_yh,x
-        dex
-        bpl @fig
-        rts
-@y0:    lda ymap_lo,y
-        sta s_yl,x
-        lda ymap_hi,y
+        adc #0
         sta s_yh,x
         dex
         bpl @fig
@@ -319,74 +304,114 @@ draw:
         cpx #11
         bcc :+
         lda #COL_TEAM2
+:       cpx ctrl                ; the joystick's player: his shirt white
+        bne :+                  ; two pictures in four, flickering as the
+        pha                     ; C64 shows him (white 4 frames in 8; two
+        lda tick                ; pictures are 6)
+        lsr a
+        lsr a
+        pla
+        bcc :+
+        lda #COL_LINE
 :       sta fig_col
         jsr fig_draw
 @skip:  inc tmp
         lda tmp
         cmp #FIGS
-        bne @next
-        ldx #BALL               ; the ball in front of all: its cells white
+        beq :+
+        jmp @next
+:       ldx #BALL               ; the ball in front of all: its cells white
         lda s_off,x             ; (engine.s)
         bne :+
         jmp draw_ball
 :       rts
 
-; draw_ball: its shadow on the ground when it is up, and the ball as high
-; above it as it is - its height squeezed as the pitch is (9 / 16)
+; draw_ball: its shadow when it is up, and the ball as high above where
+; it is as it is - the shadow as the C64 casts it, h / 2 to the right and
+; h / 4 down. Never into the boards' row (TOP_Y): restore puts white back
+; where a figure was, the boards are coloured.
+TOP_Y       = 9 * 8
 draw_ball:
         ldx #BALL
-        lda s_xl,x
-        sec
-        sbc #BALL_X
-        sta fig_x
-        lda s_xh,x
-        sbc #0
-        sta fig_x + 1
         lda #COL_LINE
         sta fig_col
         lda o_zl,x
         beq @ball
-        lda s_yl,x
-        sec
-        sbc #SHADOW_Y
-        sta fig_y
-        lda s_yh,x
-        sbc #0
-        sta fig_y + 1
-        lda #IMG_SHADOW
-        sta fig_img
-        jsr fig_draw
-        ldx #BALL
-@ball:  lda o_zl,x              ; z * 9 / 16 = z / 2 + z / 16
         lsr a
         sta tmp2
-        lsr a
-        lsr a
-        lsr a
+        lda s_xl,x
         clc
         adc tmp2
+        sta fig_x
+        lda s_xh,x
+        adc #0
+        sta fig_x + 1
+        lsr tmp2
+        lda s_yl,x
+        clc
+        adc tmp2
+        sta fig_y
+        lda s_yh,x
+        adc #0
+        sta fig_y + 1
+        lda fig_y               ; (its picture's top a line higher)
+        sec
+        sbc #SHADOW_Y - BALL_Y
+        sta fig_y
+        bcs :+
+        dec fig_y + 1
+:       lda #IMG_SHADOW
+        sta fig_img
+        jsr ball_at
+        ldx #BALL
+@ball:  lda s_xl,x
+        sta fig_x
+        lda s_xh,x
+        sta fig_x + 1
+        lda o_zl,x
         clc
         adc lift                ; (a throw-in's: over the taker's head)
         sta tmp2
         lda s_yl,x
         sec
-        sbc #BALL_Y
+        sbc tmp2
         sta fig_y
         lda s_yh,x
         sbc #0
         sta fig_y + 1
-        lda fig_y
-        sec
-        sbc tmp2
-        sta fig_y
-        bcs :+
-        dec fig_y + 1
-:       lda o_step,x
+        lda o_step,x
         and #3
         clc
         adc #IMG_BALL
         sta fig_img
-        jmp fig_draw
+        ; (on to ball_at)
+
+; ball_at: the ball's picture fig_img for the place fig_x, fig_y on the
+; ground: its top left, kept below the boards
+ball_at:
+        lda fig_x
+        sec
+        sbc #BALL_X
+        sta fig_x
+        bcs :+
+        dec fig_x + 1
+:       lda fig_y
+        sec
+        sbc #BALL_Y
+        sta fig_y
+        bcs :+
+        dec fig_y + 1
+:       lda fig_y + 1
+        bmi @top
+        bne @draw
+        lda fig_y
+        cmp #TOP_Y
+        bcs @draw
+@top:   lda #TOP_Y
+        sta fig_y
+        lda #0
+        sta fig_y + 1
+@draw:  jmp fig_draw
 
 ; draw_hud: while the ball is dead for a kick-off, the score and the
 ; minute at the top left of the view - drawn as figures, at a place on

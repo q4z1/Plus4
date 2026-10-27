@@ -47,19 +47,30 @@ within an eighth of a turn of the way you face, harder the further he
 is. Fire held for nine frames shoots instead, rising; for the next ten
 frames the stick bends the ball to one side if it is pushed across the
 shot, and on the fifth it lifts it - high when pulled back, less when let
-go or across. The ground the C64 draws is shorter than Sensible Soccer's pitch, so
-the game's lengths are squeezed onto it: across one to one, along by
-about nine sixteenths.
+go or across. The C64 runs its match on the same pitch, in the same
+pixels, and so does this game: a pixel of the pitch is a pixel on the
+screen, up and down as across - the ground is shown as the C64 shows it,
+its plain rows of grass between the boxes and the centre circle, and
+beside the goals, repeated (`data/rows.txt`).
+
+For a kick-off the teams line up as on the C64 - the team kicking off
+with a forward at the ball, another beside him and its wingers up on the
+halfway line, the other team out of the centre circle - and stand till
+the ball is played.
 
 Everyone else keeps to his place in the team's formation (`data/tactics.txt`,
 eight of them, 4-4-2 for now): each player has an area, and where the ball
 is on the pitch decides where in it he stands - he runs there. The yellow
-team sends its player nearest the ball after it; with it at his feet he
-takes it towards the cyan goal and shoots from close in - or, a cyan
-player at him, passes to the team-mate furthest on, who goes to meet it.
+team sends its player nearest the ball after it. A cyan player with the
+ball he stays on, a little faster than him, and it is his once it is
+right at his feet, nearer him than the cyan player. With it he takes it
+towards the cyan goal and shoots from close in - or, a cyan player at
+him or after a moment on the ball, passes it on to the team-mate furthest
+on, who goes to meet it.
 Its next nearest goes along: between the ball and his goal while the
 cyan team has it, ahead of it, there to be passed to, while his own does. The joystick
-moves to the cyan player nearest the ball. As in Sensible Soccer, the
+moves to the cyan player nearest the ball; his shirt flickers white, as
+on the C64, so you see whom you run. As in Sensible Soccer, the
 players make up their minds every second frame; everyone moves every
 frame. A new place in the formation does not send a player sprinting: he goes
 as fast as gets him there by about when the next one comes, his feet as
@@ -84,9 +95,8 @@ go he runs to meet it, and stops a ball that comes to his feet.
 
 A ball is a team's while its player who touched it last has it by him,
 or for a few frames after a kick: the other team cannot just run it
-off him, only win it with a sliding tackle - fire for you, the yellow
-chaser when he gets near. A tackle reaching the ball knocks it on the
-way the player slides.
+off him. You win it with a sliding tackle - fire - which knocks it on
+the way you slide; the yellow chaser wins it by getting to it first.
 
 The TED's two voices give the match its sounds, played by the interrupt
 50 times a second: a thump for every pass and shot, a softer one for
@@ -128,7 +138,7 @@ When the view has moved by a cell or two since a picture was last drawn,
 its codes are not looked up afresh but moved over in memory, and only the
 rows and columns coming in are looked up.
 
-The ground is 79 x 67 cells of 221 different characters - too many to sit
+The ground is 79 x 103 cells (67 different rows) of 221 different characters - too many to sit
 in a character set next to the players'. But a screen never shows more
 than 76 of them, so each picture's set holds only those it shows, given
 codes as they are first met while the picture is built; the codes from
