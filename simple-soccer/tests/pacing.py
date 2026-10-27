@@ -7,6 +7,7 @@ runs, and how often each gap came.
 
 --fixed: the direction held from the program's start, the first 40
 pictures left out - the same match each time, to compare builds.
+--two=dir: two players, the second joystick held that way (with --fixed).
 """
 import collections
 import os
@@ -20,7 +21,8 @@ from shot import PRG, WORK, BITS, labels, run_pictures, held_from_start  # noqa:
 
 def main():
     fixed = '--fixed' in sys.argv
-    args = [a for a in sys.argv[1:] if a != '--fixed']
+    two = [a[6:] for a in sys.argv if a.startswith('--two=')]
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
     d = args[0] if len(args) > 0 else 'up'
     n = int(args[1]) if len(args) > 1 else 100
     lab = labels()
@@ -28,6 +30,12 @@ def main():
     try:
         if fixed:
             held_from_start(v, lab, d)
+            if two:
+                bits = 0
+                for p in two[0].split('+'):
+                    bits |= BITS.get(p, 0)
+                v.poke(lab['two'], [1])
+                v.poke(lab['dbg_joyb'], [bits])
             v.cmd('watch store %04x' % lab['shown'])
             for _ in range(40):
                 v.cmd('x')

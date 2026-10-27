@@ -33,8 +33,9 @@
         .export play_init, play_frame, pose_of, score, game_min, hud, min_frames
         .export lift
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
-        .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl
-        .import joy, atan_tab, sin_tab
+        .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
+        .export two
+        .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
 
@@ -188,8 +189,6 @@ c_th:   .res NOBJ
 dbg_plan:   .res 3 * 64         ; (a test's plan: see dbg_on)
         .bss
 
-ctrl:       .res 1              ; the joystick's player
-fire_n:     .res 1              ; frames fire has been held
 frame_n:    .res 1              ; frames played
 b_th:       .res 1              ; the ball's angle, speed, product's low
 b_spl:      .res 1              ; bytes as aim last worked them out,
@@ -225,8 +224,6 @@ cp_y:       .res 2              ; his y,
 cp_d:       .res 2              ; his way squared
 cp_k:       .res 2              ; (how far on a team-mate is)
 hd_y:       .res 1
-recv:       .res 1              ; the cyan player a pass went to, $FF none,
-recv_t:     .res 1              ; and the frames he still goes to meet it
 score:      .res 2              ; goals, cyan and yellow
 thrower:    .res 1              ; who takes the throw-in,
 throw_t:    .res 1              ; frames left of its throw (THROW_T held)
@@ -242,21 +239,11 @@ dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 chaser2:    .res 1              ; the next nearest: in support, $FF none
-helper:     .res 1              ; the cyan player running to a ball his team
-                                ; has not got (help), $FF none
 y_pass_t:   .res 1              ; frames till the yellow team passes again
 cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
 formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
-at_n:       .res 1              ; the aftertouch's frame, $FF none
-at_dir:     .res 1              ; the shot's way
-at_side:    .res 1              ; the side it bends to, $FF none yet
-at_j:       .res 1              ; the joystick's way
-drib_dir:   .res 1              ; dribbling: the way, and the touches
-drib_n:     .res 1
-kick_pl:    .res 1              ; the cyan player who last passed or shot,
-kick_t:     .res 1              ; and the frames since (switch, help)
 d2:         .res 2              ; dist2's result
 mate:       .res 1              ; pass's
 mate_d:     .res 2
@@ -266,6 +253,42 @@ tmp:        .res 2
 old_x:      .res 3              ; ball_move's: where it was
 old_y:      .res 3
 old_z:      .res 2
+two:        .res 1              ; 1: two players, the yellow team the second
+                                ; joystick's (the title's choice)
+each_v:     .res 2              ; (each's routine)
+
+; A player's control of his team - the joystick's player, fire, the pass
+; on its way, the aftertouch, the dribble - for control, switch, help and
+; aftertouch: the cyan team's here, the yellow team's in ctx_b while
+; there are two players; swap trades them (each)
+ctx:
+pj:         .res 1              ; his joystick, J_ bits
+ctrl:       .res 1              ; the joystick's player, $FF none
+fire_n:     .res 1              ; frames fire has been held
+recv:       .res 1              ; the player a pass went to, $FF none,
+recv_t:     .res 1              ; and the frames he still goes to meet it
+helper:     .res 1              ; the player running to a ball his team has
+                                ; not got (help), $FF none
+at_n:       .res 1              ; the aftertouch's frame, $FF none
+at_dir:     .res 1              ; the shot's way
+at_side:    .res 1              ; the side it bends to, $FF none yet
+at_j:       .res 1              ; the joystick's way
+drib_dir:   .res 1              ; dribbling: the way, and the touches
+drib_n:     .res 1
+kick_pl:    .res 1              ; the player who last passed or shot,
+kick_t:     .res 1              ; and the frames since (switch, help)
+me:         .res 1              ; the team: 0 cyan, 1 yellow
+t_lo:       .res 1              ; its keeper: 0, 11
+t_hi:       .res 1              ; its last player: 10, 21
+t_end:      .res 1              ; one before its keeper: $FF, 10
+CTX_N       = * - ctx
+ctx_b:      .res CTX_N
+pj_b        = ctx_b + pj - ctx
+ctrl_b      = ctx_b + ctrl - ctx
+fire_n_b    = ctx_b + fire_n - ctx
+recv_b      = ctx_b + recv - ctx
+helper_b    = ctx_b + helper - ctx
+at_n_b      = ctx_b + at_n - ctx
 
         .rodata
 ; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
@@ -333,18 +356,72 @@ play_init:
         sta o_yh + BALL
         ldx #BALL
         jsr stand
-        lda #9                  ; the cyan team kicks off (line_up: rs_team
+        ldx #CTX_N - 1          ; each team's control: its team, all else
+:       lda ctx_new,x           ; none ($FF)
+        sta ctx,x
+        lda ctx_new_b,x
+        sta ctx_b,x
+        dex
+        bpl :-
+        lda two                 ; the yellow team's: a joystick's player only
+        beq :+                  ; for two
+        lda #20
+        sta ctrl_b
+:       lda #9                  ; the cyan team kicks off (line_up: rs_team
         sta ctrl                ; 0, as the program starts)
         sta taker
-        lda #$FF                ; no aftertouch, no one after the ball
-        sta at_n
+        lda #$FF                ; no one after the ball
         sta chaser
         sta chaser2
-        sta helper
-        sta recv
         lda #1
         sta kickoff
         jmp sfx_whistle
+
+; each team's control as a match starts: pj, ctrl ... t_end (ctx)
+ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, 0, $FF, 0, 1, 11, 21, 10
+.assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
+
+; each: the routine at A (low) / Y (high) for the cyan team's control,
+; and with two players for the yellow team's too (swapped in)
+each:
+        sta each_v
+        sty each_v + 1
+        jsr @call
+        lda two
+        beq @done
+        jsr swap
+        jsr @call
+        jmp swap
+@call:  jmp (each_v)
+@done:  rts
+
+; swap: the two teams' controls traded (ctx, ctx_b)
+swap:
+        ldx #CTX_N - 1
+:       lda ctx,x
+        ldy ctx_b,x
+        sta ctx_b,x
+        tya
+        sta ctx,x
+        dex
+        bpl :-
+        rts
+
+; calm: the ball dead - no one after it, no aftertouch, no pass on its
+; way, the joystick's players standing
+calm:
+        lda #$FF
+        sta chaser
+        sta at_n
+        sta at_n_b
+        sta recv
+        sta recv_b
+        ldx ctrl_b
+        bmi :+
+        jsr stand
+:       ldx ctrl
+        jmp stand
 
 ; line_up: both teams lined up for a kick-off (rs_team's), standing
 line_up:
@@ -512,14 +589,19 @@ play_frame:
         cmp #255                ; and the cyan team's last kick)
         beq :+
         inc touch_t
-:       lda kick_t
-        cmp #255
-        beq :+
-        inc kick_t
 :       lda y_pass_t
         beq :+
         dec y_pass_t
-:       jsr control
+:       lda joy                 ; each team's joystick: one player either,
+        ldy two                 ; two the first and the second
+        beq :+
+        lda joy_b
+        sta pj_b
+        lda joy_a
+:       sta pj
+        lda #<control
+        ldy #>control
+        jsr each
         lda frame_n             ; the others' minds every second frame, as
         lsr a                   ; Sensible Soccer's
         bcs :+
@@ -527,19 +609,26 @@ play_frame:
 :       jsr slides
         ldx ctrl                ; the two at the ball and the keepers,
         jsr @one                ; every frame
-        ldx chaser
+        ldx ctrl_b
+        bmi :+
+        jsr @one
+:       ldx chaser
         bmi :+
         jsr @one
 :       jsr keepers_move
         jsr others
-        jsr aftertouch
+        lda #<aftertouch
+        ldy #>aftertouch
+        jsr each
         jsr ball_move
         jsr catch
         jsr rules
         lda frame_n
         lsr a
         bcs :+
-        jmp switch              ; (every second frame)
+        lda #<switch            ; (every second frame)
+        ldy #>switch
+        jmp each
 :       rts
 @one:   lda o_mov,x
         beq :+
@@ -596,6 +685,8 @@ keepers_move:
         dec o_dive,x
 :       cpx ctrl
         beq :+
+        cpx ctrl_b
+        beq :+
         cpx chaser
         beq :+
         lda o_mov,x
@@ -616,6 +707,8 @@ play_others:
         cpx #11
         beq @next
         cpx ctrl
+        beq @next
+        cpx ctrl_b
         beq @next
         cpx chaser
         beq @next
@@ -645,18 +738,23 @@ play_others:
 
 ; control: the joystick's player - where he runs, dribbling, fire
 control:
-        lda recv_t
+        lda kick_t              ; (frames since his team's last kick)
+        cmp #255
+        beq :+
+        inc kick_t
+:       lda recv_t
         beq :+
         dec recv_t
 :       ldx ctrl
         lda o_slide,x           ; (sliding: the stick has no say)
         beq :+
         rts
-:       lda kickoff             ; the cyan team's set piece: the stick
-        beq @stick              ; turns the taker, fire kicks
+:       lda kickoff             ; his team's set piece: the stick turns
+        beq @stick              ; the taker, fire kicks
         lda rs_team
+        cmp me
         bne @stick
-        lda joy
+        lda pj
         and #$0F
         tay
         lda joy_dir,y
@@ -664,7 +762,7 @@ control:
         beq :+
         sta o_dir,x
 :       jmp @fire
-@stick: lda joy
+@stick: lda pj
         and #$0F
         tay
         lda joy_dir,y
@@ -718,13 +816,13 @@ control:
         bcs @far
         lda kickoff             ; (not the other team's set piece)
         bne @far
-        lda #0                  ; (nor while the other team holds it)
+        lda me                  ; (nor while the other team holds it)
         jsr held
         bcs @far
         jsr dribble
 @far:   lda kickoff
         bne @done
-@fire:  lda joy                 ; fire: let go within SHOT_HOLD - 1
+@fire:  lda pj                  ; fire: let go within SHOT_HOLD - 1
         and #J_FIRE             ; frames a pass, held SHOT_HOLD frames
         beq @let                ; a shot - as soon as the ball is at his
         lda fire_n              ; feet, once held so long
@@ -738,7 +836,7 @@ control:
         bne @held               ; ball: a sliding tackle
         lda kickoff
         bne @held
-        lda #0
+        lda me
         jsr held
         bcc @held
         lda #$FF
@@ -773,7 +871,7 @@ meet:
         lda last_pl             ; (his own kick runs on)
         cmp ctrl
         beq @stand
-        lda #0                  ; (one the other team holds: only a tackle)
+        lda me                  ; (one the other team holds: only a tackle)
         jsr held
         bcs @go
         lda d2 + 1
@@ -788,7 +886,7 @@ meet:
         jsr stand
         lda ctrl
         sta last_pl
-        lda #0
+        lda me
         sta last_team
         jsr touch
         lda #$FF
@@ -881,8 +979,9 @@ can_kick:
 ; the aftertouch on
 shot:
         lda #0
-        sta last_team
         sta kick_t
+        lda me
+        sta last_team
         jsr touch
         lda ctrl
         sta last_pl
@@ -918,7 +1017,7 @@ aftertouch:
 :       bne :+
         lda #$FF                ; frame 0: no side yet
         sta at_side
-:       lda joy                 ; the joystick's way, 8 none
+:       lda pj                  ; the joystick's way, 8 none
         and #$0F
         tay
         lda joy_dir,y
@@ -1126,7 +1225,7 @@ d_abs:
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs
 dribble:
-        lda #0
+        lda me
         sta last_team
         jsr touch
         lda ctrl
@@ -1186,8 +1285,9 @@ ball_ahead:
 ; the joystick's player faces; or straight on
 pass:
         lda #0
-        sta last_team
         sta kick_t
+        lda me
+        sta last_team
         jsr touch
         lda ctrl
         sta last_pl
@@ -1204,7 +1304,7 @@ pass:
         asl a
         asl a
         sta kick_way
-        ldx #10
+        ldx t_hi
 @look:  cpx ctrl
         beq @next
         jsr mate_way            ; the way from the ball to him, 0-255
@@ -1227,7 +1327,8 @@ pass:
         sta mate_d + 1
         stx mate
 @next:  dex
-        bpl @look
+        cpx t_end
+        bne @look
         ldx mate
         bmi :+
         stx recv                ; he runs to meet it (help), the joystick
@@ -2198,6 +2299,7 @@ team_ai:
         bne @play
         rts
 @play:  lda frame_n
+        ora two                 ; (the yellow team's own, unless a player's)
         and #7
         bne :+
         jsr pick_chaser         ; (every eighth frame)
@@ -2211,11 +2313,15 @@ team_ai:
         beq @next
         cpx ctrl
         beq @next
+        cpx ctrl_b
+        beq @next
         cpx chaser
         beq @next
         cpx chaser2
         beq @next
         cpx helper
+        beq @next
+        cpx helper_b
         beq @next
         cpx taker
         beq @next
@@ -2233,9 +2339,14 @@ team_ai:
         jsr keeper
         ldx #11
         jsr keeper
-:       jsr support
-        jsr help
+:       lda #<help
+        ldy #>help
+        jsr each
+        lda two                 ; the yellow team on its own: its chaser
+        bne :+                  ; and the one in support
+        jsr support
         jmp chase
+:       rts
 
 ; place_formation: player X's destination, his place in the formation for
 ; where the ball is; jogging. Keeps X.
@@ -2703,9 +2814,10 @@ ball_near:
 ; player nearest it - not the helper on his way to it, not the one who
 ; has just passed or shot, not the keeper
 switch:
-        lda kickoff             ; (the cyan team's set piece: the taker
-        beq :+                  ; keeps it)
+        lda kickoff             ; (his team's set piece: the taker keeps
+        beq :+                  ; it)
         lda rs_team
+        cmp me
         bne :+
         rts
 :       ldx ctrl                ; (nor from one sliding)
@@ -2718,18 +2830,19 @@ switch:
         ldx ctrl                ; at the ball: the joystick's, or another
         jsr near_ball
         bcs @done
-        ldx #10
+        ldx t_hi
 @at:    cpx ctrl
         beq :+
         jsr at_ball
         bcs @got
 :       dex
+        cpx t_lo
         bne @at
         lda #$FF                ; else the nearest
         sta mate_d
         sta mate_d + 1
         sta mate
-        ldx #10
+        ldx t_hi
 @look:  cpx helper
         beq @next
         jsr kicker
@@ -2746,6 +2859,7 @@ switch:
         sta mate_d + 1
         stx mate
 @next:  dex
+        cpx t_lo
         bne @look
         ldx mate
         bmi @done               ; (no one)
@@ -2806,7 +2920,8 @@ help:
         lda recv
         cmp helper
         beq @run
-@own:   lda #1                  ; (the cyan team's: no one)
+@own:   lda me                  ; (his team's: no one)
+        eor #1
         jsr held
         bcc @in
 :       lda #$FF
@@ -2819,7 +2934,7 @@ help:
         sta mate_d
         sta mate_d + 1
         sta mate
-        ldx #10
+        ldx t_hi
 @look:  cpx ctrl
         beq @next
         jsr mate_dist
@@ -2834,6 +2949,7 @@ help:
         sta mate_d + 1
         stx mate
 @next:  dex
+        cpx t_lo
         bne @look
         lda mate
         sta helper
@@ -2843,6 +2959,7 @@ help:
         beq @none
         lda #1
         sta o_mov,x
+        sta o_new,x             ; (the way to it worked out anew)
         lda o_xl + BALL
         sta o_txl,x
         lda o_xh + BALL
@@ -3015,13 +3132,8 @@ rules:
         sta rs_y + 1
 @dead:  lda #DEAD_OUT
 @dead2: sta dead_t
-        lda #$FF                ; no one after it, no more aftertouch
-        sta chaser
-        sta at_n
-        sta recv
         jsr net                 ; (a goal: in the net already in this frame)
-        ldx ctrl
-        jmp stand
+        jmp calm
 
 corner_xl:  .byte <54, <553     ; left, right
 corner_xh:  .byte >54, >553
@@ -3245,20 +3357,30 @@ throwing:
 
 throw_arc:  .byte 0, 5, 9, 13, 16, 18, 20, 21, 21, 20   ; (from the last)
 
-; await: the set piece ready, for taker to take: the cyan team's with
-; the joystick (fire held on from before does not kick), the yellow
-; team's after a while
+; await: the set piece ready, for taker to take: a player's team's with
+; his joystick (fire held on from before does not kick), the yellow
+; team on its own after a while
 await:
         lda #$FF
         sta chaser
         sta at_n
+        sta at_n_b
         sta recv
+        sta recv_b
         lda rs_team
-        bne @cpu
+        bne @yellow
         lda taker
         sta ctrl
         lda #$FF
         sta fire_n
+        bne @go
+@yellow:
+        lda two
+        beq @cpu
+        lda taker
+        sta ctrl_b
+        lda #$FF
+        sta fire_n_b
         bne @go
 @cpu:   lda #CPU_WAIT
         sta cpu_t
@@ -3329,6 +3451,8 @@ nearest:
 cpu_take:
         lda rs_team
         beq @done
+        lda two                 ; (a player's: his to take)
+        bne @done
         dec cpu_t
         bne @done
         lda #1
@@ -3382,6 +3506,8 @@ cpu_take:
 keeper:
         cpx ctrl                ; (not while the joystick has him, nor
         beq @done               ; while he holds the ball)
+        cpx ctrl_b
+        beq @done
         cpx taker
         beq @done
         lda o_dive,x            ; diving: in the air his dive goes on, down
@@ -3887,7 +4013,10 @@ slide:
 slides:
         ldx ctrl
         jsr @one
-        ldx chaser
+        ldx ctrl_b
+        bmi :+
+        jsr @one
+:       ldx chaser
         bmi @done
 @one:   lda o_slide,x
         beq @done
@@ -4086,12 +4215,7 @@ whistle:
         sta rs_y
         lda #>369
         sta rs_y + 1
-        lda #$FF
-        sta chaser
-        sta at_n
-        sta recv
-        ldx ctrl
-        jmp stand
+        jmp calm
 
 ; new_match: after full time, the ball kept dead till fire, which starts
 ; a new match: no goals, the first minute, the cyan team to kick off

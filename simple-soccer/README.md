@@ -10,7 +10,8 @@ their formation, the player of yours nearest the ball, who dribbles it,
 passes it and shoots, with aftertouch, the other team going for the
 ball, the keepers, sliding tackles, and the rules - throw-ins, goal
 kicks, corners, goals and kick-offs, the score and the time; the view
-follows the ball.
+follows the ball. One player against the computer, or two against each
+other.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
@@ -23,6 +24,10 @@ follows the ball.
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | fire, the other team on the ball | space | sliding tackle, the way you face |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
+
+With one player the joystick in either port (or the keyboard) runs the
+cyan team. With two, the first joystick (and the keyboard) runs the cyan
+team and the second the yellow one, each the same way.
 
 ## Building and running
 
@@ -109,9 +114,20 @@ The TED's two voices give the match its sounds, played by the interrupt
 the keeper's catch, the referee's whistle - a trill - at a kick-off,
 three blasts at half and full time, and the crowd roaring at a goal.
 
-A title comes first: the name, the length of the match to choose with
-the stick (3, 5 or 7 minutes), fire to kick off. It is loaded where the
+A title comes first: the name, the length of the match (3, 5 or 7
+minutes) and one player or two to choose - the stick up and down to a
+line, left and right on it - fire to kick off. It is loaded where the
 pictures go once the match is on, and runs before them.
+
+With two players the yellow team is run just as the cyan one: what a
+player's control of his team is - his joystick, the player it runs, fire
+held, the pass on its way, the aftertouch, the dribble, the team - is
+one block of variables, and the routines that use it (`control`, the
+joystick passed on, the team-mate running to a free ball, the
+aftertouch) run once for each team, the yellow team's block swapped in
+for its turn. The yellow team's own mind - its chaser, the one in
+support, its passes and set pieces - rests meanwhile; its keeper keeps
+his goal on his own, as the cyan one does.
 
 ## The title's music
 

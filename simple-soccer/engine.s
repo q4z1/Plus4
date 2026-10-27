@@ -28,7 +28,7 @@
         .include "data.inc"
 
         .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read, joy_scan
-        .export cam_x, cam_y, frames, joy, dbg_joy
+        .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_font, wrow_lo, wrow_hi
         .import img_ox, img_oy, img_lo, img_hi, light11
@@ -103,8 +103,11 @@ z_ro:       .res 1              ; the row of the column's first cell in it
 
         .bss
 frames:     .res 1              ; pictures shown, 50 a second
-joy:        .res 1              ; J_ bits, joy_read's
-dbg_joy:    .res 1              ; J_ bits held for joy_read by a test
+joy:        .res 1              ; J_ bits, joy_read's: all of them,
+joy_a:      .res 1              ; the first joystick's and the keys,
+joy_b:      .res 1              ; the second joystick's
+dbg_joy:    .res 1              ; J_ bits held for joy_read by a test,
+dbg_joyb:   .res 1              ; and on the second joystick
 back:       .res 1              ; the picture being drawn: 0, 1 or 2
 shown:      .res 1              ; the one on screen, $FF none yet
 queued:     .res 1              ; the one finished, waiting; $FF none
@@ -1779,7 +1782,8 @@ chr_hi:
 
 ; ---- input ----------------------------------------------------------------
 
-; joy_read: both joysticks, the cursor keys and the space bar into joy.
+; joy_read: both joysticks, the cursor keys and the space bar into joy;
+; the first joystick and the keys into joy_a, the second into joy_b.
 ; A row goes to both latches and $FF08 is read twice: the first read
 ; still sees the value written.
 joy_read:
@@ -1808,14 +1812,13 @@ joy_scan:                       ; (the title's: nothing else reads the keys)
         eor #$FF
         tax
         and #$0F
-        ora joy
-        sta joy
+        sta joy_b
         txa
         and #$80
         beq :+
         lda #J_FIRE
-        ora joy
-        sta joy
+        ora joy_b
+        sta joy_b
 :       lda #$BF                ; cursor left (bit 0), right (bit 3)
         jsr krow
         lsr a
@@ -1854,8 +1857,13 @@ joy_scan:                       ; (the title's: nothing else reads the keys)
 :       lda #$FF
         sta KEY_ROW
         sta TED_KEYS
+        lda joy_b
+        ora dbg_joyb
+        sta joy_b
         lda joy
         ora dbg_joy
+        sta joy_a
+        ora joy_b
         sta joy
         cli
         rts

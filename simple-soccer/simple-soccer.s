@@ -12,7 +12,7 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, pose_of, score, game_min, hud, lift, ctrl
+        .import play_init, play_frame, pose_of, score, game_min, hud, lift, ctrl, ctrl_b
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -304,9 +304,11 @@ draw:
         cpx #11
         bcc :+
         lda #COL_TEAM2
-:       cpx ctrl                ; the joystick's player: his shirt white
-        bne :+                  ; two pictures in four, flickering as the
-        pha                     ; C64 shows him (white 4 frames in 8; two
+:       cpx ctrl                ; a joystick's player: his shirt white
+        beq @fl                 ; two pictures in four, flickering as the
+        cpx ctrl_b              ; C64 shows him (white 4 frames in 8; two
+        bne :+
+@fl:    pha
         lda tick                ; pictures are 6)
         lsr a
         lsr a

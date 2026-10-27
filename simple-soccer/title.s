@@ -1,5 +1,6 @@
 ; title.s - the title before the first match: the name, the length of
-; the match to choose (the joystick left and right), fire to kick off.
+; the match and one player or two to choose (the joystick up and down to
+; a line, left and right on it), fire to kick off.
 ;
 ; It lies at $C000, loaded with the program but where the pictures go
 ; once the match is on (engine.s): it runs first, on a screen of its own
@@ -12,7 +13,7 @@
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, title_font, min_frames
+        .import joy_scan, joy, title_font, min_frames, two
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -24,6 +25,7 @@ C_BG        = $16               ; dark blue
 C_BORDER    = $06
 C_TEXT      = $71               ; white
 C_VALUE     = $77               ; yellow
+C_DIM       = $51               ; grey: the line not chosen
 C_FIRE0     = $75               ; light green, and white, by turns
 C_FIRE1     = $71
 
@@ -33,7 +35,10 @@ SKIP        = $0FF8             ; "TS" here: a test, no title (tests/vice.py,
 LOGO_ROW    = 3
 LOGO_COL    = 7
 VALUE_ROW   = 12
-VALUE_COL   = 25                ; (the digit)
+PLAYERS_ROW = 14
+VALUE_COL   = 25                ; (the digits)
+PORTS_ROW   = 19                ; (where the joysticks go)
+PORTS_COL   = 6
 FIRE_ROW    = 16
 
         .zeropage
@@ -44,7 +49,9 @@ t_dst:  .res 2
 
 title:
         lda #0
-        sta t_sel               ; (3 minutes, unless chosen)
+        sta t_sel               ; (3 minutes, one player, unless chosen)
+        sta t_two
+        sta t_row
         jsr skip                ; (a test: none)
         bcc :+
         rts
@@ -227,26 +234,47 @@ title:
         stx t_was
         and #J_FIRE
         bne @go
-        lda t_new
-        and #J_LEFT
+        lda t_new               ; up, down: the other line
+        and #J_UP | J_DOWN
         beq :+
-        lda t_sel
-        beq :+
-        dec t_sel
+        lda t_row
+        eor #1
+        sta t_row
         jsr value
 :       lda t_new
-        and #J_RIGHT
+        and #J_LEFT
+        beq @right
+        lda t_row
         beq :+
-        lda t_sel
-        cmp #2
-        beq :+
-        inc t_sel
+        lda #0                  ; one player
+        sta t_two
+        beq @shown2
+:       lda t_sel               ; shorter
+        beq @right
+        dec t_sel
+@shown2:
         jsr value
-:       jmp @wait
+@right: lda t_new
+        and #J_RIGHT
+        beq @next
+        lda t_row
+        beq :+
+        lda #1                  ; two players
+        sta t_two
+        bne @shown3
+:       lda t_sel               ; longer
+        cmp #2
+        beq @next
+        inc t_sel
+@shown3:
+        jsr value
+@next:  jmp @wait
 @go:    jsr mus_stop
         ldx t_sel               ; the match's length
         lda frames_of,x
         sta min_frames
+        lda t_two
+        sta two
         rts
 
 ; skip: carry set if a test asks for no title (SKIP), the ask taken
@@ -269,14 +297,49 @@ skip:
 @no:    clc
         rts
 
-; value: the length chosen, shown
+; value: what is chosen, shown - the length, the players, the line the
+; stick is on in white, the other grey, and where the joysticks go
 value:
         ldx t_sel
         lda digit_of,x
         sta TCODE + VALUE_ROW * 40 + VALUE_COL
+        lda t_two
+        clc
+        adc #'1'
+        sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
+        lda #C_TEXT
+        ldx #C_DIM
+        ldy t_row
+        beq :+
+        lda #C_DIM
+        ldx #C_TEXT
+:       stx t_col
+        ldy #23
+:       sta TCOL + VALUE_ROW * 40 + 8,y
+        dey
+        bpl :-
+        lda t_col
+        ldy #23
+:       sta TCOL + PLAYERS_ROW * 40 + 8,y
+        dey
+        bpl :-
         lda #C_VALUE
         sta TCOL + VALUE_ROW * 40 + VALUE_COL
+        sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
+        ldx #PORTS_W - 1
+:       lda ports_1,x
+        ldy t_two
+        beq :+
+        lda ports_2,x
+:       sta TCODE + PORTS_ROW * 40 + PORTS_COL,x
+        dex
+        bpl :--
         rts
+
+ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
+PORTS_W     = * - ports_1
+ports_2:    .byte "CYAN: PORT 1  YELLOW: PORT 2"
+.assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
 
 name:       .byte "SIMPLE SOCCER"
 NAME_LEN    = * - name
@@ -292,10 +355,12 @@ lines:
         .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
         .byte VALUE_ROW, 8, C_TEXT
         .byte "MATCH LENGTH:  <   MIN >", 0
+        .byte PLAYERS_ROW, 8, C_TEXT
+        .byte "PLAYERS:       <       >", 0
         .byte FIRE_ROW, 9, C_FIRE0
         .byte "PRESS FIRE TO KICK OFF", 0
-        .byte 19, 8, $51
-        .byte "JOYSTICK IN EITHER PORT", 0
+        .byte PORTS_ROW, PORTS_COL, C_DIM       ; (its text: value)
+        .byte "                            ", 0
         .byte 23, 8, $41
         .byte "BY Q4Z1 2026 (& CLAUDE)", 0
         .byte $FF
@@ -315,3 +380,5 @@ t_was:      .byte 0             ; the stick as it was
 t_new:      .byte 0             ; what is pushed that was not
 t_tick:     .byte 0
 t_sel:      .byte 0             ; the length chosen: 3, 5, 7 minutes
+t_two:      .byte 0             ; 1: two players
+t_row:      .byte 0             ; the line the stick is on: 0 length, 1 players
