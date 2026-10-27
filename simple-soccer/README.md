@@ -24,6 +24,8 @@ other.
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | fire, the other team on the ball | space | sliding tackle, the way you face |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
+| fire, the ball at head height | space | header, the way the stick points (fire may be held as the ball comes) |
+| fire, the ball in the air before you | space | diving header |
 
 With one player the joystick in either port (or the keyboard) runs the
 cyan team. With two, the first joystick (and the keyboard) runs the cyan
@@ -103,6 +105,17 @@ not the C64's.
 
 The player a pass goes to runs to meet it, and the joystick is his once
 he has it; he stops a ball that comes to his feet.
+
+A ball in the air goes over the players' heads unless one of them goes
+for it: with fire down as it comes to his head - 11 to 22 high, within
+10 pixels - your player jumps and heads it on, the way the stick points
+or he faces, as fast as a pass and a little rising; with fire pressed as
+it comes at him lower and further off - 4 to 16 high, 10 to 30 pixels
+before him - he dives for it, as a sliding tackle in the air, and heads
+it on as hard as a shot if he gets to it. The yellow chaser heads a ball
+that comes to his head on towards the cyan goal. There are no crosses
+as such, as in Sensible Soccer: a shot lifted with the aftertouch is
+one.
 
 A ball is a team's while its player who touched it last has it by him,
 or for a few frames after a kick: the other team cannot just run it

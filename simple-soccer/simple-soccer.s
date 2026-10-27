@@ -13,6 +13,7 @@
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
         .import play_init, play_frame, pose_of, score, game_min, hud, lift, ctrl, ctrl_b
+        .import jmp_pl, jmp_t
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -101,6 +102,8 @@ s_j:    .res 1
 ; the image for each step of the run: standing, a foot forward, standing,
 ; the other foot
 step_img: .byte 0, 1, 0, 2
+; a header's jump: how high he is drawn, by the frames still to go
+jump_arc: .byte 0, 1, 2, 3, 4, 4, 4, 4, 3, 2, 1
 
         .code
 
@@ -262,9 +265,11 @@ draw:
         lda #0
         rol a
         sta s_off,x
-        bne @skip
+        bne @skip1
         cpx #BALL
-        beq @skip               ; (the ball last)
+        bne :+                  ; (the ball last)
+@skip1: jmp @skip
+:
         lda s_xl,x
         sec
         sbc #FOOT_X
@@ -300,7 +305,16 @@ draw:
         bcs :+
         dec fig_y + 1
 :
-        lda #COL_TEAM1
+        cpx jmp_pl              ; a header: up in the air a moment
+        bne :+
+        ldy jmp_t
+        lda fig_y
+        sec
+        sbc jump_arc,y
+        sta fig_y
+        bcs :+
+        dec fig_y + 1
+:       lda #COL_TEAM1
         cpx #11
         bcc :+
         lda #COL_TEAM2
