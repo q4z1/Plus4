@@ -1,55 +1,240 @@
 # The teams' flags for the title, drawn by tools/mkflags.py: each a list
 # of shapes, painted in turn on a flag 3 wide and 2 high (x 0-1 across,
 # y 0-1 down), separated by ";". The teams are title.s's, in its order.
+# A flag is 6 x 4 multicolour cells: stripes down in thirds lie on their edges.
 #
 #   field C                    all of it
 #   hstripes C C ...           stripes across, top to bottom (C*n: n as wide)
 #   vstripes C C ...           stripes down, left to right
 #   rect C x0 y0 x1 y1         a rectangle
-#   cross C w [x y]            a cross, w thick, crossing at x, y (0.5 0.5)
+#   cross C w [x y]            a cross, w thick (of the height), crossing at x, y
 #   saltire C w [x0 y0 x1 y1]  a diagonal cross, over all of it or that box
+#   ujack x0 y0 x1 y1          a Union Jack in that box
 #   disc C x y r               a disc, r of the height
 #   halfdisc C x y r           its lower half
-#   star C x y r               a five-pointed star
+#   ring C x y r w             a ring, r outside, w thick
+#   star C x y r               a five-pointed star, a point up
 #   diamond C x y w h          a lozenge, w and h its full size
-#   dots C x0 y0 x1 y1 nx ny   a grid of single dots (stars)
+#   band C x0 y0 x1 y1 w       a straight band, w thick
+#   sprite NAME x y            a picture below, its middle at x y
 #
-# Colours: white and red are every cell's; one more each cell (black,
-# yellow, gold, green, dark, blue, navy, sky, maroon) - two in one cell
-# come out as the nearer.
+# (Brazil's lozenge is laid on the cells, a step a cell: its green and
+# yellow cannot share one.)
+#
+# Colours: navy, white and red every cell has (navy the title's own blue);
+# one more each cell: black, yellow, gold, green, dark (green), blue,
+# sky, maroon. Where a cell would need two of those, the lesser comes out
+# as the nearest of its four.
+#
+# A sprite is drawn in square pixels, two to a multicolour pixel (so its
+# rows have an even length): . see-through, N navy, W white, R red,
+# K black, Y yellow, O gold, G green, D dark, B blue, S sky, M maroon.
 
-ARGENTINA     hstripes sky white sky; disc gold 0.5 0.5 0.1
-AUSTRALIA     field navy; saltire white 0.07 0 0 0.5 0.5; cross red 0.08 0.25 0.25; rect navy 0.5 0 1 1; rect navy 0 0.5 0.5 1; star white 0.25 0.75 0.14; dots white 0.65 0.2 0.9 0.8 2 3
+ARGENTINA     hstripes sky white sky
+AUSTRALIA     field navy; sprite UJACK 0.25 0.25; sprite BIGSTAR 0.25 0.77; sprite STAR 0.75 0.18; sprite STAR 0.6 0.45; sprite STAR 0.89 0.4; sprite STAR 0.75 0.84; sprite DOT 0.84 0.62
 BELGIUM       vstripes black gold red
-BRAZIL        field green; diamond gold 0.5 0.5 0.84 0.76; disc navy 0.5 0.5 0.24
-CAMEROON      vstripes green red gold; star gold 0.5 0.5 0.15
-CANADA        vstripes red white*2 red; star red 0.5 0.5 0.28
-CHILE         hstripes white red; rect navy 0 0 0.34 0.5; star white 0.17 0.25 0.14
-CHINA         field red; star gold 0.17 0.27 0.2; dots gold 0.3 0.1 0.36 0.45 1 4
-COLOMBIA      hstripes gold*2 navy red
-CROATIA       hstripes red white navy; rect red 0.42 0.32 0.58 0.66; dots white 0.44 0.36 0.56 0.62 2 3
-DENMARK       field red; cross white 0.14 0.36 0.5
-EGYPT         hstripes red white black; disc gold 0.5 0.5 0.1
+BRAZIL        field green; rect yellow 0.3333 0.0000 0.6667 0.2500; rect yellow 0.1667 0.2500 0.8333 0.5000; rect yellow 0.1667 0.5000 0.8333 0.7500; rect yellow 0.3333 0.7500 0.6667 1.0000; disc navy 0.5 0.5 0.23; band white 0.3 0.44 0.7 0.56 0.08
+CAMEROON      vstripes green red yellow; star yellow 0.5 0.5 0.17
+CANADA        vstripes red white*2 red; sprite LEAF 0.5 0.5
+CHILE         hstripes white red; rect navy 0 0 0.34 0.5; star white 0.17 0.25 0.17
+CHINA         field red; star yellow 0.17 0.27 0.19; sprite GSTAR 0.34 0.1; sprite GSTAR 0.42 0.23; sprite GSTAR 0.42 0.39; sprite GSTAR 0.34 0.52
+COLOMBIA      hstripes yellow*2 navy red
+CROATIA       hstripes red white navy; sprite CHECKS 0.5 0.53
+DENMARK       field red; cross white 0.16 0.375 0.5
+EGYPT         hstripes red white black; sprite EAGLE 0.5 0.42
 ENGLAND       field white; cross red 0.2
 FRANCE        vstripes navy white red
 GERMANY       hstripes black red gold
-GHANA         hstripes red gold green; star black 0.5 0.5 0.2
+GHANA         hstripes red gold green; star navy 0.5 0.5 0.2
 HUNGARY       hstripes red white green
-IRAN          hstripes green white red; disc red 0.5 0.5 0.1
+IRAN          hstripes green white red; sprite TULIP 0.5 0.5
 ITALY         vstripes green white red
 JAPAN         field white; disc red 0.5 0.5 0.3
-MEXICO        vstripes green white red; disc dark 0.5 0.5 0.12
-MOROCCO       field red; star green 0.5 0.5 0.26
+MEXICO        vstripes green white red; sprite ARMS 0.5 0.5
+MOROCCO       field red; star green 0.5 0.53 0.34; star red 0.5 0.53 0.2
 NETHERLANDS   hstripes red white navy
-NEW ZEALAND   field navy; saltire white 0.07 0 0 0.5 0.5; cross red 0.08 0.25 0.25; rect navy 0.5 0 1 1; rect navy 0 0.5 0.5 1; dots red 0.65 0.2 0.9 0.8 2 3
+NEW ZEALAND   field navy; sprite UJACK 0.25 0.25; sprite NZSTAR 0.75 0.18; sprite NZSTAR 0.62 0.45; sprite NZSTAR 0.88 0.4; sprite NZSTAR 0.75 0.82
 NIGERIA       vstripes green white green
 POLAND        hstripes white red
-PORTUGAL      vstripes green*2 red*3; disc gold 0.4 0.5 0.18; disc red 0.4 0.5 0.1
-SAUDI ARABIA  field green; rect white 0.25 0.3 0.75 0.45; rect white 0.25 0.65 0.75 0.7
-SCOTLAND      field blue; saltire white 0.18
-SENEGAL       vstripes green gold red; star green 0.5 0.5 0.16
-SOUTH KOREA   field white; disc red 0.5 0.5 0.26; halfdisc navy 0.5 0.5 0.26; rect black 0.08 0.1 0.2 0.3; rect black 0.8 0.1 0.92 0.3; rect black 0.08 0.7 0.2 0.9; rect black 0.8 0.7 0.92 0.9
-SPAIN         hstripes red gold*2 red
-SWEDEN        field blue; cross gold 0.18 0.36 0.5
-URUGUAY       hstripes white blue white blue white blue white blue white; rect white 0 0 0.4 0.56; disc gold 0.2 0.28 0.15
-USA           hstripes red white red white red white red; rect navy 0 0 0.45 0.56; dots white 0.06 0.1 0.4 0.48 4 3
+PORTUGAL      vstripes green*2 red*3; rect white 0.32 0.3 0.48 0.7; rect red 0.3 0.25 0.5 0.3; rect red 0.3 0.7 0.5 0.75; rect red 0.3 0.25 0.32 0.75; rect red 0.48 0.25 0.5 0.75; rect navy 0.375 0.42 0.42 0.58
+SAUDI ARABIA  field green; sprite SCRIPT 0.5 0.4; band white 0.22 0.7 0.78 0.7 0.07
+SCOTLAND      field blue; saltire white 0.22
+SENEGAL       vstripes green yellow red; star navy 0.5 0.5 0.18
+SOUTH KOREA   field white; disc red 0.5 0.5 0.28; halfdisc navy 0.5 0.5 0.28; disc red 0.42 0.5 0.14; disc navy 0.58 0.5 0.14; sprite TRIGRAMS 0.5 0.48
+SPAIN         hstripes red yellow*2 red
+SWEDEN        field navy; cross yellow 0.2 0.375 0.5
+URUGUAY       hstripes white navy white navy white navy white navy white; rect white 0 0 0.38 0.56; sprite SUN 0.19 0.28
+USA           hstripes red white red white red white red white red white red white red; rect navy 0 0 0.42 0.54; sprite STARS 0.21 0.27
+
+# the Union Jack in Australia's and New Zealand's cantons (pixel for pixel)
+sprite UJACK
+RRWWNNNNWWRRRRWWNNNNWWRR
+RRRRWWNNWWRRRRWWNNWWRRRR
+WWRRRRWWWWRRRRWWWWRRRRWW
+NNWWRRWWWWRRRRWWWWRRWWNN
+NNWWWWRRWWRRRRWWRRWWWWNN
+WWWWWWWWWWRRRRWWWWWWWWWW
+WWWWWWWWWWRRRRWWWWWWWWWW
+RRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRR
+WWWWWWWWWWRRRRWWWWWWWWWW
+WWWWWWWWWWRRRRWWWWWWWWWW
+NNWWWWRRWWRRRRWWRRWWWWNN
+NNWWRRWWWWRRRRWWWWRRWWNN
+WWRRRRWWWWRRRRWWWWRRRRWW
+RRRRWWNNWWRRRRWWNNWWRRRR
+RRWWNNNNWWRRRRWWNNNNWWRR
+end
+
+# stars: Australia's Commonwealth Star, the Southern Cross, a small one,
+# China's small gold ones, New Zealand's red ones edged white
+sprite BIGSTAR
+....WW....
+....WW....
+WWWWWWWWWW
+..WWWWWW..
+..WWWWWW..
+.WWW..WWW.
+.WW....WW.
+end
+
+sprite STAR
+..WW..
+WWWWWW
+.WWWW.
+WW..WW
+end
+
+sprite DOT
+WW
+WW
+end
+
+sprite GSTAR
+.OO.
+OOOO
+O..O
+end
+
+sprite NZSTAR
+..WW..
+WWRRWW
+.WRRW.
+WW..WW
+end
+
+# Uruguay's Sun of May (Argentina's has no room: its stripes cross the cells)
+sprite SUN
+...OO...
+.O.OO.O.
+..OOOO..
+OOOOOOOO
+..OOOO..
+.O.OO.O.
+...OO...
+end
+
+# Canada's maple leaf
+sprite LEAF
+.......RR.......
+......RRRR......
+...R..RRRR..R...
+...RRRRRRRRRR...
+.R.RRRRRRRRRR.R.
+.RRRRRRRRRRRRRR.
+RRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRR.
+...RRRRRRRRRR...
+.....RRRRRR.....
+.......RR.......
+.......RR.......
+end
+
+# Croatia's chequered shield
+sprite CHECKS
+RRWWRRWW
+RRWWRRWW
+WWRRWWRR
+WWRRWWRR
+RRWWRRWW
+RRWWRRWW
+..RRWW..
+end
+
+# Egypt's eagle of Saladin (in the white stripe's row of cells)
+sprite EAGLE
+OO....OO
+OOOOOOOO
+..OOOO..
+..OOOO..
+..O..O..
+end
+
+# Iran's emblem
+sprite TULIP
+.R.RR.R.
+R..RR..R
+R..RR..R
+.RRRRRR.
+end
+
+# Mexico's eagle above its wreath, each in a row of cells of its own
+sprite ARMS
+..OOOO..
+.OOOOOO.
+O.OOOO.O
+...OO...
+.D....D.
+D......D
+.D....D.
+..DDDD..
+end
+
+# Saudi Arabia's script
+sprite SCRIPT
+WW..WW.WWWW..WWWWW..
+..WW.W.WW.WW.W....WW
+WWWWWWWWWWWWWWWWWWWW
+end
+
+# South Korea's trigrams, in its four corners
+sprite TRIGRAMS
+KKKKKK........................KK..KK
+....................................
+KKKKKK........................KKKKKK
+....................................
+KKKKKK........................KK..KK
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+....................................
+KK..KK........................KKKKKK
+....................................
+KKKKKK........................KK..KK
+....................................
+KK..KK........................KK..KK
+end
+
+# the stars of the USA's canton
+sprite STARS
+WW..WW..WW..WW..WW
+..................
+..WW..WW..WW..WW..
+..................
+WW..WW..WW..WW..WW
+..................
+..WW..WW..WW..WW..
+..................
+WW..WW..WW..WW..WW
+end

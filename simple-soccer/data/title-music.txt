@@ -6,7 +6,7 @@
 #
 # tempo   frames to a tick (a sixteenth), as a fraction: 21/4 = 5.25,
 #         143 beats a minute
-# inst    a name, its wave (pulse50, pulse25, saw, noise), "drop" for a
+# inst    a name, its wave (pulse50, saw, noise), "drop" for a
 #         pitch that falls an eighth each frame (the kick), and its level
 #         each frame from the note's start, 0-3, the last one held
 # pattern a name and its notes; voice: a voice's notes

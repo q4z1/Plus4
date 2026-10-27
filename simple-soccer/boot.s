@@ -7,7 +7,7 @@
 ; it (drive.s), the Plus/4's under the ROM at $FA00 (fastload.s), and the
 ; files come through them; any other drive (a 1551, 1581, SD2IEC ...) loads
 ; the KERNAL's way. First the flags for the title (tools/mkflags.py:
-; "flags" to $E000, "flagset" to $F000, where the title finds them), then
+; "flags" to $D300, where the title finds them), then
 ; the game, packed (exomizer), over this program at $1001: what runs then
 ; is at $0400 - the interrupt, the loading, the start - which neither the
 ; game's file nor the KERNAL's loading touch. The interrupt goes on while
@@ -17,7 +17,8 @@
 ; the TED reads from the RAM even while the KERNAL loads with the ROM in;
 ; the characters a copy of the ROM's (capitals and graphics) at $D000, in
 ; the RAM, the ball's nine among them, rewritten from the pictures at
-; SPIN (tools/mkspinner.py) every SPIN_T frames.
+; SPIN (tools/mkspinner.py) every SPIN_T frames. The characters are copied
+; to $E800, out of the flags' way: the title's screen later.
 ;
 ; GAMESTART (from build.sh): where the packed game starts, as its own
 ; BASIC line would SYS to.
@@ -62,8 +63,9 @@ FL_ADDR = RESIDENT + 9
 GAME    = $1001
 MATRIX  = $0800         ; colours; the codes at $0C00
 CODES   = MATRIX + $400
-CHARS   = $D000         ; the characters (the ROM's capitals copied)
-SPIN    = $D400         ; the ball's pictures, 72 bytes each
+ROMFONT = $D000         ; the ROM's capitals and graphics
+CHARS   = $E800         ; the characters (the ROM's copied)
+SPIN    = $EC00         ; the ball's pictures, 72 bytes each
 SPIN_CODE = $60         ; its nine characters' first code (graphics the
                         ; text does not use)
 SPIN_T  = 4             ; frames each picture shows
@@ -98,13 +100,13 @@ eol:    .word 0
         inx
         bne :-
         ldx #0                  ; the ROM's capitals and graphics into the
-:       lda CHARS,x             ; RAM under it (reading the ROM, writing
-        sta CHARS,x             ; the RAM), the ball's pictures after them
-        lda CHARS + $100,x
+:       lda ROMFONT,x           ; RAM (writes go to the RAM under the
+        sta CHARS,x             ; ROM), the ball's pictures after them
+        lda ROMFONT + $100,x
         sta CHARS + $100,x
-        lda CHARS + $200,x
+        lda ROMFONT + $200,x
         sta CHARS + $200,x
-        lda CHARS + $300,x
+        lda ROMFONT + $300,x
         sta CHARS + $300,x
         lda spin_pics,x
         sta SPIN,x
@@ -202,24 +204,16 @@ eol:    .word 0
         sta IRQEN
         cli
 
-        lda #<$E000             ; the flags: the title's
+        lda #<$D300             ; the flags: the title's
         sta l_addr
-        lda #>$E000
+        lda #>$D300
         sta l_addr+1
         lda #<name_flags
         ldy #>name_flags
         jsr load
-        lda #<$F000
-        sta l_addr
-        lda #>$F000
-        sta l_addr+1
-        lda #<name_set
-        ldy #>name_set
-        jsr load
         jmp game                ; the game, over this
 
 name_flags: .byte "FLAGS", 0
-name_set:   .byte "FLAGSET", 0
 
 ; the ball's nine cells, a row of three at a time
 spin_cell:  .byte 0, 1, 2, 40, 41, 42, 80, 81, 82

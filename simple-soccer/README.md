@@ -65,18 +65,28 @@ turning about one of them, eight pictures of 24 x 24 pixels; a fifth of
 a turn brings a football back to how it was, so they go round without a
 jump.
 
-The title shows each team's flag beside its line, the home team's left,
-the away team's right (`data/flags.txt`, drawn by `tools/mkflags.py` -
-stripes, crosses, discs, stars and the like, in fractions of a 3 by 2
-flag). A flag is 6 x 4 multicolour cells: white and red every cell has,
-the background and one colour of its own each; where a flag wants two
-more in one cell, the smaller comes out as white or red (Argentina's
-sun, the stars of Ghana and Senegal). Their cells' patterns are shared,
-156 at most - the codes the title's own characters leave free - and
-loaded straight into its character set; the rest of the screen stays
-hires below the name for the text, and above it for the name, whose
-colours a multicolour cell would read as its own: the title switches the
-multicolour mode on below it each frame and off again at the bottom.
+The title shows the two teams' flags side by side, framed, "VS" between
+them and each team's name below its own (`data/flags.txt`, drawn by
+`tools/mkflags.py`). A flag is 6 x 4 multicolour cells, 48 x 32 pixels,
+3 to 2: a third of its width is two cells, so stripes down in thirds lie
+on the cells' edges. A cell has four colours - the title's background, a
+navy blue that is the flags' navy (the frame keeps it from the
+background), white and red, which all cells share, and one of its own -
+so most flags come out to the pixel: the stripes, the Union Jack and the
+stars of Australia and New Zealand, the USA's canton, Korea's circle,
+Canada's leaf (the small emblems drawn pixel for pixel). Where a cell
+would need two colours of its own - Brazil's green and yellow - the edge
+between them follows the cells: Brazil's lozenge is laid on them a step a
+cell. No colour shows that is not in the flag.
+
+The patterns of all the flags' cells are on the disk once each (184 of
+them); the title copies those of the two flags shown into the character
+codes its own font leaves free. Each side has two sets of codes: a flag
+chosen is made ready in the set not on the screen, and only its 24
+cells change over, below the picture's last line - a flag is never seen
+half drawn, and the screen is multicolour throughout (the name's
+colours too are ones a multicolour screen leaves to text). A team cannot
+play itself: choosing passes the other side's team by.
 
 ## How it plays
 

@@ -1,15 +1,24 @@
 ; title.s - the title before the first match: the name, the length of
-; the match and one player or two to choose (the joystick up and down to
-; a line, left and right on it), fire to kick off.
+; the match, one player or two, and the two teams with their flags to
+; choose (the joystick up and down to a line, left and right on it), fire
+; to kick off.
 ;
 ; It lies at $C000, loaded with the program but where the pictures go
 ; once the match is on (engine.s): it runs first, on a screen of its own
-; (MAT2's and FNT2's place), and is gone after. Hires text, so that each
-; cell can have any of the TED's colours. Its music is music.s's. Below
-; the name the screen is multicolour - the text's colours are all hires
-; ones (bit 3 clear) - for the teams' flags, which the boot loads from the
-; disk (tools/mkflags.py): their cells' patterns where this font has
-; none of its own, their codes and colours to FLAGS.
+; (MAT2's and FNT2's place), and is gone after; what it keeps in the
+; program (the teams, the choosing) is in the CODE and RODATA segments.
+; Its music is music.s's.
+;
+; The screen is multicolour text: the text's colours are all hires ones
+; (hues 0-7, bit 3 clear - the name's too), the flags' cells multicolour,
+; with the background (a navy blue), white and red shared and one colour
+; of each cell's own. The flags come from the disk (tools/mkflags.py, at
+; FLAGS): their cells' patterns, all of them once, which the two flags
+; shown have copied into the codes the font leaves free - each side two
+; sets of 37: a flag chosen is made ready in the set not shown (prep),
+; and only its 24 cells change over (commit), just below the picture's
+; last line - nothing is ever drawn half. A line chosen only changes
+; colours. No team plays itself: choosing passes the other side's by.
 
         .include "game.inc"
         .include "data.inc"
@@ -26,37 +35,53 @@ TCOL        = MAT2              ; the title's colours,
 TCODE       = MAT2 + $400       ; codes,
 TFONT       = FNT2              ; characters
 
-C_BG        = $16               ; dark blue
+C_BG        = $16               ; dark blue (the flags' navy too)
 C_BORDER    = $06
 C_TEXT      = $71               ; white
 C_VALUE     = $77               ; yellow
-C_DIM       = $51               ; grey: the line not chosen
+C_DIM       = $51               ; grey: a line not chosen
 C_FIRE0     = $75               ; light green, and white, by turns
 C_FIRE1     = $71
+C_FRAME     = $49               ; a flag's frame: grey, multicolour
+FLAG_WHITE  = $71               ; the flags' shared colours ($FF16, $FF17;
+FLAG_RED    = $32               ; tools/mkflags.py's WHITE, RED)
 
 SKIP        = $0FF8             ; "TS" here: a test, no title (tests/vice.py,
                                 ; yape.py) - behind the KERNAL's screen,
                                 ; not loaded, not cleared
-LOGO_ROW    = 3
+LOGO_ROW    = 1
 LOGO_COL    = 7
-VALUE_ROW   = 10
-PLAYERS_ROW = 12
-HOME_ROW    = 14
-AWAY_ROW    = 16
-NAME_COL    = 17                ; (a team's name: so many letters at most)
-NAME_W      = 13
+LEN_ROW     = 6
+PLAYERS_ROW = 8
 VALUE_COL   = 25                ; (the digits)
+LABEL_ROW   = 10                ; "HOME", "AWAY"
+FLAG_ROW    = 12                ; the flags' first row, 4 rows of 6 cells
+FLAG_W      = 6
+FLAG_H      = 4
+HOME_COL    = 5                 ;   the home team's first column
+AWAY_COL    = 29                ;   the away team's
+NAME_ROW    = 17                ; their names, a field of NAME_W under each
+NAME_W      = 13
+FIRE_ROW    = 19
 PORTS_ROW   = 21                ; (where the joysticks go)
 PORTS_COL   = 6
-FIRE_ROW    = 19
-MC_LINE     = 56                ; multicolour from here (below the name;
-                                ; not under 56: $FF1D is the low byte, and
-                                ; lines 256-311 read as 0-55)
+CREDIT_ROW  = 23
+
+FLAGS       = $D300             ; the disk's (tools/mkflags.py): the patterns,
+FLAGS_TEAMS = $DB00             ; each team's 24 cells and 12 colour bytes,
+FLAGS_PAL   = $E000             ; the palette,
+FLAGS_SIG   = $E00F             ; "F": they are there (a test has none)
+LOC         = $E100             ; (prep's: a pattern's code, 256 bytes,
+CBUF        = $E200             ; the cells' codes and colours made ready)
+CCOL        = $E220
+FRAME_CODE  = 0                 ; the frames' 8 characters' first code
 
         .zeropage
 t_ptr:  .res 2                  ; (the title's)
 t_dst:  .res 2
 t_cd:   .res 2
+t_s:    .res 2                  ; (new_code's)
+t_d:    .res 2
 
         .segment "TITLE"
 
@@ -69,26 +94,25 @@ title:
         bcc :+
         rts
 :       lda TED_SCROLLY         ; blank while it is drawn (the boot's
-        and #$EF                ; characters go now)
+        and #$EF                ; screen goes now)
         sta TED_SCROLLY
         lda #0                  ; no interrupts from the TED but the
         sta TED_IRQEN           ; music's (the ROM is out, the match's is
         lda TED_IRQ             ; not set up yet)
         sta TED_IRQ
         jsr mus_start
-        ldx #$1F                ; the characters: only those the title
-:       lda title_font + $400,x ; uses (32-95, 128-163: the text, the big
-        sta TFONT + $500,x      ; letters), the flags' patterns at the rest
-        dex
-        bpl :-
-        inx
-:       lda title_font,x
+        ldx #0                  ; the characters, the frames', the screen
+:       lda title_font,x        ; blank
         sta TFONT + $100,x
         lda title_font + $100,x
         sta TFONT + $200,x
+        lda title_font + $200,x
+        sta TFONT + $300,x
         lda title_font + $300,x
         sta TFONT + $400,x
-        lda #' '                ; the screen: blank
+        lda title_font + $400,x
+        sta TFONT + $500,x
+        lda #' '
         sta TCODE,x
         sta TCODE + $100,x
         sta TCODE + $200,x
@@ -100,6 +124,11 @@ title:
         sta TCOL + $300,x
         inx
         bne :-
+        ldx #8 * 8 - 1
+:       lda frame_chars,x
+        sta TFONT + FRAME_CODE * 8,x
+        dex
+        bpl :-
         ; the name, twice the size, a colour each letter (lighter above)
         ldx #0
 @logo:  lda name,x
@@ -131,7 +160,7 @@ title:
         ora #$70                ; (above: the lightest)
         sta TCOL + LOGO_ROW * 40 + LOGO_COL,y
         sta TCOL + LOGO_ROW * 40 + LOGO_COL + 1,y
-        and #$5F                ; (below: two shades darker)
+        and #$57                ; (below: two shades darker)
         sta TCOL + (LOGO_ROW + 1) * 40 + LOGO_COL,y
         sta TCOL + (LOGO_ROW + 1) * 40 + LOGO_COL + 1,y
 @gap:   inx
@@ -186,13 +215,22 @@ title:
         bcc @line
         inc t_ptr + 1
         bne @line
-@shown: jsr kits
-        jsr value
-        ; the TED: hires text, 40 columns, 25 rows, the title's matrix and
-        ; characters
+@shown: jsr draw_frames
+        jsr kits
+        ldx #0
+        jsr prep
+        jsr commit
+        ldx #1
+        jsr prep
+        jsr commit
+        jsr draw_names
+        jsr show_rows
+        jsr show_values
+        ; the TED: multicolour text, 40 columns, 25 rows, the title's
+        ; matrix and characters
         lda TED_CTRL2
         and #$40                ; (PAL or NTSC kept)
-        ora #$88                ; 256 characters, hires, 40 columns
+        ora #$98                ; 256 characters, multicolour, 40 columns
         sta TED_CTRL2
         lda TED_BMBASE
         and #$FB                ; characters from RAM
@@ -205,7 +243,7 @@ title:
         sta TED_VMBASE
         lda #C_BG
         sta TED_BG
-        lda #FLAG_WHITE         ; (the flags' two shared colours)
+        lda #FLAG_WHITE
         sta TED_COL1
         lda #FLAG_RED
         sta TED_COL2
@@ -216,29 +254,20 @@ title:
         lda #0
         sta t_was
         sta t_tick
-        ; the choice: left, right; fire to kick off (on its letting go)
-@wait:  lda TED_LINE            ; a frame: multicolour on below the name
-        sec                     ; (lines MC_LINE to 15 more), off again
-        sbc #MC_LINE            ; in lines 200-215, and out of them - a
-        cmp #16                 ; window, not a line: one could pass
-        bcs @wait               ; unseen while the music's interrupt runs
-        lda TED_CTRL2
-        ora #$10
-        sta TED_CTRL2
-:       lda TED_LINE
-        sec
-        sbc #200
-        cmp #16
-        bcs :-
-        lda TED_CTRL2
-        and #$EF
-        sta TED_CTRL2
-:       lda TED_LINE
-        sec
-        sbc #200
-        cmp #16
-        bcc :-
-        jsr mus_frame
+        ; the choice; fire to kick off (on its letting go)
+@wait:  lda TED_LINE            ; a frame: the beam into lines 200-215 (a
+        sec                     ; window: a line could pass unseen while
+        sbc #200                ; the music's interrupt runs) - below the
+        cmp #16                 ; picture: what changes is drawn now
+        bcs @wait
+        ldx t_pend              ; a flag made ready: in now, with the names
+        beq :+
+        dex
+        jsr commit
+        jsr draw_names
+        lda #0
+        sta t_pend
+:       jsr mus_frame
         inc t_tick
         lda t_tick              ; "fire" in light green and white by turns
         and #32
@@ -270,7 +299,7 @@ title:
         lda t_row
         beq :+
         dec t_row
-        jsr value
+        jsr show_rows
 :       lda t_new
         and #J_DOWN
         beq :+
@@ -278,20 +307,32 @@ title:
         cmp #ROWS - 1
         beq :+
         inc t_row
-        jsr value
+        jsr show_rows
 :       lda t_new               ; left, right: the choice on it
         and #J_LEFT | J_RIGHT
         beq @next
         and #J_RIGHT            ; (0: left)
         ldx t_row
         jsr change
-        jsr value
-@next:  jmp @wait
+        bcc :+
+        ldx t_row               ; (a team: its flag made ready, in with the
+        dex                     ; next picture's end)
+        dex
+        jsr prep
+        inx
+        stx t_pend
+:       jsr show_values
+@next:  lda TED_LINE            ; (out of the window before the next)
+        sec
+        sbc #200
+        cmp #16
+        bcc @next
+        jmp @wait
 @go:    jsr mus_stop
         jmp chosen
 
 ; skip: carry set if a test asks for no title (SKIP), the ask taken
-; back - min_frames then for 3 minutes
+; back - the match then 3 minutes, one player, the first teams
 skip:
         lda SKIP
         cmp #'T'
@@ -308,6 +349,477 @@ skip:
 @no:    clc
         rts
 
+; show_rows: the line the stick is on in white, the others grey - the
+; length's and the players' text, a team's label and its arrows
+show_rows:
+        ldx #ROWS - 1
+@row:   lda #C_DIM
+        cpx t_row
+        bne :+
+        lda #C_TEXT
+:       cpx #2
+        bcs @team
+        ldy row_of,x            ; (TCOL: $400 below the codes)
+        pha
+        lda row_lo,y
+        clc
+        adc #8
+        sta t_dst
+        lda row_hi,y
+        adc #0
+        sec
+        sbc #>(TCODE - TCOL)
+        sta t_dst + 1
+        pla
+        ldy #23
+:       sta (t_dst),y
+        dey
+        bpl :-
+        bmi @next
+@team:  ldy label_at - 2,x      ; "HOME" / "AWAY", "<" and ">" round the name
+        sta TCOL + LABEL_ROW * 40,y
+        sta TCOL + LABEL_ROW * 40 + 1,y
+        sta TCOL + LABEL_ROW * 40 + 2,y
+        sta TCOL + LABEL_ROW * 40 + 3,y
+        ldy field_at - 2,x
+        sta TCOL + NAME_ROW * 40 - 1,y
+        sta TCOL + NAME_ROW * 40 + NAME_W,y
+@next:  dex
+        bpl @row
+        rts
+
+; show_values: the length's and the players' digits, and where the
+; joysticks go
+show_values:
+        ldx t_sel
+        lda digit_of,x
+        sta TCODE + LEN_ROW * 40 + VALUE_COL
+        lda t_two
+        clc
+        adc #'1'
+        sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
+        lda #C_VALUE
+        sta TCOL + LEN_ROW * 40 + VALUE_COL
+        sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
+        ldx #PORTS_W - 1
+:       lda ports_1,x
+        ldy t_two
+        beq :+
+        lda ports_2,x
+:       sta TCODE + PORTS_ROW * 40 + PORTS_COL,x
+        dex
+        bpl :--
+        rts
+
+; draw_frames: a grey frame round each flag's place
+draw_frames:
+        ldx #1
+@side:  lda flag_lo,x           ; the row above the flag, a column left
+        sec
+        sbc #41
+        sta t_dst
+        sta t_cd
+        lda flag_hi,x
+        sbc #0
+        sta t_dst + 1
+        sec
+        sbc #>(TCODE - TCOL)
+        sta t_cd + 1
+        ldy #0
+        jsr @row                ; the top: corner, edge, corner
+        .byte FRAME_CODE, FRAME_CODE + 1, FRAME_CODE + 2
+        lda #FLAG_H             ; the sides
+        sta t_i
+:       jsr @down
+        ldy #0
+        jsr @row
+        .byte FRAME_CODE + 3, ' ', FRAME_CODE + 4
+        dec t_i
+        bne :-
+        jsr @down
+        ldy #0
+        jsr @row                ; the bottom
+        .byte FRAME_CODE + 5, FRAME_CODE + 6, FRAME_CODE + 7
+        dex
+        bpl @side
+        rts
+@down:  lda t_dst               ; a row on
+        clc
+        adc #40
+        sta t_dst
+        sta t_cd
+        bcc :+
+        inc t_dst + 1
+        inc t_cd + 1
+:       rts
+@row:   pla                     ; the three codes after the jsr: the left
+        sta t_ptr               ; one, the middle ones (' ': left as they
+        pla                     ; are), the right one
+        sta t_ptr + 1
+        ldy #1
+        lda (t_ptr),y
+        ldy #0
+        jsr @put
+        ldy #2
+        lda (t_ptr),y
+        cmp #' '
+        beq :++
+        ldy #FLAG_W
+:       jsr @put
+        dey
+        bne :-
+:       ldy #3
+        lda (t_ptr),y
+        ldy #FLAG_W + 1
+        jsr @put
+        lda t_ptr               ; back past the three
+        clc
+        adc #3
+        tay
+        lda t_ptr + 1
+        adc #0
+        pha
+        tya
+        pha
+        rts
+@put:   sta (t_dst),y           ; (keeps A: the code)
+        pha
+        lda #C_FRAME
+        sta (t_cd),y
+        pla
+        rts
+
+;  prep: team side X's (0 home, 1 away) flag made ready in its set of
+; codes not shown: its patterns copied there, its cells' codes and colours
+; to CBUF, CCOL (commit puts them on the screen). Keeps X.
+prep:
+        stx t_x
+        lda FLAGS_SIG           ; (no flags: a test)
+        cmp #'F'
+        beq :+
+        rts
+:       lda t_bank,x            ; the other set
+        eor #1
+        sta t_nb
+        txa                     ; (its codes: code_* at side * 2 + set)
+        asl a
+        ora t_nb
+        sta t_k2
+        lda t_team,x            ; t_ptr: its cells, FLAGS_TEAMS + team * 36
+        sta t_c
+        lda #0
+        sta t_ptr + 1
+        lda t_c
+        ldy #5                  ; (* 32)
+:       asl a
+        rol t_ptr + 1
+        dey
+        bne :-
+        sta t_f
+        lda t_c                 ; + * 4
+        asl a
+        asl a
+        clc
+        adc t_f
+        bcc :+
+        inc t_ptr + 1
+:       clc
+        adc #<FLAGS_TEAMS
+        sta t_ptr
+        lda t_ptr + 1
+        adc #>FLAGS_TEAMS
+        sta t_ptr + 1
+        ldy #FLAG_W * FLAG_H - 1        ; its patterns: none given a code yet
+        lda #$FF
+:       pha
+        lda (t_ptr),y
+        tax
+        pla
+        sta LOC,x
+        dey
+        bpl :-
+        lda #0
+        sta t_n                 ; (codes given)
+        sta t_i
+@cell:  ldy t_i                 ; cell i: its pattern's code, a new one the
+        lda (t_ptr),y           ; first time
+        tax
+        lda LOC,x
+        cmp #$FF
+        bne :+
+        jsr new_code
+        sta LOC,x
+:       ldy t_i
+        sta CBUF,y
+        tya                     ; its colour: the four bits of the byte
+        lsr a                   ; 24 + i / 2 (the high ones for odd i)
+        php
+        clc
+        adc #FLAG_W * FLAG_H
+        tay
+        lda (t_ptr),y
+        plp
+        bcc :+
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+:       and #15
+        tax
+        lda FLAGS_PAL,x
+        ldy t_i
+        sta CCOL,y
+        iny
+        sty t_i
+        cpy #FLAG_W * FLAG_H
+        bne @cell
+        ldx t_x
+        rts
+
+; commit: side X's flag made ready (prep) on the screen - its cells'
+; codes and colours, and its set of codes the one shown now. Keeps X.
+commit:
+        lda FLAGS_SIG
+        cmp #'F'
+        bne @none
+        lda flag_lo,x           ; where it goes: codes, colours $400 below
+        sta t_dst
+        sta t_cd
+        lda flag_hi,x
+        sta t_dst + 1
+        sec
+        sbc #>(TCODE - TCOL)
+        sta t_cd + 1
+        stx t_x
+        ldx #0
+@row:   ldy #0
+:       lda CBUF,x
+        sta (t_dst),y
+        lda CCOL,x
+        sta (t_cd),y
+        inx
+        iny
+        cpy #FLAG_W
+        bne :-
+        lda t_dst
+        clc
+        adc #40
+        sta t_dst
+        sta t_cd
+        bcc :+
+        inc t_dst + 1
+        inc t_cd + 1
+:       cpx #FLAG_W * FLAG_H
+        bne @row
+        ldx t_x
+        lda t_bank,x
+        eor #1
+        sta t_bank,x
+@none:  rts
+
+; new_code: the next free code of the set being made ready (t_k2: side *
+; 2 + set) for pattern X, its pattern copied there from FLAGS; the code
+; in A. Keeps X.
+new_code:
+        stx t_f
+        ldy t_k2
+        lda t_n
+        inc t_n
+        cmp code_split,y        ; (the set's codes: two runs, the second
+        bcs :+                  ; from code_split on)
+        adc code_lo,y
+        bcc @have
+:       adc code_hi,y           ; (carry set: + 1)
+@have:  sta t_code
+        ldy #0                  ; the pattern, FLAGS + X * 8, to TFONT +
+        sty t_s + 1             ; code * 8
+        txa
+        asl a
+        rol t_s + 1
+        asl a
+        rol t_s + 1
+        asl a
+        rol t_s + 1
+        clc
+        adc #<FLAGS
+        sta t_s
+        lda t_s + 1
+        adc #>FLAGS
+        sta t_s + 1
+        lda #0
+        sta t_d + 1
+        lda t_code
+        asl a
+        rol t_d + 1
+        asl a
+        rol t_d + 1
+        asl a
+        rol t_d + 1
+        sta t_d
+        lda t_d + 1
+        clc
+        adc #>TFONT
+        sta t_d + 1
+        ldy #7
+@copy:  lda (t_s),y
+        sta (t_d),y
+        dey
+        bpl @copy
+        ldx t_f
+        lda t_code
+        rts
+
+; the four sets of 37 codes the flags have (tools/mkflags.py: MOST): the
+; home team's 8-31 and 96-108, 109-127 and 164-181; the away team's
+; 182-218, 219-255 - all the font leaves free but the frames' 0-7
+code_split: .byte 24, 19, 255, 255
+code_lo:    .byte 8, 109, 182, 219
+code_hi:    .byte 96 - 24 - 1, 164 - 19 - 1, 0, 0
+
+; draw_names: both teams' names, in the middle of their fields, in the
+; shirts they play in
+draw_names:
+        ldx #1
+@side:  stx t_x
+        lda t_team,x
+        tax
+        jsr rec                 ; t_ptr: its record
+        ldy #NAME_W             ; its length: the spaces at its end off
+:       dey
+        lda (t_ptr),y
+        cmp #' '
+        beq :-
+        iny
+        sty t_c
+        lda #NAME_W             ; in the middle: (NAME_W - length) / 2 in
+        sec
+        sbc t_c
+        lsr a
+        sta t_f
+        ldx t_x
+        ldy field_at,x
+        ldx #NAME_W             ; the field blank
+        lda #' '
+:       sta TCODE + NAME_ROW * 40,y
+        iny
+        dex
+        bne :-
+        ldx t_x                 ; then the name
+        lda field_at,x
+        clc
+        adc t_f
+        tax
+        ldy #0
+:       lda (t_ptr),y
+        sta TCODE + NAME_ROW * 40,x
+        inx
+        iny
+        cpy t_c
+        bne :-
+        ldx t_x                 ; its colour: the shirt's, hires, light
+        lda team_col,x          ; enough on the blue
+        and #$F7
+        ora #$40
+        ldy field_at,x
+        ldx #NAME_W
+:       sta TCOL + NAME_ROW * 40,y
+        iny
+        dex
+        bne :-
+        ldx t_x
+        dex
+        bpl @side
+        rts
+
+ROWS        = 4                 ; the lines to choose on: length, players,
+row_of:     .byte LEN_ROW, PLAYERS_ROW      ; the home team, the away team
+label_at:   .byte HOME_COL + 1, AWAY_COL + 1
+field_at:   .byte HOME_COL - 4, AWAY_COL - 4
+flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + HOME_COL), <(TCODE + FLAG_ROW * 40 + AWAY_COL)
+flag_hi:    .byte >(TCODE + FLAG_ROW * 40 + HOME_COL), >(TCODE + FLAG_ROW * 40 + AWAY_COL)
+ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
+PORTS_W     = * - ports_1
+ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
+.assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
+
+; a flag's frame, multicolour, in the cells round it: a line next to the
+; flag - corners top left, top, top right, left, right, bottom left,
+; bottom, bottom right
+frame_chars:
+        .byte 0, 0, 0, 0, 0, 0, 0, $03
+        .byte 0, 0, 0, 0, 0, 0, 0, $FF
+        .byte 0, 0, 0, 0, 0, 0, 0, $C0
+        .byte $03, $03, $03, $03, $03, $03, $03, $03
+        .byte $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0
+        .byte $03, 0, 0, 0, 0, 0, 0, 0
+        .byte $FF, 0, 0, 0, 0, 0, 0, 0
+        .byte $C0, 0, 0, 0, 0, 0, 0, 0
+
+name:       .byte "SIMPLE SOCCER"
+NAME_LEN    = * - name
+big_of:     .byte "SIMPLECOR"           ; (mkdata's LOGO_LETTERS)
+; a colour each letter, warm to cool round the hues a multicolour screen
+; leaves to text (0-7)
+hue_of:     .byte 7, 7, 2, 2, 4, 4, 0, 6, 6, 3, 3, 5, 5
+digit_of:   .byte "357"
+
+; the lines: row, column, colour, text, 0 - $FF the end
+lines:
+        .byte 4, 5, $61
+        .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
+        .byte LEN_ROW, 8, C_TEXT
+        .byte "MATCH LENGTH:  <   MIN >", 0
+        .byte PLAYERS_ROW, 8, C_TEXT
+        .byte "PLAYERS:       <       >", 0
+        .byte LABEL_ROW, HOME_COL + 1, C_TEXT
+        .byte "HOME", 0
+        .byte LABEL_ROW, AWAY_COL + 1, C_TEXT
+        .byte "AWAY", 0
+        .byte NAME_ROW, HOME_COL - 5, C_TEXT
+        .byte "<", 0
+        .byte NAME_ROW, HOME_COL - 4 + NAME_W, C_TEXT
+        .byte ">", 0
+        .byte NAME_ROW, AWAY_COL - 5, C_TEXT
+        .byte "<", 0
+        .byte NAME_ROW, AWAY_COL - 4 + NAME_W, C_TEXT
+        .byte ">", 0
+        .byte FLAG_ROW + 1, 19, C_DIM
+        .byte "VS", 0
+        .byte FIRE_ROW, 9, C_FIRE0
+        .byte "PRESS FIRE TO KICK OFF", 0
+        .byte PORTS_ROW, PORTS_COL, C_DIM       ; (its text: show_values)
+        .byte "                            ", 0
+        .byte CREDIT_ROW, 8, $41
+        .byte "BY Q4Z1 2026 (& CLAUDE)", 0
+        .byte $FF
+
+row_lo:
+        .repeat 25, I
+        .byte <(TCODE + I * 40)
+        .endrepeat
+row_hi:
+        .repeat 25, I
+        .byte >(TCODE + I * 40)
+        .endrepeat
+
+t_col:      .byte 0
+t_code:     .byte 0
+t_was:      .byte 0             ; the stick as it was
+t_new:      .byte 0             ; what is pushed that was not
+t_tick:     .byte 0
+t_x:        .byte 0             ; (draw_team's, draw_names')
+t_f:        .byte 0
+t_c:        .byte 0
+t_i:        .byte 0
+t_n:        .byte 0
+t_ccol:     .byte 0
+t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
+                                ; cyan and yellow there were before)
+t_bank:     .byte 0, 0          ; each side's set of codes shown
+t_nb:       .byte 0             ; (prep's: the set it fills,
+t_k2:       .byte 0             ; that set's place in code_*)
+t_pend:     .byte 0             ; a side's flag ready, 1 + side; 0 none
+
 ; chosen: the title's choices to the match - its length, one player or
 ; two, the teams' shirts
 chosen:
@@ -318,7 +830,8 @@ chosen:
         sta two
         jmp kits
 
-; change: the choice on line X a step left (A 0) or right
+; change: the choice on line X a step left (A 0) or right; carry set if a
+; team changed (its shirts worked out anew)
 change:
         cpx #1
         beq @players
@@ -329,31 +842,45 @@ change:
         cmp #2
         beq @done
         inc t_sel
+        clc
         rts
 :       lda t_sel
         beq @done
         dec t_sel
-@done:  rts
+@done:  clc
+        rts
 @players:
         tay                     ; one player, two
         beq :+
         lda #1
 :       sta t_two
+        clc
         rts
-@team:  tay                     ; a team: the one before or after, round
-        beq @prev               ; the list
-        inc t_team - 2,x
-        lda t_team - 2,x
+@team:  sta t_c                 ; a team: the one before or after, round
+        dex                     ; the list - not the other side's
+        dex
+@step:  lda t_c
+        beq @prev
+        inc t_team,x
+        lda t_team,x
         cmp #TEAMS
-        bcc kits
+        bcc @other
         lda #0
-        sta t_team - 2,x
-        beq kits
-@prev:  dec t_team - 2,x
-        bpl kits
+        sta t_team,x
+        beq @other
+@prev:  dec t_team,x
+        bpl @other
         lda #TEAMS - 1
-        sta t_team - 2,x
-        ; (on into kits)
+        sta t_team,x
+@other: txa
+        eor #1
+        tay
+        lda t_team,x
+        cmp t_team,y
+        beq @step
+        jsr kits
+        sec
+        rts
 
 ; kits: the shirts the teams play in - the home team its own, the away
 ; team its own unless it is the home team's colour, then its second,
@@ -430,192 +957,22 @@ rec:    stx t_ptr
         rts
 .assert NAME_W + 2 = 15, error, "rec: records of 15"
 
-; value: what is chosen, shown - the length, the players, the teams'
-; names in their shirts, the line the stick is on in white, the others
-; grey, and where the joysticks go
-value:
-        ldx t_sel
-        lda digit_of,x
-        sta TCODE + VALUE_ROW * 40 + VALUE_COL
-        lda t_two
-        clc
-        adc #'1'
-        sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
-        ldx #ROWS - 1
-@row:   ldy row_of,x            ; (its colours: TCOL, $400 below)
-        lda row_lo,y
-        clc
-        adc #8
-        sta t_dst
-        lda row_hi,y
-        adc #0
-        sec
-        sbc #>(TCODE - TCOL)
-        sta t_dst + 1
-        lda #C_DIM
-        cpx t_row
-        bne :+
-        lda #C_TEXT
-:       ldy #23
-:       sta (t_dst),y
-        dey
-        bpl :-
-        dex
-        bpl @row
-        lda #C_VALUE
-        sta TCOL + VALUE_ROW * 40 + VALUE_COL
-        sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
-        ldx #1                  ; the teams' names
-@team:  stx t_x
-        lda t_team,x
-        tax
-        jsr rec
-        ldx t_x
-        ldy row_of + 2,x
-        lda row_lo,y
-        clc
-        adc #NAME_COL
-        sta t_dst
-        lda row_hi,y
-        adc #0
-        sta t_dst + 1
-        ldy #NAME_W - 1
-:       lda (t_ptr),y
-        sta (t_dst),y
-        dey
-        bpl :-
-        lda t_dst + 1
-        sec
-        sbc #>(TCODE - TCOL)
-        sta t_dst + 1
-        lda team_col,x
-        and #$F7                ; (hires: no multicolour bit)
-        ora #$40                ; (light enough on the blue)
-        ldy #NAME_W - 1
-:       sta (t_dst),y
-        dey
-        bpl :-
-        dex
-        bpl @team
-        jsr draw_flags
-        ldx #PORTS_W - 1
-:       lda ports_1,x
-        ldy t_two
-        beq :+
-        lda ports_2,x
-:       sta TCODE + PORTS_ROW * 40 + PORTS_COL,x
-        dex
-        bpl :--
-        rts
+; ---- what the title keeps in the program ------------------------------------
 
-; draw_flags: each team's flag beside the lines, the home team's left,
-; the away team's right (none without the disk's flags: a test)
-draw_flags:
-        lda FLAGS_SIG
-        cmp #'F'
-        beq :+
-        rts
-:       ldx #1
-@team:  stx t_x
-        lda t_team,x            ; t_ptr: its flag, FLAGS + team * 36
-        sta t_f
-        lda #0
-        sta t_ptr + 1
-        lda t_f
-        asl a
-        asl a
-        sta t_c                 ; (* 4)
-        lda t_f
-        ldy #5
-:       asl a                   ; (* 32)
-        rol t_ptr + 1
-        dey
-        bne :-
-        clc
-        adc t_c
-        bcc :+
-        inc t_ptr + 1
-:       clc
-        adc #<FLAGS
-        sta t_ptr
-        lda t_ptr + 1
-        adc #>FLAGS
-        sta t_ptr + 1
-        lda flag_lo,x           ; where it goes: codes, colours $400 below
-        sta t_dst
-        sta t_cd
-        lda flag_hi,x
-        sta t_dst + 1
-        sec
-        sbc #>(TCODE - TCOL)
-        sta t_cd + 1
-        lda #0
-        sta t_ccol
-        tay
-@cell:  sty t_i                 ; cell i: its code, its colour (its four
-        lda (t_ptr),y           ; bits of the byte 24 + i / 2)
-        pha
-        tya
-        lsr a
-        php
-        clc
-        adc #24
-        tay
-        lda (t_ptr),y
-        plp
-        bcc :+
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-:       and #15
-        tay
-        lda FLAGS_PAL,y
-        ldy t_ccol
-        sta (t_cd),y
-        pla
-        sta (t_dst),y
-        iny                     ; on: six to a row
-        cpy #6
-        bne @same
-        ldy #0
-        lda t_dst
-        clc
-        adc #40
-        sta t_dst
-        sta t_cd
-        bcc @same
-        inc t_dst + 1
-        inc t_cd + 1
-@same:  sty t_ccol
-        ldy t_i
-        iny
-        cpy #24
-        bne @cell
-        ldx t_x
-        dex
-        bmi :+
-        jmp @team
-:       rts
+        .bss
+t_sel:      .res 1              ; the length chosen: 3, 5, 7 minutes
+t_two:      .res 1              ; 1: two players
+t_row:      .res 1              ; the line the stick is on: 0 length, 1 players,
+                                ; 2 the home team, 3 the away team
+t_k:        .res 1              ; (kits')
 
-FLAGS       = $E000             ; (tools/mkflags.py)
-FLAGS_PAL   = $E4F0
-FLAGS_SIG   = $E4FF
-FLAG_ROW    = 13
-FLAG_WHITE  = $71
-FLAG_RED    = $42
-flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + 1), <(TCODE + FLAG_ROW * 40 + 33)
-flag_hi:    .byte >(TCODE + FLAG_ROW * 40 + 1), >(TCODE + FLAG_ROW * 40 + 33)
 
-ROWS        = 4                 ; the lines to choose on
-row_of:     .byte VALUE_ROW, PLAYERS_ROW, HOME_ROW, AWAY_ROW
-ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
-PORTS_W     = * - ports_1
-ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
-.assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
+        .rodata
+frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
 
 ; The teams: a name, its shirt and its second, as the TED's colours
-; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more)
+; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more).
+; Their flags: data/flags.txt, in this order (tools/mkflags.py reads it).
 .macro  team name, home, away
         .byte name
         .res NAME_W - .strlen(name), ' '
@@ -668,58 +1025,3 @@ teams:
         team "URUGUAY", LIGHT_SKY, WHITE
         team "USA", WHITE, DARK_BLUE
 TEAMS       = (* - teams) / (NAME_W + 2)
-
-name:       .byte "SIMPLE SOCCER"
-NAME_LEN    = * - name
-big_of:     .byte "SIMPLECOR"           ; (mkdata's LOGO_LETTERS)
-; a colour each letter: warm, then cool, round the TED's hues
-hue_of:     .byte 7, 8, 2, 11, 4, 6, 0, 3, 15, 5, 10, 7, 8
-digit_of:   .byte "357"
-frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
-
-; the lines: row, column, colour, text, 0 - $FF the end
-lines:
-        .byte 7, 5, $61
-        .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
-        .byte VALUE_ROW, 8, C_TEXT
-        .byte "MATCH LENGTH:  <   MIN >", 0
-        .byte PLAYERS_ROW, 8, C_TEXT
-        .byte "PLAYERS:       <       >", 0
-        .byte HOME_ROW, 8, C_TEXT
-        .byte "HOME:  <               >", 0
-        .byte AWAY_ROW, 8, C_TEXT
-        .byte "AWAY:  <               >", 0
-        .byte FIRE_ROW, 9, C_FIRE0
-        .byte "PRESS FIRE TO KICK OFF", 0
-        .byte PORTS_ROW, PORTS_COL, C_DIM       ; (its text: value)
-        .byte "                            ", 0
-        .byte 23, 8, $41
-        .byte "BY Q4Z1 2026 (& CLAUDE)", 0
-        .byte $FF
-
-row_lo:
-        .repeat 25, I
-        .byte <(TCODE + I * 40)
-        .endrepeat
-row_hi:
-        .repeat 25, I
-        .byte >(TCODE + I * 40)
-        .endrepeat
-
-t_col:      .byte 0
-t_code:     .byte 0
-t_was:      .byte 0             ; the stick as it was
-t_new:      .byte 0             ; what is pushed that was not
-t_tick:     .byte 0
-t_sel:      .byte 0             ; the length chosen: 3, 5, 7 minutes
-t_two:      .byte 0             ; 1: two players
-t_row:      .byte 0             ; the line the stick is on: 0 length, 1 players,
-                                ; 2 the home team, 3 the away team
-t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
-                                ; cyan and yellow there were before)
-t_k:        .byte 0             ; (kits')
-t_x:        .byte 0             ; (value's)
-t_f:        .byte 0             ; (draw_flags')
-t_c:        .byte 0
-t_i:        .byte 0
-t_ccol:     .byte 0

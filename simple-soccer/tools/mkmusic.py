@@ -16,7 +16,8 @@ levels: DA mode, both voices on, the volume 1 + the levels.
 What is made, as .byte lists the player walks:
   m_notes   each note's step, a word: 65536 * Hz / SAMPLE_RATE
   m_envs    the instruments' levels, each list ended by $FF
-  i_wave    an instrument's wave pages (PAGES + 4 * wave, + the level)
+  i_wave    an instrument's wave pages (PAGES + 3 * wave, + the level 1-3;
+            level 0 is PAGES itself, flat)
   i_env     where its levels begin in m_envs
   i_flags   $80: its pitch drops (the kick); $40: noise, a random step
   v_start, v_loop   each voice's notes, and where it starts again
@@ -42,8 +43,8 @@ LATCH = 160                     # a sample each 160 counts
 SAMPLE_RATE = CLOCK / LATCH     # 5542 Hz
 FRAME_RATE = 50
 BASE = 0x3B                     # a wave page's level 0
-WAVES = ['pulse50', 'pulse25', 'saw', 'noise']
-PAGES = 0xD0                    # the wave pages: $D000-$DFFF, 4 to a wave
+WAVES = ['pulse50', 'saw', 'noise']
+PAGES = 0x04                    # the wave pages: $0400-$0DFF, flat, then 3 to a wave
 NAMES = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
 
 
@@ -144,7 +145,7 @@ def build():
     assert len(envs) <= 256
     lines += ['', 'ENV_REST    = 0', 'm_envs:  .byte ' + ', '.join('$%02X' % b for b in envs)]
     order = sorted(song.insts.items(), key=lambda x: x[1][0])
-    lines.append('i_wave:  .byte ' + ', '.join('$%02X' % (PAGES + 4 * w) for _, (i, w, d, l) in order))
+    lines.append('i_wave:  .byte ' + ', '.join('$%02X' % (PAGES + 3 * w) for _, (i, w, d, l) in order))
     lines.append('i_env:   .byte ' + ', '.join(str(env_at[n]) for n, _ in order))
     lines.append('i_flags: .byte ' + ', '.join(
         '$%02X' % ((0x80 if d else 0) | (0x40 if WAVES[w] == 'noise' else 0))
@@ -206,12 +207,14 @@ class Rnd:
 
 
 def pages(rnd):
+    """as music.s makes them: flat, then pulse, saw, noise at levels 1-3"""
     out = []
-    for x in range(16):
-        w, m = x >> 2, (x & 3) + 1
+    for x in range(10):
+        w = [0, 0, 0, 0, 1, 1, 1, 2, 2, 2][x]
+        m = [0, 1, 2, 3, 1, 2, 3, 1, 2, 3][x] + 1
         page = []
         for i in range(256):
-            p = [255 if i < 128 else 0, 255 if i < 64 else 0, i, None][w]
+            p = [255 if i < 128 else 0, i, None][w]
             if p is None:
                 p = rnd()
             page.append(BASE + (p * m >> 8))
@@ -230,7 +233,7 @@ def play(seconds, path):
             data += [0xFD] if x == 'call' else [x, 0] if isinstance(x, str) else [x]
     data = [pos['p_' + x.replace('-', '_')] if isinstance(x, str) else x for x in data]
     order = sorted(song.insts.items(), key=lambda x: x[1][0])
-    i_wave = [4 * w for _, (i, w, d, l) in order]
+    i_wave = [3 * w for _, (i, w, d, l) in order]
     i_env = [env_at[n] for n, _ in order]
     i_flags = [(0x80 if d else 0) | (0x40 if WAVES[w] == 'noise' else 0) for _, (i, w, d, l) in order]
     steps = [round(65536 * hz_of(n) / SAMPLE_RATE) for n in song.notes]
@@ -285,7 +288,7 @@ def play(seconds, path):
                 v['f'] -= v['f'] >> 3
             if fl & 0x40:
                 v['f'] = (v['f'] & 0xFF) | rnd() << 8
-            v['page'] = i_wave[v['ins']] + level
+            v['page'] = i_wave[v['ins']] + level if level else 0
         sample += spf
         while sample >= 1:
             sample -= 1

@@ -17,8 +17,8 @@
 ; What drives it is this file's own: once a frame mus_frame goes on with
 ; each voice's notes (tools/mkmusic.py has the format), walks its
 ; instrument's levels and puts its step and wave page into the interrupt.
-; The wave pages are made at the start, $D000-$DFFF, free while the title
-; is up (picture 1's place in the match).
+; The wave pages are made at the start, $0400-$0DFF, free while the title
+; is up (the figures' lists in the match).
 
         .include "game.inc"
 
@@ -86,19 +86,17 @@ BASE3       = 3 * BASE          ; three of them: $B1
 ; the voices at their start
 mus_start:
         sei
-        ; 16 pages: 4 to a wave (pulse 50 %, pulse 25 %, saw, noise), each
-        ; at the levels 0-3 - BASE + the wave (0-255) * (level + 1) / 256
+        ; 10 pages: one flat (level 0), then 3 to a wave (pulse 50 %, saw,
+        ; noise) at the levels 1-3 - BASE + the wave (0-255) * (level + 1)
+        ; / 256
         ldx #0
 @page:  txa
         clc
         adc #PAGES
         sta @put + 2
-        txa
-        and #3
+        lda pg_lvl,x
         sta g_lvl               ; (the level: added up level + 1 times)
-        txa
-        lsr a
-        lsr a
+        lda pg_wave,x
         sta g_wave
         ldy #0
 @byte:  lda g_wave              ; the wave here
@@ -136,7 +134,7 @@ mus_start:
         iny
         bne @byte
         inx
-        cpx #16
+        cpx #10
         bne @page
         ; the interrupt into the zero page
         ldx #<(__SYNTH_SIZE__ - 1)
@@ -326,10 +324,13 @@ sound:
         bpl :+
         jsr rnd                 ; noise: a step at random
         sta v_fh,x
-:       lda i_wave,y            ; its wave page at its level
+:       lda m_lvl               ; its wave page at its level (0: the flat
+        beq :+                  ; one)
         clc
-        adc m_lvl
-        ldy page_at,x
+        adc i_wave,y
+        bne :++
+:       lda #PAGES
+:       ldy page_at,x
         sta s_p1,y
         ldy step_at,x
         lda v_fl,x
@@ -347,6 +348,8 @@ rnd:    lda m_rnd
         rts
 
 page_at:    .byte 0, s_w2 - s_w1, s_w3 - s_w1
+pg_wave:    .byte 0, 0, 0, 0, 2, 2, 2, 3, 3, 3  ; each page's wave (mus_start's
+pg_lvl:     .byte 0, 1, 2, 3, 1, 2, 3, 1, 2, 3  ; 0 pulse, 2 saw, 3 noise), level
 step_at:    .byte 0, s_f2l - s_f1l, s_f3l - s_f1l
 
 ; each voice's

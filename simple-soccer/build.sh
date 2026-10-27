@@ -6,7 +6,7 @@
 # (cl65 only assembles it and links), then the disk. On it:
 #   simple soccer   the boot (boot.s): the loading screen, the fast loader
 #                   (drive.s, fastload.s, as trainschedule's), the rest
-#   flags, flagset  the title's flags (tools/mkflags.py, data/flags.txt)
+#   flags           the title's flags (tools/mkflags.py, data/flags.txt)
 #   game            the game, packed by exomizer: it unpacks itself
 set -e
 cd "$(dirname "$0")"
@@ -25,6 +25,16 @@ $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 $B/cl65 -t plus4 -C simple-soccer.cfg -m build/simple-soccer.map -Ln build/simple-soccer.lbl \
     -o build/simple-soccer.prg build/simple-soccer.o build/engine.o build/play.o build/sound.o build/title.o build/music.o build/data.o
 echo "build/simple-soccer.prg: $(stat -c%s build/simple-soccer.prg) bytes"
+# the title and the music's interrupt, loaded after it, under the flags the
+# boot has put at $D300 (tools/mkflags.py)
+python3 - build/simple-soccer.map <<'PY'
+import re, sys
+m = open(sys.argv[1]).read()
+end = int(re.search(r"^TITLE\s+\S+\s+(\S+)", m, re.M).group(1), 16)
+synth = int(re.search(r"^SYNTH\s+\S+\s+\S+\s+(\S+)", m, re.M).group(1), 16)
+if end + 1 + synth > 0xD300:
+    sys.exit("the title runs into the flags at $D300: up to $%04X" % (end + synth))
+PY
 
 # The game packed (it leaves the screen and the interrupt as they are: the
 # boot's loading screen goes on while it unpacks), the loader's halves, the
@@ -45,6 +55,6 @@ $B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAM
     -Ln build/boot.lbl -o build/disk/boot.prg boot.s
 python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-15} \
     "simple soccer=build/disk/boot.prg" flags=build/disk/flags.prg \
-    flagset=build/disk/flagset.prg game@${GAME_INTERLEAVE:-20}=build/disk/game.prg
+    game@${GAME_INTERLEAVE:-20}=build/disk/game.prg
 echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg), game packed $(stat -c%s build/disk/game.prg) bytes"
 
