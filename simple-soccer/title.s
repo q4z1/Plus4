@@ -5,7 +5,11 @@
 ; It lies at $C000, loaded with the program but where the pictures go
 ; once the match is on (engine.s): it runs first, on a screen of its own
 ; (MAT2's and FNT2's place), and is gone after. Hires text, so that each
-; cell can have any of the TED's colours. Its music is music.s's.
+; cell can have any of the TED's colours. Its music is music.s's. Below
+; the name the screen is multicolour - the text's colours are all hires
+; ones (bit 3 clear) - for the teams' flags, which the boot loads from the
+; disk (tools/mkflags.py): their cells' patterns where this font has
+; none of its own, their codes and colours to FLAGS.
 
         .include "game.inc"
         .include "data.inc"
@@ -45,10 +49,14 @@ VALUE_COL   = 25                ; (the digits)
 PORTS_ROW   = 21                ; (where the joysticks go)
 PORTS_COL   = 6
 FIRE_ROW    = 19
+MC_LINE     = 56                ; multicolour from here (below the name;
+                                ; not under 56: $FF1D is the low byte, and
+                                ; lines 256-311 read as 0-55)
 
         .zeropage
 t_ptr:  .res 2                  ; (the title's)
 t_dst:  .res 2
+t_cd:   .res 2
 
         .segment "TITLE"
 
@@ -60,25 +68,26 @@ title:
         jsr skip                ; (a test: none)
         bcc :+
         rts
-:       lda #0                  ; no interrupts from the TED but the
+:       lda TED_SCROLLY         ; blank while it is drawn (the boot's
+        and #$EF                ; characters go now)
+        sta TED_SCROLLY
+        lda #0                  ; no interrupts from the TED but the
         sta TED_IRQEN           ; music's (the ROM is out, the match's is
         lda TED_IRQ             ; not set up yet)
         sta TED_IRQ
         jsr mus_start
-        lda TED_SCROLLY         ; blank while it is drawn
-        and #$EF
-        sta TED_SCROLLY
-        ldx #0                  ; the characters
+        ldx #$1F                ; the characters: only those the title
+:       lda title_font + $400,x ; uses (32-95, 128-163: the text, the big
+        sta TFONT + $500,x      ; letters), the flags' patterns at the rest
+        dex
+        bpl :-
+        inx
 :       lda title_font,x
         sta TFONT + $100,x
         lda title_font + $100,x
         sta TFONT + $200,x
-        lda title_font + $200,x
-        sta TFONT + $300,x
         lda title_font + $300,x
         sta TFONT + $400,x
-        lda title_font + $400,x
-        sta TFONT + $500,x
         lda #' '                ; the screen: blank
         sta TCODE,x
         sta TCODE + $100,x
@@ -196,6 +205,10 @@ title:
         sta TED_VMBASE
         lda #C_BG
         sta TED_BG
+        lda #FLAG_WHITE         ; (the flags' two shared colours)
+        sta TED_COL1
+        lda #FLAG_RED
+        sta TED_COL2
         lda #C_BORDER
         sta TED_BORDER
         lda #$1B                ; on, text, 25 rows
@@ -204,11 +217,22 @@ title:
         sta t_was
         sta t_tick
         ; the choice: left, right; fire to kick off (on its letting go)
-@wait:  lda TED_LINE            ; a frame: the beam into lines 200-215 and
-        sec                     ; out of them again (a line could pass
-        sbc #200                ; unseen while the music's interrupt runs)
+@wait:  lda TED_LINE            ; a frame: multicolour on below the name
+        sec                     ; (lines MC_LINE to 15 more), off again
+        sbc #MC_LINE            ; in lines 200-215, and out of them - a
+        cmp #16                 ; window, not a line: one could pass
+        bcs @wait               ; unseen while the music's interrupt runs
+        lda TED_CTRL2
+        ora #$10
+        sta TED_CTRL2
+:       lda TED_LINE
+        sec
+        sbc #200
         cmp #16
-        bcs @wait
+        bcs :-
+        lda TED_CTRL2
+        and #$EF
+        sta TED_CTRL2
 :       lda TED_LINE
         sec
         sbc #200
@@ -473,6 +497,7 @@ value:
         bpl :-
         dex
         bpl @team
+        jsr draw_flags
         ldx #PORTS_W - 1
 :       lda ports_1,x
         ldy t_two
@@ -482,6 +507,105 @@ value:
         dex
         bpl :--
         rts
+
+; draw_flags: each team's flag beside the lines, the home team's left,
+; the away team's right (none without the disk's flags: a test)
+draw_flags:
+        lda FLAGS_SIG
+        cmp #'F'
+        beq :+
+        rts
+:       ldx #1
+@team:  stx t_x
+        lda t_team,x            ; t_ptr: its flag, FLAGS + team * 36
+        sta t_f
+        lda #0
+        sta t_ptr + 1
+        lda t_f
+        asl a
+        asl a
+        sta t_c                 ; (* 4)
+        lda t_f
+        ldy #5
+:       asl a                   ; (* 32)
+        rol t_ptr + 1
+        dey
+        bne :-
+        clc
+        adc t_c
+        bcc :+
+        inc t_ptr + 1
+:       clc
+        adc #<FLAGS
+        sta t_ptr
+        lda t_ptr + 1
+        adc #>FLAGS
+        sta t_ptr + 1
+        lda flag_lo,x           ; where it goes: codes, colours $400 below
+        sta t_dst
+        sta t_cd
+        lda flag_hi,x
+        sta t_dst + 1
+        sec
+        sbc #>(TCODE - TCOL)
+        sta t_cd + 1
+        lda #0
+        sta t_ccol
+        tay
+@cell:  sty t_i                 ; cell i: its code, its colour (its four
+        lda (t_ptr),y           ; bits of the byte 24 + i / 2)
+        pha
+        tya
+        lsr a
+        php
+        clc
+        adc #24
+        tay
+        lda (t_ptr),y
+        plp
+        bcc :+
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+:       and #15
+        tay
+        lda FLAGS_PAL,y
+        ldy t_ccol
+        sta (t_cd),y
+        pla
+        sta (t_dst),y
+        iny                     ; on: six to a row
+        cpy #6
+        bne @same
+        ldy #0
+        lda t_dst
+        clc
+        adc #40
+        sta t_dst
+        sta t_cd
+        bcc @same
+        inc t_dst + 1
+        inc t_cd + 1
+@same:  sty t_ccol
+        ldy t_i
+        iny
+        cpy #24
+        bne @cell
+        ldx t_x
+        dex
+        bmi :+
+        jmp @team
+:       rts
+
+FLAGS       = $E000             ; (tools/mkflags.py)
+FLAGS_PAL   = $E4F0
+FLAGS_SIG   = $E4FF
+FLAG_ROW    = 13
+FLAG_WHITE  = $71
+FLAG_RED    = $42
+flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + 1), <(TCODE + FLAG_ROW * 40 + 33)
+flag_hi:    .byte >(TCODE + FLAG_ROW * 40 + 1), >(TCODE + FLAG_ROW * 40 + 33)
 
 ROWS        = 4                 ; the lines to choose on
 row_of:     .byte VALUE_ROW, PLAYERS_ROW, HOME_ROW, AWAY_ROW
@@ -595,3 +719,7 @@ t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
                                 ; cyan and yellow there were before)
 t_k:        .byte 0             ; (kits')
 t_x:        .byte 0             ; (value's)
+t_f:        .byte 0             ; (draw_flags')
+t_c:        .byte 0
+t_i:        .byte 0
+t_ccol:     .byte 0

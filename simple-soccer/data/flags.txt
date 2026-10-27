@@ -1,0 +1,55 @@
+# The teams' flags for the title, drawn by tools/mkflags.py: each a list
+# of shapes, painted in turn on a flag 3 wide and 2 high (x 0-1 across,
+# y 0-1 down), separated by ";". The teams are title.s's, in its order.
+#
+#   field C                    all of it
+#   hstripes C C ...           stripes across, top to bottom (C*n: n as wide)
+#   vstripes C C ...           stripes down, left to right
+#   rect C x0 y0 x1 y1         a rectangle
+#   cross C w [x y]            a cross, w thick, crossing at x, y (0.5 0.5)
+#   saltire C w [x0 y0 x1 y1]  a diagonal cross, over all of it or that box
+#   disc C x y r               a disc, r of the height
+#   halfdisc C x y r           its lower half
+#   star C x y r               a five-pointed star
+#   diamond C x y w h          a lozenge, w and h its full size
+#   dots C x0 y0 x1 y1 nx ny   a grid of single dots (stars)
+#
+# Colours: white and red are every cell's; one more each cell (black,
+# yellow, gold, green, dark, blue, navy, sky, maroon) - two in one cell
+# come out as the nearer.
+
+ARGENTINA     hstripes sky white sky; disc gold 0.5 0.5 0.1
+AUSTRALIA     field navy; saltire white 0.07 0 0 0.5 0.5; cross red 0.08 0.25 0.25; rect navy 0.5 0 1 1; rect navy 0 0.5 0.5 1; star white 0.25 0.75 0.14; dots white 0.65 0.2 0.9 0.8 2 3
+BELGIUM       vstripes black gold red
+BRAZIL        field green; diamond gold 0.5 0.5 0.84 0.76; disc navy 0.5 0.5 0.24
+CAMEROON      vstripes green red gold; star gold 0.5 0.5 0.15
+CANADA        vstripes red white*2 red; star red 0.5 0.5 0.28
+CHILE         hstripes white red; rect navy 0 0 0.34 0.5; star white 0.17 0.25 0.14
+CHINA         field red; star gold 0.17 0.27 0.2; dots gold 0.3 0.1 0.36 0.45 1 4
+COLOMBIA      hstripes gold*2 navy red
+CROATIA       hstripes red white navy; rect red 0.42 0.32 0.58 0.66; dots white 0.44 0.36 0.56 0.62 2 3
+DENMARK       field red; cross white 0.14 0.36 0.5
+EGYPT         hstripes red white black; disc gold 0.5 0.5 0.1
+ENGLAND       field white; cross red 0.2
+FRANCE        vstripes navy white red
+GERMANY       hstripes black red gold
+GHANA         hstripes red gold green; star black 0.5 0.5 0.2
+HUNGARY       hstripes red white green
+IRAN          hstripes green white red; disc red 0.5 0.5 0.1
+ITALY         vstripes green white red
+JAPAN         field white; disc red 0.5 0.5 0.3
+MEXICO        vstripes green white red; disc dark 0.5 0.5 0.12
+MOROCCO       field red; star green 0.5 0.5 0.26
+NETHERLANDS   hstripes red white navy
+NEW ZEALAND   field navy; saltire white 0.07 0 0 0.5 0.5; cross red 0.08 0.25 0.25; rect navy 0.5 0 1 1; rect navy 0 0.5 0.5 1; dots red 0.65 0.2 0.9 0.8 2 3
+NIGERIA       vstripes green white green
+POLAND        hstripes white red
+PORTUGAL      vstripes green*2 red*3; disc gold 0.4 0.5 0.18; disc red 0.4 0.5 0.1
+SAUDI ARABIA  field green; rect white 0.25 0.3 0.75 0.45; rect white 0.25 0.65 0.75 0.7
+SCOTLAND      field blue; saltire white 0.18
+SENEGAL       vstripes green gold red; star green 0.5 0.5 0.16
+SOUTH KOREA   field white; disc red 0.5 0.5 0.26; halfdisc navy 0.5 0.5 0.26; rect black 0.08 0.1 0.2 0.3; rect black 0.8 0.1 0.92 0.3; rect black 0.08 0.7 0.2 0.9; rect black 0.8 0.7 0.92 0.9
+SPAIN         hstripes red gold*2 red
+SWEDEN        field blue; cross gold 0.18 0.36 0.5
+URUGUAY       hstripes white blue white blue white blue white blue white; rect white 0 0 0.4 0.56; disc gold 0.2 0.28 0.15
+USA           hstripes red white red white red white red; rect navy 0 0 0.45 0.56; dots white 0.06 0.1 0.4 0.48 4 3

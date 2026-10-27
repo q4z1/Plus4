@@ -5,4 +5,4 @@
 # the Xbox controller's left stick and A as the joystick, its buttons kept
 # from Yape's own functions: its run-yape.sh does that.
 cd "$(dirname "$0")"
-exec ../paradroid/run-yape.sh "$(pwd)/build/simple-soccer.prg"
+exec ../paradroid/run-yape.sh "$(pwd)/build/simple-soccer.d64"

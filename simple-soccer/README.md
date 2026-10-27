@@ -37,7 +37,7 @@ they had before there was a choice.)
 ## Building and running
 
 ```sh
-simple-soccer/build.sh       # -> simple-soccer/build/simple-soccer.prg
+simple-soccer/build.sh       # -> simple-soccer/build/simple-soccer.d64 (and .prg, the game alone)
 simple-soccer/run-yape.sh    # in Yape, with the gamepad set up as for Paradroid
 simple-soccer/run.sh         # in VICE
 ```
@@ -45,6 +45,38 @@ simple-soccer/run.sh         # in VICE
 In VS Code, F5 with any file of the folder open builds and starts it.
 `tools/mkdata.py` makes the data the game is built with from the text
 files in `data/`.
+
+## The disk
+
+The game comes on a disk, `simple-soccer.d64`: `LOAD"*",8,1` and `RUN`
+(or `LOAD"SIMPLE SOCCER",8`). The first program, the boot (`boot.s`),
+puts up its loading screen at once - the name, a football turning, and
+"LOADING" with its dots running - and keeps it going while it loads the
+flags and the game, and while the game unpacks itself (it is packed by
+exomizer: 21 KB on the disk, 49 KB in memory). On a 1541 (any of them),
+1570 or 1571 it loads with the fast loader taken over from trainschedule
+(`drive.s`, `fastload.s`); on any other drive - a 1551, an SD2IEC - the
+KERNAL's way, slower, the screen the same. The border turns red while a
+file will not load (no disk, a bad one); it tries again by itself.
+
+The ball is worked out by `tools/mkspinner.py`: a sphere with the twelve
+black pentagons of a football round the corners of an icosahedron,
+turning about one of them, eight pictures of 24 x 24 pixels; a fifth of
+a turn brings a football back to how it was, so they go round without a
+jump.
+
+The title shows each team's flag beside its line, the home team's left,
+the away team's right (`data/flags.txt`, drawn by `tools/mkflags.py` -
+stripes, crosses, discs, stars and the like, in fractions of a 3 by 2
+flag). A flag is 6 x 4 multicolour cells: white and red every cell has,
+the background and one colour of its own each; where a flag wants two
+more in one cell, the smaller comes out as white or red (Argentina's
+sun, the stars of Ghana and Senegal). Their cells' patterns are shared,
+156 at most - the codes the title's own characters leave free - and
+loaded straight into its character set; the rest of the screen stays
+hires below the name for the text, and above it for the name, whose
+colours a multicolour cell would read as its own: the title switches the
+multicolour mode on below it each frame and off again at the bottom.
 
 ## How it plays
 
