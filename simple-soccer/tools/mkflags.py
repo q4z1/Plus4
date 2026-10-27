@@ -263,15 +263,19 @@ def dist(a, b):
     return 4 * (luma(ra) - luma(rb)) ** 2 + sum((p - q) ** 2 for p, q in zip(ra, rb))
 
 
-def cells(img):
+def cells(img, rule=None):
     """each cell: (its pattern: 8 bytes, its own colour); and how many
-    pixels came out in another colour"""
+    pixels came out in another colour. rule (the flag's "cells C L"): a
+    cell with any C in it takes C for its own, and what else it cannot
+    show comes out L"""
     out, lost = [], 0
     for cy in range(CELLS_H):
         for cx in range(CELLS_W):
             px = [img[cy * 8 + y][cx * 4 + x] for y in range(8) for x in range(4)]
             others = [p for p in px if p not in SHARED]
             own = max(sorted(set(others)), key=others.count) if others else 'black'
+            if rule and rule[0] in others:
+                own = rule[0]
             have = ['navy', 'white', 'red', own]
             pat = []
             for y in range(8):
@@ -279,7 +283,7 @@ def cells(img):
                 for x in range(4):
                     p = img[cy * 8 + y][cx * 4 + x]
                     if p not in have:
-                        p = 'navy' if p == 'black' else own
+                        p = 'navy' if p == 'black' else rule[1] if rule else own
                         lost += 1
                     b = b << 2 | (3 if p == own else have.index(p))
                 pat.append(b)
@@ -295,8 +299,10 @@ def main():
         raise SystemExit('no flag for %s' % ', '.join(missing))
     all_cells = {}
     for n in names:
-        all_cells[n], lost = cells(paint(defs[n], sprites))
-        if lost:
+        rule = [sh[1:] for sh in defs[n] if sh[0] == 'cells']
+        all_cells[n], lost = cells(paint([sh for sh in defs[n] if sh[0] != 'cells'], sprites),
+                                   rule[0] if rule else None)
+        if lost and not rule:
             print('  %-13s %d pixels in another colour' % (n, lost))
     pats = []
     for n in names:

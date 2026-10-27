@@ -17,7 +17,8 @@ and the colours, for the code):
                Sensible Soccer steers by, linear in dy/dx rather than a
                true arc tangent
   sin_tab      127 * sin, 256 steps to a circle (signed)
-  tac_*        the formations (data/tactics.txt): for each of the eight
+  tac_*        the formations (data/tactics.txt): for each of the first
+               FORMATIONS (the ones the game plays: 4-4-2 alone so far)
                and each player (0-10 the team at the bottom, 11-21 the
                one at the top) his area's corner and how far across it
                he goes for each pixel the ball goes (x / 510, y / 641,
@@ -368,10 +369,10 @@ RUN_BASE = [0x20, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x38, 0x3C]
 # black, from the C64's).
 RUN_FRAMES = [b + f for b in RUN_BASE for f in (0, 1, 3)]
 # Then the poses: lying feet first (sliding tackles, one each way), the
-# keeper's dives (in the air, one each way), down on the ground,
+# keeper's dives (our own: level in the air, one each way), down on the ground,
 # holding the ball up, and a throw-in (our own: facing right, the ball
 # held and thrown, then the same facing left)
-POSES = [('SLIDE_A', 0x4E), ('SLIDE_B', 0x52), ('DIVE_A', 0x57), ('DIVE_B', 0x5B),
+POSES = [('SLIDE_A', 0x4E), ('SLIDE_B', 0x52), ('DIVE_A', 0x64), ('DIVE_B', 0x65),
          ('DOWN', 0x59), ('HOLD', 0x5A),
          ('THROW_RA', 0x60), ('THROW_RB', 0x61), ('THROW_LA', 0x62), ('THROW_LB', 0x63)]
 THROWS = {0x60, 0x61, 0x62, 0x63}
@@ -539,6 +540,11 @@ def shown_rows():
     return out
 
 
+# the formations built in, from the first in data/tactics.txt: the game
+# plays 4-4-2 alone so far (play.s form22) - the others cost a kilobyte
+FORMATIONS = 1
+
+
 def tactics():
     """[formation][player 0-21] = (x from, x slope, y from, y slope): the
     team at the bottom (0-10) has the second area of each line, the team
@@ -553,7 +559,7 @@ def tactics():
             for team, (x0, y0, x1, y1) in ((0, v[5:9]), (1, v[1:5])):
                 forms[-1][team * 11 + pl] = (x0, min(255, round((x1 - x0 + 1) * 256 / 510)),
                                              y0, min(255, round((y1 - y0 + 1) * 256 / 641)))
-    return forms
+    return forms[:FORMATIONS]
 
 
 def hexrows(out, data, per=16):

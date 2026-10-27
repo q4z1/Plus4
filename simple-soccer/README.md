@@ -75,9 +75,10 @@ background), white and red, which all cells share, and one of its own -
 so most flags come out to the pixel: the stripes, the Union Jack and the
 stars of Australia and New Zealand, the USA's canton, Korea's circle,
 Canada's leaf (the small emblems drawn pixel for pixel). Where a cell
-would need two colours of its own - Brazil's green and yellow - the edge
-between them follows the cells: Brazil's lozenge is laid on them a step a
-cell. No colour shows that is not in the flag.
+would need two colours of its own - Brazil's green and yellow - the cells
+its yellow lozenge runs through are yellow, their green the navy of its
+globe: the lozenge keeps its straight edges. No colour shows that is not
+in the flag.
 
 The patterns of all the flags' cells are on the disk once each (184 of
 them); the title copies those of the two flags shown into the character
@@ -94,9 +95,11 @@ The match runs on Sensible Soccer's pitch and in its units, 50 times a
 second, as Sensible Soccer moves things: a player or the ball always
 heads for a point at a speed, the ball rolls and flies with its friction,
 gravity and bounce, a dribbled ball is kicked on just ahead of the player
-whenever it is at his feet, and a pass goes to the nearest team-mate
-within an eighth of a turn of the way you face, harder the further he
-is. Fire held for nine frames shoots instead, rising; for the next ten
+whenever it is at his feet, and a pass goes to a team-mate, harder the
+further he is: the nearest within 22.5 degrees of the way you face -
+unless one up to 67.5 degrees off it is under seven tenths as far; only
+with no one in either does it run on by itself. Fire let go before the ball has
+come to you passes it as it comes, first time. Fire held for nine frames shoots instead, rising; for the next ten
 frames the stick bends the ball to one side if it is pushed across the
 shot, and on the fifth it lifts it - high when pulled back, less when let
 go or across. The C64 runs its match on the same pitch, in the same
@@ -149,7 +152,32 @@ in a short curve. Its two pictures, each way, are drawn for this game,
 not the C64's.
 
 The player a pass goes to runs to meet it, and the joystick is his once
-he has it; he stops a ball that comes to his feet.
+he has it. Each ball that comes to your player from someone else - a
+pass, a loose ball - he takes with a first touch as it reaches him:
+stopped at his feet, or, now and then, too heavy a touch that leaves it
+running on at half its speed.
+
+## The players' skills
+
+Every player has five skills, 0 to 7, which decide what Sensible
+Soccer's players decide by theirs: his pace (how fast he runs, with the
+ball and after it), his control (how surely his first touch takes the
+ball, how close he keeps it dribbling, how rarely a touch runs away from
+him), his tackling (how often he wins the ball off a player who has it),
+his heading (how far off a ball he still reaches with his head) and his
+shooting (how hard he shoots). Each comes from his place in the team -
+the backs tackle and head, the midfielders keep the ball, the wingers
+are fast, the forwards shoot - from how good his team is (0 to 4, in
+`title.s`'s list of teams) and from a step up or down of his own, the
+same for a team in every match. The title works them out once both
+teams are chosen.
+
+Where the skills meet, the game rolls for it: a take by the yellow
+chaser comes off with 6 + his tackling - the dribbler's control chances
+in 16 (and once missed, not again for half a second), a sliding tackle
+that reaches the ball with 10 + tackling - control; a first touch to a
+pass with 10 + control in 16 (a slower ball with 4 more); a dribbler's
+touch runs away from him with 7 - control in 128.
 
 A sliding tackle from behind - the tackler facing within 45 degrees of
 the way the player on the ball faces - that gets to him before it gets
@@ -183,7 +211,9 @@ one.
 A ball is a team's while its player who touched it last has it by him,
 or for a few frames after a kick: the other team cannot just run it
 off him. You win it with a sliding tackle - fire - which knocks it on
-the way you slide; the yellow chaser wins it by getting to it first.
+the way you slide, if your tackling beats his control; the yellow
+chaser wins it by getting to it first or by a take, right at the
+dribbler's feet - the same roll (see the skills).
 
 The TED's two voices give the match its sounds, played by the interrupt
 50 times a second: a thump for every pass and shot, a softer one for
@@ -266,7 +296,10 @@ A ball coming at his goal sends him, faster, to where it will cross his
 line - late, as in Sensible Soccer, once it is close: a hard shot into a
 corner beats him, a slow one he gets to. One within his reach he catches
 - unless it is higher than he gets, a lob - and kicks out like a set
-piece.
+piece. Far across he dives for it, level in the air, his arms on ahead
+- pictures drawn for this game (the C64's lean over at 45 degrees and,
+without their shadows, look like a player falling over); a diving
+header has them too.
 
 ## How it is drawn
 

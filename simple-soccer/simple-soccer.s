@@ -94,7 +94,6 @@ s_yh:   .res FIGS
 tick:   .res 1                  ; turns of the loop
 played: .res 1                  ; frames played up to
 order:  .res FIGS               ; the figures from the top down
-s_off:  .res FIGS               ; 1: not in this picture (seen)
 tmp:    .res 1
 tmp2:   .res 1
 hud_n:  .res 1                  ; draw_hud's place
@@ -102,6 +101,7 @@ s_i:    .res 1                  ; sort's
 s_j:    .res 1
 
         .bss
+s_off:  .res FIGS               ; 1: not in this picture (seen)
 team_col:   .res 2              ; each team's shirts, multicolour (title.s)
 team_flk:   .res 2              ; and the colour its joystick's player
                                 ; flickers to: white, black on a light shirt

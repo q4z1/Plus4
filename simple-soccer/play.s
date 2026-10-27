@@ -34,7 +34,7 @@
         .export lift, jmp_pl, jmp_t, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
-        .export two
+        .export two, sk
         .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
@@ -120,6 +120,9 @@ NEAR        = 32                ; distance squared: the ball at his feet
 TAKE_D2     = 9                 ; the other team's, this close: the yellow
                                 ; chaser takes it (nearer)
 CLOSE       = 72                ; near enough to kick it
+DENY_T      = 25                ; frames the chaser waits after missing a take
+PASS_Q      = 12                ; frames a pass let go of too soon waits for
+                                ; the ball to come
 KICKED_T    = 50                ; frames the one who passed or shot is not
                                 ; the one to get to the ball (switch, help)
 KICK_Z      = 4                 ; and low enough
@@ -162,6 +165,8 @@ z_qn:       .res 2
 z_qnh:      .res 2
 d_ax:       .res 1              ; dist2's
 d_ay:       .res 1
+z_rnd:      .res 1              ; rnd's
+z_off:      .res 1              ; pass's: how far off the way he kicks
 
 ; A player's control of his team - the joystick's player, fire, the pass
 ; on its way, the aftertouch, the dribble - for control, switch, help and
@@ -183,6 +188,7 @@ drib_dir:   .res 1              ; dribbling: the way, and the touches
 drib_n:     .res 1
 kick_pl:    .res 1              ; the player who last passed or shot,
 kick_t:     .res 1              ; and the frames since (switch, help)
+pass_q:     .res 1              ; frames a pass let go of too soon waits
 me:         .res 1              ; the team: 0 cyan, 1 yellow
 t_lo:       .res 1              ; its keeper: 0, 11
 t_hi:       .res 1              ; its last player: 10, 21
@@ -299,6 +305,7 @@ dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 chaser2:    .res 1              ; the next nearest: in support, $FF none
+deny_t:     .res 1              ; frames till the chaser may try a take again
 y_pass_t:   .res 1              ; frames till the yellow team passes again
 cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 chaser:     .res 1              ; the other team's player after the ball,
@@ -316,6 +323,17 @@ old_z:      .res 2
 two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
 each_v:     .res 2              ; (each's routine)
+
+        .segment "HIBSS2"       ; (not cleared: the title fills it)
+; each player's skills, 0-7, by his number (title.s skills: his place's,
+; his team's level, a step of his own)
+sk:
+sk_pace:    .res PLAYERS        ; how fast he runs
+sk_ctl:     .res PLAYERS        ; ball control: the first touch, the dribble
+sk_tck:     .res PLAYERS        ; tackling: winning the ball off a player
+sk_hdg:     .res PLAYERS        ; heading: how far he reaches
+sk_sht:     .res PLAYERS        ; shooting: how hard
+.assert sk_sht - sk = 4 * 22, error, "title.s skills: five skills of 22"
 
 
         .rodata
@@ -339,9 +357,50 @@ vec_xl:     .byte <0, <1000, <1000, <1000, <0, <(-1000), <(-1000), <(-1000)
 vec_xh:     .byte >0, >1000, >1000, >1000, >0, >(-1000), >(-1000), >(-1000)
 vec_yl:     .byte <(-1000), <(-1000), <0, <1000, <1000, <1000, <0, <(-1000)
 vec_yh:     .byte >(-1000), >(-1000), >0, >1000, >1000, >1000, >0, >(-1000)
-; the dribble's kick, by the touches the same way / 4
-drib_lo:    .byte <1024, <1089, <1088, <1216
-drib_hi:    .byte >1024, >1089, >1088, >1216
+; the dribble's kick, by the touches the same way / 4: faster than he
+; runs by so much, less control's 16 a step (dribble)
+drib_lo:    .byte <(1024 - 896 - 48), <(1089 - 896 - 48), <(1088 - 896 - 48), <(1216 - 896 - 48)
+drib_hi:    .byte >(1024 - 896 - 48), >(1089 - 896 - 48), >(1088 - 896 - 48), >(1216 - 896 - 48)
+; the players' speeds by their pace, 0-7 (speed: SP_*): running, with the
+; ball at his feet, after the ball; 32 a step, 4 the speeds as measured
+SP_RUN      = 0
+SP_BALL     = 8
+SP_CHASE    = 16
+sp_lo:
+.repeat 8, I
+        .byte <(SPEED_RUN + (I - 4) * 32)
+.endrepeat
+.repeat 8, I
+        .byte <(SPEED_BALL + (I - 4) * 32)
+.endrepeat
+.repeat 8, I
+        .byte <(SPEED_CHASE + (I - 4) * 32)
+.endrepeat
+sp_hi:
+.repeat 8, I
+        .byte >(SPEED_RUN + (I - 4) * 32)
+.endrepeat
+.repeat 8, I
+        .byte >(SPEED_BALL + (I - 4) * 32)
+.endrepeat
+.repeat 8, I
+        .byte >(SPEED_CHASE + (I - 4) * 32)
+.endrepeat
+; a shot's speed by the shooting, 64 a step, 4 the shot as measured
+shot_lo:
+.repeat 8, I
+        .byte <(SHOT_SPEED + (I - 4) * 64)
+.endrepeat
+shot_hi:
+.repeat 8, I
+        .byte >(SHOT_SPEED + (I - 4) * 64)
+.endrepeat
+; how near (squared) the ball must be to his head by his heading, 3 as
+; measured (HEAD_D2)
+head_d2:
+.repeat 8, I
+        .byte HEAD_D2 + 1 + (I - 3) * 12
+.endrepeat
 ; squares, for distances
 sq_lo:
         .repeat 64, I
@@ -407,8 +466,8 @@ play_init:
         jmp sfx_whistle
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
-ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
-ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, 0, $FF, 0, 1, 11, 21, 10
+ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, 0, $FF, 0, 0, 1, 11, 21, 10
 .assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
 
 ; each: the routine at A (low) / Y (high) for the cyan team's control,
@@ -625,6 +684,9 @@ play_frame:
 :       lda y_pass_t
         beq :+
         dec y_pass_t
+:       lda deny_t
+        beq :+
+        dec deny_t
 :       lda joy                 ; each team's joystick: one player either,
         ldy two                 ; two the first and the second
         beq :+
@@ -783,8 +845,18 @@ control:
         beq :+
         rts
 :       lda kickoff             ; his team's set piece: the stick turns
-        beq @stick              ; the taker, fire kicks
-        lda rs_team
+        bne @set                ; the taker, fire kicks
+        lda pass_q              ; in play: a pass let go of too soon goes
+        beq :+                  ; as the ball comes to him
+        dec pass_q
+        jsr can_kick
+        bcs :+
+        lda #0
+        sta pass_q
+        jmp pass
+:       jsr trap                ; the first touch
+        jmp @stick
+@set:   lda rs_team
         cmp me
         bne @stick
         lda pj
@@ -825,19 +897,15 @@ control:
         sta o_tyh,x
         jsr inside
         jsr dist2               ; slower with the ball close
-        lda #<SPEED_RUN
-        sta o_spl,x
-        lda #>SPEED_RUN
-        sta o_sph,x
+        ldy #SP_RUN
+        jsr speed
         lda d2 + 1
         bne @far
         lda d2
         cmp #CLOSE + 1
         bcs @far
-        lda #<SPEED_BALL
-        sta o_spl,x
-        lda #>SPEED_BALL
-        sta o_sph,x
+        ldy #SP_BALL
+        jsr speed
         lda d2                  ; at his feet, low: dribbled on
         cmp #NEAR + 1
         bcs @far
@@ -907,8 +975,10 @@ control:
         cmp #SHOT_HOLD
         bcs @done               ; (the shot taken, or held for one)
         jsr can_kick
-        bcs @done
+        bcs @wait
         jmp pass
+@wait:  lda #PASS_Q             ; (too soon: it goes as the ball comes)
+        sta pass_q
 @done:  rts
 
 ; meet: the joystick's player X, the stick let go: a ball come to his
@@ -953,10 +1023,8 @@ meet:
         sta o_tyl,x
         lda o_yh + BALL
         sta o_tyh,x
-        lda #<SPEED_RUN
-        sta o_spl,x
-        lda #>SPEED_RUN
-        sta o_sph,x
+        ldy #SP_RUN
+        jsr speed
         lda #1
         sta o_mov,x
         rts
@@ -1039,7 +1107,7 @@ can_kick:
         rts
 
 ; can_head: carry clear if the ball is at player X's head: HEAD_Z_LO to
-; HEAD_Z_HI high, HEAD_D2 near (squared). Keeps X.
+; HEAD_Z_HI high, near enough for his heading (head_d2). Keeps X.
 can_head:
         lda o_zl + BALL
         cmp #HEAD_Z_LO
@@ -1049,8 +1117,9 @@ can_head:
         jsr mate_dist
         lda tmp + 1
         bne @no
+        ldy sk_hdg,x            ; (by his heading)
         lda tmp
-        cmp #HEAD_D2 + 1
+        cmp head_d2,y
         rts
 @no:    sec
         rts
@@ -1144,8 +1213,8 @@ dive_head:
         sta o_hd,x
         rts
 
-; shot: the ball the way the joystick's player faces, hard and rising;
-; the aftertouch on
+; shot: the ball the way the joystick's player faces, hard (his shooting)
+; and rising; the aftertouch on
 shot:
         lda #0
         sta kick_t
@@ -1159,10 +1228,7 @@ shot:
         ldy o_dir,x
         sty at_dir
         jsr ball_ahead
-        lda #<SHOT_SPEED
-        sta o_spl + BALL
-        lda #>SHOT_SPEED
-        sta o_sph + BALL
+        jsr shot_speed
         lda #<SHOT_DZ
         sta o_dzf + BALL
         lda #>SHOT_DZ
@@ -1392,7 +1458,9 @@ d_abs:
 @big:   sec
         rts
 
-; dribble: the ball kicked on ahead, the way the joystick's player runs
+; dribble: the ball kicked on ahead, the way the joystick's player runs,
+; faster than he runs by drib_* and (7 - control) * 16 - and with 7 -
+; control in 128 a touch too heavy, 384 faster
 dribble:
         lda me
         sta last_team
@@ -1415,10 +1483,34 @@ dribble:
         lda #3
 :       tay
         lda drib_lo,y
+        clc
+        adc o_spl,x
         sta o_spl + BALL
         lda drib_hi,y
+        adc o_sph,x
         sta o_sph + BALL
-        inc drib_n
+        lda sk_ctl,x
+        eor #7
+        sta tmp
+        asl a
+        asl a
+        asl a
+        asl a                   ; (carry clear: at most 112)
+        adc o_spl + BALL
+        sta o_spl + BALL
+        bcc :+
+        inc o_sph + BALL
+:       jsr rnd
+        and #127
+        cmp tmp
+        bcs :+
+        lda o_spl + BALL
+        adc #<384               ; (carry clear)
+        sta o_spl + BALL
+        lda o_sph + BALL
+        adc #>384
+        sta o_sph + BALL
+:       inc drib_n
         bne :+
         dec drib_n
 :       ldy drib_dir
@@ -1431,6 +1523,94 @@ dribble:
         sta o_dzl + BALL
         sta o_dzf + BALL
 :       rts
+
+; trap: the first touch - a ball come to the joystick's player from
+; someone else, low and in his reach (can_kick), not the other team's on
+; it, is his touch: stopped at his feet, or, rolled against his control
+; (10 + control in 16, a ball slower than a pass 4 more), a touch too
+; heavy - on at half its speed. Keeps X (ctrl).
+trap:
+        ldx ctrl
+        cpx last_pl
+        beq @no                 ; (his own)
+        lda me
+        jsr held
+        bcs @no
+        jsr can_kick
+        bcs @no
+        lda me
+        sta last_team
+        stx last_pl
+        jsr touch
+        lda #$FF                ; (a pass met)
+        sta recv
+        lda sk_ctl,x
+        adc #10                 ; (carry clear)
+        ldy o_sph + BALL
+        cpy #>1536
+        bcs :+
+        adc #4
+:       sta tmp
+        jsr rnd
+        and #15
+        cmp tmp
+        bcs @heavy
+        ldx #BALL
+        jsr stand
+        ldx ctrl
+@no:    rts
+@heavy: lsr o_sph + BALL
+        ror o_spl + BALL
+        rts
+
+; wins: carry clear if player X wins the ball off the one on it (last_pl):
+; A (a take 6, a sliding tackle 10) + his tackling - that one's control
+; in 16, rolled. Keeps X.
+wins:
+        ldy last_pl
+        clc
+        adc sk_tck,x
+        sec
+        sbc sk_ctl,y
+        bpl :+
+        lda #0
+:       sta tmp
+        jsr rnd
+        and #15
+        cmp tmp
+        rts
+
+; rnd: A a byte at random - a shift register, stirred by where the beam
+; is along its line. Keeps X, Y.
+rnd:
+        lda z_rnd
+        asl a
+        bcc :+
+        eor #$1D
+:       eor $FF1E
+        sta z_rnd
+        rts
+
+; speed: player X's speed Y (SP_*) as fast as his pace. Keeps X.
+speed:
+        tya
+        clc
+        adc sk_pace,x
+        tay
+        lda sp_lo,y
+        sta o_spl,x
+        lda sp_hi,y
+        sta o_sph,x
+        rts
+
+; shot_speed: the ball as hard as player X shoots (his shooting). Keeps X.
+shot_speed:
+        ldy sk_sht,x
+        lda shot_lo,y
+        sta o_spl + BALL
+        lda shot_hi,y
+        sta o_sph + BALL
+        rts
 
 ; ball_ahead: the ball's destination 1000 pixels from it, way Y
 ball_ahead:
@@ -1450,8 +1630,10 @@ ball_ahead:
         sta o_tyh + BALL
         rts
 
-; pass: the ball to the nearest team-mate within 22.5 degrees of the way
-; the joystick's player faces; or straight on
+; pass: the ball to the nearest team-mate within 67.5 degrees of the way
+; the joystick's player faces - one more than 22.5 off it as if twice as
+; far: the one the way he faces if there is one near enough, else the
+; nearest to that side; or, no one, straight on
 pass:
         lda #0
         sta kick_t
@@ -1479,13 +1661,24 @@ pass:
         jsr mate_way            ; the way from the ball to him, 0-255
         bcs @next               ; (on the ball)
         sec
-        sbc kick_way            ; within 16 of the way he kicks
+        sbc kick_way            ; within 48 of the way he kicks
         clc
-        adc #16
-        cmp #33
+        adc #48
+        cmp #97
         bcs @next
+        sbc #32 - 1             ; (carry clear: within 16 under 33)
+        sta z_off
         jsr mate_dist           ; the nearest
-        lda tmp
+        lda z_off
+        cmp #33
+        bcc :+
+        asl tmp                 ; (further off: twice as far)
+        rol tmp + 1
+        bcc :+
+        lda #$FF
+        sta tmp
+        sta tmp + 1
+:       lda tmp
         cmp mate_d
         lda tmp + 1
         sbc mate_d + 1
@@ -2771,7 +2964,7 @@ slack:
 @pos:   cpy #SLACK + 1
         rts
 
-form22: .byte 0, 22, 44, 66, 88, 110, 132, 154
+form22: .byte 0                 ; (the formations built in: mkdata FORMATIONS)
 
 ; pick_chaser: the other team's player nearest the ball (not the keeper)
 pick_chaser:
@@ -2855,8 +3048,15 @@ chase:
         lda #1
         jsr held
         bcc @have
-        jsr nearer
+        jsr nearer              ; the cyan team's, right at his feet: a
+        bcs :+                  ; take, his tackling against the other's
+        lda deny_t              ; control - not again for a while once
+        bne :+                  ; missed
+        lda #6
+        jsr wins
         bcc @have
+        lda #DENY_T
+        sta deny_t
 :       lda #0                  ; (not his)
         sta cpu_hold
         lda frame_n             ; after it (where it is, each second frame:
@@ -2870,10 +3070,8 @@ chase:
         sta o_tyl,x
         lda o_yh + BALL
         sta o_tyh,x
-        lda #<SPEED_CHASE
-        sta o_spl,x
-        lda #>SPEED_CHASE
-        sta o_sph,x
+        ldy #SP_CHASE
+        jsr speed
 @done:  rts
 @have:  ; near the goal: a shot at it
         inc cpu_hold
@@ -2913,10 +3111,7 @@ chase:
         lda shot_dyh,y
         adc o_yh + BALL
         sta o_tyh + BALL
-        lda #<SHOT_SPEED
-        sta o_spl + BALL
-        lda #>SHOT_SPEED
-        sta o_sph + BALL
+        jsr shot_speed
         lda #<SHOT_DZ
         sta o_dzf + BALL
         lda #>SHOT_DZ
@@ -2967,10 +3162,8 @@ chase:
         lda o_yh,x
         adc vec_yh,y
         sta o_tyh,x
-        lda #<SPEED_BALL
-        sta o_spl,x
-        lda #>SPEED_BALL
-        sta o_sph,x
+        ldy #SP_BALL
+        jsr speed
         lda frame_n             ; and kicks it on ahead, every second frame
         lsr a
         bcs :+
@@ -3162,10 +3355,8 @@ help:
         sta o_tyl,x
         lda o_yh + BALL
         sta o_tyh,x
-        lda #<SPEED_CHASE
-        sta o_spl,x
-        lda #>SPEED_CHASE
-        sta o_sph,x
+        ldy #SP_CHASE
+        jsr speed
 @out:   rts
 @none:  lda #$FF
         sta helper
@@ -4625,21 +4816,27 @@ slides:
         bcs @done
         lda #1
         sta o_hit,x
-        stx last_pl
         lda #0
         cpx #11
         bcc :+
         lda #1
-:       sta last_team
+:       pha
+        jsr held                ; the other team's on it: won by a roll,
+        bcc :+                  ; his tackling against that one's control
+        lda #10                 ; - missed, he slides on past it
+        jsr wins
+        bcc :+
+        pla
+        rts
+:       pla
+        sta last_team
+        stx last_pl
         jsr touch
         ldy o_dir,x
         jsr ball_ahead
         lda o_hd,x
         beq :+
-        lda #<SHOT_SPEED        ; a diving header: as hard as a shot
-        sta o_spl + BALL
-        lda #>SHOT_SPEED
-        sta o_sph + BALL
+        jsr shot_speed          ; a diving header: as hard as a shot
         lda #<HEAD_DZ
         sta o_dzf + BALL
         lda #>HEAD_DZ

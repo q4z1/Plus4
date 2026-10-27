@@ -27,7 +27,7 @@
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, title_font, min_frames, two, team_col, team_flk
+        .import joy_scan, joy, title_font, min_frames, two, team_col, team_flk, sk
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -857,6 +857,7 @@ chosen:
         sta min_frames
         lda t_two
         sta two
+        jsr skills
         jmp kits
 
 ; change: the choice on line X a step left (A 0) or right; carry set if a
@@ -963,9 +964,8 @@ kit:    pha                     ; team X in shirt A (hires: luminance, hue)
         sta team_flk,x
         rts
 
-; rec: t_ptr = team X's record (teams: NAME_W + 2 bytes each)
-rec:    stx t_ptr
-        lda #0
+; rec: t_ptr = team X's record (teams: NAME_W + 3 bytes each). Keeps X.
+rec:    lda #0
         sta t_ptr + 1
         txa
         ldy #4
@@ -973,18 +973,78 @@ rec:    stx t_ptr
         rol t_ptr + 1
         dey
         bne :-
-        sec
-        sbc t_ptr               ; - 1
-        bcs :+
-        dec t_ptr + 1
-:       clc
+        clc
         adc #<teams
         sta t_ptr
         lda t_ptr + 1
         adc #>teams
         sta t_ptr + 1
         rts
-.assert NAME_W + 2 = 15, error, "rec: records of 15"
+.assert NAME_W + 3 = 16, error, "rec: records of 16"
+
+; skills: each player's five (play.s sk), 0-7: his place's in the team
+; (prof), his team's level - 0-4, 2 the middle - and a step up or down
+; of his own, the same in every match (from the team's number)
+skills:
+        ldx #1                  ; the away team, then the home team
+@side:  stx t_n
+        lda t_team,x
+        tax
+        jsr rec
+        inx                     ; (the steps' seed: never 0)
+        stx t_c
+        ldy #NAME_W + 2
+        lda (t_ptr),y
+        sta t_f
+        ldx t_n                 ; his skill's place: skill * 22 + side * 11
+        ldy sk_last,x           ; + player, from the last
+        ldx #5 * 11 - 1         ; prof's: skill * 11 + player
+        lda #11
+        sta t_i
+@one:   lda t_c                 ; the step: -1, 0, 0, +1 (0, 1, 1, 2 here,
+        asl a                   ; and - 3 with the level's - 2 below)
+        bcc :+
+        eor #$1D
+:       sta t_c
+        and #3
+        lsr a
+        adc #0
+        clc
+        adc prof,x
+        adc t_f
+        sec
+        sbc #3
+        bpl :+
+        lda #0
+:       cmp #8
+        bcc :+
+        lda #7
+:       sta sk,y
+        dey
+        dec t_i                 ; (a skill's eleven done: the other side's
+        bne :+                  ; passed by)
+        lda #11
+        sta t_i
+        tya
+        sec
+        sbc #11
+        tay
+:       dex
+        bpl @one
+        ldx t_n
+        dex
+        bpl @side
+        rts
+
+sk_last:    .byte 4 * 22 + 10, 4 * 22 + 11 + 10
+; each place's skills: pace, control, tackling, heading, shooting - the
+; keeper, the backs (2, 5), the centre backs (3, 4), the wide midfielders
+; (6, 9), the central ones (7, 8), the forwards (10, 11)
+prof:   .byte 2, 4, 3, 3, 4, 5, 3, 3, 5, 4, 4
+        .byte 2, 3, 2, 2, 3, 4, 5, 5, 4, 4, 4
+        .byte 1, 4, 5, 5, 4, 3, 4, 4, 3, 2, 2
+        .byte 2, 3, 5, 5, 3, 2, 3, 3, 2, 4, 4
+        .byte 3, 2, 2, 2, 2, 3, 4, 4, 3, 5, 5
 
 ; ---- what the title keeps in the program ------------------------------------
 
@@ -1000,12 +1060,13 @@ t_k:        .res 1              ; (kits')
 frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
 
 ; The teams: a name, its shirt and its second, as the TED's colours
-; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more).
+; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more),
+; and how good it is, 0-4 (skills: its players' skills).
 ; Their flags: data/flags.txt, in this order (tools/mkflags.py reads it).
-.macro  team name, home, away
+.macro  team name, home, away, level
         .byte name
         .res NAME_W - .strlen(name), ' '
-        .byte home, away
+        .byte home, away, level
 .endmacro
 WHITE       = $71
 RED         = $42
@@ -1018,39 +1079,39 @@ BLUE        = $46
 DARK_BLUE   = $26
 GREEN       = $15               ; (dark: the grass is green)
 teams:
-        team "ARGENTINA", SKY, DARK_BLUE
-        team "AUSTRALIA", YELLOW, GREEN
-        team "BELGIUM", RED, YELLOW
-        team "BRAZIL", YELLOW, BLUE
-        team "CAMEROON", GREEN, YELLOW
-        team "CANADA", RED, WHITE
-        team "CHILE", RED, WHITE
-        team "CHINA", RED, WHITE
-        team "COLOMBIA", YELLOW, DARK_BLUE
-        team "CROATIA", RED, DARK_BLUE
-        team "DENMARK", RED, WHITE
-        team "EGYPT", RED, WHITE
-        team "ENGLAND", WHITE, RED
-        team "FRANCE", DARK_BLUE, WHITE
-        team "GERMANY", WHITE, RED
-        team "GHANA", WHITE, RED
-        team "HUNGARY", RED, WHITE
-        team "IRAN", WHITE, RED
-        team "ITALY", BLUE, WHITE
-        team "JAPAN", DARK_BLUE, WHITE
-        team "MEXICO", GREEN, WHITE
-        team "MOROCCO", RED, GREEN
-        team "NETHERLANDS", ORANGE, WHITE
-        team "NEW ZEALAND", WHITE, DARK_BLUE
-        team "NIGERIA", GREEN, WHITE
-        team "POLAND", WHITE, RED
-        team "PORTUGAL", DARK_RED, WHITE
-        team "SAUDI ARABIA", WHITE, GREEN
-        team "SCOTLAND", DARK_BLUE, YELLOW
-        team "SENEGAL", WHITE, GREEN
-        team "SOUTH KOREA", RED, WHITE
-        team "SPAIN", RED, DARK_BLUE
-        team "SWEDEN", YELLOW, DARK_BLUE
-        team "URUGUAY", LIGHT_SKY, WHITE
-        team "USA", WHITE, DARK_BLUE
-TEAMS       = (* - teams) / (NAME_W + 2)
+        team "ARGENTINA", SKY, DARK_BLUE, 4
+        team "AUSTRALIA", YELLOW, GREEN, 1
+        team "BELGIUM", RED, YELLOW, 3
+        team "BRAZIL", YELLOW, BLUE, 4
+        team "CAMEROON", GREEN, YELLOW, 2
+        team "CANADA", RED, WHITE, 1
+        team "CHILE", RED, WHITE, 2
+        team "CHINA", RED, WHITE, 0
+        team "COLOMBIA", YELLOW, DARK_BLUE, 3
+        team "CROATIA", RED, DARK_BLUE, 3
+        team "DENMARK", RED, WHITE, 3
+        team "EGYPT", RED, WHITE, 1
+        team "ENGLAND", WHITE, RED, 4
+        team "FRANCE", DARK_BLUE, WHITE, 4
+        team "GERMANY", WHITE, RED, 4
+        team "GHANA", WHITE, RED, 2
+        team "HUNGARY", RED, WHITE, 2
+        team "IRAN", WHITE, RED, 1
+        team "ITALY", BLUE, WHITE, 4
+        team "JAPAN", DARK_BLUE, WHITE, 2
+        team "MEXICO", GREEN, WHITE, 2
+        team "MOROCCO", RED, GREEN, 3
+        team "NETHERLANDS", ORANGE, WHITE, 4
+        team "NEW ZEALAND", WHITE, DARK_BLUE, 0
+        team "NIGERIA", GREEN, WHITE, 2
+        team "POLAND", WHITE, RED, 2
+        team "PORTUGAL", DARK_RED, WHITE, 3
+        team "SAUDI ARABIA", WHITE, GREEN, 1
+        team "SCOTLAND", DARK_BLUE, YELLOW, 1
+        team "SENEGAL", WHITE, GREEN, 2
+        team "SOUTH KOREA", RED, WHITE, 2
+        team "SPAIN", RED, DARK_BLUE, 4
+        team "SWEDEN", YELLOW, DARK_BLUE, 2
+        team "URUGUAY", LIGHT_SKY, WHITE, 3
+        team "USA", WHITE, DARK_BLUE, 2
+TEAMS       = (* - teams) / (NAME_W + 3)
