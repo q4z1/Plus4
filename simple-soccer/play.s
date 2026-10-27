@@ -52,7 +52,11 @@ LINE_B      = 689
 POST_L      = 263               ; between the posts (with the ball's width)
 POST_R      = 340
 BAR_Z       = 17                ; under the bar
-NET         = 12                ; the net this far behind the line
+NET_T       = 12                ; the net this far behind the line: at the
+NET_B       = 5                 ; top, at the bottom (as the goals are drawn:
+                                ; the bottom one's net is shallower)
+NET_L       = 275               ; and between the side nettings (the posts
+NET_R       = 335               ; are drawn at 270 and 340, the ball 5 wide)
 DEAD_OUT    = 50                ; frames the ball is dead after going out,
 DEAD_GOAL   = 125               ; after a goal
 CPU_WAIT    = 20                ; the yellow team's set pieces: after 40 frames
@@ -3015,6 +3019,7 @@ rules:
         sta chaser
         sta at_n
         sta recv
+        jsr net                 ; (a goal: in the net already in this frame)
         ldx ctrl
         jmp stand
 
@@ -3027,24 +3032,60 @@ gkick_xh:   .byte >244, >364
 gkick_yl:   .byte <74, <664
 gkick_yh:   .byte >74, >664
 
-; net: the dead ball after a goal stopped by the net, NET behind the line
+; net: the dead ball after a goal held by the net - it stops where the
+; net is drawn (NET_T, NET_B behind the line), the side netting keeps it
+; inside the posts (NET_L, NET_R), and the roof sends a rising ball down
 net:
         lda goal
         beq @done
         ldx #BALL
         lda o_yl,x
-        cmp #<(LINE_T - NET)
+        cmp #<(LINE_T - NET_T)
         lda o_yh,x
-        sbc #>(LINE_T - NET)
-        bcc @stop
-        lda #<(LINE_B + NET)
+        sbc #>(LINE_T - NET_T)
+        bcs :+
+        lda #<(LINE_T - NET_T)
+        ldy #>(LINE_T - NET_T)
+        jmp @stop
+:       lda #<(LINE_B + NET_B)
         cmp o_yl,x
-        lda #>(LINE_B + NET)
+        lda #>(LINE_B + NET_B)
         sbc o_yh,x
-        bcs @done
-@stop:  lda #0
+        bcs @sides
+        lda #<(LINE_B + NET_B)
+        ldy #>(LINE_B + NET_B)
+@stop:  sta o_yl,x
+        tya
+        sta o_yh,x
+        lda #0
+        sta o_yf,x
         sta o_spl,x
         sta o_sph,x
+        lda o_dzl,x             ; rising: falls from here (dz just under 0:
+        bmi @sides              ; 0 would leave it lying in the air)
+        lda #$FF
+        sta o_dzl,x
+        sta o_dzf,x
+@sides: lda o_xl,x
+        cmp #<NET_L
+        lda o_xh,x
+        sbc #>NET_L
+        bcs :+
+        lda #<NET_L
+        ldy #>NET_L
+        jmp @x
+:       lda #<NET_R
+        cmp o_xl,x
+        lda #>NET_R
+        sbc o_xh,x
+        bcs @done
+        lda #<NET_R
+        ldy #>NET_R
+@x:     sta o_xl,x
+        tya
+        sta o_xh,x
+        lda #0
+        sta o_xf,x
 @done:  rts
 
 ; restart: the dead time over - the ball put down, the taker to it
