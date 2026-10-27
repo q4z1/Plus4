@@ -95,6 +95,8 @@ NEAR        = 32                ; distance squared: the ball at his feet
 TAKE_D2     = 9                 ; the other team's, this close: the yellow
                                 ; chaser takes it (nearer)
 CLOSE       = 72                ; near enough to kick it
+KICKED_T    = 25                ; frames the kicker is not the one to get to
+                                ; the ball (switch, help)
 KICK_Z      = 4                 ; and low enough
 SHOT_HOLD   = 9                 ; frames fire is held for a shot
 SHOT_SPEED  = 2208
@@ -236,6 +238,8 @@ dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 chaser2:    .res 1              ; the next nearest: in support, $FF none
+helper:     .res 1              ; the cyan player running to a ball his team
+                                ; has not got (help), $FF none
 y_pass_t:   .res 1              ; frames till the yellow team passes again
 cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 chaser:     .res 1              ; the other team's player after the ball,
@@ -331,6 +335,7 @@ play_init:
         sta at_n
         sta chaser
         sta chaser2
+        sta helper
         sta recv
         lda #1
         sta kickoff
@@ -2202,6 +2207,8 @@ team_ai:
         beq @next
         cpx chaser2
         beq @next
+        cpx helper
+        beq @next
         cpx taker
         beq @next
         jsr place_formation
@@ -2219,6 +2226,7 @@ team_ai:
         ldx #11
         jsr keeper
 :       jsr support
+        jsr help
         jmp chase
 
 ; place_formation: player X's destination, his place in the formation for
@@ -2681,8 +2689,11 @@ ball_near:
 
 ; ---- whose the joystick is ------------------------------------------------
 
-; switch: every few frames, the joystick to the team's player nearest the
-; ball (not the keeper), unless the one it has is close to it
+; switch: as on the C64 - the joystick goes to the team's player who
+; gets to the ball (CLOSE, low; not the one who has just kicked it, the
+; joystick's own first), every second frame; and, every sixth, from a
+; player 64 or more away from it to the nearest (not the helper, who is
+; on his way to it already)
 switch:
         lda kickoff             ; (the cyan team's set piece: the taker
         beq :+                  ; keeps it)
@@ -2699,22 +2710,35 @@ switch:
         cmp ctrl
         bne :+
         rts
-:       dec switch_t
+:       lda frame_n
+        lsr a
+        bcs @far
+        ldx ctrl                ; at the ball: the joystick's, or another
+        jsr near_ball
+        bcs @done
+        ldx #10
+@at:    cpx ctrl
+        beq :+
+        jsr at_ball
+        bcs @got
+:       dex
+        bne @at
+@far:   dec switch_t
         bpl @done
         lda #2                  ; (each sixth frame)
         sta switch_t
-        ldx ctrl
         jsr dist2
-        lda d2 + 1
-        bne :+
         lda d2
-        cmp #CLOSE + 1
-        bcc @done
-:       lda #$FF
+        and d2 + 1
+        cmp #$FF
+        bne @done               ; (near enough: he keeps it)
+        lda #$FF
         sta mate_d
         sta mate_d + 1
         ldx #10
-@look:  jsr mate_dist
+@look:  cpx helper
+        beq :+
+        jsr mate_dist
         lda tmp
         cmp mate_d
         lda tmp + 1
@@ -2731,12 +2755,110 @@ switch:
         and mate_d + 1
         cmp #$FF
         beq @done               ; (all far: keep him)
-        ldx ctrl
-        cpx mate
+        ldx mate
+@got:   cpx ctrl
         beq @done
-        lda mate                ; (the last one goes back to his place:
-        sta ctrl                ; team_ai)
+        stx ctrl                ; (the last one goes back to his place:
+        cpx helper              ; team_ai)
+        bne @done
+        lda #$FF                ; (the helper there: he has it now)
+        sta helper
 @done:  rts
+
+; at_ball: carry set if cyan player X is at the ball (CLOSE, low) and is
+; not the one who has just kicked it; near_ball the same, whoever kicked
+; it. Keeps X.
+at_ball:
+        lda last_team
+        bne near_ball
+        cpx last_pl
+        bne near_ball
+        lda touch_t
+        cmp #KICKED_T
+        bcc at_no
+near_ball:
+        lda o_zl + BALL
+        cmp #HOLD_Z + 1
+        bcs at_no
+        jsr mate_dist
+        lda tmp + 1
+        bne at_no
+        lda tmp
+        cmp #CLOSE + 1
+        bcs at_no
+        sec
+        rts
+at_no:  clc
+        rts
+
+; help: the cyan player nearest a ball his team has not got - not the
+; joystick's, not the keeper, not one who has just kicked it - runs to it
+; on his own, as the C64's do (switch gives him the joystick there).
+; Chosen anew each eighth frame; team_ai: every second one.
+help:
+        lda kickoff
+        ora dead_t
+        bne :+
+        lda #1                  ; (the cyan team's: no one)
+        jsr held
+        bcc @in
+:       lda #$FF
+        sta helper
+        rts
+@in:    lda frame_n
+        and #6
+        bne @run
+        lda #$FF
+        sta mate_d
+        sta mate_d + 1
+        sta mate
+        ldx #10
+@look:  cpx ctrl
+        beq @next
+        lda last_team           ; (not the kicker, for a moment)
+        bne :+
+        cpx last_pl
+        bne :+
+        lda touch_t
+        cmp #KICKED_T
+        bcc @next
+:       jsr mate_dist
+        lda tmp
+        cmp mate_d
+        lda tmp + 1
+        sbc mate_d + 1
+        bcs @next
+        lda tmp
+        sta mate_d
+        lda tmp + 1
+        sta mate_d + 1
+        stx mate
+@next:  dex
+        bne @look
+        lda mate
+        sta helper
+@run:   ldx helper
+        bmi @out
+        cpx ctrl                ; (the joystick has him now)
+        beq @none
+        lda #1
+        sta o_mov,x
+        lda o_xl + BALL
+        sta o_txl,x
+        lda o_xh + BALL
+        sta o_txh,x
+        lda o_yl + BALL
+        sta o_tyl,x
+        lda o_yh + BALL
+        sta o_tyh,x
+        lda #<SPEED_CHASE
+        sta o_spl,x
+        lda #>SPEED_CHASE
+        sta o_sph,x
+@out:   rts
+@none:  lda #$FF
+        sta helper
+        rts
 
 ; ---- the rules ------------------------------------------------------------
 ;

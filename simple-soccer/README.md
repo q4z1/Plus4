@@ -68,9 +68,13 @@ towards the cyan goal and shoots from close in - or, a cyan player at
 him or after a moment on the ball, passes it on to the team-mate furthest
 on, who goes to meet it.
 Its next nearest goes along: between the ball and his goal while the
-cyan team has it, ahead of it, there to be passed to, while his own does. The joystick
-moves to the cyan player nearest the ball; his shirt flickers white, as
-on the C64, so you see whom you run. As in Sensible Soccer, the
+cyan team has it, ahead of it, there to be passed to, while his own does.
+
+As on the C64, the cyan player nearest a ball his team has not got - not
+yours, not the keeper, not the one who has just kicked it - runs to it on
+his own, and the joystick goes to whoever of your team gets to the ball;
+when yours is far from it (64 pixels or more), to the nearest. Your
+player's shirt flickers white, so you see whom you run. As in Sensible Soccer, the
 players make up their minds every second frame; everyone moves every
 frame. A new place in the formation does not send a player sprinting: he goes
 as fast as gets him there by about when the next one comes, his feet as
