@@ -1,0 +1,101 @@
+# The music: So What'cha Want (Beastie Boys, 1992), a first take, the
+# vocals left out. Its loops simplified: the main groove a bar long, the
+# organ's part a bar or two, the song built of them. tools/mkmusic.py
+# makes build/gen/music.inc of it for music.s, and with --wav a WAV to
+# listen to.
+#
+# From the record: 85.4 beats a minute, straight; tuned 40 cents above
+# A 440; the main loop on G with F, A, C, D and F-F#-G (a G7sus blues), a
+# tuned kick sliding down from about G1 on 1 and on the and of 4, the
+# bass coming in on the e of 2, the and of 3, the e of 4; the hi-hats in
+# eighths. The second part (bars 43-49 of the record) round A with D, F,
+# C and E, the A reached from the G# below - an organist's smear.
+#
+# tempo   frames to a tick (a sixteenth), as a fraction; two of them for
+#         swing: the ticks on the beat, the ticks off it
+# tune    cents above A 440
+# wave    a name, its kind and what it needs:
+#           drawbars 888000000 [perc2|perc3]  a Hammond's nine drawbars,
+#                    16' to 1', 0-8; perc: the percussion's 4' or 2 2/3'
+#                    sounding at full (a page for the note's attack)
+#           harm a1 a2 ... [clip g]  harmonics' strengths, clipped (fuzz)
+#           pulse 50, saw, noise
+# inst    a name, "drop n" for a pitch that falls by 1/2^n each frame
+#         (a kick 3, a boom 7), "vib depth speed" (the note's step swayed
+#         by up to depth 256ths, 0.4 % each, speed 256 a turn a frame: 34
+#         is 6.6 Hz, a Leslie at full speed), and its pages, one a frame
+#         from the note's start: wave.level (level 1-7) or 0, silent; the
+#         last one held, or from "loop" on again and again
+# pattern a name and its notes; voice: a voice's notes
+#
+# In a pattern or a voice: a note (C4, F#5), ^ before one: no new attack
+# (legato, the organ's smear), - a rest, ~ the note held on, /n the ticks
+# of what follows (2 if not said), @name an instrument, *name a pattern,
+# "loop" where the voice starts again once it is through, | between bars
+# (each checked to be 16 ticks). A pattern's notes go an octave lower for
+# an organ with its 16' drawn.
+#
+# Levels: the three voices add up, and the TED goes no louder than 1 + 7 -
+# what goes over is cut off.
+
+tempo 123/14
+tune 40
+
+wave organ  drawbars 888000000
+wave orgp   drawbars 888000000 perc3
+wave fuzz   harm 1 0.6 0.4 0.2 clip 3
+wave pulse  pulse 50
+wave noise  noise
+
+inst organ  vib 3 34  orgp.3 orgp.3 orgp.3 orgp.3 organ.3 organ.3
+                      loop organ.3 organ.3 organ.3 organ.3 organ.2 organ.2 organ.2
+inst bass   fuzz.3 fuzz.3 fuzz.3 fuzz.3 fuzz.3 fuzz.3 fuzz.2 fuzz.2 fuzz.2 fuzz.1
+inst boom   drop 7 pulse.3 pulse.3 pulse.3 pulse.3 pulse.3 pulse.3 pulse.3 pulse.3
+                   pulse.2 pulse.2 pulse.2 pulse.2 pulse.2 pulse.2 pulse.1
+inst kick   drop 3 pulse.3 pulse.3 pulse.3 pulse.2 pulse.2 pulse.1 0
+inst snare  noise.3 noise.3 noise.3 noise.2 noise.2 noise.2 noise.1 noise.1 0
+inst hat    noise.1 noise.1 0
+
+# ---- drums: the groove, a bar; the break's fill ----
+pattern groove
+  /2 @kick G2 @hat C5 @snare C5 @hat C5 @hat C5 @kick G2 @snare C5 @kick G2 |
+pattern fill
+  /4 - - /2 @snare C5 /1 C5 C5 /2 C5 C5 |
+
+# ---- bass: the main loop on G (the boom with it), the second part's on D ----
+pattern bass
+  @boom /4 G1 /1 - @bass F2 F#2 /3 G2 /1 A2 /2 G2 /1 F2 @boom /2 G1 |
+pattern bass-b
+  @bass /4 D2 /1 - D2 D3 /3 D2 /1 F2 /2 G2 /1 G#2 /2 A2 |
+
+# ---- organ ----
+# the intro: G held, the Leslie turning, F and back
+pattern swell
+  /12 G4 /2 ^F4 ^G4 | /16 ~ |
+# over the groove: a G7sus call and its answer
+pattern riff
+  /3 - /1 F4 /2 ^G4 /2 - /2 C5 /2 ^D5 /4 ~ |
+  /2 F5 D5 C5 A4 /6 G4 /2 - |
+# the second part: A smeared up to from G#
+pattern theme
+  /1 G#4 /7 ^A4 /2 G4 F4 /4 D4 |
+  /1 G#4 /5 ^A4 /2 C5 /4 ^D5 /2 C5 A4 |
+# the break: A held alone
+pattern hold
+  /1 G#4 /15 ^A4 | /16 ~ |
+
+# the form: intro (2 bars, organ alone) - and from here again and again:
+# groove (4), groove with the organ (8), the second part (4), the break
+# (2), groove with the organ (8)
+voice @organ *swell
+      loop /16 - - - -  *riff *riff *riff *riff  *theme *theme  *hold
+      *riff *riff *riff *riff
+voice /16 - -
+      loop *bass *bass *bass *bass  *bass *bass *bass *bass *bass *bass *bass *bass
+      *bass-b *bass-b *bass-b *bass-b  /16 - -
+      *bass *bass *bass *bass *bass *bass *bass *bass
+voice /16 - -
+      loop *groove *groove *groove *groove  *groove *groove *groove *groove
+      *groove *groove *groove *groove  *groove *groove *groove *groove
+      /16 - *fill
+      *groove *groove *groove *groove *groove *groove *groove *groove

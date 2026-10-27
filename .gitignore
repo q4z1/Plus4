@@ -27,3 +27,6 @@ toolchain/tools/src/
 toolchain/tools/python/
 toolchain/tools/bin/amiga-run
 toolchain/*.rom
+
+# whatchawant: the reference recording (copyrighted, local only)
+/whatchawant/ref/
