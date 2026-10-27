@@ -66,6 +66,17 @@ R_THROW     = 1
 R_GOALKICK  = 2
 R_CORNER    = 3
 R_KEEPER    = 4                 ; (the keeper has it)
+R_FREE      = 5                 ; a foul: a free kick,
+R_PENALTY   = 6                 ;   in the box a penalty
+BOX_L       = 162               ; the penalty areas as drawn: across, and
+BOX_R       = 446               ; from the line to (top) / from (bottom)
+BOX_T       = 135
+BOX_B       = 603
+SPOT_T      = 104               ; the penalty spots
+SPOT_B      = 634
+WALL_D      = 40                ; a free kick: the other team this far off
+FOUL_R      = 12                ; a tackle from behind this near the player
+                                ; on the ball: a foul
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 SPEED_DIVE  = 1280              ; the keeper going for a shot
@@ -151,6 +162,39 @@ z_qn:       .res 2
 z_qnh:      .res 2
 d_ax:       .res 1              ; dist2's
 d_ay:       .res 1
+
+; A player's control of his team - the joystick's player, fire, the pass
+; on its way, the aftertouch, the dribble - for control, switch, help and
+; aftertouch: the cyan team's here, the yellow team's in ctx_b while
+; there are two players; swap trades them (each)
+ctx:
+pj:         .res 1              ; his joystick, J_ bits
+ctrl:       .res 1              ; the joystick's player, $FF none
+fire_n:     .res 1              ; frames fire has been held
+recv:       .res 1              ; the player a pass went to, $FF none,
+recv_t:     .res 1              ; and the frames he still goes to meet it
+helper:     .res 1              ; the player running to a ball his team has
+                                ; not got (help), $FF none
+at_n:       .res 1              ; the aftertouch's frame, $FF none
+at_dir:     .res 1              ; the shot's way
+at_side:    .res 1              ; the side it bends to, $FF none yet
+at_j:       .res 1              ; the joystick's way
+drib_dir:   .res 1              ; dribbling: the way, and the touches
+drib_n:     .res 1
+kick_pl:    .res 1              ; the player who last passed or shot,
+kick_t:     .res 1              ; and the frames since (switch, help)
+me:         .res 1              ; the team: 0 cyan, 1 yellow
+t_lo:       .res 1              ; its keeper: 0, 11
+t_hi:       .res 1              ; its last player: 10, 21
+t_end:      .res 1              ; one before its keeper: $FF, 10
+CTX_N       = * - ctx
+ctx_b:      .res CTX_N
+pj_b        = ctx_b + pj - ctx
+ctrl_b      = ctx_b + ctrl - ctx
+fire_n_b    = ctx_b + fire_n - ctx
+recv_b      = ctx_b + recv - ctx
+helper_b    = ctx_b + helper - ctx
+at_n_b      = ctx_b + at_n - ctx
 
         .bss
 ; the objects: the players, then the ball
@@ -269,38 +313,6 @@ two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
 each_v:     .res 2              ; (each's routine)
 
-; A player's control of his team - the joystick's player, fire, the pass
-; on its way, the aftertouch, the dribble - for control, switch, help and
-; aftertouch: the cyan team's here, the yellow team's in ctx_b while
-; there are two players; swap trades them (each)
-ctx:
-pj:         .res 1              ; his joystick, J_ bits
-ctrl:       .res 1              ; the joystick's player, $FF none
-fire_n:     .res 1              ; frames fire has been held
-recv:       .res 1              ; the player a pass went to, $FF none,
-recv_t:     .res 1              ; and the frames he still goes to meet it
-helper:     .res 1              ; the player running to a ball his team has
-                                ; not got (help), $FF none
-at_n:       .res 1              ; the aftertouch's frame, $FF none
-at_dir:     .res 1              ; the shot's way
-at_side:    .res 1              ; the side it bends to, $FF none yet
-at_j:       .res 1              ; the joystick's way
-drib_dir:   .res 1              ; dribbling: the way, and the touches
-drib_n:     .res 1
-kick_pl:    .res 1              ; the player who last passed or shot,
-kick_t:     .res 1              ; and the frames since (switch, help)
-me:         .res 1              ; the team: 0 cyan, 1 yellow
-t_lo:       .res 1              ; its keeper: 0, 11
-t_hi:       .res 1              ; its last player: 10, 21
-t_end:      .res 1              ; one before its keeper: $FF, 10
-CTX_N       = * - ctx
-ctx_b:      .res CTX_N
-pj_b        = ctx_b + pj - ctx
-ctrl_b      = ctx_b + ctrl - ctx
-fire_n_b    = ctx_b + fire_n - ctx
-recv_b      = ctx_b + recv - ctx
-helper_b    = ctx_b + helper - ctx
-at_n_b      = ctx_b + at_n - ctx
 
         .rodata
 ; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
@@ -2435,7 +2447,13 @@ team_ai:
         lda rs_kind             ; a kick-off: everyone stays in line
         bne @play
         rts
-@play:  lda frame_n
+@play:  lda kickoff             ; (a free kick, a penalty waiting: they
+        beq :+                  ; stay where they were put)
+        lda rs_kind
+        cmp #R_FREE
+        bcc :+
+        rts
+:       lda frame_n
         ora two                 ; (the yellow team's own, unless a player's)
         and #7
         bne :+
@@ -2460,6 +2478,8 @@ team_ai:
         beq @next
         cpx helper_b
         beq @next
+        lda o_slide,x           ; (one lying stays down)
+        bne @next
         cpx taker
         beq @next
         jsr place_formation
@@ -3137,7 +3157,8 @@ help:
 ; rules: after the ball's frame, while it is in play
 rules:
         lda kickoff             ; (a set piece not yet taken: it lies still,
-        ora throw_t             ; nor a throw-in flying in from outside)
+        ora throw_t             ; nor a throw-in flying in from outside,
+        ora dead_t              ; nor a ball dead for a foul)
         beq :+
         rts
 :       ldx #BALL
@@ -3352,6 +3373,10 @@ net:
 restart:
         lda #0
         sta goal
+        ldx #PLAYERS - 1        ; everyone up again (a foul's lying)
+:       sta o_slide,x
+        dex
+        bpl :-
         ldx #BALL
         sta o_xf,x
         sta o_yf,x
@@ -3398,11 +3423,20 @@ restart:
         lda #>304
         sbc o_xh + BALL
         sta z_ax + 1
-        lda #<369
+        ldy #0                  ; (a free kick, a penalty: facing the goal
+        lda rs_kind             ; it is for)
+        cmp #R_FREE
+        bcc :+
+        ldy #2
+        lda rs_team
+        eor flip
+        beq :+
+        ldy #4
+:       lda face_y,y
         sec
         sbc o_yl + BALL
         sta z_ay
-        lda #>369
+        lda face_y + 1,y
         sbc o_yh + BALL
         sta z_ay + 1
         jsr angle
@@ -3439,7 +3473,263 @@ restart:
         sta o_yh,x
         jsr throw_in
         jsr stand
+        jsr set_wall
         jmp await
+
+face_y:     .word 369, LINE_T, LINE_B   ; the middle, the top goal, the bottom
+
+; ---- fouls ----------------------------------------------------------------
+;
+; A sliding tackle into the player on the ball from behind - facing within
+; 45 degrees of the way he does - before it gets the ball is a foul: the
+; whistle, the player down, a free kick for his team where he lies, a
+; penalty if that is in the box his team attacks. For a free kick the
+; other team's players near the ball stand off between it and their goal,
+; a wall; for a penalty everyone but the taker and the keeper leaves the
+; box.
+
+; foul_on: carry set if sliding player X is into the other team's player
+; on the ball from behind, FOUL_R near either way. Keeps X.
+foul_on:
+        lda #0
+        cpx #11
+        bcc :+
+        lda #1
+:       jsr held                ; (the other team's ball)
+        bcc @no
+        ldy last_pl
+        lda o_dir,x             ; from behind: the ways 7, 0, 1 apart
+        sec
+        sbc o_dir,y
+        clc
+        adc #1
+        and #7
+        cmp #3
+        bcs @no
+        lda o_xl,x
+        sec
+        sbc o_xl,y
+        sta tmp
+        lda o_xh,x
+        sbc o_xh,y
+        jsr abs16
+        bne @no
+        cmp #FOUL_R
+        bcs @no
+        ldy last_pl
+        lda o_yl,x
+        sec
+        sbc o_yl,y
+        sta tmp
+        lda o_yh,x
+        sbc o_yh,y
+        jsr abs16
+        bne @no
+        cmp #FOUL_R
+        bcs @no
+        sec
+        rts
+@no:    clc
+        rts
+
+; foul: player X has fouled the player on the ball - the whistle, the
+; ball dead, him down, a free kick or penalty for his team
+foul:
+        ldx last_pl
+        lda #1                  ; down (slides lets him up when play goes on:
+        sta o_slide,x           ; restart)
+        lda #0
+        sta o_hd,x
+        jsr stand
+        lda last_team
+        sta rs_team
+        eor flip
+        sta r_s                 ; (the side his team attacks: 0 the top)
+        lda #R_FREE             ; where he lies
+        sta rs_kind
+        lda o_xl,x
+        sta rs_x
+        lda o_xh,x
+        sta rs_x + 1
+        lda o_yl,x
+        sta rs_y
+        lda o_yh,x
+        sta rs_y + 1
+        jsr in_box              ; in the box: a penalty, from the spot
+        bcs @free
+        lda #R_PENALTY
+        sta rs_kind
+        lda #<304
+        sta rs_x
+        lda #>304
+        sta rs_x + 1
+        ldy r_s
+        lda spot_l,y
+        sta rs_y
+        lda spot_h,y
+        sta rs_y + 1
+@free:  lda #DEAD_OUT
+        sta dead_t
+        jsr sfx_whistle
+        jmp calm
+
+spot_l:     .byte <SPOT_T, <SPOT_B
+spot_h:     .byte >SPOT_T, >SPOT_B
+
+; in_box: carry clear if player X is in the penalty area at side r_s
+; (0 the top). Keeps X.
+in_box:
+        lda o_xl,x
+        cmp #<BOX_L
+        lda o_xh,x
+        sbc #>BOX_L
+        bcc @no
+        lda #<BOX_R
+        cmp o_xl,x
+        lda #>BOX_R
+        sbc o_xh,x
+        bcc @no
+        lda r_s
+        bne :+
+        lda o_yl,x              ; the top: y < BOX_T
+        cmp #<BOX_T
+        lda o_yh,x
+        sbc #>BOX_T
+        rts
+:       lda #<BOX_B             ; the bottom: y > BOX_B
+        cmp o_yl,x
+        lda #>BOX_B
+        sbc o_yh,x
+        rts
+@no:    sec
+        rts
+
+; set_wall: a free kick's or a penalty's players placed, the taker behind
+; the ball already (restart)
+set_wall:
+        lda rs_kind
+        cmp #R_FREE
+        bcs :+
+        rts
+:       lda rs_team
+        eor flip
+        sta r_s
+        ldx #PLAYERS - 1
+@pl:    jsr wall_one
+        dex
+        bpl @pl
+        rts
+
+; wall_one: set_wall's player X. Keeps X.
+wall_one:
+        cpx taker
+        bne :+
+@next:  rts
+:       lda rs_kind
+        cmp #R_PENALTY
+        beq @pen
+        cpx #11                 ; a free kick: the other team's within
+        lda #0                  ; WALL_D of the ball, WALL_D nearer their
+        rol a                   ; goal
+        cmp rs_team
+        beq @next
+        jsr wall_near
+        bcs @next
+        lda r_s
+        bne :+
+        lda o_yl + BALL
+        sec
+        sbc #WALL_D
+        sta o_yl,x
+        lda o_yh + BALL
+        sbc #0
+        jmp @put
+:       lda o_yl + BALL
+        clc
+        adc #WALL_D
+        sta o_yl,x
+        lda o_yh + BALL
+        adc #0
+        jmp @put
+@pen:   txa                     ; a penalty: the keeper on his line, the
+        beq @keeper             ; others out of the box
+        cpx #11
+        beq @keeper
+        jsr in_box
+        bcs @next
+        ldy r_s
+        lda box_out,y
+        sta o_yl,x
+        lda #>BOX_B             ; (BOX_T + 12 and BOX_B - 12: the high
+        cpy #0                  ; byte 0 and BOX_B's)
+        bne @put
+        lda #0
+        beq @put
+@keeper:
+        cpx #11                 ; (only the one whose goal it is)
+        lda #0
+        rol a
+        cmp rs_team
+        beq @next
+        lda #<304
+        sta o_xl,x
+        lda #>304
+        sta o_xh,x
+        ldy r_s
+        lda line_in,y
+        sta o_yl,x
+        lda #>LINE_B
+        cpy #0
+        bne @put
+        lda #0
+@put:   sta o_yh,x
+        lda #0
+        sta o_yf,x
+        sta o_xf,x
+        lda o_yh,x              ; (on the pitch)
+        bne :+
+        lda o_yl,x
+        cmp #LINE_T
+        bcs @st
+        lda #LINE_T
+        sta o_yl,x
+        bne @st
+:       lda o_yl,x
+        cmp #<LINE_B
+        bcc @st
+        lda #<LINE_B
+        sta o_yl,x
+@st:    jmp stand
+
+box_out:    .byte <(BOX_T + 12), <(BOX_B - 12)
+line_in:    .byte <(LINE_T + 4), <(LINE_B - 4)
+.assert >(BOX_T + 12) = 0 && >(BOX_B - 12) = >BOX_B && >(LINE_B - 4) = >LINE_B, error, "set_wall: high bytes"
+
+; wall_near: carry clear if player X is within WALL_D of the ball either
+; way. Keeps X.
+wall_near:
+        lda o_xl,x
+        sec
+        sbc o_xl + BALL
+        sta tmp
+        lda o_xh,x
+        sbc o_xh + BALL
+        jsr abs16
+        bne @no
+        cmp #WALL_D
+        bcs @no
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        sta tmp
+        lda o_yh,x
+        sbc o_yh + BALL
+        jsr abs16
+        bne @no
+        cmp #WALL_D
+        rts
+@no:    sec
+        rts
 
 ; throw_in: a throw-in's taker X behind the touch line, 5 pixels out
 ; (clear of it: his arms and the ball are as light as the lines), the
@@ -3608,7 +3898,11 @@ cpu_take:
         jsr touch
         lda taker
         sta last_pl
-        lda #$FF                ; the nearest, not the keeper, not the taker
+        lda rs_kind             ; a penalty: shot at a corner
+        cmp #R_PENALTY
+        bne :+
+        jmp cpu_pen
+:       lda #$FF                ; the nearest, not the keeper, not the taker
         sta mate
         sta mate_d
         sta mate_d + 1
@@ -3641,6 +3935,37 @@ cpu_take:
         sta o_sph + BALL
         jmp kicked
 @done:  rts
+
+; cpu_pen: the yellow team's penalty, shot hard and rising at one corner
+; or the other, as the frame has it
+cpu_pen:
+        lda frame_n
+        and #1
+        tay
+        lda pen_xl,y
+        sta o_txl + BALL
+        lda pen_xh,y
+        sta o_txh + BALL
+        ldy flip                ; (1000 on towards the goal)
+        lda shot_dyl,y
+        clc
+        adc o_yl + BALL
+        sta o_tyl + BALL
+        lda shot_dyh,y
+        adc o_yh + BALL
+        sta o_tyh + BALL
+        lda #<SHOT_SPEED
+        sta o_spl + BALL
+        lda #>SHOT_SPEED
+        sta o_sph + BALL
+        lda #<SHOT_DZ
+        sta o_dzf + BALL
+        lda #>SHOT_DZ
+        sta o_dzl + BALL
+        jmp sfx_kick
+
+pen_xl:     .byte <(304 - 520), <(304 + 520)
+pen_xh:     .byte >(304 - 520), >(304 + 520)
 
 ; ---- the keepers ----------------------------------------------------------
 ;
@@ -3972,6 +4297,7 @@ div16:
 ; own kick: he holds it
 catch:
         lda kickoff
+        ora dead_t
         bne @done
         lda o_zl + BALL
         cmp #CATCH_Z
@@ -4186,6 +4512,12 @@ slides:
         lda #0
         sta o_spl,x
         sta o_sph,x
+:       lda o_hd,x              ; from behind into the player on the
+        ora o_hit,x             ; ball: a foul
+        bne :+
+        jsr foul_on
+        bcc :+
+        jmp foul
 :       lda o_hit,x             ; the ball reached, low: knocked on (a
         bne @done               ; diving header: in the air, headed on)
         lda o_zl + BALL

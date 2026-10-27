@@ -12,7 +12,8 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, pose_of, score, game_min, hud, lift, ctrl, ctrl_b
+        .import play_init, play_frame, pose_of, score, game_min, hud, lift
+        .importzp ctrl, ctrl_b
         .import jmp_pl, jmp_t
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step

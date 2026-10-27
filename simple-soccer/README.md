@@ -8,8 +8,9 @@ with their shadows, the stands and the boards around the pitch.
 **Work in progress.** What is there: the whole ground, both teams in
 their formation, the player of yours nearest the ball, who dribbles it,
 passes it and shoots, with aftertouch, the other team going for the
-ball, the keepers, sliding tackles, and the rules - throw-ins, goal
-kicks, corners, goals and kick-offs, the score and the time; the view
+ball, the keepers, sliding tackles, headers, and the rules - throw-ins,
+goal kicks, corners, fouls with free kicks and penalties, goals and
+kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
 other.
 
@@ -105,6 +106,18 @@ not the C64's.
 
 The player a pass goes to runs to meet it, and the joystick is his once
 he has it; he stops a ball that comes to his feet.
+
+A sliding tackle from behind - the tackler facing within 45 degrees of
+the way the player on the ball faces - that gets to him before it gets
+to the ball is a foul: the whistle, the player fouled down, and a free
+kick for his team where he lies; in the penalty area his team attacks,
+a penalty. For a free kick the other team's players within 40 pixels of
+the ball stand off between it and their goal, a wall; for a penalty the
+ball is on the spot, the keeper on his line, and everyone else but the
+taker out of the area. The taker faces the goal; yours turns with the
+stick and kicks with fire as for any set piece - held, it is a shot -
+and the yellow team shoots its penalties at one corner or the other.
+Its players do not slide in, so the fouls are yours.
 
 A ball in the air goes over the players' heads unless one of them goes
 for it: with fire down as it comes to his head - 11 to 22 high, within
