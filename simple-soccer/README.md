@@ -190,7 +190,7 @@ The TED's two voices give the match its sounds, played by the interrupt
 the keeper's catch, the referee's whistle - a trill - at a kick-off,
 three blasts at half and full time, and the crowd roaring at a goal.
 
-A title comes first: the name, the length of the match (3, 5 or 7
+A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
 minutes), one player or two, and the home and the away team to choose -
 the stick up and down to a line, left and right on it - fire to kick
 off. Each of the 35 teams has its shirt and a second one: the TED gives a

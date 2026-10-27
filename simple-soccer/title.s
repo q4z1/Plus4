@@ -51,6 +51,10 @@ SKIP        = $0FF8             ; "TS" here: a test, no title (tests/vice.py,
                                 ; not loaded, not cleared
 LOGO_ROW    = 1
 LOGO_COL    = 7
+CUP_COL     = LOGO_COL + 12     ; the cup in the gap between the words,
+CUP_CODE    = '['               ; its four characters ([ \ ] ^),
+CUP_TOP     = $77               ; gold, lighter above as the letters
+CUP_FOOT    = $57
 LEN_ROW     = 6
 PLAYERS_ROW = 8
 VALUE_COL   = 25                ; (the digits)
@@ -166,6 +170,24 @@ title:
 @gap:   inx
         cpx #NAME_LEN
         bne @logo
+        ldx #4 * 8 - 1          ; between the words a cup, in the letters'
+:       lda cup_chars,x         ; gold (codes the text has no use for)
+        sta TFONT + CUP_CODE * 8,x
+        dex
+        bpl :-
+        ldx #1
+:       txa
+        clc
+        adc #CUP_CODE
+        sta TCODE + LOGO_ROW * 40 + CUP_COL,x
+        adc #2
+        sta TCODE + (LOGO_ROW + 1) * 40 + CUP_COL,x
+        lda #CUP_TOP
+        sta TCOL + LOGO_ROW * 40 + CUP_COL,x
+        lda #CUP_FOOT
+        sta TCOL + (LOGO_ROW + 1) * 40 + CUP_COL,x
+        dex
+        bpl :-
         ; the lines of text
         lda #<lines
         sta t_ptr
@@ -754,6 +776,13 @@ frame_chars:
         .byte $03, 0, 0, 0, 0, 0, 0, 0
         .byte $FF, 0, 0, 0, 0, 0, 0, 0
         .byte $C0, 0, 0, 0, 0, 0, 0, 0
+
+; the cup: top left, top right, bottom left, bottom right
+cup_chars:
+        .byte $00, $0F, $3F, $4F, $4F, $2F, $1F, $0F
+        .byte $00, $F0, $FC, $F2, $F2, $F4, $F8, $F0
+        .byte $07, $03, $01, $01, $03, $07, $0F, $0F
+        .byte $E0, $C0, $80, $80, $C0, $E0, $F0, $F0
 
 name:       .byte "SIMPLE SOCCER"
 NAME_LEN    = * - name
