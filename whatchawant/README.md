@@ -33,11 +33,8 @@ top); `tools/mkmusic.py` makes the player's data of it.
 
 The record is in `ref/` (not in git). What the Plus/4 can play: 5542
 samples a second, 9 levels - so anything above about 2.7 kHz comes back
-as a chirp, and anything quiet drowns in the steps. Cut and treat each
-piece so, and the noise goes down a lot.
-
-Audacity is the editor (Audacious is only a player):
-`flatpak install flathub org.audacityteam.Audacity`
+as a chirp, and anything quiet drowns in the steps. Pieces made to the
+spec below lose most of that noise.
 
 **The record's grid.** 85.38 beats a minute, steady all through: a bar is
 **2.811 s**, two bars 5.622 s. Bar *n* starts at 0.459 s + *n* x 2.811 s:
@@ -57,23 +54,13 @@ off. Trust your ear and cut on the downbeat you hear.)
 
 **Each piece:**
 
-1. *File > Import > Audio*: the MP3.
-2. *Tracks > Mix > Mix Stereo Down to Mono*.
-3. Select the piece: in the *Selection* toolbar at the bottom set the
-   format to *hh:mm:ss + milliseconds*, type the start, and as its
-   length exactly 2.811 s (one bar) or 5.622 s (two). Play it looped
-   (*L* switches looping on, Audacity 3.2 on; older ones: *Shift+Space*)
-   and nudge the start until it loops without a hiccup.
-4. *Edit > Remove Special > Trim Audio*: only the piece is left.
-5. *Effect > EQ and Filters > Low-Pass Filter*: 2500 Hz, 48 dB per
-   octave. (Hi-hats mostly go with it - that is right, the Plus/4 cannot
-   play them anyway; the player's own noise can add them back.)
-6. *Effect > Volume and Compression > Compressor*: threshold about
-   -20 dB, ratio 4:1 or more, *make-up gain* on. Few levels want a
-   loud, even signal.
-7. *Effect > Volume and Compression > Normalize*: -1 dB.
-8. *File > Export Audio*: WAV, 16-bit, mono, any rate (it is brought to
-   5542 Hz here).
+| | |
+| --- | --- |
+| Format | WAV, mono, 16-bit, any sample rate (brought to 5542 Hz here) |
+| Length | exactly whole bars: 2.811 s (1 bar), 5.622 s (2), 11.244 s (4) - loops seamlessly, starting on the downbeat |
+| Low-pass | 2500 Hz, steep (48 dB per octave). The hi-hats mostly go with it - right so: the Plus/4 cannot play them; the player's noise adds them back |
+| Dynamics | compressed hard (about 4:1 or more from -20 dB), normalised to -1 dB: few levels want a loud, even signal |
+| Edges | no fades at loop ends (they would pump at every repeat); a one-shot like "Oh yeah" cut tight, no silence before or after |
 
 **What to deliver,** into `ref/`, one file a piece:
 
