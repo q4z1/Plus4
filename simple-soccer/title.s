@@ -288,8 +288,8 @@ lines:
         .byte "PRESS FIRE TO KICK OFF", 0
         .byte 19, 8, $51
         .byte "JOYSTICK IN EITHER PORT", 0
-        .byte 23, 14, $41
-        .byte "PLUS/4  2026", 0
+        .byte 23, 8, $41
+        .byte "BY Q4Z1 2026 (& CLAUDE)", 0
         .byte $FF
 
 row_lo:
