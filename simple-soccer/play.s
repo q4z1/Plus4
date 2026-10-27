@@ -198,10 +198,14 @@ at_n_b      = ctx_b + at_n - ctx
 
         .bss
 ; the objects: the players, then the ball
-o_xf:   .res NOBJ               ; x: fraction, pixel
-o_xl:   .res NOBJ
-o_xh:   .res NOBJ
+o_xf:   .res NOBJ               ; x, y: fraction,
 o_yf:   .res NOBJ
+o_txl:  .res NOBJ               ; (the destination: below)
+o_txh:  .res NOBJ
+o_tyl:  .res NOBJ
+o_tyh:  .res NOBJ
+o_xl:   .res NOBJ               ; pixel - as far after the place's as the
+o_xh:   .res NOBJ               ; destination's (walls)
 o_yl:   .res NOBJ
 o_yh:   .res NOBJ
 o_zf:   .res NOBJ               ; height: fraction, pixel
@@ -214,10 +218,6 @@ o_vyf:  .res NOBJ
 o_vyl:  .res NOBJ
 o_spl:  .res NOBJ               ; speed
 o_sph:  .res NOBJ
-o_txl:  .res NOBJ               ; destination
-o_txh:  .res NOBJ
-o_tyl:  .res NOBJ
-o_tyh:  .res NOBJ
 o_dir:  .res NOBJ               ; the way it faces, 0 up .. 7, clockwise
 o_step: .res NOBJ               ; its running picture (players), turn (ball)
 o_run:  .res NOBJ               ; frames to its next step
@@ -1008,6 +1008,21 @@ inside:
         sta o_tyh,x
 :       rts
 
+; walls: player X kept inside the walls as inside keeps his destination
+; (the place's bytes as far after its as for each other: see the .bss).
+; Keeps X.
+walls:
+        txa
+        pha
+        clc
+        adc #o_xl - o_txl
+        tax
+        jsr inside
+        pla
+        tax
+        rts
+        .assert o_xh - o_txh = o_xl - o_txl && o_yl - o_tyl = o_xl - o_txl && o_yh - o_tyh = o_xl - o_txl && o_xl - o_txl + NOBJ <= 256, error, "walls: the places as far after the destinations"
+
 ; can_kick: carry clear if the joystick's player can kick the ball: at
 ; his feet, near enough, and low. Keeps X.
 can_kick:
@@ -1671,7 +1686,10 @@ player_move:
         ldx z_obj
         jsr step
         jsr arrive
-        lda o_vxf,x             ; still: there - the standing picture, and
+        lda o_slide,x           ; (a sliding tackle's way leads far on: he
+        beq :+                  ; stops at the walls)
+        jsr walls
+:       lda o_vxf,x             ; still: there - the standing picture, and
         ora o_vxl,x             ; passed over till he has somewhere to go
         ora o_vyf,x
         ora o_vyl,x
