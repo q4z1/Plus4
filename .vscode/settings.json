@@ -10,5 +10,7 @@
     // Pfade trotzdem gesetzt, damit VS64 sie kennt, falls doch mal gebraucht.
     "vs64.cc65InstallDir": "/home/min/.local/share/cc65-vs64",
     "vs64.viceExecutable": "/home/min/.local/share/cc65-vs64/bin/xplus4",
-    "vs64.vicePort": "6502"
+    "vs64.vicePort": "6502",
+    "cmake.sourceDirectory": "/home/min/Dokumente/Development/Plus4/toolchain/tools/amiga-run",
+    "cmake.autoDetectSourceDirectory": false
 }
