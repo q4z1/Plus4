@@ -4,7 +4,7 @@
 ; It lies at $C000, loaded with the program but where the pictures go
 ; once the match is on (engine.s): it runs first, on a screen of its own
 ; (MAT2's and FNT2's place), and is gone after. Hires text, so that each
-; cell can have any of the TED's colours.
+; cell can have any of the TED's colours. Its music is music.s's.
 
         .include "game.inc"
 
@@ -12,7 +12,8 @@
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_read, joy, title_font, min_frames
+        .import joy_scan, joy, title_font, min_frames
+        .import mus_start, mus_frame, mus_stop
         .export title
 
 TCOL        = MAT2              ; the title's colours,
@@ -47,10 +48,11 @@ title:
         jsr skip                ; (a test: none)
         bcc :+
         rts
-:       lda #0                  ; no interrupts from the TED: joy_read lets
-        sta TED_IRQEN           ; them in, and none is set up yet (the
-        lda TED_IRQ             ; ROM is out)
+:       lda #0                  ; no interrupts from the TED but the
+        sta TED_IRQEN           ; music's (the ROM is out, the match's is
+        lda TED_IRQ             ; not set up yet)
         sta TED_IRQ
+        jsr mus_start
         lda TED_SCROLLY         ; blank while it is drawn
         and #$EF
         sta TED_SCROLLY
@@ -189,12 +191,17 @@ title:
         sta t_was
         sta t_tick
         ; the choice: left, right; fire to kick off (on its letting go)
-@wait:  lda TED_LINE            ; a frame
-        cmp #204
-        bne @wait
+@wait:  lda TED_LINE            ; a frame: the beam into lines 200-215 and
+        sec                     ; out of them again (a line could pass
+        sbc #200                ; unseen while the music's interrupt runs)
+        cmp #16
+        bcs @wait
 :       lda TED_LINE
-        cmp #204
-        beq :-
+        sec
+        sbc #200
+        cmp #16
+        bcc :-
+        jsr mus_frame
         inc t_tick
         lda t_tick              ; "fire" in light green and white by turns
         and #32
@@ -208,7 +215,7 @@ title:
         bpl :-
         jsr skip
         bcs @go
-        jsr joy_read
+        jsr joy_scan            ; (joy_read, but the music not held up)
         lda t_was               ; let go of: held before, not now
         eor #$FF
         and joy
@@ -236,7 +243,8 @@ title:
         inc t_sel
         jsr value
 :       jmp @wait
-@go:    ldx t_sel               ; the match's length
+@go:    jsr mus_stop
+        ldx t_sel               ; the match's length
         lda frames_of,x
         sta min_frames
         rts

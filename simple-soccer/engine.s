@@ -27,7 +27,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read
+        .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read, joy_scan
         .export cam_x, cam_y, frames, joy, dbg_joy
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_font, wrow_lo, wrow_hi
@@ -1784,6 +1784,7 @@ chr_hi:
 ; still sees the value written.
 joy_read:
         sei
+joy_scan:                       ; (the title's: nothing else reads the keys)
         lda #$FF
         sta KEY_ROW
         lda #$FB                ; joystick 1: fire is bit 6

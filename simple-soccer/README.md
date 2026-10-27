@@ -113,6 +113,48 @@ A title comes first: the name, the length of the match to choose with
 the stick (3, 5 or 7 minutes), fire to kick off. It is loaded where the
 pictures go once the match is on, and runs before them.
 
+## The title's music
+
+The title plays **Kernkraft 400** (Zombie Nation, 1999), the stadium
+anthem, and through it David Whittaker's **Star Dust**, tune 21 of
+*Lazy Jones* (C64, 1984), which Kernkraft 400 is made of: the riff and
+the octave bass as Lazy Jones plays them (read from its SID tune), the
+kick on every beat and the hi-hat between them as Kernkraft 400 adds
+them - a lead-in as Kernkraft 400 builds up, two bars of the beat
+alone and five with the bass, then the riff four times, the third over
+the hi-hats alone, and round again from the lead-in
+(`data/title-music.txt`).
+
+**The player that sounds it is taken over from International Karate on
+the Plus/4** - System 3's game of 1986, whose title plays Rob Hubbard's
+music, as brought over from the C64 by ATI (code), CSABO (audio), SIZ
+(the loader) and TLC (the digis), so its disk's directory names them:
+its mixer, "Wave Convert V2.0" by TLC of CNS (1992), as it is. It gets three voices with waves of their own out of a machine
+that has two squares: the TED's sound in its "digital" mode makes the
+volume register a 4-bit DAC, and a timer interrupts 5542 times a second
+to add up the three voices. That interrupt is some sixty bytes in the
+zero page that rewrite themselves - each voice's phase is the low byte
+of the address it reads its wave from, its step and its wave page are
+operands, and the sample it adds up waits as the operand the next
+interrupt writes out first, so every sample comes at the same moment.
+A wave page holds a wave (two pulses, a saw, noise) at a level 0-3; the
+three voices' pages add up to the volume.
+
+What drives it is the game's own (`music.s`): once a frame it goes on
+with each voice's notes, walks its instrument's levels frame by frame -
+the TED has no envelopes, and neither has the mixer - lets the kick's
+pitch fall and gives the noise a random step, and puts it all into the
+interrupt's operands. International Karate drives the mixer with a SID
+emulation under Hubbard's own player; a tune written for it needs none.
+The wave pages are made at the start, where the match's pictures go
+later, and the interrupt ends with the title - the match has the TED's
+two voices to itself again.
+
+`tools/mkmusic.py` makes the notes into bytes for the player, and with
+`--wav file.wav` plays them as the player does, to listen to without a
+Plus/4; `tests/title_music.py` records the title in VICE (`--yape`: in
+Yape, as a video with its sound).
+
 A match is 90 minutes in three real ones (or five, or seven). At 45 the referee blows for
 half time, the teams change ends and the yellow team kicks off; at 90 the result stays
 till fire starts a new match. While the ball is dead for a kick-off -

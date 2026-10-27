@@ -1,0 +1,50 @@
+# The title's music: Kernkraft 400 (Zombie Nation, 1999), after Star Dust,
+# David Whittaker's tune 21 of Lazy Jones (C64, 1984) - the riff and the
+# octave bass as Lazy Jones plays them, the four-to-the-floor kick and the
+# off-beat hi-hats as Kernkraft 400 adds them. tools/mkmusic.py makes
+# build/gen/music.inc of it for music.s, and with --wav a WAV to listen to.
+#
+# tempo   frames to a tick (a sixteenth), as a fraction: 21/4 = 5.25,
+#         143 beats a minute
+# inst    a name, its wave (pulse50, pulse25, saw, noise), "drop" for a
+#         pitch that falls an eighth each frame (the kick), and its level
+#         each frame from the note's start, 0-3, the last one held
+# pattern a name and its notes; voice: a voice's notes
+#
+# In a pattern or a voice: a note (C4, F#5), - a rest, /n the ticks of
+# what follows (2 if not said), @name an instrument, *name a pattern,
+# "loop" where the voice starts again once it is through, | between bars
+# (each checked to be 16 ticks).
+
+tempo 21/4
+
+inst lead  saw          3 3 3 2 2 2 2 2 2 1
+inst bass  pulse50      2 2 2 2 2 2 1 1 0
+inst kick  pulse50 drop 3 3 3 3 2 2 1 1 0
+inst hat   noise        2 1 1 1 0
+
+# the riff, four bars of eighths: Lazy Jones's lead, its low thuds left out
+pattern riff
+  - - - - - - - -       | - B4 D5 E5 F#5 - - -  |
+  - B4 D5 E5 F#5 G5 F#5 D5 | E5 E4 - E4 D5 F#4 F#5 B4 |
+
+# the octave bass under it
+pattern bass
+  B1 B2 B1 B2 B1 B2 B1 B2 | B1 B2 B1 B2 B1 B2 B1 B2 |
+  B1 B2 B1 B2 B1 B2 B1 B2 | E2 E3 E2 E3 F#2 F#3 F#2 F#3 |
+
+# a bar of kick and hi-hat; and of the hi-hat alone
+pattern beat
+  @kick E3 @hat C5 @kick E3 @hat C5 @kick E3 @hat C5 @kick E3 @hat C5 |
+pattern hats
+  @hat - C5 - C5 - C5 - C5 |
+
+# the lead-in, as Kernkraft 400 builds up: two bars of the beat alone, four
+# with the bass (and the riff's first, silent bar - seven before the lead
+# comes in); then the riff twice, once over the hi-hats alone, once more -
+# and all of it again, the lead-in too
+voice loop @lead /16 - - - - - - /2 *riff *riff *riff *riff
+voice loop @bass /16 - - /2 *bass *bass *bass *bass *bass
+voice loop *beat *beat  *beat *beat *beat *beat
+      *beat *beat *beat *beat  *beat *beat *beat *beat
+      *hats *hats *hats *hats  *beat *beat *beat *beat
