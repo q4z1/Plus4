@@ -12,7 +12,7 @@ ball, the keepers, sliding tackles, headers, and the rules - throw-ins,
 goal kicks, corners, fouls with free kicks and penalties, goals and
 kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
-other.
+other, with 35 national teams from all over the world to choose from.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
@@ -29,8 +29,10 @@ other.
 | fire, the ball in the air before you | space | diving header |
 
 With one player the joystick in either port (or the keyboard) runs the
-cyan team. With two, the first joystick (and the keyboard) runs the cyan
-team and the second the yellow one, each the same way.
+home team. With two, the first joystick (and the keyboard) runs the home
+team and the second the away team, each the same way. (The code and the
+rest of this text call them the cyan and the yellow team, the colours
+they had before there was a choice.)
 
 ## Building and running
 
@@ -119,6 +121,12 @@ stick and kicks with fire as for any set piece - held, it is a shot -
 and the yellow team shoots its penalties at one corner or the other.
 Its players do not slide in, so the fouls are yours.
 
+The referee counts each player's fouls: his second brings a yellow card,
+his fourth a second yellow and so a red one. The card is shown by him
+while the ball is dead; with a red he is off when play goes on - not
+drawn, never in reach of the ball, no one's to pass to, the joystick
+gone to a team-mate - and his team plays on with ten.
+
 A ball in the air goes over the players' heads unless one of them goes
 for it: with fire down as it comes to his head - 11 to 22 high, within
 10 pixels - your player jumps and heads it on, the way the stick points
@@ -141,8 +149,15 @@ the keeper's catch, the referee's whistle - a trill - at a kick-off,
 three blasts at half and full time, and the crowd roaring at a goal.
 
 A title comes first: the name, the length of the match (3, 5 or 7
-minutes) and one player or two to choose - the stick up and down to a
-line, left and right on it - fire to kick off. It is loaded where the
+minutes), one player or two, and the home and the away team to choose -
+the stick up and down to a line, left and right on it - fire to kick
+off. Each of the 35 teams has its shirt and a second one: the TED gives a
+multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
+purple, green, blue, yellow) in eight shades, so the Netherlands play in
+a light red and the green teams in a dark green the grass sets off. The
+away team wears its second shirt when its first is the home team's
+colour. A team's name on the title shows the shirt it will play in. On
+a light shirt the joystick's player flickers black instead of white. It is loaded where the
 pictures go once the match is on, and runs before them.
 
 With two players the yellow team is run just as the cyan one: what a

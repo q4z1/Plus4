@@ -31,7 +31,7 @@
         .include "data.inc"
 
         .export play_init, play_frame, pose_of, score, game_min, hud, min_frames
-        .export lift, jmp_pl, jmp_t
+        .export lift, jmp_pl, jmp_t, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two
@@ -284,6 +284,10 @@ throw_t:    .res 1              ; frames left of its throw (THROW_T held)
 lift:       .res 1              ; how high the ball is drawn over where it is
 jmp_pl:     .res 1              ; the player in the air for a header,
 jmp_t:      .res 1              ; and the frames he is still up
+fouls:      .res PLAYERS        ; each player's fouls in the match
+o_off:      .res NOBJ           ; 1: sent off - gone from the match
+card_pl:    .res 1              ; the player shown a card while the ball is
+card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
 r_t:        .res 1              ; the rules': attackers, the team's last
 r_s:        .res 1              ; (the side: 0 top, 1 bottom)
 ; a test's plan for the joystick, by the match's frames: (frame low, high,
@@ -394,9 +398,10 @@ play_init:
 :       lda #9                  ; the cyan team kicks off (line_up: rs_team
         sta ctrl                ; 0, as the program starts)
         sta taker
-        lda #$FF                ; no one after the ball
+        lda #$FF                ; no one after the ball, no card
         sta chaser
         sta chaser2
+        sta card_pl
         lda #1
         sta kickoff
         jmp sfx_whistle
@@ -1602,6 +1607,8 @@ mate_way:
 ; mate_dist: tmp = the distance squared from the ball to player X, $FFFF
 ; from 256 either way. Keeps X.
 mate_dist:
+        lda o_off,x             ; (one sent off: nowhere)
+        bne @far
         lda o_xl,x
         sec
         sbc o_xl + BALL
@@ -2478,7 +2485,8 @@ team_ai:
         beq @next
         cpx helper_b
         beq @next
-        lda o_slide,x           ; (one lying stays down)
+        lda o_slide,x           ; (one lying stays down, one sent off away)
+        ora o_off,x
         bne @next
         cpx taker
         beq @next
@@ -3371,6 +3379,13 @@ net:
 
 ; restart: the dead time over - the ball put down, the taker to it
 restart:
+        ldx card_pl             ; a red card: off
+        bmi :+
+        lda card_c
+        beq :+
+        jsr send_off
+:       lda #$FF
+        sta card_pl
         lda #0
         sta goal
         ldx #PLAYERS - 1        ; everyone up again (a foul's lying)
@@ -3533,9 +3548,23 @@ foul_on:
         rts
 
 ; foul: player X has fouled the player on the ball - the whistle, the
-; ball dead, him down, a free kick or penalty for his team
+; ball dead, him down, a free kick or penalty for his team; for the
+; fouler's second foul a yellow card, for his fourth (a second yellow)
+; a red, and he is off when play goes on (restart)
 foul:
-        ldx last_pl
+        lda #$FF
+        sta card_pl
+        inc fouls,x
+        lda fouls,x
+        lsr a
+        bcs @tally              ; (an odd one: no card)
+        stx card_pl
+        cmp #2                  ; (fouls / 2: 1 yellow, 2 red)
+        lda #0
+        bcc :+
+        lda #1
+:       sta card_c
+@tally: ldx last_pl
         lda #1                  ; down (slides lets him up when play goes on:
         sta o_slide,x           ; restart)
         lda #0
@@ -3572,6 +3601,45 @@ foul:
         sta dead_t
         jsr sfx_whistle
         jmp calm
+
+; send_off: player X off the pitch for good - not drawn, not in the
+; team's play, never near the ball (mate_dist); the joystick, a run to
+; the ball, a pass to him on to someone else
+send_off:
+        lda #1
+        sta o_off,x
+        jsr stand
+        txa
+        tay
+@next:  iny                     ; (a team-mate: the next one, not the
+        cpy #11                 ; keeper, not one off)
+        bne :+
+        ldy #1
+:       cpy #22
+        bne :+
+        ldy #12
+:       lda o_off,y
+        bne @next
+        cpx ctrl
+        bne :+
+        sty ctrl
+:       cpx ctrl_b
+        bne :+
+        sty ctrl_b
+:       lda #$FF
+        cpx helper
+        bne :+
+        sta helper
+:       cpx helper_b
+        bne :+
+        sta helper_b
+:       cpx recv
+        bne :+
+        sta recv
+:       cpx recv_b
+        bne :+
+        sta recv_b
+:       rts
 
 spot_l:     .byte <SPOT_T, <SPOT_B
 spot_h:     .byte >SPOT_T, >SPOT_B
@@ -3847,6 +3915,8 @@ nearest:
         sta mate_d
         sta mate_d + 1
 @look:  inx
+        lda o_off,x             ; (not one sent off)
+        bne @skip
         lda o_xl,x
         sec
         sbc o_xl + BALL
@@ -3879,6 +3949,7 @@ nearest:
         lda mate_t + 1
         sta mate_d + 1
         stx mate
+@skip:
 :       cpx r_t
         bne @look
         ldx mate
@@ -4747,6 +4818,11 @@ new_match:
         sta score + 1
         sta rs_team
         sta flip
+        ldx #PLAYERS - 1        ; no fouls, no one off
+:       sta fouls,x
+        sta o_off,x
+        dex
+        bpl :-
         lda #1
         sta dead_t              ; (the kick-off next frame)
         rts

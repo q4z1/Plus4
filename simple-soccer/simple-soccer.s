@@ -14,7 +14,8 @@
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
         .import play_init, play_frame, pose_of, score, game_min, hud, lift
         .importzp ctrl, ctrl_b
-        .import jmp_pl, jmp_t
+        .import jmp_pl, jmp_t, o_off, card_pl, card_c
+        .export team_col, team_flk
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -40,6 +41,7 @@ FOOT_Y      = 14
 BALL_X      = 7
 BALL_Y      = 11
 SHADOW_Y    = 12
+CARD_X      = 6                 ; a card this far right of the feet
 
 MAX_STEPS   = 4                 ; frames of play caught up in a turn at most
 
@@ -99,6 +101,11 @@ hud_n:  .res 1                  ; draw_hud's place
 s_i:    .res 1                  ; sort's
 s_j:    .res 1
 
+        .bss
+team_col:   .res 2              ; each team's shirts, multicolour (title.s)
+team_flk:   .res 2              ; and the colour its joystick's player
+                                ; flickers to: white, black on a light shirt
+
         .rodata
 ; the image for each step of the run: standing, a foot forward, standing,
 ; the other foot
@@ -143,6 +150,7 @@ loop:
         jsr sort
         jsr draw
         jsr draw_hud
+        jsr draw_card
         jsr eng_end             ; (waits while a picture is still waiting)
         jmp loop
 
@@ -265,6 +273,7 @@ draw:
         jsr seen
         lda #0
         rol a
+        ora o_off,x             ; (one sent off: never)
         sta s_off,x
         bne @skip1
         cpx #BALL
@@ -315,11 +324,12 @@ draw:
         sta fig_y
         bcs :+
         dec fig_y + 1
-:       lda #COL_TEAM1
+:       ldy #0                  ; the team's shirts (the title's choice)
         cpx #11
         bcc :+
-        lda #COL_TEAM2
-:       cpx ctrl                ; a joystick's player: his shirt white
+        iny
+:       lda team_col,y
+        cpx ctrl                ; a joystick's player: his shirt white
         beq @fl                 ; two pictures in four, flickering as the
         cpx ctrl_b              ; C64 shows him (white 4 frames in 8; two
         bne :+
@@ -329,7 +339,7 @@ draw:
         lsr a
         pla
         bcc :+
-        lda #COL_LINE
+        lda team_flk,y          ; (or black, his shirt light itself)
 :       sta fig_col
         jsr fig_draw
 @skip:  inc tmp
@@ -501,6 +511,37 @@ hud_digit:
         sta fig_y + 1
         inc hud_n
         jmp fig_draw
+
+; draw_card: while the ball is dead for a foul with a card, the card by
+; the fouler's head
+draw_card:
+        ldx card_pl
+        bmi @none
+        lda s_off,x
+        bne @none
+        lda #IMG_CARD
+        sta fig_img
+        ldy #COL_YELLOW
+        lda card_c
+        beq :+
+        ldy #COL_RED
+:       sty fig_col
+        lda s_xl,x
+        clc
+        adc #CARD_X - FOOT_X
+        sta fig_x
+        lda s_xh,x
+        adc #0
+        sta fig_x + 1
+        lda s_yl,x
+        sec
+        sbc #FOOT_Y
+        sta fig_y
+        lda s_yh,x
+        sbc #0
+        sta fig_y + 1
+        jmp fig_draw
+@none:  rts
 
 ; seen: carry clear if figure X may be in the view at all - its feet
 ; from 18 pixels left of it to 10 right, 8 above to 14 below (its sprite

@@ -8,12 +8,13 @@
 ; cell can have any of the TED's colours. Its music is music.s's.
 
         .include "game.inc"
+        .include "data.inc"
 
         .repeat 256, I          ; (text as it is, ASCII: the title's font
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, title_font, min_frames, two
+        .import joy_scan, joy, title_font, min_frames, two, team_col, team_flk
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -34,12 +35,16 @@ SKIP        = $0FF8             ; "TS" here: a test, no title (tests/vice.py,
                                 ; not loaded, not cleared
 LOGO_ROW    = 3
 LOGO_COL    = 7
-VALUE_ROW   = 12
-PLAYERS_ROW = 14
+VALUE_ROW   = 10
+PLAYERS_ROW = 12
+HOME_ROW    = 14
+AWAY_ROW    = 16
+NAME_COL    = 17                ; (a team's name: so many letters at most)
+NAME_W      = 13
 VALUE_COL   = 25                ; (the digits)
-PORTS_ROW   = 19                ; (where the joysticks go)
+PORTS_ROW   = 21                ; (where the joysticks go)
 PORTS_COL   = 6
-FIRE_ROW    = 16
+FIRE_ROW    = 19
 
         .zeropage
 t_ptr:  .res 2                  ; (the title's)
@@ -172,7 +177,8 @@ title:
         bcc @line
         inc t_ptr + 1
         bne @line
-@shown: jsr value
+@shown: jsr kits
+        jsr value
         ; the TED: hires text, 40 columns, 25 rows, the title's matrix and
         ; characters
         lda TED_CTRL2
@@ -234,48 +240,31 @@ title:
         stx t_was
         and #J_FIRE
         bne @go
-        lda t_new               ; up, down: the other line
-        and #J_UP | J_DOWN
+        lda t_new               ; up, down: a line up or down
+        and #J_UP
         beq :+
         lda t_row
-        eor #1
-        sta t_row
+        beq :+
+        dec t_row
         jsr value
 :       lda t_new
-        and #J_LEFT
-        beq @right
-        lda t_row
+        and #J_DOWN
         beq :+
-        lda #0                  ; one player
-        sta t_two
-        beq @shown2
-:       lda t_sel               ; shorter
-        beq @right
-        dec t_sel
-@shown2:
+        lda t_row
+        cmp #ROWS - 1
+        beq :+
+        inc t_row
         jsr value
-@right: lda t_new
-        and #J_RIGHT
+:       lda t_new               ; left, right: the choice on it
+        and #J_LEFT | J_RIGHT
         beq @next
-        lda t_row
-        beq :+
-        lda #1                  ; two players
-        sta t_two
-        bne @shown3
-:       lda t_sel               ; longer
-        cmp #2
-        beq @next
-        inc t_sel
-@shown3:
+        and #J_RIGHT            ; (0: left)
+        ldx t_row
+        jsr change
         jsr value
 @next:  jmp @wait
 @go:    jsr mus_stop
-        ldx t_sel               ; the match's length
-        lda frames_of,x
-        sta min_frames
-        lda t_two
-        sta two
-        rts
+        jmp chosen
 
 ; skip: carry set if a test asks for no title (SKIP), the ask taken
 ; back - min_frames then for 3 minutes
@@ -289,16 +278,137 @@ skip:
         lda #0
         sta SKIP
         sta SKIP + 1
-        ldx t_sel
-        lda frames_of,x
-        sta min_frames
+        jsr chosen
         sec
         rts
 @no:    clc
         rts
 
-; value: what is chosen, shown - the length, the players, the line the
-; stick is on in white, the other grey, and where the joysticks go
+; chosen: the title's choices to the match - its length, one player or
+; two, the teams' shirts
+chosen:
+        ldx t_sel
+        lda frames_of,x
+        sta min_frames
+        lda t_two
+        sta two
+        jmp kits
+
+; change: the choice on line X a step left (A 0) or right
+change:
+        cpx #1
+        beq @players
+        bcs @team
+        tay                     ; the length: 3, 5, 7 minutes
+        beq :+
+        lda t_sel
+        cmp #2
+        beq @done
+        inc t_sel
+        rts
+:       lda t_sel
+        beq @done
+        dec t_sel
+@done:  rts
+@players:
+        tay                     ; one player, two
+        beq :+
+        lda #1
+:       sta t_two
+        rts
+@team:  tay                     ; a team: the one before or after, round
+        beq @prev               ; the list
+        inc t_team - 2,x
+        lda t_team - 2,x
+        cmp #TEAMS
+        bcc kits
+        lda #0
+        sta t_team - 2,x
+        beq kits
+@prev:  dec t_team - 2,x
+        bpl kits
+        lda #TEAMS - 1
+        sta t_team - 2,x
+        ; (on into kits)
+
+; kits: the shirts the teams play in - the home team its own, the away
+; team its own unless it is the home team's colour, then its second,
+; and if that is too, white (red against white) - and the colour each
+; joystick's player flickers to: white, black on a light shirt
+kits:
+        ldx t_team
+        jsr rec
+        ldy #NAME_W
+        lda (t_ptr),y
+        sta t_k                 ; (the home team's)
+        ldx t_team + 1
+        jsr rec
+        ldy #NAME_W
+        lda (t_ptr),y
+        eor t_k
+        and #7
+        beq :+
+        lda (t_ptr),y           ; its own
+        jmp @set
+:       iny
+        lda (t_ptr),y
+        eor t_k
+        and #7
+        beq :+
+        lda (t_ptr),y           ; its second
+        jmp @set
+:       lda t_k
+        and #7
+        cmp #1
+        beq :+
+        lda #$71
+        bne @set
+:       lda #$42
+@set:   ldx #1
+        jsr kit
+        lda t_k
+        ldx #0
+kit:    pha                     ; team X in shirt A (hires: luminance, hue)
+        ora #$08                ; (multicolour)
+        sta team_col,x
+        pla
+        ldy #COL_LINE
+        cmp #$60                ; light, or white: black
+        bcs :+
+        and #7
+        cmp #1
+        bne :++
+:       ldy #$08
+:       tya
+        sta team_flk,x
+        rts
+
+; rec: t_ptr = team X's record (teams: NAME_W + 2 bytes each)
+rec:    stx t_ptr
+        lda #0
+        sta t_ptr + 1
+        txa
+        ldy #4
+:       asl a                   ; * 16
+        rol t_ptr + 1
+        dey
+        bne :-
+        sec
+        sbc t_ptr               ; - 1
+        bcs :+
+        dec t_ptr + 1
+:       clc
+        adc #<teams
+        sta t_ptr
+        lda t_ptr + 1
+        adc #>teams
+        sta t_ptr + 1
+        rts
+.assert NAME_W + 2 = 15, error, "rec: records of 15"
+
+; value: what is chosen, shown - the length, the players, the teams'
+; names in their shirts, the line the stick is on in white, the others
+; grey, and where the joysticks go
 value:
         ldx t_sel
         lda digit_of,x
@@ -307,25 +417,62 @@ value:
         clc
         adc #'1'
         sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
-        lda #C_TEXT
-        ldx #C_DIM
-        ldy t_row
-        beq :+
+        ldx #ROWS - 1
+@row:   ldy row_of,x            ; (its colours: TCOL, $400 below)
+        lda row_lo,y
+        clc
+        adc #8
+        sta t_dst
+        lda row_hi,y
+        adc #0
+        sec
+        sbc #>(TCODE - TCOL)
+        sta t_dst + 1
         lda #C_DIM
-        ldx #C_TEXT
-:       stx t_col
-        ldy #23
-:       sta TCOL + VALUE_ROW * 40 + 8,y
+        cpx t_row
+        bne :+
+        lda #C_TEXT
+:       ldy #23
+:       sta (t_dst),y
         dey
         bpl :-
-        lda t_col
-        ldy #23
-:       sta TCOL + PLAYERS_ROW * 40 + 8,y
-        dey
-        bpl :-
+        dex
+        bpl @row
         lda #C_VALUE
         sta TCOL + VALUE_ROW * 40 + VALUE_COL
         sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
+        ldx #1                  ; the teams' names
+@team:  stx t_x
+        lda t_team,x
+        tax
+        jsr rec
+        ldx t_x
+        ldy row_of + 2,x
+        lda row_lo,y
+        clc
+        adc #NAME_COL
+        sta t_dst
+        lda row_hi,y
+        adc #0
+        sta t_dst + 1
+        ldy #NAME_W - 1
+:       lda (t_ptr),y
+        sta (t_dst),y
+        dey
+        bpl :-
+        lda t_dst + 1
+        sec
+        sbc #>(TCODE - TCOL)
+        sta t_dst + 1
+        lda team_col,x
+        and #$F7                ; (hires: no multicolour bit)
+        ora #$40                ; (light enough on the blue)
+        ldy #NAME_W - 1
+:       sta (t_dst),y
+        dey
+        bpl :-
+        dex
+        bpl @team
         ldx #PORTS_W - 1
 :       lda ports_1,x
         ldy t_two
@@ -336,10 +483,67 @@ value:
         bpl :--
         rts
 
+ROWS        = 4                 ; the lines to choose on
+row_of:     .byte VALUE_ROW, PLAYERS_ROW, HOME_ROW, AWAY_ROW
 ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
 PORTS_W     = * - ports_1
-ports_2:    .byte "CYAN: PORT 1  YELLOW: PORT 2"
+ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
 .assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
+
+; The teams: a name, its shirt and its second, as the TED's colours
+; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more)
+.macro  team name, home, away
+        .byte name
+        .res NAME_W - .strlen(name), ' '
+        .byte home, away
+.endmacro
+WHITE       = $71
+RED         = $42
+DARK_RED    = $22
+ORANGE      = $62               ; (a light red: there is no orange)
+YELLOW      = $67
+SKY         = $53               ; (cyan)
+LIGHT_SKY   = $63
+BLUE        = $46
+DARK_BLUE   = $26
+GREEN       = $15               ; (dark: the grass is green)
+teams:
+        team "ARGENTINA", SKY, DARK_BLUE
+        team "AUSTRALIA", YELLOW, GREEN
+        team "BELGIUM", RED, YELLOW
+        team "BRAZIL", YELLOW, BLUE
+        team "CAMEROON", GREEN, YELLOW
+        team "CANADA", RED, WHITE
+        team "CHILE", RED, WHITE
+        team "CHINA", RED, WHITE
+        team "COLOMBIA", YELLOW, DARK_BLUE
+        team "CROATIA", RED, DARK_BLUE
+        team "DENMARK", RED, WHITE
+        team "EGYPT", RED, WHITE
+        team "ENGLAND", WHITE, RED
+        team "FRANCE", DARK_BLUE, WHITE
+        team "GERMANY", WHITE, RED
+        team "GHANA", WHITE, RED
+        team "HUNGARY", RED, WHITE
+        team "IRAN", WHITE, RED
+        team "ITALY", BLUE, WHITE
+        team "JAPAN", DARK_BLUE, WHITE
+        team "MEXICO", GREEN, WHITE
+        team "MOROCCO", RED, GREEN
+        team "NETHERLANDS", ORANGE, WHITE
+        team "NEW ZEALAND", WHITE, DARK_BLUE
+        team "NIGERIA", GREEN, WHITE
+        team "POLAND", WHITE, RED
+        team "PORTUGAL", DARK_RED, WHITE
+        team "SAUDI ARABIA", WHITE, GREEN
+        team "SCOTLAND", DARK_BLUE, YELLOW
+        team "SENEGAL", WHITE, GREEN
+        team "SOUTH KOREA", RED, WHITE
+        team "SPAIN", RED, DARK_BLUE
+        team "SWEDEN", YELLOW, DARK_BLUE
+        team "URUGUAY", LIGHT_SKY, WHITE
+        team "USA", WHITE, DARK_BLUE
+TEAMS       = (* - teams) / (NAME_W + 2)
 
 name:       .byte "SIMPLE SOCCER"
 NAME_LEN    = * - name
@@ -351,12 +555,16 @@ frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
 
 ; the lines: row, column, colour, text, 0 - $FF the end
 lines:
-        .byte 8, 5, $61
+        .byte 7, 5, $61
         .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
         .byte VALUE_ROW, 8, C_TEXT
         .byte "MATCH LENGTH:  <   MIN >", 0
         .byte PLAYERS_ROW, 8, C_TEXT
         .byte "PLAYERS:       <       >", 0
+        .byte HOME_ROW, 8, C_TEXT
+        .byte "HOME:  <               >", 0
+        .byte AWAY_ROW, 8, C_TEXT
+        .byte "AWAY:  <               >", 0
         .byte FIRE_ROW, 9, C_FIRE0
         .byte "PRESS FIRE TO KICK OFF", 0
         .byte PORTS_ROW, PORTS_COL, C_DIM       ; (its text: value)
@@ -381,4 +589,9 @@ t_new:      .byte 0             ; what is pushed that was not
 t_tick:     .byte 0
 t_sel:      .byte 0             ; the length chosen: 3, 5, 7 minutes
 t_two:      .byte 0             ; 1: two players
-t_row:      .byte 0             ; the line the stick is on: 0 length, 1 players
+t_row:      .byte 0             ; the line the stick is on: 0 length, 1 players,
+                                ; 2 the home team, 3 the away team
+t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
+                                ; cyan and yellow there were before)
+t_k:        .byte 0             ; (kits')
+t_x:        .byte 0             ; (value's)
