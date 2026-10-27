@@ -95,8 +95,8 @@ NEAR        = 32                ; distance squared: the ball at his feet
 TAKE_D2     = 9                 ; the other team's, this close: the yellow
                                 ; chaser takes it (nearer)
 CLOSE       = 72                ; near enough to kick it
-KICKED_T    = 25                ; frames the kicker is not the one to get to
-                                ; the ball (switch, help)
+KICKED_T    = 50                ; frames the one who passed or shot is not
+                                ; the one to get to the ball (switch, help)
 KICK_Z      = 4                 ; and low enough
 SHOT_HOLD   = 9                 ; frames fire is held for a shot
 SHOT_SPEED  = 2208
@@ -251,7 +251,8 @@ at_side:    .res 1              ; the side it bends to, $FF none yet
 at_j:       .res 1              ; the joystick's way
 drib_dir:   .res 1              ; dribbling: the way, and the touches
 drib_n:     .res 1
-switch_t:   .res 1              ; frames to the next look for a player
+kick_pl:    .res 1              ; the cyan player who last passed or shot,
+kick_t:     .res 1              ; and the frames since (switch, help)
 d2:         .res 2              ; dist2's result
 mate:       .res 1              ; pass's
 mate_d:     .res 2
@@ -503,10 +504,14 @@ play_frame:
         jsr others
         jsr ball_move
         jmp net
-@live:  lda touch_t             ; (frames since the ball's last touch)
-        cmp #255
+@live:  lda touch_t             ; (frames since the ball's last touch,
+        cmp #255                ; and the cyan team's last kick)
         beq :+
         inc touch_t
+:       lda kick_t
+        cmp #255
+        beq :+
+        inc kick_t
 :       lda y_pass_t
         beq :+
         dec y_pass_t
@@ -551,7 +556,6 @@ dbg_step:
         sta dbg_t + 1
         sta dbg_i
         sta dbg_bits
-        sta switch_t
 :       inc dbg_t
         bne :+
         inc dbg_t + 1
@@ -874,9 +878,11 @@ can_kick:
 shot:
         lda #0
         sta last_team
+        sta kick_t
         jsr touch
         lda ctrl
         sta last_pl
+        sta kick_pl
         ldx ctrl
         ldy o_dir,x
         sty at_dir
@@ -894,8 +900,6 @@ shot:
         sta at_n
         lda #$FF
         sta drib_dir
-        lda #4                  ; the next player soon (8 frames)
-        sta switch_t
         rts
 
 ; aftertouch: for ten frames after a shot, the joystick bends it - the
@@ -1179,9 +1183,11 @@ ball_ahead:
 pass:
         lda #0
         sta last_team
+        sta kick_t
         jsr touch
         lda ctrl
         sta last_pl
+        sta kick_pl
         lda #$FF
         sta mate
         sta mate_d
@@ -1220,8 +1226,8 @@ pass:
         bpl @look
         ldx mate
         bmi :+
-        stx recv                ; the joystick to him, to meet it
-        stx ctrl
+        stx recv                ; he runs to meet it (help), the joystick
+        stx helper              ; to the nearest of the others (switch)
         lda #RECV_T
         sta recv_t
         jmp kick_to
@@ -1301,8 +1307,6 @@ kicked: ; (on the ground)
         sta o_dzf + BALL
         lda #$FF
         sta drib_dir
-        lda #4                  ; the next player soon (8 frames)
-        sta switch_t
         jsr sfx_kick
         rts
 
@@ -2689,11 +2693,11 @@ ball_near:
 
 ; ---- whose the joystick is ------------------------------------------------
 
-; switch: as on the C64 - the joystick goes to the team's player who
-; gets to the ball (CLOSE, low; not the one who has just kicked it, the
-; joystick's own first), every second frame; and, every sixth, from a
-; player 64 or more away from it to the nearest (not the helper, who is
-; on his way to it already)
+; switch: as Sensible Soccer and the C64 do it, every second frame: the
+; joystick's player keeps it while he has the ball at his feet; else it
+; goes to whoever of the team gets to the ball (CLOSE, low), else to the
+; player nearest it - not the helper on his way to it, not the one who
+; has just passed or shot, not the keeper
 switch:
         lda kickoff             ; (the cyan team's set piece: the taker
         beq :+                  ; keeps it)
@@ -2704,15 +2708,9 @@ switch:
         lda o_slide,x
         beq :+
         rts
-:       lda recv_t              ; (nor the one a pass goes to)
-        beq :+
-        lda recv
-        cmp ctrl
-        bne :+
-        rts
 :       lda frame_n
         lsr a
-        bcs @far
+        bcs @done
         ldx ctrl                ; at the ball: the joystick's, or another
         jsr near_ball
         bcs @done
@@ -2723,39 +2721,30 @@ switch:
         bcs @got
 :       dex
         bne @at
-@far:   dec switch_t
-        bpl @done
-        lda #2                  ; (each sixth frame)
-        sta switch_t
-        jsr dist2
-        lda d2
-        and d2 + 1
-        cmp #$FF
-        bne @done               ; (near enough: he keeps it)
-        lda #$FF
+        lda #$FF                ; else the nearest
         sta mate_d
         sta mate_d + 1
+        sta mate
         ldx #10
 @look:  cpx helper
-        beq :+
+        beq @next
+        jsr kicker
+        bcs @next
         jsr mate_dist
         lda tmp
         cmp mate_d
         lda tmp + 1
         sbc mate_d + 1
-        bcs :+
+        bcs @next
         lda tmp
         sta mate_d
         lda tmp + 1
         sta mate_d + 1
         stx mate
-:       dex
+@next:  dex
         bne @look
-        lda mate_d
-        and mate_d + 1
-        cmp #$FF
-        beq @done               ; (all far: keep him)
         ldx mate
+        bmi @done               ; (no one)
 @got:   cpx ctrl
         beq @done
         stx ctrl                ; (the last one goes back to his place:
@@ -2765,17 +2754,25 @@ switch:
         sta helper
 @done:  rts
 
-; at_ball: carry set if cyan player X is at the ball (CLOSE, low) and is
-; not the one who has just kicked it; near_ball the same, whoever kicked
-; it. Keeps X.
-at_ball:
-        lda last_team
-        bne near_ball
-        cpx last_pl
-        bne near_ball
-        lda touch_t
+; kicker: carry set if cyan player X passed or shot KICKED_T frames ago
+; or less. Keeps X.
+kicker:
+        cpx kick_pl
+        bne :+
+        lda kick_t
         cmp #KICKED_T
-        bcc at_no
+        bcs :+
+        sec
+        rts
+:       clc
+        rts
+
+; at_ball: carry set if cyan player X is at the ball (CLOSE, low) and is
+; not the one who has just passed or shot (kicker); near_ball the same,
+; whoever he is. Keeps X.
+at_ball:
+        jsr kicker
+        bcs at_no
 near_ball:
         lda o_zl + BALL
         cmp #HOLD_Z + 1
@@ -2792,14 +2789,20 @@ at_no:  clc
         rts
 
 ; help: the cyan player nearest a ball his team has not got - not the
-; joystick's, not the keeper, not one who has just kicked it - runs to it
-; on his own, as the C64's do (switch gives him the joystick there).
-; Chosen anew each eighth frame; team_ai: every second one.
+; joystick's, not the keeper - runs to it on his own, as Sensible
+; Soccer's and the C64's do (switch gives him the joystick there); a
+; pass's receiver while it runs to him. Chosen anew each eighth frame;
+; team_ai: every second one.
 help:
         lda kickoff
         ora dead_t
         bne :+
-        lda #1                  ; (the cyan team's: no one)
+        lda recv_t              ; (a pass to him on its way: he runs)
+        beq @own
+        lda recv
+        cmp helper
+        beq @run
+@own:   lda #1                  ; (the cyan team's: no one)
         jsr held
         bcc @in
 :       lda #$FF
@@ -2815,14 +2818,7 @@ help:
         ldx #10
 @look:  cpx ctrl
         beq @next
-        lda last_team           ; (not the kicker, for a moment)
-        bne :+
-        cpx last_pl
-        bne :+
-        lda touch_t
-        cmp #KICKED_T
-        bcc @next
-:       jsr mate_dist
+        jsr mate_dist
         lda tmp
         cmp mate_d
         lda tmp + 1

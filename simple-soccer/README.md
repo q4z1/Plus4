@@ -70,11 +70,13 @@ on, who goes to meet it.
 Its next nearest goes along: between the ball and his goal while the
 cyan team has it, ahead of it, there to be passed to, while his own does.
 
-As on the C64, the cyan player nearest a ball his team has not got - not
-yours, not the keeper, not the one who has just kicked it - runs to it on
-his own, and the joystick goes to whoever of your team gets to the ball;
-when yours is far from it (64 pixels or more), to the nearest. Your
-player's shirt flickers white, so you see whom you run. As in Sensible Soccer, the
+As in Sensible Soccer and on the C64, the cyan player nearest a ball his
+team has not got - not yours, not the keeper - runs to it on his own, as
+a pass's receiver does to meet it. The joystick stays with the player
+who has the ball at his feet, goes to whoever of your team gets to it,
+and else to the player nearest it - not the one on his way to it, not
+the one who has just passed or shot. Your player's shirt flickers white,
+so you see whom you run. As in Sensible Soccer, the
 players make up their minds every second frame; everyone moves every
 frame. A new place in the formation does not send a player sprinting: he goes
 as fast as gets him there by about when the next one comes, his feet as
@@ -94,8 +96,8 @@ going forward - the ball leaving his hands from up there and dropping
 in a short curve. Its two pictures, each way, are drawn for this game,
 not the C64's.
 
-A pass takes the joystick to the player it goes to; with the stick let
-go he runs to meet it, and stops a ball that comes to his feet.
+The player a pass goes to runs to meet it, and the joystick is his once
+he has it; he stops a ball that comes to his feet.
 
 A ball is a team's while its player who touched it last has it by him,
 or for a few frames after a kick: the other team cannot just run it
