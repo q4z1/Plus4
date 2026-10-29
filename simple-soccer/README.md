@@ -220,7 +220,9 @@ one.
 A ball is a team's while its player who touched it last has it by him,
 or for a few frames after a kick: the other team cannot just run it
 off him. You win it with a sliding tackle - fire - which knocks it on
-the way you slide, if your tackling beats his control; the yellow
+the way you slide, a step of the stick's way nearer it, a quarter
+faster than you slide, if it is within 8 pixels of you (Sensible
+Soccer's c13f5a; you slow to half) and your tackling beats his control; the yellow
 chaser wins it by getting to it first or by a take, right at the
 dribbler's feet - the same roll (see the skills).
 

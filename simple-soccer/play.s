@@ -109,7 +109,9 @@ HOLD_Z      = 12                ; touched it, this low: the other team
 SLIDE_T     = 50                ; a sliding tackle's frames,
 SPEED_SLIDE = 1792              ; its speed at first,
 SLIDE_DECEL = 48                ; less each frame,
-SLIDE_REACH = 225               ; the ball this near (squared) it reaches,
+SLIDE_REACH = 64                ; the ball this near (squared) it reaches
+                                ; (Sensible Soccer's, c13f7a; a diving
+DHEAD_REACH = 225               ; header this near),
 SLIDE_Z     = 8                 ; this low
 HEAD_Z_LO   = 11                ; a header: the ball this high to this high,
 HEAD_Z_HI   = 22
@@ -5189,6 +5191,39 @@ held:
         rts
 
 ; slide: player X starts a sliding tackle the way he faces. Keeps X.
+; nudge: way Y that player X slides turned one step towards his team's
+; stick, unless that is the same or the other way (Sensible Soccer's
+; c113f8). Keeps X.
+nudge:
+        sty tmp
+        lda pj
+        cpx #11
+        bcc :+
+        lda pj_b
+:       and #$0F
+        tay
+        lda joy_dir,y
+        cmp #8
+        beq @keep
+        eor #$FF                ; way - stick
+        sec
+        adc tmp
+        and #7
+        beq @keep
+        cmp #4
+        beq @keep
+        ldy tmp
+        bcc :+
+        iny
+        iny
+:       dey
+        tya
+        and #7
+        tay
+        rts
+@keep:  ldy tmp
+        rts
+
 slide:
         lda #0
         sta o_hd,x
@@ -5257,21 +5292,25 @@ slides:
         bcc :+
         jmp foul
 :       lda o_hit,x             ; the ball reached, low: knocked on (a
-        bne @done               ; diving header: in the air, headed on)
+        bne @back               ; diving header: in the air, headed on)
         lda o_zl + BALL
         ldy o_hd,x
         beq :+
         cmp #DHEAD_Z_HI + 1
         bcc @reach
-        rts
+@back:  rts
 :       cmp #SLIDE_Z + 1
-        bcs @done
+        bcs @back
 @reach: jsr mate_dist
         lda tmp + 1
-        bne @done
-        lda tmp
-        cmp #SLIDE_REACH + 1
-        bcs @done
+        bne @back
+        lda #SLIDE_REACH + 1
+        ldy o_hd,x
+        beq :+
+        lda #DHEAD_REACH + 1
+:       cmp tmp
+        beq @back
+        bcc @back
         lda #1
         sta o_hit,x
         lda #0
@@ -5291,7 +5330,10 @@ slides:
         stx last_pl
         jsr touch
         ldy o_dir,x
-        jsr ball_ahead
+        lda o_hd,x
+        bne :+
+        jsr nudge               ; (a slide: a way nearer the stick's)
+:       jsr ball_ahead
         lda o_hd,x
         beq :+
         jsr shot_speed          ; a diving header: as hard as a shot
@@ -5300,13 +5342,21 @@ slides:
         lda #>HEAD_DZ
         sta o_dzl + BALL
         jmp sfx_kick
-:       lda o_spl,x             ; as fast as he slides, and some
+:       lda o_sph,x             ; a quarter faster than he slides (its
+        sta tmp + 1             ; c113f8), and he half as fast
+        lda o_spl,x
+        lsr tmp + 1
+        ror a
+        lsr tmp + 1
+        ror a
         clc
-        adc #<256
+        adc o_spl,x
         sta o_spl + BALL
-        lda o_sph,x
-        adc #>256
+        lda tmp + 1
+        adc o_sph,x
         sta o_sph + BALL
+        lsr o_sph,x
+        ror o_spl,x
         lda #0
         sta o_dzl + BALL
         sta o_dzf + BALL

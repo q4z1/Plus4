@@ -222,7 +222,7 @@ def sc_diving(s):
 
 def sc_tackle(s):
     open_play(s, 7, team=1, holder=20)
-    field(s, cyan=((316, 470, 0), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
+    field(s, cyan=((306, 470, 0), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
     s.skill(20, pace=2)
     s.put('chaser', 20)
     s.put('y_pass_t', 200)
