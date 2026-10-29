@@ -13,7 +13,7 @@ goal kicks, corners, fouls with free kicks and penalties, goals and
 kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
 other, with 35 national teams from all over the world to choose from -
-a match, or training: a keeper and two a side, to try the moves out.
+a match, or training: a keeper and four a side, to try the moves out.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
@@ -277,9 +277,9 @@ his goal on his own, as the cyan one does.
 ## Training
 
 MODE: TRAINING on the title makes the match a training game: each team
-plays with its keeper, its central midfielder on the right (8) and its
-centre forward (10) - the others are off the pitch from the start, as if
-sent off - and there is no clock: no half time, no end, the minute
+plays with its keeper and four: a centre back (4), its central
+midfielders (7, 8) and its centre forward (10) - the others are off the
+pitch from the start, as if sent off - and there is no clock: no half time, no end, the minute
 stays at 0. Everything else is as in a match - the kick-off, the rules,
 the set pieces, the cards - and one player or two, so every move can be
 tried out on an open pitch.

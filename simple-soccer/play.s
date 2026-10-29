@@ -364,7 +364,7 @@ old_y:      .res 3
 old_z:      .res 2
 two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
-train:      .res 1              ; 1: training - a keeper and two a side, no
+train:      .res 1              ; 1: training - a keeper and four a side, no
                                 ; time (the title's choice)
 each_v:     .res 2              ; (each's routine)
 
@@ -5674,8 +5674,9 @@ new_match:
         sta dead_t              ; (the kick-off next frame)
         rts
 
-; squad: no fouls, no one off - but in training only the keepers, the
-; central midfielders on the right (8) and the centre forwards (10)
+; squad: no fouls, no one off - but in training only the keepers and
+; four of each team: a centre back (4), the central midfielders (7, 8)
+; and the centre forward (10)
 squad:
         ldx #PLAYERS - 1
 :       lda #0
@@ -5688,8 +5689,8 @@ squad:
         bpl :--
         rts
 
-off_train:  .byte 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1
-            .byte 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1
+off_train:  .byte 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1
+            .byte 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1
 
 ; ---- the yellow team's play ---------------------------------------------
 

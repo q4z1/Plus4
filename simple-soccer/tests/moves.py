@@ -104,6 +104,11 @@ class Setup:
                 self.put(n, v, i)
 
 
+# training's other two a side (4 and 7 of each, the scenes show 8 and 10):
+# off the pitch in the scenes, so each shows its move alone
+EXTRA = (3, 6, 14, 17)
+
+
 def open_play(s, ctrl, team=0, holder=None):
     """the ball in play, the cyan joystick on ctrl; the ball last touched
     by holder (of team), none after it yet"""
@@ -118,6 +123,8 @@ def open_play(s, ctrl, team=0, holder=None):
                  ('last_pl', ctrl if holder is None else holder)):
         s.put(n, v)
     s.put('score', 0, 1)
+    for i in EXTRA:                     # (each scene its move alone)
+        s.put('o_off', 1, i)
 
 
 def restart(s, kind, team, x, y):
@@ -299,7 +306,7 @@ SCENES = [
 ]
 FIRST = 4
 WAIT = {'free': 35, 'penalty': 35, 'corner': 45, 'throw': 45}
-TITLE = ('TRAINING', 'A KEEPER AND TWO A SIDE - NO CLOCK')
+TITLE = ('TRAINING', 'A KEEPER AND FOUR A SIDE - NO CLOCK')
 
 
 # ---- Yape ------------------------------------------------------------------------
