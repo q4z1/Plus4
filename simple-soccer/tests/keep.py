@@ -6,10 +6,11 @@
 dribble-*  the joystick's player runs up with the ball at his feet, the
            other team's chaser in his way (straight ahead, to one side):
            the pictures he keeps it for (at most 60) and how far he got
-receive-*  a pass coming at him from ahead, as fast as a pass goes,
-           he standing or running on to it: is the ball his after it -
-           his touch last, at his feet (CLOSE) or, running, dribbled on
-           (12 pixels)?
+receive-*  a pass coming at its receiver (9, running to meet it, the
+           joystick with 7) from ahead, as fast as a pass goes, the
+           stick let go or pushed up: does he get it - the joystick
+           his, his touch, the ball at his feet (CLOSE) and dead or,
+           the stick up, dribbled on (12 pixels)?
 pass-aside he passes with nobody straight ahead of him, one team-mate
            ahead and to the side: does the ball go to him (recv)?
 
@@ -116,21 +117,29 @@ def dribble(lab, dx):
 def receive(lab, stick):
     s = Scene(lab)
     try:
-        p = s.get('ctrl')
+        p = 9
         s.obj(p, 304, 600, d=0)
+        s.obj(7, 150, 650, d=0)
         s.obj(BALL, 304, 480, ty=600 + 32 * 120, speed=1792)
         s.put('last_team', 0, 0)
-        s.put('last_pl', 0, (p + 1) % 11 or 1)      # a team-mate's pass
+        s.put('last_pl', 0, 8)                      # a team-mate's pass
+        s.put('ctrl', 0, 7)
         s.put('recv', 0, p)
+        s.put('helper', 0, p)
         s.put('recv_t', 0, 100)
         s.v.poke(lab['dbg_joy'], [BITS[stick]] if stick != 'none' else [0])
         for _ in range(25):
             s.picture()
+            if s.get('last_pl') == p:
+                break
         q = s.get('ctrl')
         sp = s.get16('o_spl', 'o_sph', BALL)
-        dd = d2(s.where(q), s.where(BALL))
-        # standing: the ball at his feet; running: his, dribbled on ahead
-        ok = s.get('last_pl') == q and dd <= (CLOSE if stick == 'none' else 144)
+        dd = d2(s.where(p), s.where(BALL))
+        # the stick let go: dead at his feet; pushed: dribbled on ahead
+        if stick == 'none':
+            ok = s.get('last_pl') == p and q == p and dd <= CLOSE and sp == 0
+        else:
+            ok = s.get('last_pl') == p and q == p and dd <= 144
         return ok, q, dd, sp
     finally:
         s.stop()

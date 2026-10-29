@@ -81,8 +81,6 @@ BOX_B       = 601
 SPOT_T      = 107               ; the penalty spots (c11b9a)
 SPOT_B      = 631
 WALL_D      = 40                ; a free kick: the other team this far off
-FOUL_R      = 12                ; a tackle from behind this near the player
-                                ; on the ball: a foul
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 SPEED_SIDE  = 192               ; the keeper edging across to a shot
@@ -113,6 +111,10 @@ SLIDE_REACH = 64                ; the ball this near (squared) it reaches
                                 ; (Sensible Soccer's, c13f7a; a diving
                                 ; header too),
 SLIDE_Z     = 8                 ; this low
+FALL_T      = 50                ; frames one knocked over by it lies (c10f0c)
+FALL_DECEL  = 96                ; and slides on slower each frame (c14150)
+FOUL_D2     = 800               ; a foul only this near the ball (squared)
+LOCK_T      = 12                ; frames the other team cannot dribble it
 HEAD_Z_LO   = 11                ; a header: the ball this high to this high,
 HEAD_Z_HI   = 22
 HEAD_D2     = 100               ; this near (squared)
@@ -149,10 +151,7 @@ SLACK       = 2                 ; a place this near the last one is the same
 SPEED_CHASE = 1102              ; after the ball
 SHOOT_FROM  = 100               ; the other team shoots from this near
 NEAR        = 32                ; distance squared: the ball at his feet
-TAKE_D2     = 9                 ; the other team's, this close: the yellow
-                                ; chaser takes it (nearer)
 CLOSE       = 72                ; near enough to kick it
-DENY_T      = 25                ; frames the chaser waits after missing a take
 PASS_Q      = 12                ; frames a pass let go of too soon waits for
                                 ; the ball to come
 KICKED_T    = 50                ; frames the one who passed or shot is not
@@ -310,7 +309,7 @@ flip:       .res 1              ; 1: the sides changed - the cyan team at the
                                 ; top, attacking down
 full:       .res 1              ; 1: full time - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
-hd_x:       .res 1              ; (held's)
+hd_x:       .res 1              ; (held, clean, bump, pair_d2)
 cp_from:    .res 1              ; cpu_pass's: the passer, the receiver,
 cp_to:      .res 1
 cp_y:       .res 2              ; his y,
@@ -338,8 +337,9 @@ dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 chaser2:    .res 1              ; the next nearest: in support, $FF none
-deny_t:     .res 1              ; frames till the chaser may try a take again
 y_pass_t:   .res 1              ; frames till the yellow team passes again
+lock_t:     .res 2              ; each team's frames its joystick's player may
+                                ; not dribble, tackled (Sensible Soccer's $74)
 cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 mf_a:       .res 1              ; (may_face's: the way, the middle way)
 pen_kick:   .res 1              ; not 0: the ball last kicked from the
@@ -375,7 +375,7 @@ each_v:     .res 2              ; (each's routine)
 sk:
 sk_pace:    .res PLAYERS        ; how fast he runs
 sk_ctl:     .res PLAYERS        ; ball control: the dribble, keeping it
-sk_tck:     .res PLAYERS        ; tackling: winning the ball off a player
+sk_tck:     .res PLAYERS        ; tackling: (none of its own any more)
 sk_hdg:     .res PLAYERS        ; heading: how far he reaches
 sk_sht:     .res PLAYERS        ; shooting: how hard
 .assert sk_sht - sk = 4 * 22, error, "title.s skills: five skills of 22"
@@ -728,13 +728,13 @@ play_frame:
         cmp #255                ; and the cyan team's last kick)
         beq :+
         inc touch_t
-:       lda y_pass_t
+:       ldx #2                  ; (y_pass_t, lock_t: down to 0)
+:       lda y_pass_t,x
         beq :+
-        dec y_pass_t
-:       lda deny_t
-        beq :+
-        dec deny_t
-:       lda joy                 ; each team's joystick: one player either,
+        dec y_pass_t,x
+:       dex
+        bpl :--
+        lda joy                 ; each team's joystick: one player either,
         ldy two                 ; two the first and the second
         beq :+
         lda joy_b
@@ -987,11 +987,11 @@ control:
         lda frame_n             ; (a touch every second frame)
         lsr a
         bcs @far
-        lda kickoff             ; (not the other team's set piece)
+        lda kickoff             ; (not the other team's set piece, nor
+        bne @far                ; just tackled: lock_t)
+        ldy me
+        lda lock_t,y
         bne @far
-        lda me                  ; (nor while the other team holds it)
-        jsr held
-        bcs @far
         jsr dribble
 @far:   lda kickoff
         beq @fire
@@ -1021,13 +1021,12 @@ control:
         inc fire_n              ; (two frames a time)
         inc fire_n
         lda fire_n
-        cmp #2                  ; just pressed, the other team holding the
-        bne @held               ; ball: a sliding tackle
+        cmp #2                  ; just pressed, the ball not at his feet
+        bne @held               ; but near: a sliding tackle (can_slide)
         lda kickoff
         bne @held
-        lda me
-        jsr held
-        bcc @held
+        jsr can_slide
+        bcs @held
         lda #$FF
         sta fire_n
         ldx ctrl
@@ -1241,6 +1240,45 @@ can_dive:
         cmp #<(DHEAD_D2 + 1)
         lda tmp + 1
         sbc #>(DHEAD_D2 + 1)
+        rts
+@no:    sec
+        rts
+
+; can_slide: carry clear if the joystick's player X slides for the ball
+; as Sensible Soccer's do (c13aa6) - whoever's it is: the stick pushed,
+; the ball low (SLIDE_Z) and near (DHEAD_D2, as for a diving header) but
+; not to be kicked (can_kick), and the helper not nearer it. Keeps X.
+can_slide:
+        jsr stick_way
+        cmp #8
+        beq @no
+        lda o_zl + BALL
+        cmp #SLIDE_Z + 1
+        bcs @no
+        jsr can_kick
+        bcc @no
+        jsr mate_dist
+        lda tmp
+        cmp #<(DHEAD_D2 + 1)
+        lda tmp + 1
+        sbc #>(DHEAD_D2 + 1)
+        bcs @no
+        lda tmp
+        sta cp_d
+        lda tmp + 1
+        sta cp_d + 1
+        ldy helper
+        bmi @yes
+        stx hd_x
+        ldx helper
+        jsr mate_dist
+        ldx hd_x
+        lda tmp
+        cmp cp_d
+        lda tmp + 1
+        sbc cp_d + 1
+        bcc @no                 ; (the helper nearer)
+@yes:   clc
         rts
 @no:    sec
         rts
@@ -1659,23 +1697,6 @@ one:
         rts
 @z:     sta tmp
         sta tmp + 1
-        rts
-
-; wins: carry clear if player X wins the ball off the one on it (last_pl):
-; A (a take 6, a sliding tackle 10) + his tackling - that one's control
-; in 16, rolled. Keeps X.
-wins:
-        ldy last_pl
-        clc
-        adc sk_tck,x
-        sec
-        sbc sk_ctl,y
-        bpl :+
-        lda #0
-:       sta tmp
-        jsr rnd
-        and #15
-        cmp tmp
         rts
 
 ; rnd: A a byte at random - a shift register, stirred by where the beam
@@ -3117,8 +3138,8 @@ pick_chaser:
 
 ; chase: the chaser after the ball - at his feet, towards the goal at the
 ; bottom, and a shot from close to it. A cyan player with the ball he
-; stays on, as Arlasoft Soccer's do, and it is his once it is at his feet
-; nearer him than the cyan player - kicked on into him, or let go.
+; stays on, as Arlasoft Soccer's do, and it is his once it is at his feet,
+; whoever had it - as in Sensible Soccer.
 chase:
         ldx chaser
         bmi @done
@@ -3138,21 +3159,11 @@ chase:
         rts
 :        lda #1
         sta o_mov,x
-        jsr ball_near           ; at his feet, and not the cyan team's?
-        bcs :+
-        lda #1
-        jsr held
-        bcc @have
-        jsr nearer              ; the cyan team's, right at his feet: a
-        bcs :+                  ; take, his tackling against the other's
-        lda deny_t              ; control - not again for a while once
-        bne :+                  ; missed
-        lda #6
-        jsr wins
-        bcc @have
-        lda #DENY_T
-        sta deny_t
-:       lda #0                  ; (not his)
+        jsr ball_near           ; at his feet: his, whoever's it was - as
+        bcs :+                  ; Sensible Soccer's take it (c13850) -
+        lda lock_t + 1          ; unless just tackled (lock_t)
+        beq @have
+:        lda #0                  ; (not his)
         sta cpu_hold
         lda frame_n             ; after it (where it is, each second frame:
         and #1                  ; a little faster than one running with it,
@@ -3315,9 +3326,6 @@ switch:
         stx ctrl
         lda #$FF
         sta helper
-        lda me                  ; (one the other team holds: only a
-        jsr held                ; tackle wins it)
-        bcs @done
         jmp trap
 :       lda frame_n
         lsr a
@@ -3825,50 +3833,6 @@ face_y:     .word 369, LINE_T, LINE_B   ; the middle, the top goal, the bottom
 ; other team's players near the ball stand off between it and their goal,
 ; a wall; for a penalty everyone but the taker and the keeper leaves the
 ; box.
-
-; foul_on: carry set if sliding player X is into the other team's player
-; on the ball from behind, FOUL_R near either way. Keeps X.
-foul_on:
-        lda #0
-        cpx #11
-        bcc :+
-        lda #1
-:       jsr held                ; (the other team's ball)
-        bcc @no
-        ldy last_pl
-        lda o_dir,x             ; from behind: the ways 7, 0, 1 apart
-        sec
-        sbc o_dir,y
-        clc
-        adc #1
-        and #7
-        cmp #3
-        bcs @no
-        lda o_xl,x
-        sec
-        sbc o_xl,y
-        sta tmp
-        lda o_xh,x
-        sbc o_xh,y
-        jsr abs16
-        bne @no
-        cmp #FOUL_R
-        bcs @no
-        ldy last_pl
-        lda o_yl,x
-        sec
-        sbc o_yl,y
-        sta tmp
-        lda o_yh,x
-        sbc o_yh,y
-        jsr abs16
-        bne @no
-        cmp #FOUL_R
-        bcs @no
-        sec
-        rts
-@no:    clc
-        rts
 
 ; foul: player X has fouled the player on the ball - the whistle, the
 ; ball dead, him down, a free kick or penalty for his team; for the
@@ -5132,11 +5096,12 @@ hold:
 
 ; ---- holding the ball, tackles -------------------------------------------
 ;
-; A ball a team has touched in the last HOLD_T frames is that team's: the
-; other cannot stop it or dribble it away, only win it with a sliding
-; tackle - fire for the cyan player, the yellow chaser when he is near.
-; A tackle goes the way the player faces, fast and slower each frame;
-; reaching the ball low, it knocks it on that way.
+; A ball a team has touched in the last HOLD_T frames is that team's (who
+; runs to it, a foul from behind) - but, as in Sensible Soccer, that does
+; not keep it: whoever gets to it has it, and a sliding tackle that
+; reaches it wins it, no roll for either. A tackle goes the way the
+; player faces, fast and slower each frame; reaching the ball low, it
+; knocks it on that way.
 
 ; touch: the ball just touched (touch_t from 0). Keeps A, X, Y.
 touch:
@@ -5271,6 +5236,10 @@ slides:
         ldy o_hd,x
         beq :+
         lda #DHEAD_DECEL
+:       ldy o_hit,x             ; (knocked over: as Sensible Soccer's fall)
+        cpy #3
+        bne :+
+        lda #FALL_DECEL
 :       sta tmp
         lda o_spl,x
         sec
@@ -5283,49 +5252,42 @@ slides:
         lda #0
         sta o_spl,x
         sta o_sph,x
-:       lda o_hd,x              ; from behind into the player on the
-        ora o_hit,x             ; ball: a foul
+:       lda o_hit,x             ; (knocked over himself: no more)
+        cmp #3
         bne :+
-        jsr foul_on
-        bcc :+
-        jmp foul
-:       lda o_hit,x             ; the ball reached, low: knocked on (a
-        bne @back               ; diving header: in the air, headed on)
-        lda o_zl + BALL
-        ldy o_hd,x
+        rts
+:       cmp #0                  ; the ball reached, low: knocked on (a
+        bne @bump               ; diving header: in the air, headed on) -
+        lda o_zl + BALL         ; not, the other team's player he slides
+        ldy o_hd,x              ; into knocked over (bump)
         beq :+
         cmp #DHEAD_Z_LO         ; (a header: 8 - 15 high, in his dive's
-        bcc @back               ; first frames)
+        bcc @bump               ; first frames)
         cmp #DHEAD_Z_HI + 1
-        bcs @back
+        bcs @bump
         lda o_slide,x
         cmp #SLIDE_T - DHEAD_T
         bcs @reach
-@back:  rts
+@bump:  jmp bump
 :       cmp #SLIDE_Z + 1
-        bcs @back
+        bcs @bump
 @reach: jsr mate_dist
         lda tmp + 1
-        bne @back
+        bne @bump
         lda tmp
         cmp #SLIDE_REACH + 1
-        bcs @back
-        lda #1
+        bcs @bump
+        jsr clean
         sta o_hit,x
-        lda #0
-        cpx #11
-        bcc :+
+        lda #0                  ; his, whoever's it was (c13f5a) - and
+        cpx #11                 ; the other team's joystick's player
+        bcc :+                  ; not to dribble it for LOCK_T frames
         lda #1
-:       pha
-        jsr held                ; the other team's on it: won by a roll,
-        bcc :+                  ; his tackling against that one's control
-        lda #10                 ; - missed, he slides on past it
-        jsr wins
-        bcc :+
-        pla
-        rts
-:       pla
-        sta last_team
+:       sta last_team
+        eor #1
+        tay
+        lda #LOCK_T
+        sta lock_t,y
         stx last_pl
         jsr touch
         ldy o_dir,x
@@ -5359,28 +5321,161 @@ slides:
         jmp sfx_kick
 @done:  rts
 
-; nearer: carry clear if the ball is right at player X's feet (TAKE_D2),
-; nearer him than the player who touched it last. Keeps X.
-nearer:
-        jsr mate_dist
+; victim: Y = the player a sliding tackle by X can knock over, as in
+; Sensible Soccer (c10f0c) the other team's joystick's: for a cyan one
+; the yellow chaser (with two players the second joystick's), for a
+; yellow one the cyan; N set if none. Keeps X.
+victim:
+        cpx #11
+        bcs @cyan
+        lda two
+        beq :+
+        ldy ctrl_b
+        rts
+:       ldy chaser
+        rts
+@cyan:  ldy ctrl
+        rts
+
+; clean: A = player X's sliding tackle reaching the ball as Sensible
+; Soccer has it (c1148a): 2 clean, the other team's joystick's player
+; not right at it nor by him; 1 he is - a foul if he is knocked over
+; from behind (bump). Keeps X.
+clean:
+        jsr victim
+        bmi @near
+        jsr pair_d2
         lda tmp + 1
-        bne @no
+        bne :+
         lda tmp
-        cmp #TAKE_D2 + 1
-        bcs @no
-        sta cp_d
-        lda tmp + 1
-        sta cp_d + 1
-        stx hd_x
-        ldx last_pl
+        cmp #NEAR + 1
+        bcc @near
+:       stx hd_x
+        tya
+        tax
         jsr mate_dist
         ldx hd_x
-        lda cp_d
-        cmp tmp
-        lda cp_d + 1
-        sbc tmp + 1
+        lda tmp + 1
+        bne :+
+        lda tmp
+        cmp #9
+        bcc @near
+:       lda #2
         rts
-@no:    sec
+@near:  lda #1
+        rts
+
+; bump: sliding player X, fast still (512), into the other team's
+; joystick's player (victim, within NEAR): he is knocked over - down
+; FALL_T frames, sliding on slower (o_hit 3) - and the tackle slowed to a
+; quarter (a keeper only slows it). A foul, near the ball (FOUL_D2), if
+; the tackle had not reached the ball, or had with him right at it and
+; comes from behind: Sensible Soccer's c10f0c. Keeps X.
+bump:
+        lda o_hd,x
+        beq :+
+@out:   rts
+:       lda o_sph,x
+        cmp #>512
+        bcc @out
+        jsr victim
+        bmi @out
+        lda o_slide,y           ; (down already)
+        beq :+
+        lda o_hit,y
+        cmp #3
+        beq @out
+:       jsr pair_d2
+        lda tmp + 1
+        bne @out
+        lda tmp
+        cmp #NEAR + 1
+        bcs @out
+        lsr o_sph,x
+        ror o_spl,x
+        lsr o_sph,x
+        ror o_spl,x
+        tya                     ; (a keeper: only that)
+        beq @no
+        cmp #11
+        beq @no
+        lda #FALL_T
+        sta o_slide,y
+        lda #3
+        sta o_hit,y
+        lda #0
+        sta o_hd,y
+        sty hd_y
+        stx hd_x
+        tya
+        tax
+        jsr mate_dist
+        ldx hd_x
+        ldy hd_y
+        lda tmp
+        cmp #<(FOUL_D2 + 1)
+        lda tmp + 1
+        sbc #>(FOUL_D2 + 1)
+        bcs @no
+        lda o_hit,x
+        beq @foul
+        cmp #2
+        beq @no
+        lda o_dir,x             ; (from behind: the ways at most one
+        sec                     ; apart, not round past 0)
+        sbc o_dir,y
+        clc
+        adc #1
+        cmp #3
+        bcs @no
+@foul:  sty last_pl             ; (the free kick his team's)
+        lda #0
+        cpy #11
+        bcc :+
+        lda #1
+:       sta last_team
+        jmp foul
+@no:    rts
+
+; pair_d2: tmp = the distance squared between players X and Y, $FFFF from
+; 256 either way. Keeps X, Y.
+pair_d2:
+        sty hd_y
+        lda o_xl,x
+        sec
+        sbc o_xl,y
+        sta tmp
+        lda o_xh,x
+        sbc o_xh,y
+        jsr abs16
+        bne @far
+        tay
+        lda sq8_lo,y
+        sta mate_t
+        lda sq8_hi,y
+        sta mate_t + 1
+        ldy hd_y
+        lda o_yl,x
+        sec
+        sbc o_yl,y
+        sta tmp
+        lda o_yh,x
+        sbc o_yh,y
+        jsr abs16
+        bne @far
+        tay
+        lda sq8_lo,y
+        clc
+        adc mate_t
+        sta tmp
+        lda sq8_hi,y
+        adc mate_t + 1
+        sta tmp + 1
+        bcc @out
+@far:   lda #$FF
+        sta tmp
+        sta tmp + 1
+@out:   ldy hd_y
         rts
 
 ; ---- poses ------------------------------------------------------------------
@@ -5406,6 +5501,9 @@ pose_of:
         rts
 @slide: lda o_slide,x
         beq @keeper
+        lda o_hit,x             ; (knocked over: down)
+        cmp #3
+        beq @down
         lda o_spl,x
         ora o_sph,x
         beq @down

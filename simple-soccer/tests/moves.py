@@ -13,8 +13,8 @@ and the ball put where the scene wants them through the monitor, the
 stick's moves as a plan by the match's frames (dbg_plan), and the game
 let go with the frame's pictures and sound recorded from then on (Yape's
 YAPE_SHOTN, YAPE_WAV). The players who show a move have the skills that
-make it come off (sk): the rolls on a first touch, a tackle, a dribble
-go by the beam, not the same from one run to the next.
+make it come off (sk); what is still rolled for - the keepers' guesses -
+goes by the beam, not the same from one run to the next.
 
 Each scene's pictures and sound go to ~/.cache/simple-soccer/moves/<name>,
 its captioned piece of video next to them; the video is the pieces one
@@ -111,7 +111,7 @@ def open_play(s, ctrl, team=0, holder=None):
     for n, v in (('dead_t', 0), ('kickoff', 0), ('taker', 0xFF), ('rs_kind', 0),
                  ('goal', 0), ('throw_t', 0), ('lift', 0), ('jmp_t', 0),
                  ('card_pl', 0xFF), ('chaser', 0xFF), ('chaser2', 0xFF),
-                 ('deny_t', 0), ('y_pass_t', 0), ('cpu_hold', 0), ('cpu_t', 0),
+                 ('y_pass_t', 0), ('cpu_hold', 0), ('cpu_t', 0),
                  ('ctrl', ctrl), ('fire_n', 0), ('recv', 0xFF), ('recv_t', 0),
                  ('helper', 0xFF), ('at_n', 0xFF), ('at_side', 0xFF),
                  ('kick_pl', 0xFF), ('kick_t', 0), ('pass_q', 0),
@@ -224,7 +224,7 @@ def sc_tackle(s):
 
 def sc_foul(s):
     open_play(s, 7, team=1, holder=20)
-    field(s, cyan=((304, 352, 4), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
+    field(s, cyan=((304, 368, 4), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
     s.skill(20, pace=2)
     s.put('chaser', 20)
     s.put('y_pass_t', 200)
@@ -284,7 +284,7 @@ SCENES = [
      lead([(0, 'fire'), (10, 'down'), (22, 'none')])),
     ('header', ('CROSS AND DIVING HEADER - GOAL', 'FIRE AND THE STICK: HE DIVES AT THE BALL'), 110,
      sc_header, [(0, 'none'), (26, 'up+fire'), (30, 'up'), (46, 'none')]),
-    ('tackle', ('SLIDING TACKLE', 'FIRE - THE OTHER TEAM ON THE BALL'), 100, sc_tackle,
+    ('tackle', ('SLIDING TACKLE - HE IS KNOCKED OVER', 'FIRE AND THE STICK - THE BALL NEAR'), 100, sc_tackle,
      [(0, 'up'), (8, 'up+fire'), (11, 'none'), (60, 'up'), (170, 'none')]),
     ('foul', ('FOUL - FREE KICK AND A YELLOW CARD', 'A SLIDING TACKLE FROM BEHIND'), 160,
      sc_foul, [(0, 'down'), (2, 'down+fire'), (5, 'none')]),

@@ -22,9 +22,9 @@ a match, or training: a keeper and two a side, to try the moves out.
 | Joystick (either port) | Keyboard | |
 | --- | --- | --- |
 | directions | cursor keys | run, and dribble the ball at your feet |
-| none | | stand - meet a pass, stop a ball that comes to you |
+| none | | stand - a ball that comes to you runs on past you |
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
-| fire, the other team on the ball | space | sliding tackle, the way you face |
+| fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 | fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
 
@@ -124,7 +124,7 @@ eight of them, 4-4-2 for now): each player has an area, and where the ball
 is on the pitch decides where in it he stands - he runs there. The yellow
 team sends its player nearest the ball after it. A cyan player with the
 ball he stays on, a little faster than him, and it is his once it is
-right at his feet, nearer him than the cyan player. With it he takes it
+at his feet - as in Sensible Soccer, whoever had it. With it he takes it
 towards the cyan goal and shoots from close in - or, a cyan player at
 him or after a moment on the ball, passes it on to the team-mate furthest
 on, who goes to meet it.
@@ -176,8 +176,8 @@ dribbles it.
 Every player has five skills, 0 to 7, which decide what Sensible
 Soccer's players decide by theirs: his pace (how fast he runs, with the
 ball and after it), his control (how close he keeps it dribbling, how
-surely he keeps it from a challenge), his tackling (how often he wins the ball off a player who has it),
-his heading (how far off a ball the yellow chaser still reaches with
+surely he kept it from a challenge, before there were none to roll),
+his tackling (no longer used: see below), his heading (how far off a ball the yellow chaser still reaches with
 his head; yours dive, as all do in Sensible Soccer) and his
 shooting (how hard he shoots). Each comes from his place in the team -
 the backs tackle and head, the midfielders keep the ball, the wingers
@@ -186,17 +186,17 @@ are fast, the forwards shoot - from how good his team is (0 to 4, in
 same for a team in every match. The title works them out once both
 teams are chosen.
 
-Where the skills meet, the game rolls for it: a take by the yellow
-chaser comes off with 6 + his tackling - the dribbler's control chances
-in 16 (and once missed, not again for half a second), a sliding tackle
-that reaches the ball with 10 + tackling - control. A first touch and
-a dribbler's touch are not rolled for - Sensible Soccer's never are.
+Nothing between players is rolled for, as nothing is in Sensible
+Soccer: not a first touch, not a dribbler's touch, not a challenge.
 
-A sliding tackle from behind - the tackler facing within 45 degrees of
-the way the player on the ball faces - that gets to him before it gets
-to the ball is a foul: the whistle, the player fouled down, and a free
-kick for his team where he lies; in the penalty area his team attacks,
-a penalty. For a free kick the other team's players within 40 pixels of
+A sliding tackle that runs into the other team's player on the
+joystick (the yellow chaser) while it is still fast knocks him over:
+down for a second, sliding on, the tackle slowed to a quarter. If he
+was near the ball it may be a foul (Sensible Soccer's c10f0c): always
+if the tackle had not reached the ball first, and if it had, with him
+right at it, when it comes from behind (the ways at most 45 degrees
+apart) - the whistle, the player fouled down, and a free kick for his
+team where he lies; in the penalty area his team attacks, a penalty. For a free kick the other team's players within 40 pixels of
 the ball stand off between it and their goal, a wall; for a penalty the
 ball is on the spot, the keeper on his line, and everyone else but the
 taker out of the area. The taker faces the goal; yours turns with the
@@ -222,14 +222,15 @@ chaser heads a ball that comes to his head on towards the cyan goal. There are n
 as such, as in Sensible Soccer: a shot lifted with the aftertouch is
 one.
 
-A ball is a team's while its player who touched it last has it by him,
-or for a few frames after a kick: the other team cannot just run it
-off him. You win it with a sliding tackle - fire - which knocks it on
-the way you slide, a step of the stick's way nearer it, a quarter
-faster than you slide, if it is within 8 pixels of you (Sensible
-Soccer's c13f5a; you slow to half) and your tackling beats his control; the yellow
-chaser wins it by getting to it first or by a take, right at the
-dribbler's feet - the same roll (see the skills).
+No ball is anyone's to keep, as in Sensible Soccer: whoever gets to it
+has it - the one running to it stops it dead, the one on the joystick
+dribbles it on. A sliding tackle - fire with the stick pushed, the ball
+low and within 49 pixels but not at your feet (Sensible Soccer's
+c13aa6), the team-mate running to it not nearer - knocks it on the way
+you slide, a step of the stick's way nearer it, a quarter faster than
+you slide, if it is within 8 pixels of you (c13f5a; you slow to half);
+then the other team's player on the joystick cannot dribble it for 12
+frames - so the one tackled does not just take it back.
 
 The TED's two voices give the match its sounds, played by the interrupt
 50 times a second: a thump for every pass and shot, a softer one for
@@ -277,8 +278,7 @@ says what the joystick does. Each scene is set up in the running match:
 the game is held at the start of a frame (in a loop of its own, as Yape's
 monitor stops the CPU in the middle of an instruction), the players and
 the ball are put in place, and the stick's moves go in as a plan by the
-match's frames. The players showing a move have the skills that make it
-come off - a tackle is rolled for.
+match's frames.
 
 ## The title's music
 
