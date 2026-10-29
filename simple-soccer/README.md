@@ -202,7 +202,10 @@ ball is on the spot, the keeper on his line, and everyone else but the
 taker out of the area. The taker faces the goal; yours turns with the
 stick and kicks with fire as for any set piece - held, it is a shot -
 and the yellow team shoots its penalties at one corner or the other.
-Its players do not slide in, so the fouls are yours.
+Its chaser slides in as Sensible Soccer's computer team does (c154a8):
+the ball low and within 14 pixels of him (but not at his feet), your
+player within 56 pixels of it, and not facing his way or within 45
+degrees of it - so its fouls come as yours do.
 
 The referee counts each player's fouls: his second brings a yellow card,
 his fourth a second yellow and so a red one. The card is shown by him
@@ -225,10 +228,11 @@ one.
 No ball is anyone's to keep, as in Sensible Soccer: whoever gets to it
 has it - the one running to it stops it dead, the one on the joystick
 dribbles it on. A sliding tackle - fire with the stick pushed, the ball
-low and within 49 pixels but not at your feet (Sensible Soccer's
-c13aa6), the team-mate running to it not nearer - knocks it on the way
-you slide, a step of the stick's way nearer it, a quarter faster than
-you slide, if it is within 8 pixels of you (c13f5a; you slow to half);
+low, more than 8 and at most 49 pixels off (Sensible Soccer's c13aa6),
+the team-mate running to it not nearer - knocks it on the way you
+slide, a step of the stick's way nearer it, a quarter faster than you
+slide (the computer's team's: as fast), if it is within 8 pixels of you
+(c13f5a, c1145a; you slow to half);
 then the other team's player on the joystick cannot dribble it for 12
 frames - so the one tackled does not just take it back.
 

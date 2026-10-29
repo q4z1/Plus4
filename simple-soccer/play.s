@@ -115,6 +115,8 @@ FALL_T      = 50                ; frames one knocked over by it lies (c10f0c)
 FALL_DECEL  = 96                ; and slides on slower each frame (c14150)
 FOUL_D2     = 800               ; a foul only this near the ball (squared)
 LOCK_T      = 12                ; frames the other team cannot dribble it
+CPU_SLIDE_D2 = 200              ; the yellow chaser slides in this near it
+CPU_OPP_D2  = 3200              ; the cyan player this near it (c154a8)
 HEAD_Z_LO   = 11                ; a header: the ball this high to this high,
 HEAD_Z_HI   = 22
 HEAD_D2     = 100               ; this near (squared)
@@ -309,7 +311,7 @@ flip:       .res 1              ; 1: the sides changed - the cyan team at the
                                 ; top, attacking down
 full:       .res 1              ; 1: full time - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
-hd_x:       .res 1              ; (held, clean, bump, pair_d2)
+hd_x:       .res 1              ; (dist_y, pair_d2)
 cp_from:    .res 1              ; cpu_pass's: the passer, the receiver,
 cp_to:      .res 1
 cp_y:       .res 2              ; his y,
@@ -1246,22 +1248,13 @@ can_dive:
 
 ; can_slide: carry clear if the joystick's player X slides for the ball
 ; as Sensible Soccer's do (c13aa6) - whoever's it is: the stick pushed,
-; the ball low (SLIDE_Z) and near (DHEAD_D2, as for a diving header) but
-; not to be kicked (can_kick), and the helper not nearer it. Keeps X.
+; the ball low (SLIDE_Z), near (DHEAD_D2, as for a diving header) but not
+; close (CLOSE: its $37 alone), and the helper not nearer it. Keeps X.
 can_slide:
         jsr stick_way
         cmp #8
         beq @no
-        lda o_zl + BALL
-        cmp #SLIDE_Z + 1
-        bcs @no
-        jsr can_kick
-        bcc @no
-        jsr mate_dist
-        lda tmp
-        cmp #<(DHEAD_D2 + 1)
-        lda tmp + 1
-        sbc #>(DHEAD_D2 + 1)
+        jsr slide_d2
         bcs @no
         lda tmp
         sta cp_d
@@ -1269,16 +1262,66 @@ can_slide:
         sta cp_d + 1
         ldy helper
         bmi @yes
-        stx hd_x
-        ldx helper
-        jsr mate_dist
-        ldx hd_x
+        jsr dist_y
         lda tmp
         cmp cp_d
         lda tmp + 1
         sbc cp_d + 1
         bcc @no                 ; (the helper nearer)
 @yes:   clc
+        rts
+@no:    sec
+        rts
+
+; cpu_slide: carry clear if the yellow chaser X slides in, as Sensible
+; Soccer's computer team's runner does (c154a8, c142b2): the ball where
+; he can slide for it (slide_d2) and within CPU_SLIDE_D2 of him, the cyan
+; joystick's player within CPU_OPP_D2 of it and not facing his way or
+; one off it (not round past 0). Keeps X.
+cpu_slide:
+        jsr slide_d2
+        bcs @no
+        lda tmp + 1
+        bne @no
+        lda tmp
+        cmp #CPU_SLIDE_D2 + 1
+        bcs @no
+        ldy ctrl
+        jsr dist_y
+        lda tmp
+        cmp #<(CPU_OPP_D2 + 1)
+        lda tmp + 1
+        sbc #>(CPU_OPP_D2 + 1)
+        bcs @no
+        lda o_dir,y
+        sec
+        sbc o_dir,x
+        clc
+        adc #1
+        cmp #3
+        bcc @no
+        clc
+        rts
+@no:    sec
+        rts
+
+; slide_d2: carry clear if the ball is where player X can slide for it
+; (Sensible Soccer's $37): low (SLIDE_Z), its distance squared above
+; CLOSE and at most DHEAD_D2 - tmp that. Keeps X.
+slide_d2:
+        lda o_zl + BALL
+        cmp #SLIDE_Z + 1
+        bcs @no
+        jsr mate_dist
+        lda tmp + 1
+        bne :+
+        lda tmp
+        cmp #CLOSE + 1
+        bcc @no
+:       lda tmp
+        cmp #<(DHEAD_D2 + 1)
+        lda tmp + 1
+        sbc #>(DHEAD_D2 + 1)
         rts
 @no:    sec
         rts
@@ -1970,6 +2013,18 @@ mate_dist:
 @far:   lda #$FF
         sta tmp
         sta tmp + 1
+        rts
+
+; dist_y: tmp = the distance squared from the ball to player Y, as
+; mate_dist has it. Keeps X, Y.
+dist_y:
+        stx hd_x
+        sty hd_y
+        tya
+        tax
+        jsr mate_dist
+        ldx hd_x
+        ldy hd_y
         rts
 
 ; abs16: |A:tmp| - the low byte in A, the high byte in the flags (Z: under
@@ -3157,7 +3212,10 @@ chase:
         lda #$FF                ; (a moment before he goes after it again)
         sta chaser
         rts
-:        lda #1
+:       jsr cpu_slide           ; near it, a cyan player on it: a sliding
+        bcs :+                  ; tackle the way he faces
+        jmp slide
+:       lda #1
         sta o_mov,x
         jsr ball_near           ; at his feet: his, whoever's it was - as
         bcs :+                  ; Sensible Soccer's take it (c13850) -
@@ -5132,12 +5190,12 @@ held:
         lda o_zl + BALL
         cmp #HOLD_Z + 1
         bcs @no
-        stx hd_x
-        sty hd_y
-        ldx last_pl
-        jsr mate_dist
-        ldx hd_x
-        ldy hd_y
+        tya
+        pha
+        ldy last_pl
+        jsr dist_y
+        pla
+        tay
         lda tmp + 1
         bne @no
         lda tmp
@@ -5294,13 +5352,19 @@ slides:
         jsr nudge               ; (a way nearer the stick's)
         jsr ball_ahead
         lda o_sph,x             ; a quarter faster than he slides (its
-        sta tmp + 1             ; c113f8), and he half as fast
-        lda o_spl,x
+        sta tmp + 1             ; c113f8) - the computer's team's as fast
+        lda o_spl,x             ; (c1145a) - and he half as fast
         lsr tmp + 1
         ror a
         lsr tmp + 1
         ror a
-        clc
+        cpx #11
+        bcc :+
+        ldy two
+        bne :+
+        lda #0
+        sta tmp + 1
+:       clc
         adc o_spl,x
         sta o_spl + BALL
         lda tmp + 1
@@ -5350,11 +5414,7 @@ clean:
         lda tmp
         cmp #NEAR + 1
         bcc @near
-:       stx hd_x
-        tya
-        tax
-        jsr mate_dist
-        ldx hd_x
+:       jsr dist_y
         lda tmp + 1
         bne :+
         lda tmp
@@ -5405,13 +5465,7 @@ bump:
         sta o_hit,y
         lda #0
         sta o_hd,y
-        sty hd_y
-        stx hd_x
-        tya
-        tax
-        jsr mate_dist
-        ldx hd_x
-        ldy hd_y
+        jsr dist_y
         lda tmp
         cmp #<(FOUL_D2 + 1)
         lda tmp + 1

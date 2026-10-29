@@ -1721,12 +1721,10 @@ row40s_hi:
         .byte >((I - 3) * SCR_W)
         .endrepeat
 
-bit_of: .byte 1, 2, 4, 8
-
 ; fblock, mblock: lines of a strip at z_fnt from y on to its end, the
 ; strip's last line (31) - straight from the pixels at z_d, or through
 ; the mask: what is there, the bits at z_kp, the pixels at z_d. Entered at
-; the first line's entry (fb_*, mb_*).
+; the first line's entry (by the column's cells above, mb_*).
 fblock:
         .repeat STRIP
         lda (z_d),y
@@ -1743,14 +1741,6 @@ mblock:
         iny
         .endrepeat
         rts
-fb_lo:
-        .repeat STRIP + 1, I
-        .byte <(fblock + 5 * I)
-        .endrepeat
-fb_hi:
-        .repeat STRIP + 1, I
-        .byte >(fblock + 5 * I)
-        .endrepeat
 mb_lo:
         .repeat STRIP + 1, I
         .byte <(mblock + 9 * I)
