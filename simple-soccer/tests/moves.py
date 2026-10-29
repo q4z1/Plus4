@@ -243,6 +243,32 @@ def sc_throw(s):
 
 R_THROW, R_CORNER, R_FREE, R_PENALTY = 1, 3, 5, 6
 
+
+def sc_runpast(s):
+    open_play(s, 9, holder=18)
+    field(s, cyan=((304, 560, 0), (304, 420, 4)), yellow=((120, 250, 4), (480, 200, 4)))
+    s.obj(BALL, 304, 330, tx=304, ty=330 + 32 * 60, speed=1792)
+
+
+def sc_cpuslide(s):
+    open_play(s, 9)
+    field(s, cyan=((460, 640, 0), (304, 470, 0)), yellow=((304, 420, 4), (480, 200, 4)))
+    s.obj(BALL, 304, 466)
+    s.put('ctrl_b', 20)                 # (18 the yellow runner: he slides)
+    s.pokes.append((lab['ctx_b'] + lab['helper'] - lab['ctx'], [18]))
+
+
+def sc_cpushot(s):
+    open_play(s, 7, team=1, holder=20)
+    field(s, cyan=((150, 450, 0), (460, 420, 0)), yellow=((150, 250, 4), (330, 556, 4)))
+    s.put('ctrl_b', 20)
+    s.obj(BALL, 330, 561)
+
+
+def sc_cpucorner(s):
+    field(s, cyan=((300, 640, 0), (250, 600, 0)), yellow=((320, 610, 4), (380, 560, 4)))
+    restart(s, R_CORNER, 1, 553, 686)
+
 # a shot: fire held, standing - it goes the way he faces
 SHOOT = [(0, 'fire'), (12, 'none')]
 
@@ -260,6 +286,8 @@ SCENES = [
      lead([(0, 'up'), (55, 'up+right'), (150, 'none')])),
     ('pass', ('PASS - AND THE FIRST TOUCH', 'FIRE TAPPED: TO THE TEAM-MATE HE FACES'), 170,
      sc_pass, lead([(0, 'fire'), (3, 'none'), (60, 'up'), (170, 'none')])),
+    ('runpast', ('STICK LET GO - THE BALL RUNS PAST HIM', 'THE ONE RUNNING TO IT STOPS IT DEAD'), 140,
+     sc_runpast, [(0, 'none')]),
     ('onetwo', ('ONE-TWO', 'FIRE LET GO BEFORE THE BALL COMES: FIRST TIME'), 200, sc_onetwo,
      lead([(0, 'fire'), (3, 'none'), (8, 'up'), (13, 'none'), (20, 'fire'), (23, 'none'),
            (90, 'up'), (200, 'none')])),
@@ -277,6 +305,10 @@ SCENES = [
      [(0, 'up'), (11, 'up+fire'), (14, 'none'), (60, 'up'), (170, 'none')]),
     ('foul', ('FOUL - FREE KICK AND A YELLOW CARD', 'A SLIDING TACKLE FROM BEHIND'), 160,
      sc_foul, [(0, 'down+fire'), (3, 'none')]),
+    ('cpuslide', ('THE COMPUTER SLIDES IN', 'ITS RUNNER TACKLES AS IN THE ORIGINAL'), 110,
+     sc_cpuslide, [(0, 'up'), (110, 'none')]),
+    ('cpushot', ('THE COMPUTER SHOOTS', 'NEAR THE GOAL AND FACING IT'), 110, sc_cpushot,
+     [(0, 'none')]),
     ('free', ('FREE KICK - GOAL', 'THE STICK TURNS HIM - FIRE HELD SHOOTS'), 110, sc_free,
      [(0, 'none'), (50, 'up'), (52, 'fire'), (62, 'none')]),
     ('penalty', ('PENALTY - GOAL', 'TURNED - SHOT - BENT IN WITH THE STICK'), 130, sc_penalty,
@@ -287,6 +319,8 @@ SCENES = [
     ('throw', ('THROW-IN', 'FIRE TAPPED: THROWN TO A TEAM-MATE'), 130, sc_throw,
      [(0, 'none'), (60, 'up+right'), (62, 'up+right+fire'), (65, 'up+right'), (68, 'none'),
       (130, 'up'), (220, 'none')]),
+    ('cpucorner', ('A CORNER FOR THE COMPUTER', 'IT LOOKS ABOUT - THEN CROSSES OR PASSES'), 230,
+     sc_cpucorner, [(0, 'none')]),
 ]
 FIRST = 4
 WAIT = {'free': 35, 'penalty': 35, 'corner': 45, 'throw': 45}

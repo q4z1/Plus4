@@ -297,10 +297,12 @@ tried out on an open pitch.
 
 `tests/moves.py` makes a video of the moves in training, from the disk
 in Yape: `build/simple-soccer-moves.mp4`, a scene each - dribbling, a
-pass and its first touch, a one-two, shots, the aftertouch's bend and
-lob, a cross and a diving header, a sliding tackle, a foul and its
-card, a free kick, a penalty, a corner, a throw-in - with a caption that
-says what the joystick does. Each scene is set up in the running match:
+pass and its first touch, a ball let run past while the one running to
+it stops it dead, a one-two, shots, the aftertouch's bend and lob, a
+cross and a diving header, a sliding tackle knocking the dribbler over,
+a foul and its card, the computer's runner sliding in, the computer
+shooting, a free kick, a penalty, a corner, a throw-in, and a corner of
+the computer's - with a caption that says what happens. Each scene is set up in the running match:
 the game is held at the start of a frame (in a loop of its own, as Yape's
 monitor stops the CPU in the middle of an instruction), the players and
 the ball are put in place, and the stick's moves go in as a plan by the

@@ -698,6 +698,15 @@ play_frame:
         lsr a                   ; Sensible Soccer's
         bcs :+
         jsr team_ai
+:       lda two                 ; the computer's runner slides in as
+        bne :+                  ; Sensible Soccer's, every frame (c154a8)
+        ldx helper_b
+        bmi :+
+        lda o_slide,x
+        bne :+
+        jsr cpu_slide
+        bcs :+
+        jsr slide
 :       jsr slides
         ldx ctrl                ; the two at the ball and the keepers,
         jsr @one                ; every frame
@@ -1220,12 +1229,11 @@ can_slide:
 @no:    sec
         rts
 
-; cpu_slide: carry clear if the yellow team's runner X (its helper, in
-; its turn of help) slides in, as Sensible Soccer's computer team's
-; runner does (c154a8, c142b2): the ball where he can slide for it
-; (slide_d2) and within CPU_SLIDE_D2 of him, the cyan joystick's player
-; (ctrl_b in the yellow team's turn) within CPU_OPP_D2 of it and not
-; facing his way or one off it (not round past 0). Keeps X.
+; cpu_slide: carry clear if the yellow team's runner X (its helper)
+; slides in, as Sensible Soccer's computer team's runner does (c154a8,
+; c142b2): the ball where he can slide for it (slide_d2) and within
+; CPU_SLIDE_D2 of him, the cyan joystick's player within CPU_OPP_D2 of it
+; and not facing his way or one off it (not round past 0). Keeps X.
 cpu_slide:
         jsr slide_d2
         bcs @no
@@ -1234,7 +1242,7 @@ cpu_slide:
         lda tmp
         cmp #CPU_SLIDE_D2 + 1
         bcs @no
-        ldy ctrl_b
+        ldy ctrl
         jsr dist_y
         lda tmp
         cmp #<(CPU_OPP_D2 + 1)
@@ -3204,14 +3212,7 @@ help:
         beq @none
         lda o_slide,x           ; (sliding, down: slides has him)
         bne @out
-        lda me                  ; the computer's runner slides in as
-        beq :+                  ; Sensible Soccer's (cpu_slide)
-        lda two
-        bne :+
-        jsr cpu_slide
-        bcs :+
-        jmp slide
-:       lda #1
+        lda #1
         sta o_mov,x
         sta o_new,x             ; (the way to it worked out anew)
         lda o_xl + BALL
