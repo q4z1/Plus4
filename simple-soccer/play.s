@@ -3167,6 +3167,7 @@ chase:
         lda frame_n             ; and kicks it on ahead, every second frame
         lsr a
         bcs :+
+        ldy o_dir,x             ; (speed has left its own Y)
         jsr ball_ahead
         lda #<1024
         sta o_spl + BALL
