@@ -121,15 +121,25 @@ the ball is played.
 
 Everyone else keeps to his place in the team's formation (`data/tactics.txt`,
 eight of them, 4-4-2 for now): each player has an area, and where the ball
-is on the pitch decides where in it he stands - he runs there. The yellow
-team sends its player nearest the ball after it. A cyan player with the
-ball he stays on, a little faster than him, and it is his once it is
-at his feet - as in Sensible Soccer, whoever had it. With it he takes it
-towards the cyan goal and shoots from close in - or, a cyan player at
-him or after a moment on the ball, passes it on to the team-mate furthest
-on, who goes to meet it.
-Its next nearest goes along: between the ball and his goal while the
-cyan team has it, ahead of it, there to be passed to, while his own does.
+is on the pitch decides where in it he stands - he runs there.
+
+The computer plays the yellow team as Sensible Soccer's does (c14a4e):
+with a joystick of its own for its joystick's player, everything else -
+who has the joystick, the one running to the ball, the dribble, passes,
+shots, the aftertouch - as for a player's team. Every frame it works
+his stick out. Without the ball he runs to it, turning to it only now
+and then, unless it is near. With it: near the goal (170 pixels, 1 in
+4 beyond 113) and facing it, a shot, bent with the aftertouch towards
+the side of the goal he faces; a cyan player at him (28 pixels), far
+from the goal, a long ball, else a pass if the player nearest that way
+is a team-mate - else, now and then, a step aside while he looks for
+one; a cyan player coming (70 pixels), seldom a long ball, 1 in 4 a
+pass that way; otherwise on towards the goal. After a pass or a shot
+it waits 15 frames, and 13 after any of its team's. Its runner slides
+in as Sensible Soccer's computer team's does (c154a8): the ball low and
+within 14 pixels of him (but not at his feet), your player within 56
+pixels of it, and not facing his way or within 45 degrees of it - so
+its fouls come as yours do.
 
 As in Sensible Soccer and on the C64, the cyan player nearest a ball his
 team has not got - not yours, not the keeper - runs to it on his own, as
@@ -198,7 +208,7 @@ Nothing between players is rolled for, as nothing is in Sensible
 Soccer: not a first touch, not a dribbler's touch, not a challenge.
 
 A sliding tackle that runs into the other team's player on the
-joystick (the yellow chaser) while it is still fast knocks him over:
+joystick while it is still fast knocks him over:
 down for a second, sliding on, the tackle slowed to a quarter. If he
 was near the ball it may be a foul (Sensible Soccer's c10f0c): always
 if the tackle had not reached the ball first, and if it had, with him
@@ -210,10 +220,6 @@ ball is on the spot, the keeper on his line, and everyone else but the
 taker out of the area. The taker faces the goal; yours turns with the
 stick and kicks with fire as for any set piece - held, it is a shot -
 and the yellow team shoots its penalties at one corner or the other.
-Its chaser slides in as Sensible Soccer's computer team does (c154a8):
-the ball low and within 14 pixels of him (but not at his feet), your
-player within 56 pixels of it, and not facing his way or within 45
-degrees of it - so its fouls come as yours do.
 
 The referee counts each player's fouls: his second brings a yellow card,
 his fourth a second yellow and so a red one. The card is shown by him
@@ -269,9 +275,9 @@ held, the pass on its way, the aftertouch, the dribble, the team - is
 one block of variables, and the routines that use it (`control`, the
 joystick passed on, the team-mate running to a free ball, the
 aftertouch) run once for each team, the yellow team's block swapped in
-for its turn. The yellow team's own mind - its chaser, the one in
-support, its passes and set pieces - rests meanwhile; its keeper keeps
-his goal on his own, as the cyan one does.
+for its turn - so too with one player, the computer's brain working
+the yellow joystick out; with two it rests, as do its set pieces; the
+keepers keep their goals on their own.
 
 ## Training
 

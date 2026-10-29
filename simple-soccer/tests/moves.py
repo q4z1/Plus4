@@ -108,8 +108,8 @@ def open_play(s, ctrl, team=0, holder=None):
     by holder (of team), none after it yet"""
     for n, v in (('dead_t', 0), ('kickoff', 0), ('taker', 0xFF), ('rs_kind', 0),
                  ('goal', 0), ('throw_t', 0), ('lift', 0),
-                 ('card_pl', 0xFF), ('chaser', 0xFF), ('chaser2', 0xFF),
-                 ('y_pass_t', 0), ('cpu_hold', 0), ('cpu_t', 0),
+                 ('card_pl', 0xFF),
+                 ('br_t', 0), ('br_6c', 0), ('cpu_t', 0),
                  ('ctrl', ctrl), ('fire_n', 0), ('recv', 0xFF), ('recv_t', 0),
                  ('helper', 0xFF), ('at_n', 0xFF), ('at_side', 0xFF),
                  ('kick_pl', 0xFF), ('kick_t', 0), ('pass_q', 0),
@@ -207,23 +207,23 @@ def sc_header(s):
 def sc_tackle(s):
     open_play(s, 7, team=1, holder=20)
     field(s, cyan=((306, 470, 0), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
-    s.put('chaser', 20)
-    s.put('y_pass_t', 200)
+    s.put('ctrl_b', 20)
+    s.put('br_t', 200)
     s.obj(BALL, 304, 386)
 
 
 def sc_foul(s):
     open_play(s, 7, team=1, holder=20)
-    field(s, cyan=((304, 376, 4), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
-    s.put('chaser', 20)
-    s.put('y_pass_t', 200)
+    field(s, cyan=((304, 372, 4), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
+    s.put('ctrl_b', 20)
+    s.put('br_t', 200)
     s.put('fouls', 1, 7)                    # (his second: a yellow card)
-    s.obj(BALL, 304, 392)
+    s.obj(BALL, 304, 389)
 
 
 def sc_free(s):
-    field(s, cyan=((420, 300, 0), (215, 160, 0)), yellow=((240, 130, 4), (252, 140, 4)))
-    restart(s, R_FREE, 0, 220, 150)
+    field(s, cyan=((420, 300, 0), (336, 180, 0)), yellow=((240, 130, 4), (252, 140, 4)))
+    restart(s, R_FREE, 0, 340, 170)
 
 
 def sc_penalty(s):
@@ -276,9 +276,9 @@ SCENES = [
     ('tackle', ('SLIDING TACKLE - HE IS KNOCKED OVER', 'FIRE AND THE STICK - THE BALL NEAR'), 100, sc_tackle,
      [(0, 'up'), (11, 'up+fire'), (14, 'none'), (60, 'up'), (170, 'none')]),
     ('foul', ('FOUL - FREE KICK AND A YELLOW CARD', 'A SLIDING TACKLE FROM BEHIND'), 160,
-     sc_foul, [(0, 'down'), (2, 'down+fire'), (5, 'none')]),
+     sc_foul, [(0, 'down+fire'), (3, 'none')]),
     ('free', ('FREE KICK - GOAL', 'THE STICK TURNS HIM - FIRE HELD SHOOTS'), 110, sc_free,
-     [(0, 'none'), (50, 'up+right'), (52, 'fire'), (62, 'none')]),
+     [(0, 'none'), (50, 'up'), (52, 'fire'), (62, 'none')]),
     ('penalty', ('PENALTY - GOAL', 'TURNED - SHOT - BENT IN WITH THE STICK'), 130, sc_penalty,
      [(0, 'none'), (50, 'up+left'), (52, 'fire'), (60, 'right+fire'), (63, 'up'), (72, 'none')]),
     ('corner', ('CORNER', 'FIRE TAPPED: A PASS'), 120, sc_corner,

@@ -6,7 +6,7 @@ each frame; one that hops stands in some pictures and jumps in others.
 
     tests/smooth.py [plan] [pictures]
 
-Prints, for those running (not the joystick's, the chaser, the keepers),
+Prints, for those running (not the joysticks', the keepers),
 how often a picture showed them standing between two that showed them
 moving, and how far the way per frame strays from their own mean.
 """
@@ -40,7 +40,7 @@ def main():
             t = m('dbg_t', 2)
             f = t[0] + 256 * t[1]
             x, xh, y, yh = m('o_xl', 22), m('o_xh', 22), m('o_yl', 22), m('o_yh', 22)
-            busy = {0, 11, m('ctrl')[0], m('chaser')[0]}
+            busy = {0, 11, m('ctrl')[0], m('ctrl_b')[0]}
             pos = [(x[i] + 256 * xh[i], y[i] + 256 * yh[i]) for i in range(22)]
             if prev and f > prev[0]:
                 for i in range(22):

@@ -4,7 +4,7 @@
     tests/keep.py [case ...]
 
 dribble-*  the joystick's player runs up with the ball at his feet, the
-           other team's chaser in his way (straight ahead, to one side):
+           other team's joystick's player in his way (ahead, to one side):
            the pictures he keeps it for (at most 60) and how far he got
 receive-*  a pass coming at its receiver (9, running to meet it, the
            joystick with 7) from ahead, as fast as a pass goes, the
@@ -102,8 +102,8 @@ def dribble(lab, dx):
         s.v.poke(lab['dbg_joy'], [BITS['up']])
         c = None
         for k in range(60):
-            if k == 1:                  # the chaser in his way
-                c = s.get('chaser')
+            if k == 1:                  # the yellow joystick's in his way
+                c = s.get('ctrl_b')
                 if c < 22:
                     s.obj(c, 304 + dx, 470, speed=0)
             s.picture()
