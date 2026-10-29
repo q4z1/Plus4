@@ -34,7 +34,7 @@
         .export lift, jmp_pl, jmp_t, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
-        .export two, sk
+        .export two, train, sk
         .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
@@ -322,6 +322,8 @@ old_y:      .res 3
 old_z:      .res 2
 two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
+train:      .res 1              ; 1: training - a keeper and two a side, no
+                                ; time (the title's choice)
 each_v:     .res 2              ; (each's routine)
 
         .segment "HIBSS2"       ; (not cleared: the title fills it)
@@ -424,6 +426,7 @@ sq8_hi:
 ; play_init: both teams lined up, the ball on the centre spot, the
 ; joystick on a forward
 play_init:
+        jsr squad
         lda #>qs_lo             ; mul8's tables
         sta z_qp + 1
         lda #>qs_hi
@@ -4967,6 +4970,7 @@ clock:
 :       sta hud
         lda kickoff
         ora full
+        ora train               ; (training: no time)
         bne @done
         inc min_t
         lda min_t
@@ -5034,14 +5038,27 @@ new_match:
         sta score + 1
         sta rs_team
         sta flip
-        ldx #PLAYERS - 1        ; no fouls, no one off
-:       sta fouls,x
-        sta o_off,x
-        dex
-        bpl :-
+        jsr squad
         lda #1
         sta dead_t              ; (the kick-off next frame)
         rts
+
+; squad: no fouls, no one off - but in training only the keepers, the
+; central midfielders on the right (8) and the centre forwards (10)
+squad:
+        ldx #PLAYERS - 1
+:       lda #0
+        sta fouls,x
+        ldy train
+        beq :+
+        lda off_train,x
+:       sta o_off,x
+        dex
+        bpl :--
+        rts
+
+off_train:  .byte 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1
+            .byte 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1
 
 ; ---- the yellow team's play ---------------------------------------------
 

@@ -27,7 +27,7 @@
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, title_font, min_frames, two, team_col, team_flk, sk
+        .import joy_scan, joy, title_font, min_frames, two, train, team_col, team_flk, sk
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -55,9 +55,12 @@ CUP_COL     = LOGO_COL + 12     ; the cup in the gap between the words,
 CUP_CODE    = '['               ; its four characters ([ \ ] ^),
 CUP_TOP     = $77               ; gold, lighter above as the letters
 CUP_FOOT    = $57
+SUB_ROW     = 4
 LEN_ROW     = 6
-PLAYERS_ROW = 8
-VALUE_COL   = 25                ; (the digits)
+PLAYERS_ROW = 7
+MODE_ROW    = 8
+LINE_COL    = 7                 ; (their text,
+VALUE_COL   = 24                ; the digits, the mode)
 LABEL_ROW   = 10                ; "HOME", "AWAY"
 FLAG_ROW    = 12                ; the flags' first row, 4 rows of 6 cells
 FLAG_W      = 6
@@ -91,8 +94,9 @@ t_d:    .res 2
 
 title:
         lda #0
-        sta t_sel               ; (3 minutes, one player, unless chosen)
-        sta t_two
+        sta t_sel               ; (3 minutes, one player, a match, unless
+        sta t_two               ; chosen)
+        sta t_train
         sta t_row
         jsr skip                ; (a test: none)
         bcc :+
@@ -340,6 +344,7 @@ title:
         ldx t_row               ; (a team: its flag made ready, in with the
         dex                     ; next picture's end)
         dex
+        dex
         jsr prep
         inx
         stx t_pend
@@ -353,16 +358,20 @@ title:
 @go:    jsr mus_stop
         jmp chosen
 
-; skip: carry set if a test asks for no title (SKIP), the ask taken
-; back - the match then 3 minutes, one player, the first teams
+; skip: carry set if a test asks for no title (SKIP: "TS", "TT" for
+; training), the ask taken back - the match then 3 minutes, one player,
+; the first teams
 skip:
         lda SKIP
         cmp #'T'
         bne @no
         lda SKIP + 1
         cmp #'S'
+        beq @go
+        cmp #'T'
         bne @no
-        lda #0
+        inc t_train
+@go:    lda #0
         sta SKIP
         sta SKIP + 1
         jsr chosen
@@ -372,20 +381,20 @@ skip:
         rts
 
 ; show_rows: the line the stick is on in white, the others grey - the
-; length's and the players' text, a team's label and its arrows
+; length's, the players' and the mode's text, a team's label and its arrows
 show_rows:
         ldx #ROWS - 1
 @row:   lda #C_DIM
         cpx t_row
         bne :+
         lda #C_TEXT
-:       cpx #2
+:       cpx #3
         bcs @team
         ldy row_of,x            ; (TCOL: $400 below the codes)
         pha
         lda row_lo,y
         clc
-        adc #8
+        adc #LINE_COL
         sta t_dst
         lda row_hi,y
         adc #0
@@ -393,34 +402,46 @@ show_rows:
         sbc #>(TCODE - TCOL)
         sta t_dst + 1
         pla
-        ldy #23
+        ldy #26
 :       sta (t_dst),y
         dey
         bpl :-
         bmi @next
-@team:  ldy label_at - 2,x      ; "HOME" / "AWAY", "<" and ">" round the name
+@team:  ldy label_at - 3,x      ; "HOME" / "AWAY", "<" and ">" round the name
         sta TCOL + LABEL_ROW * 40,y
         sta TCOL + LABEL_ROW * 40 + 1,y
         sta TCOL + LABEL_ROW * 40 + 2,y
         sta TCOL + LABEL_ROW * 40 + 3,y
-        ldy field_at - 2,x
+        ldy field_at - 3,x
         sta TCOL + NAME_ROW * 40 - 1,y
         sta TCOL + NAME_ROW * 40 + NAME_W,y
 @next:  dex
         bpl @row
         rts
 
-; show_values: the length's and the players' digits, and where the
-; joysticks go
+; show_values: the length's and the players' digits, the mode (training:
+; no length, "-"), and where the joysticks go
 show_values:
         ldx t_sel
         lda digit_of,x
-        sta TCODE + LEN_ROW * 40 + VALUE_COL
+        ldy t_train
+        beq :+
+        lda #'-'
+:       sta TCODE + LEN_ROW * 40 + VALUE_COL
         lda t_two
         clc
         adc #'1'
         sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
+        ldx #MODE_W - 1
+:       lda mode_0,x
+        ldy t_train
+        beq :+
+        lda mode_1,x
+:       sta TCODE + MODE_ROW * 40 + VALUE_COL,x
         lda #C_VALUE
+        sta TCOL + MODE_ROW * 40 + VALUE_COL,x
+        dex
+        bpl :--
         sta TCOL + LEN_ROW * 40 + VALUE_COL
         sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
         ldx #PORTS_W - 1
@@ -753,8 +774,9 @@ draw_names:
         bpl @side
         rts
 
-ROWS        = 4                 ; the lines to choose on: length, players,
-row_of:     .byte LEN_ROW, PLAYERS_ROW      ; the home team, the away team
+ROWS        = 5                 ; the lines to choose on: length, players,
+row_of:     .byte LEN_ROW, PLAYERS_ROW, MODE_ROW    ; mode, the home team,
+                                                    ; the away team
 label_at:   .byte HOME_COL + 1, AWAY_COL + 1
 field_at:   .byte HOME_COL - 4, AWAY_COL - 4
 flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + HOME_COL), <(TCODE + FLAG_ROW * 40 + AWAY_COL)
@@ -763,6 +785,10 @@ ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
 PORTS_W     = * - ports_1
 ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
 .assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
+mode_0:     .byte "MATCH   "
+MODE_W      = * - mode_0
+mode_1:     .byte "TRAINING"
+.assert * - mode_1 = MODE_W, error, "mode_1: not MODE_W"
 
 ; a flag's frame, multicolour, in the cells round it: a line next to the
 ; flag - corners top left, top, top right, left, right, bottom left,
@@ -794,12 +820,14 @@ digit_of:   .byte "357"
 
 ; the lines: row, column, colour, text, 0 - $FF the end
 lines:
-        .byte 4, 5, $61
+        .byte SUB_ROW, 5, $61
         .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
-        .byte LEN_ROW, 8, C_TEXT
-        .byte "MATCH LENGTH:  <   MIN >", 0
-        .byte PLAYERS_ROW, 8, C_TEXT
-        .byte "PLAYERS:       <       >", 0
+        .byte LEN_ROW, LINE_COL, C_TEXT
+        .byte "MATCH LENGTH:  <   MIN    >", 0
+        .byte PLAYERS_ROW, LINE_COL, C_TEXT
+        .byte "PLAYERS:       <          >", 0
+        .byte MODE_ROW, LINE_COL, C_TEXT
+        .byte "MODE:          <          >", 0
         .byte LABEL_ROW, HOME_COL + 1, C_TEXT
         .byte "HOME", 0
         .byte LABEL_ROW, AWAY_COL + 1, C_TEXT
@@ -850,13 +878,15 @@ t_k2:       .byte 0             ; that set's place in code_*)
 t_pend:     .byte 0             ; a side's flag ready, 1 + side; 0 none
 
 ; chosen: the title's choices to the match - its length, one player or
-; two, the teams' shirts
+; two, a match or training, the teams' shirts
 chosen:
         ldx t_sel
         lda frames_of,x
         sta min_frames
         lda t_two
         sta two
+        lda t_train
+        sta train
         jsr skills
         jmp kits
 
@@ -865,7 +895,7 @@ chosen:
 change:
         cpx #1
         beq @players
-        bcs @team
+        bcs @more
         tay                     ; the length: 3, 5, 7 minutes
         beq :+
         lda t_sel
@@ -886,8 +916,17 @@ change:
 :       sta t_two
         clc
         rts
+@more:  cpx #2
+        bne @team
+        tay                     ; a match, training
+        beq :+
+        lda #1
+:       sta t_train
+        clc
+        rts
 @team:  sta t_c                 ; a team: the one before or after, round
         dex                     ; the list - not the other side's
+        dex
         dex
 @step:  lda t_c
         beq @prev
@@ -1051,8 +1090,9 @@ prof:   .byte 2, 4, 3, 3, 4, 5, 3, 3, 5, 4, 4
         .bss
 t_sel:      .res 1              ; the length chosen: 3, 5, 7 minutes
 t_two:      .res 1              ; 1: two players
+t_train:    .res 1              ; 1: training
 t_row:      .res 1              ; the line the stick is on: 0 length, 1 players,
-                                ; 2 the home team, 3 the away team
+                                ; 2 mode, 3 the home team, 4 the away team
 t_k:        .res 1              ; (kits')
 
 

@@ -12,7 +12,8 @@ ball, the keepers, sliding tackles, headers, and the rules - throw-ins,
 goal kicks, corners, fouls with free kicks and penalties, goals and
 kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
-other, with 35 national teams from all over the world to choose from.
+other, with 35 national teams from all over the world to choose from -
+a match, or training: a keeper and two a side, to try the moves out.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
@@ -221,7 +222,7 @@ the keeper's catch, the referee's whistle - a trill - at a kick-off,
 three blasts at half and full time, and the crowd roaring at a goal.
 
 A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
-minutes), one player or two, and the home and the away team to choose -
+minutes), one player or two, a match or training, and the home and the away team to choose -
 the stick up and down to a line, left and right on it - fire to kick
 off. Each of the 35 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
@@ -241,6 +242,28 @@ aftertouch) run once for each team, the yellow team's block swapped in
 for its turn. The yellow team's own mind - its chaser, the one in
 support, its passes and set pieces - rests meanwhile; its keeper keeps
 his goal on his own, as the cyan one does.
+
+## Training
+
+MODE: TRAINING on the title makes the match a training game: each team
+plays with its keeper, its central midfielder on the right (8) and its
+centre forward (10) - the others are off the pitch from the start, as if
+sent off - and there is no clock: no half time, no end, the minute
+stays at 0. Everything else is as in a match - the kick-off, the rules,
+the set pieces, the cards - and one player or two, so every move can be
+tried out on an open pitch.
+
+`tests/moves.py` makes a video of the moves in training, from the disk
+in Yape: `build/simple-soccer-moves.mp4`, a scene each - dribbling, a
+pass and its first touch, a one-two, shots, the aftertouch's bend and
+lob, a header and a diving header, a sliding tackle, a foul and its
+card, a free kick, a penalty, a corner, a throw-in - with a caption that
+says what the joystick does. Each scene is set up in the running match:
+the game is held at the start of a frame (in a loop of its own, as Yape's
+monitor stops the CPU in the middle of an instruction), the players and
+the ball are put in place, and the stick's moves go in as a plan by the
+match's frames. The players showing a move have the skills that make it
+come off - a first touch, a tackle and a dribble are rolled for.
 
 ## The title's music
 
