@@ -1024,7 +1024,8 @@ rec:    lda #0
         rts
 .assert NAME_W + 3 = 16, error, "rec: records of 16"
 
-; skills: each player's five (play.s sk), 0-7: his place's in the team
+; skills: each player's heading and shooting (play.s sk), 0-7: his
+; place's in the team
 ; (prof), his team's strength - 0-4, 2 the middle: (9 - its level) / 2 -
 ; and a step up or down of his own, the same in every match (from the
 ; team's number); then his pace as Sensible Soccer has it (c107d4): how
@@ -1047,7 +1048,7 @@ skills:
         sta t_f
         ldx t_n                 ; his skill's place: skill * 22 + side * 11
         ldy sk_last,x           ; + player, from the last
-        ldx #5 * 11 - 1         ; prof's: skill * 11 + player
+        ldx #2 * 11 - 1         ; prof's: skill * 11 + player
         lda #11
         sta t_i
 @one:   lda t_c                 ; the step: -1, 0, 0, +1 (0, 1, 1, 2 here,
@@ -1142,14 +1143,11 @@ runs:
         bne @one
         rts
 
-sk_last:    .byte 4 * 22 + 10, 4 * 22 + 11 + 10
-; each place's skills: pace, control, tackling, heading, shooting - the
-; keeper, the backs (2, 5), the centre backs (3, 4), the wide midfielders
-; (6, 9), the central ones (7, 8), the forwards (10, 11)
-prof:   .byte 2, 4, 3, 3, 4, 5, 3, 3, 5, 4, 4
-        .byte 2, 3, 2, 2, 3, 4, 5, 5, 4, 4, 4
-        .byte 1, 4, 5, 5, 4, 3, 4, 4, 3, 2, 2
-        .byte 2, 3, 5, 5, 3, 2, 3, 3, 2, 4, 4
+sk_last:    .byte 2 * 22 + 10, 2 * 22 + 11 + 10
+; each place's heading and shooting - the keeper, the backs (2, 5), the
+; centre backs (3, 4), the wide midfielders (6, 9), the central ones (7,
+; 8), the forwards (10, 11) (pace: runs)
+prof:   .byte 2, 3, 5, 5, 3, 2, 3, 3, 2, 4, 4
         .byte 3, 2, 2, 2, 2, 3, 4, 4, 3, 5, 5
 
 ; ---- what the title keeps in the program ------------------------------------

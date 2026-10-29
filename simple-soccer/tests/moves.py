@@ -98,9 +98,8 @@ class Setup:
             if d is not None:
                 self.put('o_dir', d, i)
 
-    def skill(self, i, pace=None, ctl=None, tck=None, hdg=None, sht=None):
-        for n, v in (('sk_pace', pace), ('sk_ctl', ctl), ('sk_tck', tck),
-                     ('sk_hdg', hdg), ('sk_sht', sht)):
+    def skill(self, i, hdg=None, sht=None):
+        for n, v in (('sk_hdg', hdg), ('sk_sht', sht)):
             if v is not None:
                 self.put(n, v, i)
 
@@ -134,7 +133,7 @@ def restart(s, kind, team, x, y):
 
 def best(s, *players):
     for i in players:
-        s.skill(i, pace=7, ctl=7, tck=7, hdg=7, sht=7)
+        s.skill(i, hdg=7, sht=7)
 
 
 # ---- the scenes ---------------------------------------------------------------
@@ -142,8 +141,9 @@ def best(s, *players):
 
 def field(s, cyan=None, yellow=None, keepers=True):
     """the six players: cyan 7, 9 and yellow 18, 20 where given, the
-    keepers on their lines; the yellow ones slow and no tacklers unless
-    a scene says otherwise, the cyan ones all the skills"""
+    keepers on their lines; the yellow ones heading nothing and shooting
+    softly, the cyan ones heading and shooting best (their pace their
+    teams')"""
     if keepers:
         s.obj(0, 304, 676, d=0)
         s.obj(11, 304, 62, d=4)
@@ -153,7 +153,7 @@ def field(s, cyan=None, yellow=None, keepers=True):
         s.obj(i, x, y, d=d)
     best(s, 7, 9)
     for i in (18, 20):
-        s.skill(i, pace=0, ctl=0, tck=0, hdg=0, sht=2)
+        s.skill(i, hdg=0, sht=2)
 
 
 def flight(s, x, y, tx, ty, speed, z, dz):
@@ -216,7 +216,6 @@ def sc_header(s):
 def sc_tackle(s):
     open_play(s, 7, team=1, holder=20)
     field(s, cyan=((306, 470, 0), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
-    s.skill(20, pace=2)
     s.put('chaser', 20)
     s.put('y_pass_t', 200)
     s.obj(BALL, 304, 386)
@@ -224,8 +223,7 @@ def sc_tackle(s):
 
 def sc_foul(s):
     open_play(s, 7, team=1, holder=20)
-    field(s, cyan=((304, 368, 4), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
-    s.skill(20, pace=2)
+    field(s, cyan=((304, 376, 4), (150, 560, 0)), yellow=((150, 250, 4), (304, 380, 4)))
     s.put('chaser', 20)
     s.put('y_pass_t', 200)
     s.put('fouls', 1, 7)                    # (his second: a yellow card)
@@ -415,7 +413,7 @@ def park(y):
     for _ in range(20):
         time.sleep(0.1)
         pc = int(re.search(r'PC:([0-9A-F]{4})', y.regs()).group(1), 16)
-        if PARK <= pc < PARK + 5:
+        if PARK <= pc <= PARK + 5:         # (+5: stopped in the beq)
             return orig
     raise RuntimeError('the game not parked: PC %04x' % pc)
 

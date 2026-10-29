@@ -282,6 +282,8 @@ dbg_plan:   .res 3 * 64         ; (a test's plan: see dbg_on)
         .bss
 
 frame_n:    .res 1              ; frames played
+form_i:     .res 1              ; team_ai's next of the eleven to place,
+form_n:     .res 1              ; and how many more
 b_th:       .res 1              ; the ball's angle, speed, product's low
 b_spl:      .res 1              ; bytes as aim last worked them out,
 b_sph:      .res 1
@@ -375,11 +377,9 @@ each_v:     .res 2              ; (each's routine)
 sk:
 sk_pace:    .res PLAYERS        ; how fast he runs to the ball: 896 + twice
                                 ; this (title.s runs: Sensible Soccer's)
-sk_ctl:     .res PLAYERS        ; ball control: the dribble, keeping it
-sk_tck:     .res PLAYERS        ; tackling: (none of its own any more)
 sk_hdg:     .res PLAYERS        ; heading: how far he reaches
 sk_sht:     .res PLAYERS        ; shooting: how hard
-.assert sk_sht - sk = 4 * 22, error, "title.s skills: five skills of 22"
+.assert sk_hdg - sk = 22 && sk_sht - sk = 2 * 22, error, "title.s skills: pace, heading, shooting, 22 each"
 jog_lo:     .res 2              ; each team's others' speed to their places
 jog_hi:     .res 2              ; at most (title.s runs: Sensible Soccer's)
 
@@ -2806,9 +2806,10 @@ qn_hi:
 ; Everyone the joystick does not run keeps to his place in the formation:
 ; an area for each player (data/tactics.txt), the ball's place on the
 ; pitch put into it - from the touch line to the other, from goal line to
-; goal line. He runs there (speed 1024) and stands. Each gets his place
-; worked out anew every 32nd frame, a different few each time; a place
-; hardly away from the last is not a new one. The other team sends the
+; goal line. He runs there as fast as his team goes (pace) and stands.
+; Each gets his place worked out anew every 11th frame, two of each team
+; at a time, as Sensible Soccer's; a place hardly away from the last is
+; not a new one. The other team sends the
 ; player nearest the ball after it; with it at his feet he takes it
 ; towards the goal and shoots from close to it. Before a kick-off no
 ; one moves.
@@ -2839,10 +2840,16 @@ team_ai:
         and #7
         bne :+
         jsr pick_chaser         ; (every eighth frame)
-:       lda frame_n             ; those with the frame's number, every 32
-        lsr a                   ; frames (team_ai: every second one)
-        and #15
+:       lda form_i              ; two of each team's eleven in turn, so
+        clc                     ; each anew every 11 frames (team_ai:
+        adc #2                  ; every second one) as Sensible Soccer's
+        cmp #11                 ; one a frame (c144d2)
+        bcc :+
+        sbc #11
+:       sta form_i
         tax
+        lda #4
+        sta form_n
 @pl:    txa                     ; (the keepers: keeper)
         beq @next
         cpx #11
@@ -2865,12 +2872,19 @@ team_ai:
         cpx taker
         beq @next
         jsr place_formation
-@next:  txa
-        clc
-        adc #16
-        tax
-        cpx #PLAYERS
-        bcc @pl
+@next:  cpx #11                 ; (his and the other team's, then the next
+        bcs :+                  ; one's)
+        txa
+        adc #11
+        bne @more
+:       txa
+        sbc #10
+        cmp #11
+        bcc @more
+        lda #0
+@more:  tax
+        dec form_n
+        bne @pl
         ldx #0                  ; the keepers (every second frame, as
         jsr keeper              ; Sensible Soccer's)
         ldx #11
@@ -3026,8 +3040,8 @@ place_formation:
         sta o_tyl,x
         lda z_py + 1
         sta o_tyh,x
-        jsr pace                ; as fast as gets him there by the next
-        lda #1                  ; place: gliding along with the ball
+        jsr pace                ; as fast as his team goes there
+        lda #1
         sta o_mov,x
         sta o_new,x
 @keep:  rts
@@ -3056,68 +3070,18 @@ stride:
 @ran:   sta o_run,x
         rts
 
-; pace: player X's speed for his new place: its way from him (the
-; longer way across or along) * 12 - there in about 43 frames, still
-; going when the next place comes (32) - from 192 up to his team's
-; (jog_*: Sensible Soccer's for it, c144dc). Keeps X.
+; pace: player X's speed to his new place: his team's (jog_*: Sensible
+; Soccer's for it, c144dc). Keeps X.
 pace:
-        lda o_txl,x
-        sec
-        sbc o_xl,x
-        sta tmp
-        lda o_txh,x
-        sbc o_xh,x
-        jsr abs16
-        bne @fast
-        sta z_t8
-        lda o_tyl,x
-        sec
-        sbc o_yl,x
-        sta tmp
-        lda o_tyh,x
-        sbc o_yh,x
-        jsr abs16
-        bne @fast
-        cmp z_t8
-        bcs :+
-        lda z_t8
-:       cmp #16
-        bcs :+
-        lda #16                 ; (192 at least)
-:       ldy #0                  ; * 4
-        sty tmp
-        asl a
-        rol tmp
-        asl a
-        rol tmp
-        sta z_t8
-        ldy tmp
-        asl a                   ; + * 8
-        rol tmp
-        clc
-        adc z_t8
-        sta o_spl,x
-        tya
-        adc tmp
-        sta o_sph,x
-        jsr @team               ; (at most his team's)
-        lda o_spl,x
-        cmp jog_lo,y
-        lda o_sph,x
-        sbc jog_hi,y
-        bcs @top
-        rts
-@fast:  jsr @team
-@top:   lda jog_lo,y
+        ldy #0
+        cpx #11
+        bcc :+
+        iny
+:       lda jog_lo,y
         sta o_spl,x
         lda jog_hi,y
         sta o_sph,x
         rts
-@team:  ldy #0
-        cpx #11
-        bcc :+
-        iny
-:       rts
 
 ; slack: carry clear if the difference A:Y is within SLACK either way
 slack:

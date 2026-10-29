@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vice import Vice  # noqa: E402
 from shot import PRG, WORK, BITS, labels, held_from_start  # noqa: E402
 
-KINDS = ['kick-off', 'throw-in', 'goal kick', 'corner', 'keeper\'s']
+KINDS = ['kick-off', 'throw-in', 'goal kick', 'corner', 'keeper\'s', 'free kick', 'penalty']
 TEAMS = ['cyan', 'yellow']
 PLAN = '0:none,5:left+fire,12:left,30:none,600:end'
 
