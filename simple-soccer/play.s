@@ -34,7 +34,7 @@
         .include "data.inc"
 
         .export play_init, play_frame, pose_of, score, game_min, hud, min_frames
-        .export lift, jmp_pl, jmp_t, o_off, card_pl, card_c
+        .export lift, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two, train, sk, jog_lo, jog_hi
@@ -113,12 +113,6 @@ FOUL_D2     = 800               ; a foul only this near the ball (squared)
 LOCK_T      = 12                ; frames the other team cannot dribble it
 CPU_SLIDE_D2 = 200              ; the yellow chaser slides in this near it
 CPU_OPP_D2  = 3200              ; the cyan player this near it (c154a8)
-HEAD_Z_LO   = 11                ; a header: the ball this high to this high,
-HEAD_Z_HI   = 22
-HEAD_D2     = 100               ; this near (squared)
-HEAD_SPEED  = 1792              ; then as fast as a pass, a little rising
-HEAD_DZ     = $0040
-JUMP_T      = 10                ; frames he is drawn in the air
 DHEAD_Z_LO  = 8                 ; a diving header (Sensible Soccer's only
 DHEAD_Z_HI  = 15                ; header, c13af4, c140d4): fire pressed, the
 DHEAD_D2    = 2450              ; stick pushed, the ball higher than 8 this
@@ -319,8 +313,6 @@ score:      .res 2              ; goals, cyan and yellow
 thrower:    .res 1              ; who takes the throw-in,
 throw_t:    .res 1              ; frames left of its throw (THROW_T held)
 lift:       .res 1              ; how high the ball is drawn over where it is
-jmp_pl:     .res 1              ; the player in the air for a header,
-jmp_t:      .res 1              ; and the frames he is still up
 fouls:      .res PLAYERS        ; each player's fouls in the match
 o_off:      .res NOBJ           ; 1: sent off - gone from the match
 card_pl:    .res 1              ; the player shown a card while the ball is
@@ -369,14 +361,10 @@ train:      .res 1              ; 1: training - a keeper and four a side, no
 each_v:     .res 2              ; (each's routine)
 
         .segment "HIBSS2"       ; (not cleared: the title fills it)
-; each player's skills, 0-7, by his number (title.s skills: his place's,
-; his team's level, a step of his own)
+; each player's pace by his number (title.s runs: Sensible Soccer's)
 sk:
 sk_pace:    .res PLAYERS        ; how fast he runs to the ball: 896 + twice
                                 ; this (title.s runs: Sensible Soccer's)
-sk_hdg:     .res PLAYERS        ; heading: how far he reaches
-sk_sht:     .res PLAYERS        ; shooting: how hard
-.assert sk_hdg - sk = 22 && sk_sht - sk = 2 * 22, error, "title.s skills: pace, heading, shooting, 22 each"
 jog_lo:     .res 2              ; each team's others' speed to their places
 jog_hi:     .res 2              ; (title.s runs: Sensible Soccer's)
 kp_gl:      .res 2              ; each team's keeper: going for the ball,
@@ -419,21 +407,6 @@ vec_yh:     .byte >(-1000), >(-1000), >0, >1000, >1000, >1000, >0, >(-1000)
 SP_RUN      = 0
 SP_BALL     = 1
 SP_CHASE    = 2
-; a shot's speed by the shooting, 64 a step, 4 the shot as measured
-shot_lo:
-.repeat 8, I
-        .byte <(SHOT_SPEED + (I - 4) * 64)
-.endrepeat
-shot_hi:
-.repeat 8, I
-        .byte >(SHOT_SPEED + (I - 4) * 64)
-.endrepeat
-; how near (squared) the ball must be to his head by his heading, 3 as
-; measured (HEAD_D2)
-head_d2:
-.repeat 8, I
-        .byte HEAD_D2 + 1 + (I - 3) * 12
-.endrepeat
 ; squares, for distances
 sq_lo:
         .repeat 64, I
@@ -686,10 +659,6 @@ stand:
 play_frame:
         jsr clock
         jsr throwing
-        lda jmp_t               ; (a header's jump down again)
-        beq :+
-        dec jmp_t
-:
         inc frame_n
         lda dbg_on              ; (a test's plan: the stick as it says,
         beq :+                  ; frame by frame)
@@ -1195,24 +1164,6 @@ can_kick:
 @no:    sec
         rts
 
-; can_head: carry clear if the ball is at player X's head: HEAD_Z_LO to
-; HEAD_Z_HI high, near enough for his heading (head_d2). Keeps X.
-can_head:
-        lda o_zl + BALL
-        cmp #HEAD_Z_LO
-        bcc @no
-        cmp #HEAD_Z_HI + 1
-        bcs @no
-        jsr mate_dist
-        lda tmp + 1
-        bne @no
-        ldy sk_hdg,x            ; (by his heading)
-        lda tmp
-        cmp head_d2,y
-        rts
-@no:    sec
-        rts
-
 ; can_dive: carry clear if the stick is pushed and the ball in the air
 ; (higher than DHEAD_Z_LO) near player X (DHEAD_D2). Keeps X.
 can_dive:
@@ -1318,28 +1269,6 @@ stick_way:
         tay
         lda joy_dir,y
         rts
-
-; header: player X heads the ball way Y, for team A - up to it, the ball
-; on that way
-header:
-        sta last_team
-        jsr touch
-        stx last_pl
-        stx jmp_pl
-        tya
-        sta o_dir,x
-        lda #JUMP_T
-        sta jmp_t
-        jsr ball_ahead
-        lda #<HEAD_SPEED
-        sta o_spl + BALL
-        lda #>HEAD_SPEED
-        sta o_sph + BALL
-        lda #<HEAD_DZ
-        sta o_dzf + BALL
-        lda #>HEAD_DZ
-        sta o_dzl + BALL
-        jmp sfx_kick
 
 ; dive_head: player X dives for the ball, a sliding tackle in the air
 ; (slides heads it on when he reaches it). Keeps X.
@@ -1758,12 +1687,12 @@ speed:
 @hi:    sta o_sph,x
         rts
 
-; shot_speed: the ball as hard as player X shoots (his shooting). Keeps X.
+; shot_speed: the ball as hard as anyone shoots, as in Sensible Soccer
+; (c11756: SHOT_SPEED, for all). Keeps X, Y.
 shot_speed:
-        ldy sk_sht,x
-        lda shot_lo,y
+        lda #<SHOT_SPEED
         sta o_spl + BALL
-        lda shot_hi,y
+        lda #>SHOT_SPEED
         sta o_sph + BALL
         rts
 
@@ -3173,18 +3102,7 @@ chase:
         stx z_obj
         lda o_slide,x           ; (sliding: slides has him)
         bne @done
-        jsr can_head            ; the ball at his head: headed towards the
-        bcs :+                  ; cyan goal, down (the sides changed: up)
-        ldy #4
-        lda flip
-        beq @hd
-        ldy #0
-@hd:    lda #1
-        jsr header
-        lda #$FF                ; (a moment before he goes after it again)
-        sta chaser
-        rts
-:       jsr cpu_slide           ; near it, a cyan player on it: a sliding
+        jsr cpu_slide           ; near it, a cyan player on it: a sliding
         bcs :+                  ; tackle the way he faces
         jmp slide
 :       lda #1

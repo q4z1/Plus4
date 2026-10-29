@@ -12,8 +12,7 @@ held at the start of a frame (parked in a loop, park()), the players
 and the ball put where the scene wants them through the monitor, the
 stick's moves as a plan by the match's frames (dbg_plan), and the game
 let go with the frame's pictures and sound recorded from then on (Yape's
-YAPE_SHOTN, YAPE_WAV). The players who show a move have the skills that
-make it come off (sk); what is still rolled for - the keepers' guesses -
+YAPE_SHOTN, YAPE_WAV). What is still rolled for - the keepers' guesses -
 goes by the beam, not the same from one run to the next.
 
 Each scene's pictures and sound go to ~/.cache/simple-soccer/moves/<name>,
@@ -98,11 +97,6 @@ class Setup:
             if d is not None:
                 self.put('o_dir', d, i)
 
-    def skill(self, i, hdg=None, sht=None):
-        for n, v in (('sk_hdg', hdg), ('sk_sht', sht)):
-            if v is not None:
-                self.put(n, v, i)
-
 
 # training's other two a side (4 and 7 of each, the scenes show 8 and 10):
 # off the pitch in the scenes, so each shows its move alone
@@ -113,7 +107,7 @@ def open_play(s, ctrl, team=0, holder=None):
     """the ball in play, the cyan joystick on ctrl; the ball last touched
     by holder (of team), none after it yet"""
     for n, v in (('dead_t', 0), ('kickoff', 0), ('taker', 0xFF), ('rs_kind', 0),
-                 ('goal', 0), ('throw_t', 0), ('lift', 0), ('jmp_t', 0),
+                 ('goal', 0), ('throw_t', 0), ('lift', 0),
                  ('card_pl', 0xFF), ('chaser', 0xFF), ('chaser2', 0xFF),
                  ('y_pass_t', 0), ('cpu_hold', 0), ('cpu_t', 0),
                  ('ctrl', ctrl), ('fire_n', 0), ('recv', 0xFF), ('recv_t', 0),
@@ -138,19 +132,12 @@ def restart(s, kind, team, x, y):
     s.put('dead_t', 1)
 
 
-def best(s, *players):
-    for i in players:
-        s.skill(i, hdg=7, sht=7)
-
-
 # ---- the scenes ---------------------------------------------------------------
 # name: (caption, length in frames, setup, plan [(frame, stick), ...])
 
 def field(s, cyan=None, yellow=None, keepers=True):
     """the six players: cyan 7, 9 and yellow 18, 20 where given, the
-    keepers on their lines; the yellow ones heading nothing and shooting
-    softly, the cyan ones heading and shooting best (their pace their
-    teams')"""
+    keepers on their lines (their pace their teams')"""
     if keepers:
         s.obj(0, 304, 676, d=0)
         s.obj(11, 304, 62, d=4)
@@ -158,9 +145,6 @@ def field(s, cyan=None, yellow=None, keepers=True):
         s.obj(i, x, y, d=d)
     for i, (x, y, d) in zip((18, 20), yellow or ((120, 250, 4), (480, 200, 4))):
         s.obj(i, x, y, d=d)
-    best(s, 7, 9)
-    for i in (18, 20):
-        s.skill(i, hdg=0, sht=2)
 
 
 def flight(s, x, y, tx, ty, speed, z, dz):

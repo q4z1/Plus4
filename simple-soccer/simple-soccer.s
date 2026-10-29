@@ -14,7 +14,7 @@
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
         .import play_init, play_frame, pose_of, score, game_min, hud, lift
         .importzp ctrl, ctrl_b
-        .import jmp_pl, jmp_t, o_off, card_pl, card_c
+        .import o_off, card_pl, card_c
         .export team_col, team_flk
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
@@ -110,8 +110,6 @@ team_flk:   .res 2              ; and the colour its joystick's player
 ; the image for each step of the run: standing, a foot forward, standing,
 ; the other foot
 step_img: .byte 0, 1, 0, 2
-; a header's jump: how high he is drawn, by the frames still to go
-jump_arc: .byte 0, 1, 2, 3, 4, 4, 4, 4, 3, 2, 1
 
         .code
 
@@ -311,16 +309,6 @@ draw:
         lda fig_y
         sec
         sbc #3
-        sta fig_y
-        bcs :+
-        dec fig_y + 1
-:
-        cpx jmp_pl              ; a header: up in the air a moment
-        bne :+
-        ldy jmp_t
-        lda fig_y
-        sec
-        sbc jump_arc,y
         sta fig_y
         bcs :+
         dec fig_y + 1

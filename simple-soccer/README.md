@@ -171,7 +171,7 @@ Your player with the stick let go does not touch a ball that comes to
 him - it runs on past him, as in Sensible Soccer; push the stick and he
 dribbles it.
 
-## The players' skills
+## The teams and their players
 
 The teams are as good as Sensible Soccer has them where it has them (24
 of the 35): each its level, 1 the best to 8, and its three stars or so
@@ -189,13 +189,10 @@ go to their places as fast as their team goes: a player's at 1024, the
 computer's by its level (1: 1408, then 164 less a level, 8: 260). So a team of the computer is as good as Sensible Soccer makes it,
 and yours is as good as you are.
 
-Every player also has two skills of ours, 0 to 7: his heading (how far
-off a ball the yellow chaser still reaches with his head; yours dive,
-as all do in Sensible Soccer) and his shooting (how hard he shoots).
-Each comes from his place in the team - the backs head, the forwards
-shoot - from his team's level and from a step up or down of his own,
-the same for a team in every match. The title works them and the pace
-out once both teams are chosen.
+Nothing else sets one player apart from another, as nothing does in
+Sensible Soccer: everyone shoots as hard (2208, rising 1.25, c11756),
+heads only diving and touches the ball as surely. The title works out
+the paces and the keepers once both teams are chosen.
 
 Nothing between players is rolled for, as nothing is in Sensible
 Soccer: not a first touch, not a dribbler's touch, not a challenge.
@@ -226,13 +223,15 @@ gone to a team-mate - and his team plays on with ten.
 
 A ball in the air goes over the players' heads unless one of them goes
 for it - and a header is a diving header, as Sensible Soccer has no
-other (c13af4, c140d4, measured against it): fire pressed with the
+other (c13af4, c140d4): fire pressed with the
 stick pushed, the ball higher than 8 and within 49 pixels, and two
 frames on your player dives the stick's way (2048, slowing 36 a frame);
 in the first 16 frames of his dive, the ball 8 to 15 high and within 8
 pixels, he heads it on - the way he dives, a step nearer the stick's, a
 quarter faster than he goes (some 2400) and rising (0.625). The yellow
-chaser heads a ball that comes to his head on towards the cyan goal. There are no crosses
+team does not head at all, as Sensible Soccer's computer team does not
+(its brain never presses fire for it): its player takes a high ball
+once it is down to 12 at his feet. There are no crosses
 as such, as in Sensible Soccer: a shot lifted with the aftertouch is
 one.
 

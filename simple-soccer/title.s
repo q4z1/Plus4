@@ -1024,63 +1024,14 @@ rec:    lda #0
         rts
 .assert NAME_W + 3 = 16, error, "rec: records of 16"
 
-; skills: each player's heading and shooting (play.s sk), 0-7: his
-; place's in the team
-; (prof), his team's strength - 0-4, 2 the middle: (9 - its level) / 2 -
-; and a step up or down of his own, the same in every match (from the
-; team's number); then his pace as Sensible Soccer has it (c107d4): how
-; much faster than 896 he runs to the ball, halved - his team's (a
-; computer's by its level, 200 - 23 * level; a player's 112, two
-; players' 120) and 64 more for a star
+; skills: each player's pace and each keeper (runs, keeps): as Sensible
+; Soccer has them for the team's level and stars
 skills:
         ldx #1                  ; the away team, then the home team
 @side:  stx t_n
         lda t_team,x
         tax
         jsr rec
-        inx                     ; (the steps' seed: never 0)
-        stx t_c
-        ldy #NAME_W + 2
-        lda #9
-        sec
-        sbc (t_ptr),y
-        lsr a
-        sta t_f
-        ldx t_n                 ; his skill's place: skill * 22 + side * 11
-        ldy sk_last,x           ; + player, from the last
-        ldx #2 * 11 - 1         ; prof's: skill * 11 + player
-        lda #11
-        sta t_i
-@one:   lda t_c                 ; the step: -1, 0, 0, +1 (0, 1, 1, 2 here,
-        asl a                   ; and - 3 with the level's - 2 below)
-        bcc :+
-        eor #$1D
-:       sta t_c
-        and #3
-        lsr a
-        adc #0
-        clc
-        adc prof,x
-        adc t_f
-        sec
-        sbc #3
-        bpl :+
-        lda #0
-:       cmp #8
-        bcc :+
-        lda #7
-:       sta sk,y
-        dey
-        dec t_i                 ; (a skill's eleven done: the other side's
-        bne :+                  ; passed by)
-        lda #11
-        sta t_i
-        tya
-        sec
-        sbc #11
-        tay
-:       dex
-        bpl @one
         jsr runs
         jsr keeps
         ldx t_n
@@ -1208,13 +1159,6 @@ keeps:
 :       dey
         bne @lv
         rts
-
-sk_last:    .byte 2 * 22 + 10, 2 * 22 + 11 + 10
-; each place's heading and shooting - the keeper, the backs (2, 5), the
-; centre backs (3, 4), the wide midfielders (6, 9), the central ones (7,
-; 8), the forwards (10, 11) (pace: runs)
-prof:   .byte 2, 3, 5, 5, 3, 2, 3, 3, 2, 4, 4
-        .byte 3, 2, 2, 2, 2, 3, 4, 4, 3, 5, 5
 
 ; ---- what the title keeps in the program ------------------------------------
 
