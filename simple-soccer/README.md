@@ -323,11 +323,24 @@ show at the top left of the view.
 
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.
-A ball coming at his goal sends him, faster, to where it will cross his
-line - late, as in Sensible Soccer, once it is close: a hard shot into a
-corner beats him, a slow one he gets to. One within his reach he catches
-- unless it is higher than he gets, a lob - and kicks out like a set
-piece. Far across he dives for it, level in the air, his arms on ahead
+The rest he does as Sensible Soccer's keeper does - read from its code
+(c12fce, c109ce) and measured in it, shot for shot, against this game:
+a shot at his goal - crossing his line between 263 and 344 - he lets
+come till it is in the box, then edges across to where it will cross,
+slowly (192: its teams' 176 - 208); he dives at the last moment, once
+it is 16 pixels from him and crosses as far from him as his dive gets
+in the frames it still takes, or further - his dive's pace guessed anew
+each time, as its keeper guesses it (3 to 6.5 pixels a frame, mostly
+5.5). He dives at 2048, slowing after two frames, some 60 pixels in
+all, and is down 40 frames. A ball that comes right at him (3 pixels)
+he catches; one he gets to diving (6 pixels across) bounces off him,
+out to the side and away from his goal, at three quarters of its speed.
+A slow ball low and near him (some 70 pixels) he goes for (896) and
+picks up. So shots at him are held, ones by the posts and across him
+mostly parried, a hard one into a corner from close in now and then
+goes in - as in Sensible Soccer, where the same shots end the same way
+but for chance. One higher than he gets - a lob - goes over him. His
+dive is drawn level in the air, his arms on ahead
 - pictures drawn for this game (the C64's lean over at 45 degrees and,
 without their shadows, look like a player falling over); a diving
 header has them too.

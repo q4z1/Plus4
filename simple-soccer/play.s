@@ -85,12 +85,20 @@ FOUL_R      = 12                ; a tackle from behind this near the player
                                 ; on the ball: a foul
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
-SPEED_DIVE  = 1280              ; the keeper going for a shot
-SPEED_PEN   = 2048              ; diving at a penalty (the wrong way:
-                                ; SPEED_DIVE)
+SPEED_SIDE  = 192               ; the keeper edging across to a shot
+                                ; (Sensible Soccer's teams: 176 - 208)
+SPEED_DIVE  = 2048              ; his dive (c0dffc),
+SPEED_DIVE_W = 1280             ; the wrong way at a penalty (c0dffe),
+DIVE_SLOW   = 72                ; less each frame after the first two
+                                ; (about as its: some 60 pixels in all)
+SPEED_GET   = 896               ; the keeper going for a slow ball (864 -
+                                ; 928, c130fa)
+SHOT_L      = 263               ; a shot at his goal: crossing his line
+SHOT_R      = 344               ; this far across
+GET_D2      = 5120              ; this near (squared; its 5000), this low
+GET_Z       = 13
 PEN_REACH   = 12                ; he dives once a penalty is this near his
 PEN_REACH2  = 20                ; line, now and then this near
-PEN_DIVE    = 40                ; a dive's way across
 RECV_T      = 100               ; frames a pass's receiver runs to meet it
 HOLD_T      = 8                 ; a ball touched this few frames ago is held,
 HOLD_D2     = 144               ; and one this near (squared) the player who
@@ -117,12 +125,15 @@ CPU_HOLD    = 8                 ; or else once he has had it so many looks
                                 ; (every second frame), as Arlasoft Soccer's
 PASS_WAIT   = 30                ; then not again for so many frames
 DEAD_HALF   = 150               ; frames dead at half time and full time
-DIVE_T      = 28                ; a keeper's dive: frames in the air and down,
+DIVE_T      = 40                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
-DIVE_FROM   = 8                 ; and he dives for a ball this far across
-KEEPER_SEES = 32                ; the keeper goes for a ball this near his line
-CATCH_X     = 8                 ; the keeper catches the ball this near,
+KEEPER_SEES = 76                ; he goes for a shot once it is this near
+                                ; his place, in the box (Sensible Soccer's)
+DIVE_DY     = 16                ; he dives for a shot this near him (c0e4d8),
+CATCH_X     = 3                 ; the keeper catches the ball this near
+                                ; (Sensible Soccer's: else he dives),
 CATCH_Y     = 6
+DIVE_X      = 6                 ; diving, he gets to it this far across
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
 SLACK       = 2                 ; a place this near the last one is the same
 SPEED_CHASE = 1102              ; after the ball
@@ -321,7 +332,8 @@ cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 mf_a:       .res 1              ; (may_face's: the way, the middle way)
 pen_kick:   .res 1              ; not 0: the ball last kicked from the
                                 ; penalty spot (touch)
-k_dy:       .res 1              ; (k_shot's: the ball's way to his line)
+k_dy:       .res 1              ; (k_shot's: the ball's way to his line,
+k_f:        .res 1              ; the frames it takes)
 mf_c:       .res 1
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
@@ -800,9 +812,23 @@ keepers_move:
 :       ldx #0
         jsr @one
         ldx #11
-@one:   lda o_dive,x            ; (a dive's time)
-        beq :+
+@one:   lda o_dive,x            ; (a dive's time, its speed less each frame)
+        beq :++
         dec o_dive,x
+        cmp #DIVE_T - 1
+        bcs :++
+        lda o_spl,x
+        sec
+        sbc #DIVE_SLOW
+        tay
+        lda o_sph,x
+        sbc #0
+        bcs :+
+        lda #0
+        tay
+:       sta o_sph,x
+        tya
+        sta o_spl,x
 :       cpx ctrl
         beq :+
         cpx ctrl_b
@@ -2801,14 +2827,11 @@ team_ai:
         tax
         cpx #PLAYERS
         bcc @pl
-        lda frame_n             ; the keepers each fourth frame
-        and #2
-        bne :+
-        ldx #0
-        jsr keeper
+        ldx #0                  ; the keepers (every second frame, as
+        jsr keeper              ; Sensible Soccer's)
         ldx #11
         jsr keeper
-:       lda #<help
+        lda #<help
         ldy #>help
         jsr each
         lda two                 ; the yellow team on its own: its chaser
@@ -4357,11 +4380,8 @@ keeper:
         beq @done
         cpx taker
         beq @done
-        lda o_dive,x            ; diving: in the air his dive goes on, down
-        beq :+                  ; he stays down
-        cmp #DIVE_T - DIVE_AIR + 1
-        bcs @done
-        jmp stand
+        lda o_dive,x            ; diving: his dive goes on, slowing
+        beq :+                  ; (keepers_move)
 @done:  rts
 :       stx z_obj
         lda o_xl + BALL         ; across: 304 + (ball - 304) / 4, between
@@ -4438,6 +4458,7 @@ keeper:
         ldx z_obj
         jsr k_shot              ; (a shot at him: across to it, faster)
         ldx z_obj
+        jsr k_get               ; (a slow ball near him: to it)
         lda z_px                ; somewhere else: there
         cmp o_txl,x
         bne :+
@@ -4510,13 +4531,17 @@ k_posts:
         sta z_px + 1
 :       rts
 
-; k_shot: a ball (768 or more) coming at keeper X's goal, KEEPER_SEES
-; from his line z_py or nearer (z_t8 bit 7: the top keeper): z_px = where it
-; crosses it (x + the frames till then * its step across), z_ks =
-; SPEED_DIVE. Keeps X.
+; k_shot: a ball (512 or more) coming at keeper X's goal, z_py his line
+; (z_t8 bit 7: the top keeper): z_px = where it crosses it (x + the
+; frames till then * its step across), z_ks = SPEED_SIDE - as Sensible
+; Soccer's keeper (c12fce, c109ce) he edges across to it, and dives at
+; the last moment: the ball DIVE_DY from him or nearer, crossing more
+; than he gets to edging, and as far as his dive gets in the frames it
+; still takes, or further - his dive's pace guessed anew each time, as
+; its keeper does. Keeps X.
 k_shot:
         lda o_sph + BALL
-        cmp #>768
+        cmp #>512
         bcs :+
 @no:    rts
 :       lda z_py                ; dy = his line - the ball's y
@@ -4552,9 +4577,9 @@ k_shot:
         lda #0
         sbc o_vyl + BALL
         sta z_dvs + 1
-@div:   lda z_dvd + 1           ; (late, as Sensible Soccer's: near his line)
+@div:   lda z_dvd + 1
         sta k_dy
-        cmp #KEEPER_SEES + 1
+        cmp #KEEPER_SEES + 1    ; (not till it is in the box)
         bcs @no
         lda z_dvs + 1           ; (at least half a pixel a frame)
         bne :+
@@ -4565,6 +4590,8 @@ k_shot:
         jsr div16               ; the frames till it is there
         lda z_dvd + 1
         bne @no                 ; (256 or more: not coming)
+        lda z_dvd
+        sta k_f
         lda o_vxl + BALL        ; x + frames * |vx|, signed
         sta z_sg
         bpl :+
@@ -4607,45 +4634,140 @@ k_shot:
 :       lda o_xl + BALL
         clc
         adc tmp
-        sta z_px
+        sta tmp
         lda o_xh + BALL
         adc tmp + 1
+        sta tmp + 1
+        lda tmp                 ; (only a ball at his goal: crossing
+        cmp #<SHOT_L            ; between 263 and 344, c12f30)
+        lda tmp + 1
+        sbc #>SHOT_L
+        bcc @wide
+        lda #<SHOT_R
+        cmp tmp
+        lda #>SHOT_R
+        sbc tmp + 1
+        bcs :+
+@wide:  rts
+:       lda tmp
+        sta z_px
+        lda tmp + 1
         sta z_px + 1
         jsr k_posts             ; (as far as he gets: about his posts)
-        lda #<SPEED_DIVE
+        lda #<SPEED_SIDE
         sta z_ks
-        lda #>SPEED_DIVE
+        lda #>SPEED_SIDE
         sta z_ks + 1
-        lda o_dive,x            ; far across from him: a dive that way
+        lda o_dive,x
         bne @in
         lda pen_kick
         beq :+
         jmp k_pen
-:
-        ldy #0
-        lda z_px
+:       lda k_dy                ; near him?
+        cmp #DIVE_DY + 1
+        bcs @in
+        lda z_px                ; how far across, which way
         sec
         sbc o_xl,x
         sta tmp
         lda z_px + 1
         sbc o_xh,x
+        php
+        jsr abs16
+        sta tmp
+        sty tmp + 1
+        ldy #0
+        plp
         bpl :+
         iny                     ; (left)
-        eor #$FF
-        sta tmp + 1
-        lda tmp
-        eor #$FF
-        sta tmp
+:       sty z_sg
         lda tmp + 1
-:       bne :+
+        bne @dive               ; (far)
         lda tmp
-        cmp #DIVE_FROM
-        bcc @in
-:       tya
+        cmp #2
+        bcc @in                 ; (where he is)
+        asl a                   ; (in half pixels: 2 * how far)
+        bcs @dive
+        sta tmp
+        jsr rnd                 ; his dive's half pixels a frame as he
+        and #15                 ; guesses them, 6-13 (c0e020 by c0e23c:
+        cmp #8                  ; one of 0-7, else 5)
+        bcc :+
+        lda #5
+:       clc
+        adc #6
+        sta z_t8
+        lda #0                  ; * the frames left
+        ldy k_f
+        beq @dive
+:       clc
+        adc z_t8
+        bcs @in
+        dey
+        bne :-
+        cmp tmp
+        beq @dive
+        bcs @in                 ; (not yet)
+@dive:  lda #<SPEED_DIVE
+        sta z_ks
+        lda #>SPEED_DIVE
+        sta z_ks + 1
+        ldy z_sg
+        jmp k_dive
+@in:    rts
+
+; k_get: keeper X and a slow ball (under 512) low and near him, not
+; held by the other team: he goes for it, SPEED_GET (Sensible Soccer's
+; c130fa). Keeps X.
+k_get:
+        lda o_sph + BALL
+        cmp #>512
+        bcs @no
+        lda o_zl + BALL
+        cmp #GET_Z
+        bcs @no
+        lda #0                  ; (his team's: not one the other holds)
+        cpx #11
+        bcc :+
+        lda #1
+:       jsr held
+        bcs @no
+        jsr mate_dist
+        lda tmp + 1
+        cmp #>GET_D2
+        bcs @no
+        lda o_xl + BALL
+        sta z_px
+        lda o_xh + BALL
+        sta z_px + 1
+        lda o_yl + BALL
+        sta z_py
+        lda o_yh + BALL
+        sta z_py + 1
+        lda #<SPEED_GET
+        sta z_ks
+        lda #>SPEED_GET
+        sta z_ks + 1
+@no:    rts
+
+; k_dive: keeper X dives, way Y (0 right, 1 left), z_ks fast: his
+; destination 1000 pixels across. Keeps X.
+k_dive:
+        tya
         sta o_dvd,x
+        lda dive_dx,y
+        clc
+        adc o_xl,x
+        sta z_px
+        lda dive_dxh,y
+        adc o_xh,x
+        sta z_px + 1
         lda #DIVE_T
         sta o_dive,x
-@in:    rts
+        rts
+
+dive_dx:    .byte <1000, <(-1000)
+dive_dxh:   .byte >1000, >(-1000)
 
 ; k_pen: keeper X and a penalty coming, z_px where it crosses his line:
 ; as Sensible Soccer's (c109ce, c13038) he waits on his line till it is
@@ -4673,9 +4795,9 @@ k_pen:
         sbc o_xh,x
         bcs :+
         iny
-:       lda #<SPEED_PEN
+:       lda #<SPEED_DIVE
         sta z_ks
-        lda #>SPEED_PEN
+        lda #>SPEED_DIVE
         sta z_ks + 1
         jsr rnd                 ; (one in four: the wrong way, slower)
         and #6
@@ -4683,26 +4805,11 @@ k_pen:
         tya
         eor #1
         tay
-        lda #<SPEED_DIVE
+        lda #<SPEED_DIVE_W
         sta z_ks
-        lda #>SPEED_DIVE
+        lda #>SPEED_DIVE_W
         sta z_ks + 1
-:       tya
-        sta o_dvd,x
-        lda dive_dx,y
-        clc
-        adc o_xl,x
-        sta z_px
-        lda dive_dxh,y
-        adc o_xh,x
-        sta z_px + 1
-        jsr k_posts
-        lda #DIVE_T
-        sta o_dive,x
-        rts
-
-dive_dx:    .byte <PEN_DIVE, <(-PEN_DIVE)
-dive_dxh:   .byte >PEN_DIVE, >(-PEN_DIVE)
+:       jmp k_dive
 
 ; div16: z_dvd = z_dvd / z_dvs (16 bits, unsigned). Keeps X.
 div16:
@@ -4744,8 +4851,99 @@ catch:
         ldx #11
         jsr reach
         bcs @done
-:       jmp hold
+:       lda o_dive,x            ; (diving: it bounces off him)
+        bne parry
+        jmp hold
 @done:  rts
+
+; parry: keeper X diving has got to the ball: as from Sensible Soccer's
+; it bounces off him out to the side he dives and away from his goal, a
+; quarter and a 64th slower, and he goes on half as fast. Keeps X.
+parry:
+        stx last_pl
+        ldy #0
+        cpx #11
+        bcc :+
+        iny
+:       sty last_team
+        jsr touch
+        ldy o_dvd,x
+        lda par_dx,y
+        clc
+        adc o_xl + BALL
+        sta o_txl + BALL
+        lda par_dxh,y
+        adc o_xh + BALL
+        sta o_txh + BALL
+        ldy #0                  ; (the top keeper: down, the bottom one up)
+        jsr top_of
+        bne :+
+        iny
+:       lda par_dy,y
+        clc
+        adc o_yl + BALL
+        sta o_tyl + BALL
+        lda par_dyh,y
+        adc o_yh + BALL
+        sta o_tyh + BALL
+        lda o_sph + BALL        ; s - s/4 - s/64
+        sta tmp + 1
+        lda o_spl + BALL
+        ldy #2
+        jsr shr16
+        sta tmp
+        lda o_spl + BALL
+        sec
+        sbc tmp
+        sta o_spl + BALL
+        lda o_sph + BALL
+        sbc tmp + 1
+        sta o_sph + BALL
+        ldy #4                  ; (s/4 / 16)
+        lda tmp
+        jsr shr16
+        sta tmp
+        lda o_spl + BALL
+        sec
+        sbc tmp
+        sta o_spl + BALL
+        lda o_sph + BALL
+        sbc tmp + 1
+        sta o_sph + BALL
+        lda o_sph,x             ; his: s/2 - s/32
+        sta tmp + 1
+        lda o_spl,x
+        ldy #1
+        jsr shr16
+        sta o_spl,x
+        lda tmp + 1
+        sta o_sph,x
+        ldy #4
+        lda o_spl,x
+        jsr shr16
+        sta tmp
+        lda o_spl,x
+        sec
+        sbc tmp
+        sta o_spl,x
+        lda o_sph,x
+        sbc tmp + 1
+        sta o_sph,x
+        jmp sfx_kick
+
+; shr16: A (low) and tmp + 1 (high) shifted right Y times; A the low
+; byte, tmp + 1 the high one. Keeps X.
+shr16:
+:       lsr tmp + 1
+        ror a
+        dey
+        bne :-
+        rts
+
+par_dx:     .byte <980, <(-980)
+par_dxh:    .byte >980, >(-980)
+par_dy:     .byte <770, <(-770)
+par_dyh:    .byte >770, >(-770)
 
 ; reach: carry clear if the ball is within keeper X's reach, and not
 ; from his own kick. Keeps X.
@@ -4753,7 +4951,10 @@ reach:
         cpx last_pl
         beq @no
         lda #CATCH_X
-        sta z_t8
+        ldy o_dive,x            ; (diving, lying across: further)
+        beq :+
+        lda #DIVE_X
+:       sta z_t8
         lda o_xl + BALL
         sec
         sbc o_xl,x

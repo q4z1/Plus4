@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 mkflags.py - the teams' flags for the title (data/flags.txt), as the file
-"flags" on the disk: build/disk/flags.prg, which the boot loads to $D300.
+"flags" on the disk: build/disk/flags.prg, which the boot loads to $D360.
 
     mkflags.py [--png preview.png]
 
@@ -23,12 +23,12 @@ the patterns of the two flags it shows into the character codes its own
 font leaves free, 37 at most a flag (it keeps two sets for each side, the
 next flag made ready in the one not shown).
 
-The file, at $D300:
-  $D300  the patterns, 8 bytes each
-  $DB00  each team (title.s's order): its 24 cells' patterns, a row of 6 at
+The file, at $D360:
+  $D360  the patterns, 8 bytes each
+  $DB60  each team (title.s's order): its 24 cells' patterns, a row of 6 at
          a time, as their numbers, then their own colours, two cells a
          byte (the first in the low four bits), as places in the palette
-  $E000  the palette, 15 colours, multicolour (bit 3 set); "F" at $E00F
+  $E060  the palette, 15 colours, multicolour (bit 3 set); "F" at $E06F
 """
 import math
 import os
@@ -42,9 +42,9 @@ ROOT = os.path.join(HERE, '..')
 CELLS_W, CELLS_H = 6, 4
 W, H = CELLS_W * 4, CELLS_H * 8          # multicolour pixels
 HW, HH = W * 2, H                       # hires pixels
-LOAD = 0xD300
-TEAMS_AT = 0xDB00
-PALETTE_AT = 0xE000
+LOAD = 0xD360
+TEAMS_AT = 0xDB60
+PALETTE_AT = 0xE060
 MOST = 37                               # patterns a flag may have
 BG, WHITE, RED = 0x16, 0x71, 0x32       # the title's, $FF16, $FF17
 SHARED = {'navy': 0, 'white': 1, 'red': 2}

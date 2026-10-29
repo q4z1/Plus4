@@ -74,10 +74,10 @@ PORTS_ROW   = 21                ; (where the joysticks go)
 PORTS_COL   = 6
 CREDIT_ROW  = 23
 
-FLAGS       = $D300             ; the disk's (tools/mkflags.py): the patterns,
-FLAGS_TEAMS = $DB00             ; each team's 24 cells and 12 colour bytes,
-FLAGS_PAL   = $E000             ; the palette,
-FLAGS_SIG   = $E00F             ; "F": they are there (a test has none)
+FLAGS       = $D360             ; the disk's (tools/mkflags.py): the patterns,
+FLAGS_TEAMS = $DB60             ; each team's 24 cells and 12 colour bytes,
+FLAGS_PAL   = $E060             ; the palette,
+FLAGS_SIG   = $E06F             ; "F": they are there (a test has none)
 LOC         = $E100             ; (prep's: a pattern's code, 256 bytes,
 CBUF        = $E200             ; the cells' codes and colours made ready)
 CCOL        = $E220
@@ -1096,7 +1096,7 @@ t_row:      .res 1              ; the line the stick is on: 0 length, 1 players,
 t_k:        .res 1              ; (kits')
 
 
-        .rodata
+        .segment "TITLE"        ; (the title's only: gone with it)
 frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
 
 ; The teams: a name, its shirt and its second, as the TED's colours
