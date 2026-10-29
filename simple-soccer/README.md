@@ -159,7 +159,13 @@ other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
 after a goal - then it is put down with the taker behind it. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
-a shot); the yellow team passes to the nearest team-mate. He turns only
+a shot). The computer takes its set pieces as Sensible Soccer's does
+(c14b08): after 50 frames and a few more, the taker turning about
+meanwhile to look for someone (a throw-in, a corner) or to the goal (a
+free kick); then a kick-off and a throw-in passed, a corner half the
+time crossed, a free kick 15 in 16 shot once he faces the goal, a goal
+kick and the keeper's kicked long - a pass only to the team-mate
+nearest the ball that way, else he turns on. He turns only
 the ways Sensible Soccer lets him: into the pitch and towards the other
 goal - up to 90 degrees off for a kick-off, a throw-in, a goal kick and
 the keeper's kick, 45 for a corner and a penalty - and any way for a free

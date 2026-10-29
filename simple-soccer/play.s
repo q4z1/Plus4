@@ -310,10 +310,11 @@ br_g:       .res 1              ; the way from the ball to the goal (256)
 br_d:       .res 2              ; his distance squared to the ball,
 br_w:       .res 1              ; a way (0-7),
 br_n:       .res 1              ; (br_cone's: the nearest, his team)
-d6:         .res 3              ; the ball's distance squared to the goal
-sq_l:       .res 1              ; (sq_add's)
-sq_h:       .res 1
-sq_t:       .res 2
+bs_t:       .res 1              ; its set piece: frames since it was ready,
+bs_d:       .res 1              ; the way the taker faced then,
+bs_rot:     .res 1              ; and the way he turns looking (1, $FF)
+d6:         .res 2              ; the ball's distance squared to the goal / 16
+sq_h:       .res 1              ; (quarter's)
 hd_y:       .res 1
 score:      .res 2              ; goals, cyan and yellow
 thrower:    .res 1              ; who takes the throw-in,
@@ -889,7 +890,7 @@ control:
         jsr may_face
         bcs :+
         sta o_dir,x
-:       jmp @fire
+:       jmp @ev
 @stick: lda pj
         and #$0F
         tay
@@ -945,9 +946,11 @@ control:
         bne @far
         jsr dribble
 @far:   lda kickoff
-        beq :+
+        beq @ev
         rts
-:       lda br_ev               ; the brain's pass or shot, as fire's
+@ev:    lda me                  ; the brain's pass or shot, as fire's
+        beq @fire               ; (its team's only)
+        lda br_ev
         beq @fire
         pha
         lda #0
@@ -3911,6 +3914,13 @@ await:
 @yellow:
         lda taker
         sta ctrl_b
+        tax
+        lda o_dir,x             ; (brain_set's: the way he faces, its
+        sta bs_d                ; clock)
+        lda #0
+        sta bs_t
+        lda #1
+        sta bs_rot
         lda #$FF
         sta fire_n_b
         lda two
@@ -3982,12 +3992,15 @@ nearest:
         ldx mate
         rts
 
-; cpu_take: the yellow team's set piece, once it has waited: passed to
-; the nearest team-mate, or kicked on the way the taker faces
+; cpu_take: the yellow team's penalty, once it has waited (its other set
+; pieces: brain_set)
 cpu_take:
         lda rs_team
         beq @done
         lda two                 ; (a player's: his to take)
+        bne @done
+        lda rs_kind             ; (the rest: brain_set)
+        cmp #R_PENALTY
         bne @done
         dec cpu_t
         bne @done
@@ -3996,42 +4009,7 @@ cpu_take:
         jsr touch
         lda taker
         sta last_pl
-        lda rs_kind             ; a penalty: shot at a corner
-        cmp #R_PENALTY
-        bne :+
-        jmp cpu_pen
-:       lda #$FF                ; the nearest, not the keeper, not the taker
-        sta mate
-        sta mate_d
-        sta mate_d + 1
-        ldx #PLAYERS - 1
-@look:  cpx taker
-        beq @next
-        jsr mate_dist
-        lda tmp
-        cmp mate_d
-        lda tmp + 1
-        sbc mate_d + 1
-        bcs @next
-        lda tmp
-        sta mate_d
-        lda tmp + 1
-        sta mate_d + 1
-        stx mate
-@next:  dex
-        cpx #11
-        bne @look
-        ldx mate
-        bmi :+
-        jmp kick_to
-:       ldx taker
-        ldy o_dir,x
-        jsr ball_ahead
-        lda #<2048
-        sta o_spl + BALL
-        lda #>2048
-        sta o_sph + BALL
-        jmp kicked
+        jmp cpu_pen             ; a penalty: shot at a corner
 @done:  rts
 
 ; cpu_pen: the yellow team's penalty, shot hard and rising at one corner
@@ -4498,18 +4476,13 @@ k_nearer:
 near_of:    .byte ctrl, ctrl_b, recv, recv_b, helper, helper_b
 NEAR_N      = * - near_of
 
-; step_x, step_y: tmp = A frames * the ball's step across, or up and
-; down (8.8, signed) / 256 - its way in so many frames. Keeps X.
+; step_x: tmp = A frames * the ball's step across (8.8, signed) / 256 -
+; its way in so many frames. Keeps X.
 step_x:
         ldy o_vxf + BALL
         sty z_dvs
         ldy o_vxl + BALL
-        jmp step_b
-step_y:
-        ldy o_vyf + BALL
-        sty z_dvs
-        ldy o_vyl + BALL
-step_b: sty z_dvs + 1
+        sty z_dvs + 1
         sty z_sg
         jsr mul_set
         bit z_sg                ; (|step|)
@@ -5410,8 +5383,11 @@ brain:
         lda #0
         sta pj
         sta br_ev
-        lda kickoff             ; (its set pieces: cpu_take's)
-        beq :+
+        lda kickoff             ; (its set pieces: brain_set; the other
+        beq :+                  ; team's: nothing)
+        lda rs_team
+        cmp me
+        jeq brain_set
         rts
 :       lda br_t
         beq :+
@@ -5427,10 +5403,10 @@ brain:
         sta br_d
         lda tmp + 1
         sta br_d + 1
-        jne br_free
+        bne br_free
         lda tmp
         cmp #CLOSE + 1
-        jcc br_have
+        bcc br_have
 ; br_free (c15064): without it he runs to the ball - turned to it only if
 ; it is near (800), that way already or 1 in 8
 br_free:
@@ -5455,26 +5431,24 @@ br_free:
 ; else passed, dribbled on to the goal or sideways by how near the cyan
 ; players are
 br_have:
-        lda d6 + 2              ; near enough (28800), and so near (12800)
-        bne @far                ; or 1 in 4
-        lda d6
-        cmp #<28801
+        lda d6                  ; near enough (28800), and so near (12800)
+        cmp #<(28800 / 16 + 1)  ; or 1 in 4 (d6: / 16)
         lda d6 + 1
-        sbc #>28801
+        sbc #>(28800 / 16 + 1)
         bcs @far
         lda d6
-        cmp #<12800
+        cmp #<(12800 / 16)
         lda d6 + 1
-        sbc #>12800
+        sbc #>(12800 / 16)
         bcc :+
         lda br_r
         and #3
         bne @far
 :       ldy #15                 ; facing it: within 15 (3200 near: 50)
         lda d6
-        cmp #<3201
+        cmp #<(3200 / 16 + 1)
         lda d6 + 1
-        sbc #>3201
+        sbc #>(3200 / 16 + 1)
         bcs :+
         ldy #50
 :       sty br_w
@@ -5493,73 +5467,63 @@ br_have:
         beq @near
         dec br_6c
         jsr br_cone
-        jcs br_side
+        bcs br_side
         jeq br_pass
-        jne br_side
-@near:  lda d6 + 2              ; near the goal (9800): on to it
-        bne :+
-        lda d6
-        cmp #<9800
+        bne br_side
+@near:  lda d6                  ; near the goal (9800): on to it
+        cmp #<(9800 / 16)
         lda d6 + 1
-        sbc #>9800
+        sbc #>(9800 / 16)
         bcs :+
         jmp br_goal
 :       ldy ctrl_b              ; the cyan joystick's player near (800 /
         jsr br_opp              ; 5000), else its runner
         bcs :+
-        jeq br_close
-        jne br_near
+        beq br_close
+        bne br_near
 :       ldy helper_b
         jsr br_opp
-        jcs br_goal
-        jeq br_close
-        jne br_near
+        bcs br_goal
+        beq br_close
+        bne br_near
 ; br_close (c14f6e): pressed - far from the goal (180000) a long ball,
 ; else passed if a team-mate is the one that way
 br_close:
-        lda d6 + 2
-        cmp #^180001
-        bcc :+
-        jne br_long
-        lda d6 + 1
-        cmp #>180001
-        bcc :+
-        jne br_long
         lda d6
-        cmp #<180001
+        cmp #<(180000 / 16 + 1)
+        lda d6 + 1
+        sbc #>(180000 / 16 + 1)
         jcs br_long
 :       jsr br_cone
-        jcs br_try
-        jeq br_pass
-        jne br_try
+        bcs br_try
+        beq br_pass
+        bne br_try
 ; br_near (c14fb0): a cyan player coming - 9 in 256 a long ball if far
 ; (48400), 1 in 4 a pass if a team-mate is that way, else on to the goal
 br_near:
         lda br_r
         cmp #9
         bcs :+
-        lda d6 + 2
-        jne br_long
         lda d6
-        cmp #<48401
+        cmp #<(48400 / 16 + 1)
         lda d6 + 1
-        sbc #>48401
-        jcs br_long
+        sbc #>(48400 / 16 + 1)
+        bcs br_long
 :       jsr rnd
         and #$0C
-        jne br_goal
+        bne br_goal
         jsr br_cone
-        jcs br_try
-        jeq br_pass
+        bcs br_try
+        beq br_pass
 ; br_try (c14ff0): 1 in 4 (32 in 128) he starts looking for a team-mate
 ; for 4 frames, stepping aside; else on to the goal
 br_try:
         lda br_6c
-        jne br_goal
+        bne br_goal
         jsr rnd
         and #$7F
         cmp #$20
-        jcs br_goal
+        bcs br_goal
         lda #4
         sta br_6c
 ; br_side (c15010): a step aside - his way turned one way or the other,
@@ -5567,7 +5531,7 @@ br_try:
 br_side:
         lda br_d
         cmp #NEAR + 1
-        jcs br_dir
+        bcs br_dir
         lda #1
         bit br_r
         bpl :+
@@ -5580,15 +5544,8 @@ br_side:
 br_goal:
         lda br_d
         cmp #NEAR + 1
-        jcs br_dir
-        lda br_g
-        clc
-        adc #16
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
+        bcs br_dir
+        jsr goal_dir
         jmp br_stick
 br_dir: lda o_dir,x             ; (on as he goes)
         jmp br_stick
@@ -5613,45 +5570,32 @@ br_pass:
 ; br_long (c150e8): facing the goal, one way off or so, a long ball (2:
 ; lifted, far from it, 115600; else 1: low), else br_try
 br_long:
-        lda br_g
-        clc
-        adc #16
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
+        jsr goal_dir
         sec
         sbc o_dir,x
         clc
         adc #1
         and #7
         cmp #3
-        jcs br_try
-        lda d6 + 2
-        cmp #^115601
-        bcc :+
-        bne @hi
-        lda d6 + 1
-        cmp #>115601
-        bcc :+
-        bne @hi
+        bcs br_try
         lda d6
-        cmp #<115601
+        cmp #<(115600 / 16 + 1)
+        lda d6 + 1
+        sbc #>(115600 / 16 + 1)
         bcc :+
-@hi:    lda #2
-        jne br_kick
+        lda #2
+        bne br_kick
 :       lda #1
-        jne br_kick
+        bne br_kick
 
 ; br_shoot (c15152): a shot of kind A (0) - not if it kicked a moment
 ; ago, nor his team - bent to the side of the goal he faces
 br_shoot:
         ldy br_t
-        jne br_none
+        bne br_none
         ldy kick_t
         cpy #BR_KICKED
-        jcc br_none
+        bcc br_none
 br_kick:
         sta br_6e
         lda #BR_WAIT
@@ -5672,36 +5616,173 @@ br_none:
 ; it (kind 0), let go (1) or pulled back (2); the others across it to
 ; its side, 1 - 3 ways by its kind
 br_after:
-        lda at_dir
         ldy br_70
         beq @on
         lda br_r
         lsr a
         bcc @on
-        lda br_6e
-        clc
-        adc #1
+        lda br_6e               ; (+ kind + 1, - kind - 1)
         cpy #1
-        beq :+
-        eor #$FF
-        clc
-        adc #1
-:       clc
-        adc at_dir
-        and #7
-        jmp br_stick
+        bne :+
+        adc #0                  ; (carry set)
+        bne @add
+:       eor #$FF
+        bne @add
 @on:    lda br_6e
         cmp #1
         beq @none
-        lda #0
-        cmp br_6e               ; (2: back, 4 round)
-        bcs :+
-        lda #4
-:       clc
+        asl a                   ; (0: on, 2: back, 4 round)
+@add:   clc
         adc at_dir
         and #7
         jmp br_stick
 @none:  rts
+
+; brain_set: the computer's set piece, as Sensible Soccer's (c14b08 -
+; c14e48): ready, it waits 50 frames and a few more (up to 63, its die
+; anew each frame) - a throw-in or a corner's taker turning about
+; meanwhile to look for someone, a free kick's to the goal - then: a
+; kick-off and a throw-in are passed; a corner half the time crossed -
+; facing his way first, or in and up or down - else passed; a free kick
+; 15 in 16 shot if he faces the goal (else he turns to it), 1 in 16
+; passed; a goal kick and the keeper's kicked long. A pass only to a
+; team-mate nearest that way (br_cone), else he turns on. The penalty:
+; cpu_take's. (Not here, for room: a kick-off shot after 150 frames, a
+; long throw 1 in 16.) Keeps X.
+brain_set:
+        lda rs_kind
+        cmp #R_PENALTY
+        beq @none
+        inc bs_t
+        bne :+
+        dec bs_t                ; (no further than 255)
+:       jsr rnd
+        sta br_r
+        jsr goal_way
+        jsr rnd                 ; waiting: 50 + 0-63 frames
+        and #$3F
+        clc
+        adc #50
+        cmp bs_t
+        bcc @go
+        beq @go
+        ldy rs_kind             ; meanwhile: turning about, or to the goal
+        cpy #R_THROW
+        beq bs_turn
+        cpy #R_CORNER
+        beq bs_turn
+        cpy #R_FREE
+        bne @none
+        jsr goal_dir
+        jmp br_stick
+@none:  rts
+@go:    ldy rs_kind
+        cpy #R_KICKOFF
+        beq bs_pass             ; a kick-off: passed
+        cpy #R_THROW
+        beq bs_pass             ; a throw-in: passed
+        cpy #R_CORNER
+        bne @free
+        lda br_r                ; a corner: half the time crossed
+        lsr a
+        bcc bs_pass
+        lda o_dir,x
+        cmp bs_d
+        beq bs_shot
+        jsr ball_rx             ; (in and up or down: 1, 3 on the left,
+        lda o_dir,x             ; 5, 7 on the right)
+        bcs :+
+        cmp #1
+        beq bs_shot
+        cmp #3
+        beq bs_shot
+        bne bs_pass
+:       cmp #5
+        beq bs_shot
+        cmp #7
+        beq bs_shot
+        bne bs_pass
+@free:  cpy #R_FREE
+        bne bs_shot             ; a goal kick, the keeper's: long
+        lda br_r                ; a free kick: 15 in 16 shot facing the
+        and #$0F                ; goal (else turned to it), 1 in 16
+        beq bs_pass             ; passed
+        jsr goal_dir
+        cmp o_dir,x
+        beq bs_shot
+        jmp br_stick
+
+; goal_dir: A = the way (0-7) from the ball to the goal (br_g). Keeps X.
+goal_dir:
+        lda br_g
+        clc
+        adc #16
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        rts
+
+; bs_pass (c14d88): passed if the one nearest the ball the way he faces
+; is a team-mate, else he turns on looking (bs_turn)
+bs_pass:
+        jsr br_cone
+        bcs bs_turn
+        jeq br_pass
+; bs_turn (c14dd0): 1 frame in 8 he turns a way on, the way he turns
+; looking, as far as he may - then back the other way
+bs_turn:
+        jsr rnd
+        and #$0E
+        bne @no
+        lda o_dir,x
+        clc
+        adc bs_rot
+        and #7
+        sta br_w
+        jsr may_face
+        bcs :+
+        lda br_w
+        jmp br_stick
+:       lda bs_rot              ; (as far as he may: back)
+        eor #$FE
+        sta bs_rot
+@no:    rts
+
+; bs_shot (c14d7a, c151c4): a set piece kicked hard: a free kick by how
+; far the goal is (0 under 28800, 1 under 57800, else 2: lifted), a goal
+; kick or the keeper's low (1); the rest 3 in 4 by how far, else lifted
+bs_shot:
+        lda br_t                ; (not if it kicked a moment ago)
+        bne @no
+        ldy rs_kind
+        cpy #R_GOALKICK
+        beq @low
+        cpy #R_KEEPER
+        beq @low
+        cpy #R_FREE
+        beq @far
+        lda br_r
+        and #$18
+        beq @high
+@far:   lda d6
+        cmp #<(28800 / 16)
+        lda d6 + 1
+        sbc #>(28800 / 16)
+        bcc @shot
+        lda d6
+        cmp #<(57800 / 16)
+        lda d6 + 1
+        sbc #>(57800 / 16)
+        bcc @low
+@high:  lda #2
+        jmp br_kick
+@low:   lda #1
+        jmp br_kick
+@shot:  lda #0
+        jmp br_kick
+@no:    rts
 
 ; br_stick: pj = the stick way A (0-7). Keeps X.
 br_stick:
@@ -5823,16 +5904,13 @@ br_cone:
         ldx z_obj
         lda mate
         bmi @none
-        ldy #0                  ; (his team-mate: the same side of 11)
-        cmp #11
-        bcc :+
-        iny
-:       sty br_n
-        ldy #0
+        cmp #11                 ; (his team-mate: the same side of 11)
+        lda #0
+        rol a
+        sta br_n
         cpx #11
-        bcc :+
-        iny
-:       tya
+        lda #0
+        rol a
         eor br_n
         clc
         rts
@@ -5840,7 +5918,8 @@ br_cone:
         rts
 
 ; goal_way: br_g = the way from the ball to the goal it attacks (as
-; the way a player faces, * 32), d6 the distance squared. Keeps X.
+; the way a player faces, * 32), d6 the distance squared / 16 (from the
+; quarter distances: under 256 either way). Keeps X.
 goal_way:
         lda #<304
         sec
@@ -5863,16 +5942,23 @@ goal_way:
         tya
         sbc o_yh + BALL
         sta z_ay + 1
-        lda #0
-        sta d6
-        sta d6 + 1
-        sta d6 + 2
-        lda z_ax
         ldy z_ax + 1
-        jsr sq_add
-        lda z_ay
+        lda z_ax
+        jsr quarter
+        lda sq8_lo,y
+        sta d6
+        lda sq8_hi,y
+        sta d6 + 1
         ldy z_ay + 1
-        jsr sq_add
+        lda z_ay
+        jsr quarter
+        lda sq8_lo,y
+        clc
+        adc d6
+        sta d6
+        lda sq8_hi,y
+        adc d6 + 1
+        sta d6 + 1
         jsr angle
         lda #128
         sec
@@ -5880,55 +5966,26 @@ goal_way:
         sta br_g
         rts
 
-; sq_add: d6 + (Y:A)^2 (signed, under 1024 either way). Keeps X.
-sq_add:
+; quarter: Y = |Y:A| / 4 (under 1024). Keeps X.
+quarter:
+        sty sq_h
         cpy #$80
         bcc :+
-        eor #$FF                ; (|Y:A|)
+        eor #$FF
         clc
         adc #1
         pha
-        tya
+        lda sq_h
         eor #$FF
         adc #0
-        tay
+        sta sq_h
         pla
-:       sta sq_l
-        sty sq_h
+:       lsr sq_h
+        ror a
+        lsr sq_h
+        ror a
         tay
-        lda sq8_lo,y            ; l^2
-        clc
-        adc d6
-        sta d6
-        lda sq8_hi,y
-        adc d6 + 1
-        sta d6 + 1
-        bcc :+
-        inc d6 + 2
-:       ldy sq_h
-        beq @done
-        lda sq_l                ; 2 l h * 256
-        asl a
-        sta sq_t
-        lda #0
-        rol a
-        sta sq_t + 1
-:       lda sq_t
-        clc
-        adc d6 + 1
-        sta d6 + 1
-        lda sq_t + 1
-        adc d6 + 2
-        sta d6 + 2
-        dey
-        bne :-
-        ldy sq_h                ; h^2 * 65536
-        lda sq_hh,y
-        clc
-        adc d6 + 2
-        sta d6 + 2
-@done:  rts
-sq_hh:      .byte 0, 1, 4, 9
+        rts
 
 ; ball_way: A = the way (0-7) from player X to the ball. Keeps X.
 ball_way:
