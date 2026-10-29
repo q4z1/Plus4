@@ -46,11 +46,10 @@ PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
 NOBJ        = PLAYERS + 1
 
-SPEED_RUN   = $04E0             ; a player running
-SPEED_BALL  = 896               ; and with the ball at his feet
-DRIB_KICK   = 1024 - 896 - 48   ; a dribble's kick faster than he runs: 1024
-                                ; at pace 4, control 4 (control's 16 a step
-                                ; on top) - Sensible Soccer's every touch
+SPEED_RUN   = 1024              ; the joystick's player running (c1372c),
+SPEED_BALL  = 896               ; and with the ball close (c13828): anyone's
+DRIB_KICK   = 1024 - SPEED_BALL ; a dribble's kick faster than he runs:
+                                ; 1024, Sensible Soccer's every touch
 SPEED_JOG   = 1024              ; going to his place
 LINE_L      = 49                ; the touch lines and goal lines
 LINE_R      = 558
@@ -150,7 +149,8 @@ CATCH_Y     = 6
 DIVE_X      = 6                 ; diving, he gets to it this far across
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
 SLACK       = 2                 ; a place this near the last one is the same
-SPEED_CHASE = 1102              ; after the ball
+SPEED_CHASE = 1024              ; the one running to the ball (c107d4: and
+                                ; his team's and his own on top - here pace)
 SHOOT_FROM  = 100               ; the other team shoots from this near
 NEAR        = 32                ; distance squared: the ball at his feet
 CLOSE       = 72                ; near enough to kick it
@@ -409,27 +409,29 @@ vec_xl:     .byte <0, <1000, <1000, <1000, <0, <(-1000), <(-1000), <(-1000)
 vec_xh:     .byte >0, >1000, >1000, >1000, >0, >(-1000), >(-1000), >(-1000)
 vec_yl:     .byte <(-1000), <(-1000), <0, <1000, <1000, <1000, <0, <(-1000)
 vec_yh:     .byte >(-1000), >(-1000), >0, >1000, >1000, >1000, >0, >(-1000)
-; the players' speeds by their pace, 0-7 (speed: SP_*): running, with the
-; ball at his feet, after the ball; 32 a step, 4 the speeds as measured
+; the players' speeds by their pace, 0-7 (speed: SP_*): on the joystick,
+; with the ball close, running to it. Sensible Soccer gives only the one
+; running to it more by his team and himself (c107d4: Malta +96, Latvia
+; -50, a star of theirs +128) - here 32 a step of pace, 4 none
 SP_RUN      = 0
 SP_BALL     = 8
 SP_CHASE    = 16
 sp_lo:
-.repeat 8, I
-        .byte <(SPEED_RUN + (I - 4) * 32)
+.repeat 8
+        .byte <SPEED_RUN
 .endrepeat
-.repeat 8, I
-        .byte <(SPEED_BALL + (I - 4) * 32)
+.repeat 8
+        .byte <SPEED_BALL
 .endrepeat
 .repeat 8, I
         .byte <(SPEED_CHASE + (I - 4) * 32)
 .endrepeat
 sp_hi:
-.repeat 8, I
-        .byte >(SPEED_RUN + (I - 4) * 32)
+.repeat 8
+        .byte >SPEED_RUN
 .endrepeat
-.repeat 8, I
-        .byte >(SPEED_BALL + (I - 4) * 32)
+.repeat 8
+        .byte >SPEED_BALL
 .endrepeat
 .repeat 8, I
         .byte >(SPEED_CHASE + (I - 4) * 32)
@@ -1616,7 +1618,7 @@ d_abs:
         rts
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs,
-; faster than he runs by DRIB_KICK and (7 - control) * 16
+; faster than he runs by DRIB_KICK
 dribble:
         lda me
         sta last_team
@@ -1634,17 +1636,7 @@ dribble:
         lda o_sph,x
         adc #>DRIB_KICK
         sta o_sph + BALL
-        lda sk_ctl,x
-        eor #7
-        asl a
-        asl a
-        asl a
-        asl a                   ; (carry clear: at most 112)
-        adc o_spl + BALL
-        sta o_spl + BALL
-        bcc :+
-        inc o_sph + BALL
-:       ldy drib_dir            ; up: the ball a pixel further out beside
+        ldy drib_dir            ; up: the ball a pixel further out beside
         bne @ahead              ; him while it is within 4 of his x (to
         lda o_xl + BALL         ; the right if level), as Sensible Soccer
         sec                     ; has it - else it would be hidden behind

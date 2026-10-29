@@ -173,13 +173,18 @@ dribbles it.
 
 ## The players' skills
 
-Every player has five skills, 0 to 7, which decide what Sensible
-Soccer's players decide by theirs: his pace (how fast he runs, with the
-ball and after it), his control (how close he keeps it dribbling, how
-surely he kept it from a challenge, before there were none to roll),
-his tackling (no longer used: see below), his heading (how far off a ball the yellow chaser still reaches with
-his head; yours dive, as all do in Sensible Soccer) and his
-shooting (how hard he shoots). Each comes from his place in the team -
+Every player has five skills, 0 to 7: his pace, his control, his
+tackling, his heading and his shooting. Sensible Soccer's players run
+as their game has it (c107d4, measured): on the joystick at 1024, with
+the ball close at 896, its every dribbled touch 1024 - anyone's; only
+the one running to the ball goes faster or slower, by his team (Malta
++96, Latvia -50) and himself (a star of theirs +128). Its teams' lists,
+which hold those, are not read here yet, so pace stands in for them: 32
+a step on the one running to the ball, 4 none. Control and tackling
+decide nothing any more - Sensible Soccer rolls for no touch and no
+challenge; heading is how far off a ball the yellow chaser still
+reaches with his head (yours dive, as all do in Sensible Soccer), and
+shooting how hard he shoots. Each comes from his place in the team -
 the backs tackle and head, the midfielders keep the ball, the wingers
 are fast, the forwards shoot - from how good his team is (0 to 4, in
 `title.s`'s list of teams) and from a step up or down of his own, the

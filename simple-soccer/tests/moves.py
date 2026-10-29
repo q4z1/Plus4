@@ -285,7 +285,7 @@ SCENES = [
     ('header', ('CROSS AND DIVING HEADER - GOAL', 'FIRE AND THE STICK: HE DIVES AT THE BALL'), 110,
      sc_header, [(0, 'none'), (26, 'up+fire'), (30, 'up'), (46, 'none')]),
     ('tackle', ('SLIDING TACKLE - HE IS KNOCKED OVER', 'FIRE AND THE STICK - THE BALL NEAR'), 100, sc_tackle,
-     [(0, 'up'), (8, 'up+fire'), (11, 'none'), (60, 'up'), (170, 'none')]),
+     [(0, 'up'), (11, 'up+fire'), (14, 'none'), (60, 'up'), (170, 'none')]),
     ('foul', ('FOUL - FREE KICK AND A YELLOW CARD', 'A SLIDING TACKLE FROM BEHIND'), 160,
      sc_foul, [(0, 'down'), (2, 'down+fire'), (5, 'none')]),
     ('free', ('FREE KICK - GOAL', 'THE STICK TURNS HIM - FIRE HELD SHOOTS'), 110, sc_free,
