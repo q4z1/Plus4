@@ -199,11 +199,11 @@ def sc_bend(s):
 
 def sc_lob(s):
     open_play(s, 9)
-    field(s, cyan=((200, 400, 0), (304, 250, 0)), yellow=((150, 360, 4), (470, 380, 4)),
+    field(s, cyan=((200, 400, 0), (284, 254, 0)), yellow=((150, 360, 4), (470, 380, 4)),
           keepers=False)
     s.obj(0, 304, 676, d=0)
     s.obj(11, 304, 92, d=4)
-    s.obj(BALL, 304, 246)
+    s.obj(BALL, 284, 250)
 
 
 def sc_header(s):
@@ -280,7 +280,7 @@ SCENES = [
      lead(SHOOT)),
     ('bend', ('BENT SHOT - GOAL', 'AFTERTOUCH: THE STICK ACROSS THE SHOT'), 120, sc_bend,
      lead([(0, 'fire'), (10, 'up+left'), (22, 'none')])),
-    ('lob', ('LOB - GOAL', 'AFTERTOUCH: THE STICK PULLED BACK'), 130, sc_lob,
+    ('lob', ('LOB - THE KEEPER GETS A HAND TO IT', 'AFTERTOUCH: THE STICK PULLED BACK'), 150, sc_lob,
      lead([(0, 'fire'), (10, 'down'), (22, 'none')])),
     ('header', ('CROSS AND DIVING HEADER - GOAL', 'FIRE AND THE STICK: HE DIVES AT THE BALL'), 110,
      sc_header, [(0, 'none'), (26, 'up+fire'), (30, 'up'), (46, 'none')]),

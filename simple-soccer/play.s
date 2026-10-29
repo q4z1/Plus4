@@ -139,6 +139,7 @@ DIVE_AIR    = 16                ; the first so many in the air
 KEEPER_SEES = 76                ; he goes for a shot once it is this near
                                 ; his place, in the box (Sensible Soccer's)
 DIVE_DY     = 16                ; he dives for a shot this near him (c0e4d8),
+DIVE_Z      = 16                ; this low (c13038),
 CATCH_X     = 3                 ; the keeper catches the ball this near
                                 ; (Sensible Soccer's: else he dives),
 CATCH_Y     = 6
@@ -219,6 +220,7 @@ drib_dir:   .res 1              ; dribbling: the way
 kick_pl:    .res 1              ; the player who last passed or shot,
 kick_t:     .res 1              ; and the frames since (switch, help)
 pass_q:     .res 1              ; frames a pass let go of too soon waits
+pf:         .res 1              ; his joystick the frame before
 me:         .res 1              ; the team: 0 cyan, 1 yellow
 t_lo:       .res 1              ; its keeper: 0, 11
 t_hi:       .res 1              ; its last player: 10, 21
@@ -346,6 +348,7 @@ k_f:        .res 1              ; the frames it takes)
 k_d2:       .res 2              ; (k_get's: his way to the ball, squared,
 k_i:        .res 1              ; and the player looked at)
 k_on:       .res 1              ; (k_shot's: 1 a shot at his goal)
+pfire:      .res 1              ; (control's: pf as it was)
 mf_c:       .res 1
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
@@ -509,8 +512,8 @@ play_init:
         jmp sfx_whistle
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
-ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
-ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, $FF, 0, 0, 1, 11, 21, 10
+ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, $FF, 0, 0, 0, 1, 11, 21, 10
 .assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
 
 ; each: the routine at A (low) / Y (high) for the cyan team's control,
@@ -896,6 +899,10 @@ play_others:
 
 ; control: the joystick's player - where he runs, dribbling, fire
 control:
+        lda pf                  ; (fire as it was the frame before)
+        sta pfire
+        lda pj
+        sta pf
         lda kick_t              ; (frames since his team's last kick)
         cmp #255
         beq :+
@@ -989,17 +996,19 @@ control:
 @far:   lda kickoff
         beq @fire
         rts
-@fire:  lda pj                  ; fire: let go within SHOT_HOLD - 1
-        and #J_FIRE             ; frames a pass, held SHOT_HOLD frames
-        beq @let                ; a shot - as soon as the ball is at his
-        lda fire_n              ; feet, once held so long
-        cmp #$FF
+@fire:  lda frame_n             ; fire as Sensible Soccer's players act on
+        lsr a                   ; it: every second frame (the dribble's),
+        bcs @done               ; as it was the frame before - so one or
+        lda pfire               ; two frames after it is pressed or let go
+        and #J_FIRE             ; fire: let go within SHOT_HOLD - 1
+        beq @let                ; frames a pass, held SHOT_HOLD frames a
+        lda fire_n              ; shot - as soon as the ball is at his
+        cmp #$FF                ; feet, once held so long
         beq @done               ; (shot)
         lda kickoff             ; pressed, the stick pushed, the ball in
         bne @foot               ; the air near him: a diving header (as
-        ldx ctrl                ; Sensible Soccer has only that, c13af4) -
-        lda fire_n              ; two frames on, as its players act on
-        cmp #2                  ; their stick every second frame
+        ldx ctrl                ; Sensible Soccer has only that, c13af4)
+        lda fire_n
         bne @foot
         jsr can_dive
         bcs @foot
@@ -1009,9 +1018,10 @@ control:
 @foot:  lda fire_n
         cmp #SHOT_HOLD
         bcs :+
+        inc fire_n              ; (two frames a time)
         inc fire_n
         lda fire_n
-        cmp #1                  ; just pressed, the other team holding the
+        cmp #2                  ; just pressed, the other team holding the
         bne @held               ; ball: a sliding tackle
         lda kickoff
         bne @held
@@ -1024,7 +1034,7 @@ control:
         jmp slide
 @held:  lda fire_n
         cmp #SHOT_HOLD
-        bne @done
+        bcc @done
 :       jsr can_kick
         bcs @done
         lda #$FF
@@ -4612,8 +4622,11 @@ k_shot:
         lda pen_kick
         beq :+
         jmp k_pen
-:       lda k_dy                ; near him?
+:       lda k_dy                ; near him, and low enough (16, c13038)?
         cmp #DIVE_DY + 1
+        bcs @in
+        lda o_zl + BALL
+        cmp #DIVE_Z + 1
         bcs @in
         lda z_px                ; how far across, which way
         sec

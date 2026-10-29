@@ -102,7 +102,10 @@ stick to his feet), and a pass goes to a team-mate, harder the
 further he is: the nearest within 22.5 degrees of the way you face -
 unless one up to 67.5 degrees off it is under seven tenths as far; only
 with no one in either does it run on by itself. Fire let go before the ball has
-come to you passes it as it comes, first time. Fire held for nine frames shoots instead, rising; for the next ten
+come to you passes it as it comes, first time. As in Sensible Soccer,
+fire is acted on every second frame, as it was the frame before - a
+pass, a slide or a header comes one or two frames after fire is let go
+or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, rising; for the next ten
 frames the stick bends the ball to one side if it is pushed across the
 shot, and on the fifth it lifts it - high when pulled back, less when let
 go or across. The C64 runs its match on the same pitch, in the same
