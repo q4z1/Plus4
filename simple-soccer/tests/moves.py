@@ -272,7 +272,7 @@ SCENES = [
     ('pass', ('PASS - AND THE FIRST TOUCH', 'FIRE TAPPED: TO THE TEAM-MATE HE FACES'), 170,
      sc_pass, lead([(0, 'fire'), (3, 'none'), (60, 'up'), (170, 'none')])),
     ('onetwo', ('ONE-TWO', 'FIRE LET GO BEFORE THE BALL COMES: FIRST TIME'), 200, sc_onetwo,
-     lead([(0, 'fire'), (3, 'none'), (5, 'up'), (10, 'none'), (20, 'fire'), (23, 'none'),
+     lead([(0, 'fire'), (3, 'none'), (8, 'up'), (13, 'none'), (20, 'fire'), (23, 'none'),
            (90, 'up'), (200, 'none')])),
     ('shot', ('SHOT - THE KEEPER CATCHES', 'FIRE HELD: A SHOT THE WAY HE FACES'), 140, sc_shot,
      lead(SHOOT)),

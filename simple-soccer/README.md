@@ -134,8 +134,8 @@ cyan team has it, ahead of it, there to be passed to, while his own does.
 As in Sensible Soccer and on the C64, the cyan player nearest a ball his
 team has not got - not yours, not the keeper - runs to it on his own, as
 a pass's receiver does to meet it. The joystick stays with the player
-who has the ball at his feet, goes to whoever of your team gets to it,
-and else to the player nearest it - not the one on his way to it, not
+who has the ball at his feet, goes to the one running to it once he
+gets to it, and else to the player nearest it - not the one on his way to it, not
 the one who has just passed or shot. Your player's shirt flickers white,
 so you see whom you run. As in Sensible Soccer, the
 players make up their minds every second frame; everyone moves every
@@ -163,18 +163,20 @@ in a short curve. Its two pictures, each way, are drawn for this game,
 not the C64's.
 
 The player a pass goes to runs to meet it, and the joystick is his once
-he has it. Each ball that comes to your player from someone else - a
-pass, a loose ball - he takes with a first touch as it reaches him:
-stopped at his feet, or, now and then, too heavy a touch that leaves it
-running on at half its speed.
+he has it. The first touch is Sensible Soccer's: the one running to the
+ball - a pass's receiver, or the nearest to a loose one - takes it as
+it reaches his feet on the ground, stops, and has it dead a pixel before
+him, the joystick his; with the stick pushed he dribbles it on at once.
+Your player with the stick let go does not touch a ball that comes to
+him - it runs on past him, as in Sensible Soccer; push the stick and he
+dribbles it.
 
 ## The players' skills
 
 Every player has five skills, 0 to 7, which decide what Sensible
 Soccer's players decide by theirs: his pace (how fast he runs, with the
-ball and after it), his control (how surely his first touch takes the
-ball, how close he keeps it dribbling, how rarely a touch runs away from
-him), his tackling (how often he wins the ball off a player who has it),
+ball and after it), his control (how close he keeps it dribbling, how
+surely he keeps it from a challenge), his tackling (how often he wins the ball off a player who has it),
 his heading (how far off a ball the yellow chaser still reaches with
 his head; yours dive, as all do in Sensible Soccer) and his
 shooting (how hard he shoots). Each comes from his place in the team -
@@ -187,9 +189,8 @@ teams are chosen.
 Where the skills meet, the game rolls for it: a take by the yellow
 chaser comes off with 6 + his tackling - the dribbler's control chances
 in 16 (and once missed, not again for half a second), a sliding tackle
-that reaches the ball with 10 + tackling - control; a first touch to a
-pass with 10 + control in 16 (a slower ball with 4 more); a dribbler's
-touch runs away from him with 7 - control in 128.
+that reaches the ball with 10 + tackling - control. A first touch and
+a dribbler's touch are not rolled for - Sensible Soccer's never are.
 
 A sliding tackle from behind - the tackler facing within 45 degrees of
 the way the player on the ball faces - that gets to him before it gets
@@ -277,7 +278,7 @@ the game is held at the start of a frame (in a loop of its own, as Yape's
 monitor stops the CPU in the middle of an instruction), the players and
 the ball are put in place, and the stick's moves go in as a plan by the
 match's frames. The players showing a move have the skills that make it
-come off - a first touch, a tackle and a dribble are rolled for.
+come off - a tackle is rolled for.
 
 ## The title's music
 

@@ -158,6 +158,7 @@ PASS_Q      = 12                ; frames a pass let go of too soon waits for
 KICKED_T    = 50                ; frames the one who passed or shot is not
                                 ; the one to get to the ball (switch, help)
 KICK_Z      = 4                 ; and low enough
+TRAP_Z      = 4                 ; low enough to stop dead (Sensible Soccer)
 SHOT_HOLD   = 9                 ; frames fire is held for a shot
 SHOT_SPEED  = 2208
 SHOT_DZ     = $0140             ; its rise, 8.8: 1.25
@@ -373,7 +374,7 @@ each_v:     .res 2              ; (each's routine)
 ; his team's level, a step of his own)
 sk:
 sk_pace:    .res PLAYERS        ; how fast he runs
-sk_ctl:     .res PLAYERS        ; ball control: the first touch, the dribble
+sk_ctl:     .res PLAYERS        ; ball control: the dribble, keeping it
 sk_tck:     .res PLAYERS        ; tackling: winning the ball off a player
 sk_hdg:     .res PLAYERS        ; heading: how far he reaches
 sk_sht:     .res PLAYERS        ; shooting: how hard
@@ -924,8 +925,7 @@ control:
         lda #0
         sta pass_q
         jmp pass
-:       jsr trap                ; the first touch
-        jmp @stick
+:       jmp @stick
 @set:   lda rs_team
         cmp me
         bne @stick
@@ -1109,37 +1109,12 @@ ball_rx:
         sbc #>304
         rts
 
-; meet: the joystick's player X, the stick let go: a ball come to his
-; feet from someone else he stops there; a pass to him he goes to meet;
-; else he stands. Keeps X.
+; meet: the joystick's player X, the stick let go: a pass to him he goes
+; to meet; else he stands - and a ball come to him runs on past him, as
+; Sensible Soccer's does (c1383e: no stick, no touch). Keeps X.
 meet:
         jsr dist2
-        lda last_pl             ; (his own kick runs on)
-        cmp ctrl
-        beq @stand
-        lda me                  ; (one the other team holds: only a tackle)
-        jsr held
-        bcs @go
-        lda d2 + 1
-        bne @go
-        lda d2
-        cmp #NEAR + 1
-        bcs @go
-        lda o_zl + BALL
-        cmp #13
-        bcs @go
-        ldx #BALL               ; at his feet: stopped there, his
-        jsr stand
-        lda ctrl
-        sta last_pl
-        lda me
-        sta last_team
-        jsr touch
-        lda #$FF
-        sta recv
-        ldx ctrl
-        jmp stand
-@go:    cpx recv                ; a pass to him: after it, while it runs
+        cpx recv                ; a pass to him: after it, while it runs
         bne @stand
         lda recv_t
         beq @stand
@@ -1560,8 +1535,7 @@ d_abs:
         rts
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs,
-; faster than he runs by drib_* and (7 - control) * 16 - and with 7 -
-; control in 128 a touch too heavy, 384 faster
+; faster than he runs by DRIB_KICK and (7 - control) * 16
 dribble:
         lda me
         sta last_team
@@ -1581,7 +1555,6 @@ dribble:
         sta o_sph + BALL
         lda sk_ctl,x
         eor #7
-        sta tmp
         asl a
         asl a
         asl a
@@ -1590,16 +1563,6 @@ dribble:
         sta o_spl + BALL
         bcc :+
         inc o_sph + BALL
-:       jsr rnd
-        and #127
-        cmp tmp
-        bcs :+
-        lda o_spl + BALL
-        adc #<384               ; (carry clear)
-        sta o_spl + BALL
-        lda o_sph + BALL
-        adc #>384
-        sta o_sph + BALL
 :       ldy drib_dir            ; up: the ball a pixel further out beside
         bne @ahead              ; him while it is within 4 of his x (to
         lda o_xl + BALL         ; the right if level), as Sensible Soccer
@@ -1636,43 +1599,66 @@ dribble:
         sta o_dzf + BALL
 :       rts
 
-; trap: the first touch - a ball come to the joystick's player from
-; someone else, low and in his reach (can_kick), not the other team's on
-; it, is his touch: stopped at his feet, or, rolled against his control
-; (10 + control in 16, a ball slower than a pass 4 more), a touch too
-; heavy - on at half its speed. Keeps X (ctrl).
+; trap: the first touch, as Sensible Soccer's (c14314, c118ea): the
+; helper running to the ball, at it (at_ball), has the joystick now and
+; stops; the ball lies dead a pixel before him, the way he faces, on the
+; ground. Keeps X (ctrl).
 trap:
-        ldx ctrl
-        cpx last_pl
-        beq @no                 ; (his own)
-        lda me
-        jsr held
-        bcs @no
-        jsr can_kick
-        bcs @no
         lda me
         sta last_team
         stx last_pl
         jsr touch
         lda #$FF                ; (a pass met)
         sta recv
-        lda sk_ctl,x
-        adc #10                 ; (carry clear)
-        ldy o_sph + BALL
-        cpy #>1536
-        bcs :+
-        adc #4
-:       sta tmp
-        jsr rnd
-        and #15
-        cmp tmp
-        bcs @heavy
+        jsr stand
+        ldy o_dir,x
+        lda vec_xh,y
+        jsr one
+        lda o_xl,x
+        clc
+        adc tmp
+        sta o_xl + BALL
+        lda o_xh,x
+        adc tmp + 1
+        sta o_xh + BALL
+        lda vec_yh,y
+        jsr one
+        lda o_yl,x
+        clc
+        adc tmp
+        sta o_yl + BALL
+        lda o_yh,x
+        adc tmp + 1
+        sta o_yh + BALL
+        lda #0
+        sta o_zf + BALL
+        sta o_zl + BALL
+        lda o_dzl + BALL        ; (its fall halved)
+        cmp #$80
+        ror o_dzl + BALL
+        ror o_dzf + BALL
         ldx #BALL
         jsr stand
         ldx ctrl
-@no:    rts
-@heavy: lsr o_sph + BALL
-        ror o_spl + BALL
+        rts
+
+; one: tmp = -1, 0 or 1 by the sign of A (a way's high byte, vec_*h).
+; Keeps X, Y.
+one:
+        cmp #0
+        beq @z
+        bmi @m
+        lda #1
+        sta tmp
+        lda #0
+        sta tmp + 1
+        rts
+@m:     lda #$FF
+        sta tmp
+        sta tmp + 1
+        rts
+@z:     sta tmp
+        sta tmp + 1
         rts
 
 ; wins: carry clear if player X wins the ball off the one on it (last_pl):
@@ -3305,11 +3291,12 @@ ball_near:
 
 ; ---- whose the joystick is ------------------------------------------------
 
-; switch: as Sensible Soccer and the C64 do it, every second frame: the
-; joystick's player keeps it while he has the ball at his feet; else it
-; goes to whoever of the team gets to the ball (CLOSE, low), else to the
-; player nearest it - not the helper on his way to it, not the one who
-; has just passed or shot, not the keeper
+; switch: as Sensible Soccer and the C64 do it: the helper running to the
+; ball gets it as he is at it (at_ball, every frame - Sensible Soccer's
+; runner, c14314), his first touch (trap); else, every second frame, the
+; joystick's player keeps it while he has the ball at his feet, or it
+; goes to the player nearest it - not the helper on his way to it, not
+; the one who has just passed or shot, not the keeper
 switch:
         lda kickoff             ; (his team's set piece: the taker keeps
         beq :+                  ; it)
@@ -3321,20 +3308,23 @@ switch:
         lda o_slide,x
         beq :+
         rts
+:       ldx helper              ; the helper at the ball: his
+        bmi :+
+        jsr at_ball
+        bcc :+
+        stx ctrl
+        lda #$FF
+        sta helper
+        lda me                  ; (one the other team holds: only a
+        jsr held                ; tackle wins it)
+        bcs @done
+        jmp trap
 :       lda frame_n
         lsr a
         bcs @done
-        ldx ctrl                ; at the ball: the joystick's, or another
+        ldx ctrl                ; the joystick's at the ball: his still
         jsr near_ball
         bcs @done
-        ldx t_hi
-@at:    cpx ctrl
-        beq :+
-        jsr at_ball
-        bcs @got
-:       dex
-        cpx t_lo
-        bne @at
         lda #$FF                ; else the nearest
         sta mate_d
         sta mate_d + 1
@@ -3382,12 +3372,26 @@ kicker:
 :       clc
         rts
 
-; at_ball: carry set if cyan player X is at the ball (CLOSE, low) and is
-; not the one who has just passed or shot (kicker); near_ball the same,
-; whoever he is. Keeps X.
+; at_ball: carry set if cyan player X is at the ball as Sensible Soccer's
+; runner takes it (c14314): at his feet (NEAR), on the ground (TRAP_Z) -
+; and not the one who has just passed or shot (kicker). Keeps X.
 at_ball:
         jsr kicker
         bcs at_no
+        lda o_zl + BALL
+        cmp #TRAP_Z + 1
+        bcs at_no
+        jsr mate_dist
+        lda tmp + 1
+        bne at_no
+        lda tmp
+        cmp #NEAR + 1
+        bcs at_no
+        sec
+        rts
+
+; near_ball: carry set if cyan player X is at the ball, CLOSE, low.
+; Keeps X.
 near_ball:
         lda o_zl + BALL
         cmp #HOLD_Z + 1
