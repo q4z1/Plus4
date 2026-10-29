@@ -96,7 +96,10 @@ The match runs on Sensible Soccer's pitch and in its units, 50 times a
 second, as Sensible Soccer moves things: a player or the ball always
 heads for a point at a speed, the ball rolls and flies with its friction,
 gravity and bounce, a dribbled ball is kicked on just ahead of the player
-whenever it is at his feet, and a pass goes to a team-mate, harder the
+whenever it is at his feet (going up, beside his right foot, where he
+does not hide it - so a turn up and to the right keeps it, other turns
+lose it more often than not, as in Sensible Soccer: the ball does not
+stick to his feet), and a pass goes to a team-mate, harder the
 further he is: the nearest within 22.5 degrees of the way you face -
 unless one up to 67.5 degrees off it is under seven tenths as far; only
 with no one in either does it run on by itself. Fire let go before the ball has

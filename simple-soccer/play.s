@@ -22,8 +22,11 @@
 ;
 ; Dribbling: the joystick's player, the ball low at his feet (distance
 ; squared at most 32) and the stick pushed: the ball is kicked on ahead
-; the way it points every frame, a little faster each four frames that
-; way. Fire passes: to the nearest team-mate within 22.5 degrees of the
+; the way it points every second frame, at 1024 (Sensible Soccer has a
+; table that goes faster after four touches the same way, but in play
+; every touch measured is 1024); going up, a pixel further out beside him
+; each touch.
+; Fire passes: to the nearest team-mate within 22.5 degrees of the
 ; way the stick (or the player) points, harder the further he is; with
 ; none there, straight on.
 
@@ -45,6 +48,9 @@ NOBJ        = PLAYERS + 1
 
 SPEED_RUN   = $04E0             ; a player running
 SPEED_BALL  = 896               ; and with the ball at his feet
+DRIB_KICK   = 1024 - 896 - 48   ; a dribble's kick faster than he runs: 1024
+                                ; at pace 4, control 4 (control's 16 a step
+                                ; on top) - Sensible Soccer's every touch
 SPEED_JOG   = 1024              ; going to his place
 LINE_L      = 49                ; the touch lines and goal lines
 LINE_R      = 558
@@ -184,8 +190,7 @@ at_n:       .res 1              ; the aftertouch's frame, $FF none
 at_dir:     .res 1              ; the shot's way
 at_side:    .res 1              ; the side it bends to, $FF none yet
 at_j:       .res 1              ; the joystick's way
-drib_dir:   .res 1              ; dribbling: the way, and the touches
-drib_n:     .res 1
+drib_dir:   .res 1              ; dribbling: the way
 kick_pl:    .res 1              ; the player who last passed or shot,
 kick_t:     .res 1              ; and the frames since (switch, help)
 pass_q:     .res 1              ; frames a pass let go of too soon waits
@@ -359,10 +364,6 @@ vec_xl:     .byte <0, <1000, <1000, <1000, <0, <(-1000), <(-1000), <(-1000)
 vec_xh:     .byte >0, >1000, >1000, >1000, >0, >(-1000), >(-1000), >(-1000)
 vec_yl:     .byte <(-1000), <(-1000), <0, <1000, <1000, <1000, <0, <(-1000)
 vec_yh:     .byte >(-1000), >(-1000), >0, >1000, >1000, >1000, >0, >(-1000)
-; the dribble's kick, by the touches the same way / 4: faster than he
-; runs by so much, less control's 16 a step (dribble)
-drib_lo:    .byte <(1024 - 896 - 48), <(1089 - 896 - 48), <(1088 - 896 - 48), <(1216 - 896 - 48)
-drib_hi:    .byte >(1024 - 896 - 48), >(1089 - 896 - 48), >(1088 - 896 - 48), >(1216 - 896 - 48)
 ; the players' speeds by their pace, 0-7 (speed: SP_*): running, with the
 ; ball at his feet, after the ball; 32 a step, 4 the speeds as measured
 SP_RUN      = 0
@@ -469,8 +470,8 @@ play_init:
         jmp sfx_whistle
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
-ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
-ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, 0, $FF, 0, 0, 1, 11, 21, 10
+ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, $FF, $FF, 0, 0, 1, 11, 21, 10
 .assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
 
 ; each: the routine at A (low) / Y (high) for the cyan team's control,
@@ -1472,25 +1473,14 @@ dribble:
         sta last_pl
         lda #$FF                ; (a pass met)
         sta recv
-        ldy o_dir,x
-        cpy drib_dir
-        beq :+
-        sty drib_dir
-        lda #0
-        sta drib_n
-:       lda drib_n
-        lsr a
-        lsr a
-        cmp #3
-        bcc :+
-        lda #3
-:       tay
-        lda drib_lo,y
+        lda o_dir,x
+        sta drib_dir
+        lda o_spl,x             ; (DRIB_KICK faster than he runs)
         clc
-        adc o_spl,x
+        adc #<DRIB_KICK
         sta o_spl + BALL
-        lda drib_hi,y
-        adc o_sph,x
+        lda o_sph,x
+        adc #>DRIB_KICK
         sta o_sph + BALL
         lda sk_ctl,x
         eor #7
@@ -1513,11 +1503,33 @@ dribble:
         lda o_sph + BALL
         adc #>384
         sta o_sph + BALL
-:       inc drib_n
+:       ldy drib_dir            ; up: the ball a pixel further out beside
+        bne @ahead              ; him while it is within 4 of his x (to
+        lda o_xl + BALL         ; the right if level), as Sensible Soccer
+        sec                     ; has it - else it would be hidden behind
+        sbc o_xl,x              ; him; so it is at his right foot, and a
+        sta tmp                 ; turn up and right keeps it
+        lda o_xh + BALL
+        sbc o_xh,x
+        bmi @left
+        bne @ahead
+        lda tmp
+        cmp #5
+        bcs @ahead
+        inc o_xl + BALL
+        bne @ahead
+        inc o_xh + BALL
+        bne @ahead
+@left:  cmp #$FF
+        bne @ahead
+        lda tmp
+        cmp #<(-4)
+        bcc @ahead
+        lda o_xl + BALL
         bne :+
-        dec drib_n
-:       ldy drib_dir
-        jsr ball_ahead
+        dec o_xh + BALL
+:       dec o_xl + BALL
+@ahead: jsr ball_ahead
         lda o_dzl + BALL        ; no longer rising
         bmi :+
         ora o_dzf + BALL

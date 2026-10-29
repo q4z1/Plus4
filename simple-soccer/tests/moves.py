@@ -114,7 +114,7 @@ def open_play(s, ctrl, team=0, holder=None):
                  ('deny_t', 0), ('y_pass_t', 0), ('cpu_hold', 0), ('cpu_t', 0),
                  ('ctrl', ctrl), ('fire_n', 0), ('recv', 0xFF), ('recv_t', 0),
                  ('helper', 0xFF), ('at_n', 0xFF), ('at_side', 0xFF),
-                 ('kick_pl', 0xFF), ('kick_t', 0), ('pass_q', 0), ('drib_n', 0),
+                 ('kick_pl', 0xFF), ('kick_t', 0), ('pass_q', 0),
                  ('touch_t', 0), ('last_team', team),
                  ('last_pl', ctrl if holder is None else holder)):
         s.put(n, v)
