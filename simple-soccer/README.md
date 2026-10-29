@@ -332,6 +332,14 @@ piece. Far across he dives for it, level in the air, his arms on ahead
 without their shadows, look like a player falling over); a diving
 header has them too.
 
+At a penalty he does as Sensible Soccer's keeper does (its c109ce): he
+waits on his line till the ball is 12 pixels from it - one time in four
+20 - and dives then, whatever: to the side it crosses on (straight at
+him, to his right), one time in four the wrong way and slower. A
+penalty bent into a corner with the aftertouch mostly goes in; one
+straight at him he still gets to, his dive too late to take him away
+from it.
+
 ## How it is drawn
 
 The Plus/4 has no sprites, so a player is drawn into the characters under

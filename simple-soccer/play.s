@@ -86,6 +86,11 @@ FOUL_R      = 12                ; a tackle from behind this near the player
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 SPEED_DIVE  = 1280              ; the keeper going for a shot
+SPEED_PEN   = 2048              ; diving at a penalty (the wrong way:
+                                ; SPEED_DIVE)
+PEN_REACH   = 12                ; he dives once a penalty is this near his
+PEN_REACH2  = 20                ; line, now and then this near
+PEN_DIVE    = 40                ; a dive's way across
 RECV_T      = 100               ; frames a pass's receiver runs to meet it
 HOLD_T      = 8                 ; a ball touched this few frames ago is held,
 HOLD_D2     = 144               ; and one this near (squared) the player who
@@ -314,6 +319,9 @@ deny_t:     .res 1              ; frames till the chaser may try a take again
 y_pass_t:   .res 1              ; frames till the yellow team passes again
 cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
 mf_a:       .res 1              ; (may_face's: the way, the middle way)
+pen_kick:   .res 1              ; not 0: the ball last kicked from the
+                                ; penalty spot (touch)
+k_dy:       .res 1              ; (k_shot's: the ball's way to his line)
 mf_c:       .res 1
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
@@ -783,7 +791,13 @@ others  = play_others
 ; keepers_move: both keepers a frame (unless one is the joystick's or the
 ; chaser, moved already)
 keepers_move:
+        lda pen_kick            ; (a penalty on its way: their minds every
+        beq :+                  ; frame, not every fourth - k_pen)
         ldx #0
+        jsr keeper
+        ldx #11
+        jsr keeper
+:       ldx #0
         jsr @one
         ldx #11
 @one:   lda o_dive,x            ; (a dive's time)
@@ -4539,6 +4553,7 @@ k_shot:
         sbc o_vyl + BALL
         sta z_dvs + 1
 @div:   lda z_dvd + 1           ; (late, as Sensible Soccer's: near his line)
+        sta k_dy
         cmp #KEEPER_SEES + 1
         bcs @no
         lda z_dvs + 1           ; (at least half a pixel a frame)
@@ -4603,6 +4618,10 @@ k_shot:
         sta z_ks + 1
         lda o_dive,x            ; far across from him: a dive that way
         bne @in
+        lda pen_kick
+        beq :+
+        jmp k_pen
+:
         ldy #0
         lda z_px
         sec
@@ -4627,6 +4646,63 @@ k_shot:
         lda #DIVE_T
         sta o_dive,x
 @in:    rts
+
+; k_pen: keeper X and a penalty coming, z_px where it crosses his line:
+; as Sensible Soccer's (c109ce, c13038) he waits on his line till it is
+; PEN_REACH from it (one time in four PEN_REACH2), then dives - to the
+; side it crosses on (straight at him: right), one time in four the
+; other way and slower. Keeps X.
+k_pen:
+        jsr rnd
+        ldy #PEN_REACH
+        and #$18
+        bne :+
+        ldy #PEN_REACH2
+:       tya
+        cmp k_dy
+        bcs @dive
+        lda o_xl,x              ; (not yet: he stays)
+        sta z_px
+        lda o_xh,x
+        sta z_px + 1
+        rts
+@dive:  ldy #0                  ; right (0) or left (1)
+        lda z_px
+        cmp o_xl,x
+        lda z_px + 1
+        sbc o_xh,x
+        bcs :+
+        iny
+:       lda #<SPEED_PEN
+        sta z_ks
+        lda #>SPEED_PEN
+        sta z_ks + 1
+        jsr rnd                 ; (one in four: the wrong way, slower)
+        and #6
+        bne :+
+        tya
+        eor #1
+        tay
+        lda #<SPEED_DIVE
+        sta z_ks
+        lda #>SPEED_DIVE
+        sta z_ks + 1
+:       tya
+        sta o_dvd,x
+        lda dive_dx,y
+        clc
+        adc o_xl,x
+        sta z_px
+        lda dive_dxh,y
+        adc o_xh,x
+        sta z_px + 1
+        jsr k_posts
+        lda #DIVE_T
+        sta o_dive,x
+        rts
+
+dive_dx:    .byte <PEN_DIVE, <(-PEN_DIVE)
+dive_dxh:   .byte >PEN_DIVE, >(-PEN_DIVE)
 
 ; div16: z_dvd = z_dvd / z_dvs (16 bits, unsigned). Keeps X.
 div16:
@@ -4776,10 +4852,19 @@ hold:
 
 ; touch: the ball just touched (touch_t from 0). Keeps A, X, Y.
 touch:
+        php
         pha
         lda #0
         sta touch_t
-        pla
+        sta pen_kick
+        lda kickoff             ; (the penalty taken: pen_kick)
+        beq :+
+        lda rs_kind
+        cmp #R_PENALTY
+        bne :+
+        sta pen_kick
+:       pla
+        plp
         rts
 
 ; held: carry set if the ball is held by the team other than A's: it
