@@ -7,7 +7,7 @@
 ; it (drive.s), the Plus/4's under the ROM at $FA00 (fastload.s), and the
 ; files come through them; any other drive (a 1551, 1581, SD2IEC ...) loads
 ; the KERNAL's way. First the flags for the title (tools/mkflags.py:
-; "flags" to $D360, where the title finds them), then
+; "flags" to $D400, where the title finds them), then
 ; the game, packed (exomizer), over this program at $1001: what runs then
 ; is at $0400 - the interrupt, the loading, the start - which neither the
 ; game's file nor the KERNAL's loading touch. The interrupt goes on while
@@ -204,9 +204,9 @@ eol:    .word 0
         sta IRQEN
         cli
 
-        lda #<$D360             ; the flags: the title's
+        lda #<$D400             ; the flags: the title's
         sta l_addr
-        lda #>$D360
+        lda #>$D400
         sta l_addr+1
         lda #<name_flags
         ldy #>name_flags

@@ -37,7 +37,7 @@
         .export lift, jmp_pl, jmp_t, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
-        .export two, train, sk
+        .export two, train, sk, jog_lo, jog_hi
         .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
@@ -149,8 +149,6 @@ CATCH_Y     = 6
 DIVE_X      = 6                 ; diving, he gets to it this far across
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
 SLACK       = 2                 ; a place this near the last one is the same
-SPEED_CHASE = 1024              ; the one running to the ball (c107d4: and
-                                ; his team's and his own on top - here pace)
 SHOOT_FROM  = 100               ; the other team shoots from this near
 NEAR        = 32                ; distance squared: the ball at his feet
 CLOSE       = 72                ; near enough to kick it
@@ -375,12 +373,15 @@ each_v:     .res 2              ; (each's routine)
 ; each player's skills, 0-7, by his number (title.s skills: his place's,
 ; his team's level, a step of his own)
 sk:
-sk_pace:    .res PLAYERS        ; how fast he runs
+sk_pace:    .res PLAYERS        ; how fast he runs to the ball: 896 + twice
+                                ; this (title.s runs: Sensible Soccer's)
 sk_ctl:     .res PLAYERS        ; ball control: the dribble, keeping it
 sk_tck:     .res PLAYERS        ; tackling: (none of its own any more)
 sk_hdg:     .res PLAYERS        ; heading: how far he reaches
 sk_sht:     .res PLAYERS        ; shooting: how hard
 .assert sk_sht - sk = 4 * 22, error, "title.s skills: five skills of 22"
+jog_lo:     .res 2              ; each team's others' speed to their places
+jog_hi:     .res 2              ; at most (title.s runs: Sensible Soccer's)
 
 
         .rodata
@@ -409,33 +410,11 @@ vec_xl:     .byte <0, <1000, <1000, <1000, <0, <(-1000), <(-1000), <(-1000)
 vec_xh:     .byte >0, >1000, >1000, >1000, >0, >(-1000), >(-1000), >(-1000)
 vec_yl:     .byte <(-1000), <(-1000), <0, <1000, <1000, <1000, <0, <(-1000)
 vec_yh:     .byte >(-1000), >(-1000), >0, >1000, >1000, >1000, >0, >(-1000)
-; the players' speeds by their pace, 0-7 (speed: SP_*): on the joystick,
-; with the ball close, running to it. Sensible Soccer gives only the one
-; running to it more by his team and himself (c107d4: Malta +96, Latvia
-; -50, a star of theirs +128) - here 32 a step of pace, 4 none
+; the players' speeds (speed: SP_*): on the joystick, with the ball close,
+; running to it
 SP_RUN      = 0
-SP_BALL     = 8
-SP_CHASE    = 16
-sp_lo:
-.repeat 8
-        .byte <SPEED_RUN
-.endrepeat
-.repeat 8
-        .byte <SPEED_BALL
-.endrepeat
-.repeat 8, I
-        .byte <(SPEED_CHASE + (I - 4) * 32)
-.endrepeat
-sp_hi:
-.repeat 8
-        .byte >SPEED_RUN
-.endrepeat
-.repeat 8
-        .byte >SPEED_BALL
-.endrepeat
-.repeat 8, I
-        .byte >(SPEED_CHASE + (I - 4) * 32)
-.endrepeat
+SP_BALL     = 1
+SP_CHASE    = 2
 ; a shot's speed by the shooting, 64 a step, 4 the shot as measured
 shot_lo:
 .repeat 8, I
@@ -1745,16 +1724,34 @@ rnd:
         sta z_rnd
         rts
 
-; speed: player X's speed Y (SP_*) as fast as his pace. Keeps X.
+; speed: player X's speed Y (SP_*): SPEED_RUN, SPEED_BALL, or running
+; to the ball 896 + twice his pace (Sensible Soccer's c107d4: his team's
+; and his own on top). Keeps X, Y.
 speed:
-        tya
-        clc
-        adc sk_pace,x
-        tay
-        lda sp_lo,y
+        lda #<SPEED_RUN
         sta o_spl,x
-        lda sp_hi,y
+        lda #>SPEED_RUN
+        cpy #SP_RUN
+        beq @hi
+        lda #<SPEED_BALL
+        sta o_spl,x
+        lda #>SPEED_BALL
+        cpy #SP_BALL
+        beq @hi
+        lda sk_pace,x
+        asl a
+        sta o_spl,x
+        lda #>896
+        adc #0
         sta o_sph,x
+        lda o_spl,x
+        clc
+        adc #<896
+        sta o_spl,x
+        bcc :+
+        inc o_sph,x
+:       rts
+@hi:    sta o_sph,x
         rts
 
 ; shot_speed: the ball as hard as player X shoots (his shooting). Keeps X.
@@ -3061,8 +3058,8 @@ stride:
 
 ; pace: player X's speed for his new place: its way from him (the
 ; longer way across or along) * 12 - there in about 43 frames, still
-; going when the next place comes (32) - from 192 up to SPEED_JOG.
-; Keeps X.
+; going when the next place comes (32) - from 192 up to his team's
+; (jog_*: Sensible Soccer's for it, c144dc). Keeps X.
 pace:
         lda o_txl,x
         sec
@@ -3084,9 +3081,7 @@ pace:
         cmp z_t8
         bcs :+
         lda z_t8
-:       cmp #SPEED_JOG / 12 + 1
-        bcs @fast
-        cmp #16
+:       cmp #16
         bcs :+
         lda #16                 ; (192 at least)
 :       ldy #0                  ; * 4
@@ -3105,12 +3100,24 @@ pace:
         tya
         adc tmp
         sta o_sph,x
+        jsr @team               ; (at most his team's)
+        lda o_spl,x
+        cmp jog_lo,y
+        lda o_sph,x
+        sbc jog_hi,y
+        bcs @top
         rts
-@fast:  lda #<SPEED_JOG
+@fast:  jsr @team
+@top:   lda jog_lo,y
         sta o_spl,x
-        lda #>SPEED_JOG
+        lda jog_hi,y
         sta o_sph,x
         rts
+@team:  ldy #0
+        cpx #11
+        bcc :+
+        iny
+:       rts
 
 ; slack: carry clear if the difference A:Y is within SLACK either way
 slack:

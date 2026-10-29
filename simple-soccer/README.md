@@ -173,23 +173,32 @@ dribbles it.
 
 ## The players' skills
 
-Every player has five skills, 0 to 7: his pace, his control, his
-tackling, his heading and his shooting. Sensible Soccer's players run
-as their game has it (c107d4, measured): on the joystick at 1024, with
-the ball close at 896, its every dribbled touch 1024 - anyone's; only
-the one running to the ball goes faster or slower, by his team (Malta
-+96, Latvia -50) and himself (a star of theirs +128). Its teams' lists,
-which hold those, are not read here yet, so pace stands in for them: 32
-a step on the one running to the ball, 4 none. Control and tackling
-decide nothing any more - Sensible Soccer rolls for no touch and no
-challenge; heading is how far off a ball the yellow chaser still
+The teams are as good as Sensible Soccer has them where it has them (24
+of the 35): each its level, 1 the best to 8, and its three stars or so
+of the eleven. The other eleven have a level from how
+good we took them to be and the stars it most often has: the keeper, 8
+and 10 (`title.s`'s list of teams).
+
+They run as Sensible Soccer's do (c107d4, c144dc): on the
+joystick at 1024, with the ball close at 896, every dribbled touch 1024
+- anyone's. Only the one running to the ball goes faster or slower: by
+his team and himself - a star 128 faster. The computer's team goes by
+its level (1: 226 faster, then 46 less a level, 8: 96 slower), a
+player's team by none of it: 96 faster, two players' 112. The others
+go to their places at most as fast as their team does: a player's at
+1024, the computer's by its level (1: 1408, then 164 less a level, 8:
+260). So a team of the computer is as good as Sensible Soccer makes it,
+and yours is as good as you are.
+
+Every player also has five skills, 0 to 7: his pace (set as above), his
+control, his tackling, his heading and his shooting. Control and
+tackling decide nothing any more - Sensible Soccer rolls for no touch
+and no challenge; heading is how far off a ball the yellow chaser still
 reaches with his head (yours dive, as all do in Sensible Soccer), and
 shooting how hard he shoots. Each comes from his place in the team -
-the backs tackle and head, the midfielders keep the ball, the wingers
-are fast, the forwards shoot - from how good his team is (0 to 4, in
-`title.s`'s list of teams) and from a step up or down of his own, the
-same for a team in every match. The title works them out once both
-teams are chosen.
+the backs tackle and head, the forwards shoot - from his team's level
+and from a step up or down of his own, the same for a team in every
+match. The title works them out once both teams are chosen.
 
 Nothing between players is rolled for, as nothing is in Sensible
 Soccer: not a first touch, not a dribbler's touch, not a challenge.

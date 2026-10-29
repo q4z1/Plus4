@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 mkflags.py - the teams' flags for the title (data/flags.txt), as the file
-"flags" on the disk: build/disk/flags.prg, which the boot loads to $D360.
+"flags" on the disk: build/disk/flags.prg, which the boot loads to $D400.
 
     mkflags.py [--png preview.png]
 
@@ -23,8 +23,8 @@ the patterns of the two flags it shows into the character codes its own
 font leaves free, 37 at most a flag (it keeps two sets for each side, the
 next flag made ready in the one not shown).
 
-The file, at $D360:
-  $D360  the patterns, 8 bytes each
+The file, at $D400:
+  $D400  the patterns, 8 bytes each
   $DB60  each team (title.s's order): its 24 cells' patterns, a row of 6 at
          a time, as their numbers, then their own colours, two cells a
          byte (the first in the low four bits), as places in the palette
@@ -42,7 +42,7 @@ ROOT = os.path.join(HERE, '..')
 CELLS_W, CELLS_H = 6, 4
 W, H = CELLS_W * 4, CELLS_H * 8          # multicolour pixels
 HW, HH = W * 2, H                       # hires pixels
-LOAD = 0xD360
+LOAD = 0xD400
 TEAMS_AT = 0xDB60
 PALETTE_AT = 0xE060
 MOST = 37                               # patterns a flag may have
@@ -321,6 +321,7 @@ def main():
     data = bytearray(PALETTE_AT + 16 - LOAD)
     for i, p in enumerate(pats):
         data[i * 8:i * 8 + 8] = p
+    assert len(pats) * 8 <= TEAMS_AT - LOAD, 'the patterns overrun the teams'
     at = TEAMS_AT - LOAD
     for n in names:
         cs = all_cells[n]

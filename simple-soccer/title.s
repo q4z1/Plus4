@@ -28,6 +28,7 @@
         .endrepeat              ; not the Plus/4's PETSCII)
 
         .import joy_scan, joy, title_font, min_frames, two, train, team_col, team_flk, sk
+        .import jog_lo, jog_hi
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -74,7 +75,7 @@ PORTS_ROW   = 21                ; (where the joysticks go)
 PORTS_COL   = 6
 CREDIT_ROW  = 23
 
-FLAGS       = $D360             ; the disk's (tools/mkflags.py): the patterns,
+FLAGS       = $D400             ; the disk's (tools/mkflags.py): the patterns,
 FLAGS_TEAMS = $DB60             ; each team's 24 cells and 12 colour bytes,
 FLAGS_PAL   = $E060             ; the palette,
 FLAGS_SIG   = $E06F             ; "F": they are there (a test has none)
@@ -730,6 +731,7 @@ draw_names:
         ldy #NAME_W             ; its length: the spaces at its end off
 :       dey
         lda (t_ptr),y
+        and #$7F                ; (bit 7: a star)
         cmp #' '
         beq :-
         iny
@@ -754,6 +756,7 @@ draw_names:
         tax
         ldy #0
 :       lda (t_ptr),y
+        and #$7F
         sta TCODE + NAME_ROW * 40,x
         inx
         iny
@@ -1022,8 +1025,12 @@ rec:    lda #0
 .assert NAME_W + 3 = 16, error, "rec: records of 16"
 
 ; skills: each player's five (play.s sk), 0-7: his place's in the team
-; (prof), his team's level - 0-4, 2 the middle - and a step up or down
-; of his own, the same in every match (from the team's number)
+; (prof), his team's strength - 0-4, 2 the middle: (9 - its level) / 2 -
+; and a step up or down of his own, the same in every match (from the
+; team's number); then his pace as Sensible Soccer has it (c107d4): how
+; much faster than 896 he runs to the ball, halved - his team's (a
+; computer's by its level, 200 - 23 * level; a player's 112, two
+; players' 120) and 64 more for a star
 skills:
         ldx #1                  ; the away team, then the home team
 @side:  stx t_n
@@ -1033,7 +1040,10 @@ skills:
         inx                     ; (the steps' seed: never 0)
         stx t_c
         ldy #NAME_W + 2
-        lda (t_ptr),y
+        lda #9
+        sec
+        sbc (t_ptr),y
+        lsr a
         sta t_f
         ldx t_n                 ; his skill's place: skill * 22 + side * 11
         ldy sk_last,x           ; + player, from the last
@@ -1070,9 +1080,66 @@ skills:
         tay
 :       dex
         bpl @one
+        jsr runs
         ldx t_n
         dex
         bpl @side
+        rts
+
+; runs: side t_n's pace (skills; t_ptr its record) and how fast its
+; others go to their places (play.s jog_*: Sensible Soccer's c144dc - a
+; computer's 1572 - 164 * level, a player's 1024)
+runs:
+        ldy #NAME_W + 2
+        lda (t_ptr),y
+        sta t_c                 ; (the level)
+        ldx t_n
+        lda #<1024
+        sta jog_lo,x
+        lda #>1024
+        sta jog_hi,x
+        lda t_two               ; two players: 120 either
+        beq :+
+        lda #120
+        bne @put
+:       lda #112                ; a player's: 112
+        cpx #0                  ; (side 0: the joystick's)
+        beq @put
+        lda #<1572              ; the computer's places
+        sta jog_lo,x
+        lda #>1572
+        sta jog_hi,x
+        ldy t_c
+:       lda jog_lo,x
+        sec
+        sbc #164
+        sta jog_lo,x
+        bcs :+
+        dec jog_hi,x
+:       dey
+        bne :--
+        lda #200                ; and pace
+        ldy t_c
+        sec
+:       sbc #23
+        dey
+        bne :-
+@put:   sta t_f
+        txa                     ; (pace: skill 0, side * 11 on)
+        beq :+
+        lda #11
+:       tax
+        ldy #0
+@one:   lda (t_ptr),y           ; a star 64 more
+        asl a
+        lda t_f
+        bcc :+
+        adc #64 - 1             ; (carry set)
+:       sta sk,x
+        inx
+        iny
+        cpy #11
+        bne @one
         rts
 
 sk_last:    .byte 4 * 22 + 10, 4 * 22 + 11 + 10
@@ -1101,11 +1168,20 @@ frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
 
 ; The teams: a name, its shirt and its second, as the TED's colours
 ; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more),
-; and how good it is, 0-4 (skills: its players' skills).
+; Sensible Soccer's level for it, 1-8 (1 the best) and its stars there,
+; of the eleven (a bit each, the keeper bit 0; c107d4) - the stars in
+; bit 7 of the name's characters.
+; Teams it has not: a level from how good we took them to be, 0-4 (4 1,
+; 3 3, 2 5, 1 7, 0 8), and its stars most often: the keeper, 8 and 10.
 ; Their flags: data/flags.txt, in this order (tools/mkflags.py reads it).
-.macro  team name, home, away, level
-        .byte name
-        .res NAME_W - .strlen(name), ' '
+.macro  team name, home, away, level, stars
+.repeat NAME_W, I
+.if I < .strlen(name)
+        .byte .strat(name, I) | ((stars >> I) & 1) << 7
+.else
+        .byte ' ' | ((stars >> I) & 1) << 7
+.endif
+.endrepeat
         .byte home, away, level
 .endmacro
 WHITE       = $71
@@ -1119,39 +1195,39 @@ BLUE        = $46
 DARK_BLUE   = $26
 GREEN       = $15               ; (dark: the grass is green)
 teams:
-        team "ARGENTINA", SKY, DARK_BLUE, 4
-        team "AUSTRALIA", YELLOW, GREEN, 1
-        team "BELGIUM", RED, YELLOW, 3
-        team "BRAZIL", YELLOW, BLUE, 4
-        team "CAMEROON", GREEN, YELLOW, 2
-        team "CANADA", RED, WHITE, 1
-        team "CHILE", RED, WHITE, 2
-        team "CHINA", RED, WHITE, 0
-        team "COLOMBIA", YELLOW, DARK_BLUE, 3
-        team "CROATIA", RED, DARK_BLUE, 3
-        team "DENMARK", RED, WHITE, 3
-        team "EGYPT", RED, WHITE, 1
-        team "ENGLAND", WHITE, RED, 4
-        team "FRANCE", DARK_BLUE, WHITE, 4
-        team "GERMANY", WHITE, RED, 4
-        team "GHANA", WHITE, RED, 2
-        team "HUNGARY", RED, WHITE, 2
-        team "IRAN", WHITE, RED, 1
-        team "ITALY", BLUE, WHITE, 4
-        team "JAPAN", DARK_BLUE, WHITE, 2
-        team "MEXICO", GREEN, WHITE, 2
-        team "MOROCCO", RED, GREEN, 3
-        team "NETHERLANDS", ORANGE, WHITE, 4
-        team "NEW ZEALAND", WHITE, DARK_BLUE, 0
-        team "NIGERIA", GREEN, WHITE, 2
-        team "POLAND", WHITE, RED, 2
-        team "PORTUGAL", DARK_RED, WHITE, 3
-        team "SAUDI ARABIA", WHITE, GREEN, 1
-        team "SCOTLAND", DARK_BLUE, YELLOW, 1
-        team "SENEGAL", WHITE, GREEN, 2
-        team "SOUTH KOREA", RED, WHITE, 2
-        team "SPAIN", RED, DARK_BLUE, 4
-        team "SWEDEN", YELLOW, DARK_BLUE, 2
-        team "URUGUAY", LIGHT_SKY, WHITE, 3
-        team "USA", WHITE, DARK_BLUE, 2
+        team "ARGENTINA", SKY, DARK_BLUE, 1, %10001000001
+        team "AUSTRALIA", YELLOW, GREEN, 7, %01010000001     ; (not in it: ours)
+        team "BELGIUM", RED, YELLOW, 2, %01010000001
+        team "BRAZIL", YELLOW, BLUE, 1, %11000000010
+        team "CAMEROON", GREEN, YELLOW, 4, %11000000001
+        team "CANADA", RED, WHITE, 7, %01010000001     ; (not in it: ours)
+        team "CHILE", RED, WHITE, 5, %01010000001     ; (not in it: ours)
+        team "CHINA", RED, WHITE, 8, %01010000001     ; (not in it: ours)
+        team "COLOMBIA", YELLOW, DARK_BLUE, 2, %10010100000
+        team "CROATIA", RED, DARK_BLUE, 6, %00011010000
+        team "DENMARK", RED, WHITE, 2, %11000000001
+        team "EGYPT", RED, WHITE, 7, %01010000001     ; (not in it: ours)
+        team "ENGLAND", WHITE, RED, 1, %00110100000
+        team "FRANCE", DARK_BLUE, WHITE, 1, %10000000100
+        team "GERMANY", WHITE, RED, 1, %01010000010
+        team "GHANA", WHITE, RED, 5, %01010000001     ; (not in it: ours)
+        team "HUNGARY", RED, WHITE, 5, %10010100000
+        team "IRAN", WHITE, RED, 7, %01010000001     ; (not in it: ours)
+        team "ITALY", BLUE, WHITE, 1, %01000011000
+        team "JAPAN", DARK_BLUE, WHITE, 5, %01010000001     ; (not in it: ours)
+        team "MEXICO", GREEN, WHITE, 3, %01001000001
+        team "MOROCCO", RED, GREEN, 5, %00110001000
+        team "NETHERLANDS", ORANGE, WHITE, 1, %01000001100
+        team "NEW ZEALAND", WHITE, DARK_BLUE, 8, %01010000001     ; (not in it: ours)
+        team "NIGERIA", GREEN, WHITE, 7, %01000100010
+        team "POLAND", WHITE, RED, 4, %11100000000
+        team "PORTUGAL", DARK_RED, WHITE, 4, %01100000001
+        team "SAUDI ARABIA", WHITE, GREEN, 8, %00010000110
+        team "SCOTLAND", DARK_BLUE, YELLOW, 4, %01110000000
+        team "SENEGAL", WHITE, GREEN, 5, %01010000001     ; (not in it: ours)
+        team "SOUTH KOREA", RED, WHITE, 8, %01010000001
+        team "SPAIN", RED, DARK_BLUE, 2, %01000000101
+        team "SWEDEN", YELLOW, DARK_BLUE, 3, %11001000000
+        team "URUGUAY", LIGHT_SKY, WHITE, 3, %01010000001     ; (not in it: ours)
+        team "USA", WHITE, DARK_BLUE, 4, %01100000001
 TEAMS       = (* - teams) / (NAME_W + 3)
