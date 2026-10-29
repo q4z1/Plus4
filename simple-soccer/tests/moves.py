@@ -115,9 +115,10 @@ def open_play(s, ctrl, team=0, holder=None):
                  ('ctrl', ctrl), ('fire_n', 0), ('recv', 0xFF), ('recv_t', 0),
                  ('helper', 0xFF), ('at_n', 0xFF), ('at_side', 0xFF),
                  ('kick_pl', 0xFF), ('kick_t', 0), ('pass_q', 0),
-                 ('touch_t', 0), ('last_team', team),
+                 ('touch_t', 0), ('last_team', team), ('score', 0),
                  ('last_pl', ctrl if holder is None else holder)):
         s.put(n, v)
+    s.put('score', 0, 1)
 
 
 def restart(s, kind, team, x, y):

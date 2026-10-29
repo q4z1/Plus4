@@ -95,6 +95,8 @@ SPEED_GET   = 896               ; the keeper going for a slow ball (864 -
                                 ; 928, c130fa)
 SHOT_L      = 263               ; a shot at his goal: crossing his line
 SHOT_R      = 344               ; this far across
+SPEED_NEAR  = 1024              ; the keeper going for a ball he is nearest
+NEAR_Z      = 17                ; (under this high, in his box)
 GET_D2      = 5120              ; this near (squared; its 5000), this low
 GET_Z       = 13
 PEN_REACH   = 12                ; he dives once a penalty is this near his
@@ -334,6 +336,9 @@ pen_kick:   .res 1              ; not 0: the ball last kicked from the
                                 ; penalty spot (touch)
 k_dy:       .res 1              ; (k_shot's: the ball's way to his line,
 k_f:        .res 1              ; the frames it takes)
+k_d2:       .res 2              ; (k_get's: his way to the ball, squared,
+k_i:        .res 1              ; and the player looked at)
+k_on:       .res 1              ; (k_shot's: 1 a shot at his goal)
 mf_c:       .res 1
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
@@ -4458,7 +4463,8 @@ keeper:
         ldx z_obj
         jsr k_shot              ; (a shot at him: across to it, faster)
         ldx z_obj
-        jsr k_get               ; (a slow ball near him: to it)
+        jsr k_get               ; (a slow ball near him, or he the nearest:
+                                ; to it)
         lda z_px                ; somewhere else: there
         cmp o_txl,x
         bne :+
@@ -4540,6 +4546,8 @@ k_posts:
 ; still takes, or further - his dive's pace guessed anew each time, as
 ; its keeper does. Keeps X.
 k_shot:
+        lda #0
+        sta k_on
         lda o_sph + BALL
         cmp #>512
         bcs :+
@@ -4592,46 +4600,8 @@ k_shot:
         bne @no                 ; (256 or more: not coming)
         lda z_dvd
         sta k_f
-        lda o_vxl + BALL        ; x + frames * |vx|, signed
-        sta z_sg
-        bpl :+
-        lda #0
-        sec
-        sbc o_vxf + BALL
-        sta z_dvs
-        lda #0
-        sbc o_vxl + BALL
-        sta z_dvs + 1
-        jmp :++
-:       lda o_vxf + BALL
-        sta z_dvs
-        lda o_vxl + BALL
-        sta z_dvs + 1
-:       lda z_dvd
-        jsr mul_set
-        ldy z_dvs               ; (|vx| low * frames) / 256
-        jsr mul_by
-        lda z_q + 1
-        sta tmp
-        ldy z_dvs + 1           ; + |vx| high * frames
-        jsr mul_by
-        lda tmp
-        clc
-        adc z_q
-        sta tmp
-        lda z_q + 1
-        adc #0
-        sta tmp + 1
-        bit z_sg
-        bpl :+
-        lda #0
-        sec
-        sbc tmp
-        sta tmp
-        lda #0
-        sbc tmp + 1
-        sta tmp + 1
-:       lda o_xl + BALL
+        jsr step_x              ; x + frames * vx
+        lda o_xl + BALL
         clc
         adc tmp
         sta tmp
@@ -4649,7 +4619,8 @@ k_shot:
         sbc tmp + 1
         bcs :+
 @wide:  rts
-:       lda tmp
+:       inc k_on                ; (a shot at his goal: k_get leaves it)
+        lda tmp
         sta z_px
         lda tmp + 1
         sta z_px + 1
@@ -4716,26 +4687,82 @@ k_shot:
         jmp k_dive
 @in:    rts
 
-; k_get: keeper X and a slow ball (under 512) low and near him, not
-; held by the other team: he goes for it, SPEED_GET (Sensible Soccer's
-; c130fa). Keeps X.
+; k_get: keeper X goes for the ball, as Sensible Soccer's: a slow one
+; (under 512) low and near him, not held by the other team, SPEED_GET
+; (c130fa); or one in his box, low, that he is nearer than the players
+; going for it - both teams' joystick's, the one run after it, the pass's
+; - SPEED_NEAR (c12f46). Keeps X.
 k_get:
-        lda o_sph + BALL
-        cmp #>512
-        bcs @no
-        lda o_zl + BALL
-        cmp #GET_Z
-        bcs @no
-        lda #0                  ; (his team's: not one the other holds)
+        lda #0                  ; (not one the other team holds)
         cpx #11
         bcc :+
         lda #1
 :       jsr held
-        bcs @no
-        jsr mate_dist
+        bcc :+
+@out:   rts
+:       jsr mate_dist
+        lda tmp
+        sta k_d2
+        lda tmp + 1
+        sta k_d2 + 1
+        lda o_sph + BALL
+        cmp #>512
+        bcs @near
+        lda o_zl + BALL
+        cmp #GET_Z
+        bcs @out
         lda tmp + 1
         cmp #>GET_D2
+        bcs @near
+        ldy #<SPEED_GET
+        lda #>SPEED_GET
+        bne @go
+@near:  lda k_on                  ; (not a shot at his goal: k_shot's)
+        bne @no
+        lda o_zl + BALL         ; nearer than the players after it?
+        cmp #NEAR_Z
         bcs @no
+        lda o_xl + BALL         ; (in his box)
+        cmp #<BOX_L
+        lda o_xh + BALL
+        sbc #>BOX_L
+        bcc @no
+        lda #<BOX_R
+        cmp o_xl + BALL
+        lda #>BOX_R
+        sbc o_xh + BALL
+        bcc @no
+        jsr top_of
+        beq :+
+        lda o_yl + BALL
+        cmp #<BOX_T
+        lda o_yh + BALL
+        sbc #>BOX_T
+        bcs @no
+        bcc @key
+:       lda #<BOX_B
+        cmp o_yl + BALL
+        lda #>BOX_B
+        sbc o_yh + BALL
+        bcs @no
+@key:   stx z_obj
+        lda chaser
+        jsr k_nearer
+        bcc @not
+        lda #NEAR_N - 1
+        sta k_i
+:       ldy k_i
+        ldx near_of,y
+        lda 0,x
+        jsr k_nearer
+        bcc @not
+        dec k_i
+        bpl :-
+        ldx z_obj
+        ldy #<SPEED_NEAR
+        lda #>SPEED_NEAR
+@go:    sty z_ks
+        sta z_ks + 1
         lda o_xl + BALL
         sta z_px
         lda o_xh + BALL
@@ -4744,11 +4771,76 @@ k_get:
         sta z_py
         lda o_yh + BALL
         sta z_py + 1
-        lda #<SPEED_GET
-        sta z_ks
-        lda #>SPEED_GET
-        sta z_ks + 1
 @no:    rts
+@not:   ldx z_obj
+        rts
+
+; k_nearer: carry clear if player A (none: $FF) is nearer the ball than
+; keeper z_obj (k_d2) - not the keeper himself
+k_nearer:
+        cmp #PLAYERS
+        bcs @far
+        cmp z_obj
+        beq @far
+        tax
+        jsr mate_dist
+        lda tmp
+        cmp k_d2
+        lda tmp + 1
+        sbc k_d2 + 1
+        rts
+@far:   sec
+        rts
+
+near_of:    .byte ctrl, ctrl_b, recv, recv_b, helper, helper_b
+NEAR_N      = * - near_of
+
+; step_x, step_y: tmp = A frames * the ball's step across, or up and
+; down (8.8, signed) / 256 - its way in so many frames. Keeps X.
+step_x:
+        ldy o_vxf + BALL
+        sty z_dvs
+        ldy o_vxl + BALL
+        jmp step_b
+step_y:
+        ldy o_vyf + BALL
+        sty z_dvs
+        ldy o_vyl + BALL
+step_b: sty z_dvs + 1
+        sty z_sg
+        jsr mul_set
+        bit z_sg                ; (|step|)
+        bpl :+
+        lda #0
+        sec
+        sbc z_dvs
+        sta z_dvs
+        lda #0
+        sbc z_dvs + 1
+        sta z_dvs + 1
+:       ldy z_dvs               ; (low * frames) / 256
+        jsr mul_by
+        lda z_q + 1
+        sta tmp
+        ldy z_dvs + 1           ; + high * frames
+        jsr mul_by
+        lda tmp
+        clc
+        adc z_q
+        sta tmp
+        lda z_q + 1
+        adc #0
+        sta tmp + 1
+        bit z_sg
+        bpl :+
+        lda #0
+        sec
+        sbc tmp
+        sta tmp
+        lda #0
+        sbc tmp + 1
+        sta tmp + 1
+:       rts
 
 ; k_dive: keeper X dives, way Y (0 right, 1 left), z_ks fast: his
 ; destination 1000 pixels across. Keeps X.

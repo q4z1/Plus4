@@ -336,7 +336,14 @@ all, and is down 40 frames. A ball that comes right at him (3 pixels)
 he catches; one he gets to diving (6 pixels across) bounces off him,
 out to the side and away from his goal, at three quarters of its speed.
 A slow ball low and near him (some 70 pixels) he goes for (896) and
-picks up. So shots at him are held, ones by the posts and across him
+picks up, and one low in his box that he is nearer than the players
+going for it - either team's joystick's, the one run after it, a
+pass's receiver - he goes for too (1024, its c12f46), when it is no
+shot at his goal. A cross he lets come down, as Sensible Soccer's
+keeper does (measured: high balls into the box he does not run out
+for, though its code reckons where they come down); once it is down in
+his box and he is the nearest, it is his - 20 of 30 crosses of a test
+are, 17 in the original. So shots at him are held, ones by the posts and across him
 mostly parried, a hard one into a corner from close in now and then
 goes in - as in Sensible Soccer, where the same shots end the same way
 but for chance. One higher than he gets - a lob - goes over him. His
