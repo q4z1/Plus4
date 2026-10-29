@@ -245,7 +245,7 @@ def sc_free(s):
 
 def sc_penalty(s):
     field(s, cyan=((420, 300, 0), (304, 130, 0)), yellow=((200, 200, 4), (400, 200, 4)))
-    restart(s, R_PENALTY, 0, 304, 104)
+    restart(s, R_PENALTY, 0, 304, 107)
 
 
 def sc_corner(s):
@@ -299,7 +299,7 @@ SCENES = [
     ('free', ('FREE KICK - GOAL', 'THE STICK TURNS HIM - FIRE HELD SHOOTS'), 110, sc_free,
      [(0, 'none'), (50, 'up+right'), (52, 'fire'), (62, 'none')]),
     ('penalty', ('PENALTY - GOAL', 'TURNED - SHOT - BENT IN WITH THE STICK'), 130, sc_penalty,
-     [(0, 'none'), (50, 'up+left'), (52, 'fire'), (61, 'right'), (64, 'up'), (72, 'none')]),
+     [(0, 'none'), (50, 'up+left'), (52, 'fire'), (60, 'right+fire'), (63, 'up'), (72, 'none')]),
     ('corner', ('CORNER', 'FIRE TAPPED: A PASS'), 120, sc_corner,
      [(0, 'none'), (60, 'left'), (62, 'left+fire'), (65, 'left'), (68, 'none'),
       (110, 'down+left'), (170, 'none')]),

@@ -74,12 +74,12 @@ R_CORNER    = 3
 R_KEEPER    = 4                 ; (the keeper has it)
 R_FREE      = 5                 ; a foul: a free kick,
 R_PENALTY   = 6                 ;   in the box a penalty
-BOX_L       = 162               ; the penalty areas as drawn: across, and
-BOX_R       = 446               ; from the line to (top) / from (bottom)
-BOX_T       = 135
-BOX_B       = 603
-SPOT_T      = 104               ; the penalty spots
-SPOT_B      = 634
+BOX_L       = 161               ; the penalty areas as Sensible Soccer's
+BOX_R       = 446               ; rules have them (c11b9a): across, and
+BOX_T       = 137               ; from the line to (top) / from (bottom)
+BOX_B       = 601
+SPOT_T      = 107               ; the penalty spots (c11b9a)
+SPOT_B      = 631
 WALL_D      = 40                ; a free kick: the other team this far off
 FOUL_R      = 12                ; a tackle from behind this near the player
                                 ; on the ball: a foul
@@ -313,6 +313,8 @@ chaser2:    .res 1              ; the next nearest: in support, $FF none
 deny_t:     .res 1              ; frames till the chaser may try a take again
 y_pass_t:   .res 1              ; frames till the yellow team passes again
 cpu_hold:   .res 1              ; looks the yellow chaser has had the ball
+mf_a:       .res 1              ; (may_face's: the way, the middle way)
+mf_c:       .res 1
 chaser:     .res 1              ; the other team's player after the ball,
                                 ; $FF none
 formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
@@ -357,6 +359,11 @@ line_back:  .word 304, 174, 264, 344, 434, 144, 274, 334, 464, 254, 354
 line_lo:    .byte <line_kick, <line_back
 line_hi:    .byte >line_kick, >line_back
 
+; may_face: the ways a taker may be off the middle one, + 1, by the
+; restart (R_*); a corner's middle way by the corner: top left, top
+; right, bottom left, bottom right
+face_r:     .byte 3, 3, 3, 2, 3, 5, 2
+corner_c:   .byte 3, 5, 1, 7
 ; the joystick as a way to go (8: none)
 joy_dir:    .byte 8, 0, 4, 8, 6, 7, 5, 6, 2, 1, 3, 2, 8, 0, 4, 8
 ; a destination 1000 pixels off, each way
@@ -869,6 +876,8 @@ control:
         lda joy_dir,y
         cmp #8
         beq :+
+        jsr may_face
+        bcs :+
         sta o_dir,x
 :       jmp @fire
 @stick: lda pj
@@ -984,6 +993,61 @@ control:
 @wait:  lda #PASS_Q             ; (too soon: it goes as the ball comes)
         sta pass_q
 @done:  rts
+
+; may_face: carry clear if a set piece's taker may face way A, as
+; Sensible Soccer lets him (a bit for each way, c0f8ea): into the pitch
+; or towards the other goal - up to 90 degrees off for a kick-off, a
+; throw-in, a goal kick and the keeper's kick, 45 for a corner and a
+; penalty, any way for a free kick. Keeps A, X.
+may_face:
+        sta mf_a
+        ldy rs_kind
+        lda rs_team             ; the other goal: up 0, down 4
+        eor flip
+        beq :+
+        lda #4
+:       cpy #R_THROW            ; a throw-in: away from its line
+        bne @corner
+        jsr ball_rx
+        lda #2
+        bcc @c
+        lda #6
+        bcs @c
+@corner:
+        cpy #R_CORNER           ; a corner: the diagonal into the pitch
+        bne @c
+        lda #0
+        sta mf_c
+        lda o_yl + BALL
+        cmp #<369
+        lda o_yh + BALL
+        sbc #>369
+        rol mf_c
+        jsr ball_rx
+        rol mf_c
+        ldy mf_c
+        lda corner_c,y
+@c:     sta mf_c
+        lda mf_a                ; how far off it: 0-4 ways
+        sec
+        sbc mf_c
+        and #7
+        cmp #5
+        bcc :+
+        eor #$FF
+        adc #8                  ; (carry set: 8 less it)
+:       ldy rs_kind
+        cmp face_r,y
+        lda mf_a
+        rts
+
+; ball_rx: carry set if the ball is right of the middle (x 304 on)
+ball_rx:
+        lda o_xl + BALL
+        cmp #<304
+        lda o_xh + BALL
+        sbc #>304
+        rts
 
 ; meet: the joystick's player X, the stick let go: a ball come to his
 ; feet from someone else he stops there; a pass to him he goes to meet;

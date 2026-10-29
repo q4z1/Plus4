@@ -147,7 +147,12 @@ other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
 after a goal - then it is put down with the taker behind it. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
-a shot); the yellow team passes to the nearest team-mate.
+a shot); the yellow team passes to the nearest team-mate. He turns only
+the ways Sensible Soccer lets him: into the pitch and towards the other
+goal - up to 90 degrees off for a kick-off, a throw-in, a goal kick and
+the keeper's kick, 45 for a corner and a penalty - and any way for a free
+kick. The penalty areas and spots are as its rules have them, the spots
+107 and 631, 58 pixels out from the goal lines.
 
 A throw-in is thrown: the taker stands behind the touch line facing the
 pitch, the ball held up behind his head, and throws it with his arms
