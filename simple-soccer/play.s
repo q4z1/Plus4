@@ -38,6 +38,7 @@
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two, train, sk, jog_lo, jog_hi
+        .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
@@ -82,14 +83,10 @@ SPOT_B      = 631
 WALL_D      = 40                ; a free kick: the other team this far off
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
-SPEED_SIDE  = 192               ; the keeper edging across to a shot
-                                ; (Sensible Soccer's teams: 176 - 208)
 SPEED_DIVE  = 2048              ; his dive (c0dffc),
 SPEED_DIVE_W = 1280             ; the wrong way at a penalty (c0dffe),
 DIVE_SLOW   = 72                ; less each frame after the first two
                                 ; (about as its: some 60 pixels in all)
-SPEED_GET   = 896               ; the keeper going for a slow ball (864 -
-                                ; 928, c130fa)
 SHOT_L      = 263               ; a shot at his goal: crossing his line
 SHOT_R      = 344               ; this far across
 SPEED_NEAR  = 1024              ; the keeper going for a ball he is nearest
@@ -381,7 +378,14 @@ sk_hdg:     .res PLAYERS        ; heading: how far he reaches
 sk_sht:     .res PLAYERS        ; shooting: how hard
 .assert sk_hdg - sk = 22 && sk_sht - sk = 2 * 22, error, "title.s skills: pace, heading, shooting, 22 each"
 jog_lo:     .res 2              ; each team's others' speed to their places
-jog_hi:     .res 2              ; at most (title.s runs: Sensible Soccer's)
+jog_hi:     .res 2              ; (title.s runs: Sensible Soccer's)
+kp_gl:      .res 2              ; each team's keeper: going for the ball,
+kp_gh:      .res 2
+kp_sl:      .res 2              ; edging across to a shot,
+kp_sh:      .res 2
+kp_dn:      .res 2              ; and his guesses at a shot's pace: the
+kp_dv:      .res 2              ; first kp_dn of 16 his own, the rest kp_dv
+                                ; (title.s keeps: Sensible Soccer's)
 
 
         .rodata
@@ -3073,15 +3077,20 @@ stride:
 ; pace: player X's speed to his new place: his team's (jog_*: Sensible
 ; Soccer's for it, c144dc). Keeps X.
 pace:
-        ldy #0
-        cpx #11
-        bcc :+
-        iny
-:       lda jog_lo,y
+        jsr team_y
+        lda jog_lo,y
         sta o_spl,x
         lda jog_hi,y
         sta o_sph,x
         rts
+
+; team_y: Y = player X's team, 0 cyan, 1 yellow. Keeps A, X.
+team_y:
+        ldy #0
+        cpx #11
+        bcc :+
+        iny
+:       rts
 
 ; slack: carry clear if the difference A:Y is within SLACK either way
 slack:
@@ -4516,7 +4525,7 @@ k_posts:
 
 ; k_shot: a ball (512 or more) coming at keeper X's goal, z_py his line
 ; (z_t8 bit 7: the top keeper): z_px = where it crosses it (x + the
-; frames till then * its step across), z_ks = SPEED_SIDE - as Sensible
+; frames till then * its step across), z_ks = kp_s* - as Sensible
 ; Soccer's keeper (c12fce, c109ce) he edges across to it, and dives at
 ; the last moment: the ball DIVE_DY from him or nearer, crossing more
 ; than he gets to edging, and as far as his dive gets in the frames it
@@ -4602,13 +4611,15 @@ k_shot:
         lda tmp + 1
         sta z_px + 1
         jsr k_posts             ; (as far as he gets: about his posts)
-        lda #<SPEED_SIDE
+        jsr team_y              ; (his team's: kp_s*)
+        lda kp_sl,y
         sta z_ks
-        lda #>SPEED_SIDE
+        lda kp_sh,y
         sta z_ks + 1
         lda o_dive,x
-        bne @in
-        lda pen_kick
+        beq :+
+        jmp @in
+:       lda pen_kick
         beq :+
         jmp k_pen
 :       lda k_dy                ; near him, and low enough (16, c13038)?
@@ -4640,11 +4651,12 @@ k_shot:
         asl a                   ; (in half pixels: 2 * how far)
         bcs @dive
         sta tmp
+        jsr team_y
         jsr rnd                 ; his dive's half pixels a frame as he
-        and #15                 ; guesses them, 6-13 (c0e020 by c0e23c:
-        cmp #8                  ; one of 0-7, else 5)
+        and #15                 ; guesses them, 6-13 (c0e020 by his
+        cmp kp_dn,y             ; team's table: kp_*)
         bcc :+
-        lda #5
+        lda kp_dv,y
 :       clc
         adc #6
         sta z_t8
@@ -4668,7 +4680,7 @@ k_shot:
 @in:    rts
 
 ; k_get: keeper X goes for the ball, as Sensible Soccer's: a slow one
-; (under 512) low and near him, not held by the other team, SPEED_GET
+; (under 512) low and near him, not held by the other team, kp_g*
 ; (c130fa); or one in his box, low, that he is nearer than the players
 ; going for it - both teams' joystick's, the one run after it, the pass's
 ; - SPEED_NEAR (c12f46). Keeps X.
@@ -4694,9 +4706,12 @@ k_get:
         lda tmp + 1
         cmp #>GET_D2
         bcs @near
-        ldy #<SPEED_GET
-        lda #>SPEED_GET
-        bne @go
+        jsr team_y              ; (his team's: kp_g*)
+        lda kp_gl,y
+        sta z_ks
+        lda kp_gh,y
+        sta z_ks + 1
+        jmp @go1
 @near:  lda k_on                  ; (not a shot at his goal: k_shot's)
         bne @no
         lda o_zl + BALL         ; nearer than the players after it?
@@ -4743,6 +4758,7 @@ k_get:
         lda #>SPEED_NEAR
 @go:    sty z_ks
         sta z_ks + 1
+@go1:
         lda o_xl + BALL
         sta z_px
         lda o_xh + BALL

@@ -28,7 +28,7 @@
         .endrepeat              ; not the Plus/4's PETSCII)
 
         .import joy_scan, joy, title_font, min_frames, two, train, team_col, team_flk, sk
-        .import jog_lo, jog_hi
+        .import jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -75,7 +75,7 @@ PORTS_ROW   = 21                ; (where the joysticks go)
 PORTS_COL   = 6
 CREDIT_ROW  = 23
 
-FLAGS       = $D400             ; the disk's (tools/mkflags.py): the patterns,
+FLAGS       = $D480             ; the disk's (tools/mkflags.py): the patterns,
 FLAGS_TEAMS = $DB60             ; each team's 24 cells and 12 colour bytes,
 FLAGS_PAL   = $E060             ; the palette,
 FLAGS_SIG   = $E06F             ; "F": they are there (a test has none)
@@ -1082,6 +1082,7 @@ skills:
 :       dex
         bpl @one
         jsr runs
+        jsr keeps
         ldx t_n
         dex
         bpl @side
@@ -1141,6 +1142,71 @@ runs:
         iny
         cpy #11
         bne @one
+        rts
+
+; keeps: side t_n's keeper as Sensible Soccer's (c12d26, play.s kp_*):
+; by his team's level - a star a level better - going for the ball
+; at 1056 - 32 * level, edging across at 272 - 16 * level, guessing 0-7
+; or else level - 1; a player's team's as level 4 but guessing 4 (two
+; players': 3, 2) - its star keeper guessing his own but 0-5
+keeps:
+        ldx t_n
+        ldy #0
+        lda (t_ptr),y           ; (the keeper's a star: bit 7)
+        and #$80
+        sta t_i
+        lda #8
+        sta kp_dn,x
+        lda t_two
+        bne @two
+        cpx #0                  ; (side 0: the joystick's)
+        bne @cpu
+        lda #4
+        tay
+        bne @hum
+@two:   lda #3
+        ldy #2
+@hum:   bit t_i
+        bpl @set
+        pha
+        lda #6
+        sta kp_dn,x
+        pla
+        bne @set
+@cpu:   lda t_c                 ; (the level)
+        bit t_i
+        bpl :+
+        cmp #2
+        bcc :+
+        sbc #1                  ; (carry set)
+:       tay
+        dey
+@set:   sta t_f
+        tya
+        sta kp_dv,x
+        ldy t_f
+        lda #<1056
+        sta kp_gl,x
+        lda #>1056
+        sta kp_gh,x
+        lda #<272
+        sta kp_sl,x
+        lda #>272
+        sta kp_sh,x
+@lv:    lda kp_gl,x
+        sec
+        sbc #32
+        sta kp_gl,x
+        bcs :+
+        dec kp_gh,x
+:       lda kp_sl,x
+        sec
+        sbc #16
+        sta kp_sl,x
+        bcs :+
+        dec kp_sh,x
+:       dey
+        bne @lv
         rts
 
 sk_last:    .byte 2 * 22 + 10, 2 * 22 + 11 + 10

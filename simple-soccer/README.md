@@ -345,19 +345,21 @@ show at the top left of the view.
 
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.
-The rest he does as Sensible Soccer's keeper does - read from its code
-(c12fce, c109ce) and measured in it, shot for shot, against this game:
-a shot at his goal - crossing his line between 263 and 344 - he lets
+The rest he does as Sensible Soccer's keeper does (c12fce, c109ce),
+as good as his team (c12d26: by the computer's team's level, a star
+keeper a level better; a player's team's as at level 4): a shot at his
+goal - crossing his line between 263 and 344 - he lets
 come till it is in the box, then edges across to where it will cross,
-slowly (192: its teams' 176 - 208); he dives at the last moment, once
+slowly (272 - 16 a level: 256 to 144); he dives at the last moment, once
 it is 16 pixels from him and crosses as far from him as his dive gets
 in the frames it still takes, or further - his dive's pace guessed anew
-each time, as its keeper guesses it (3 to 6.5 pixels a frame, mostly
-5.5). He dives at 2048, slowing after two frames, some 60 pixels in
+each time, as its keeper guesses it (3 to 6.5 pixels a frame, the
+upper half of the guesses one by his level: 3 at level 1, 6.5 at 8). He dives at 2048, slowing after two frames, some 60 pixels in
 all, and is down 40 frames. A ball that comes right at him (3 pixels)
 he catches; one he gets to diving (6 pixels across) bounces off him,
 out to the side and away from his goal, at three quarters of its speed.
-A slow ball low and near him (some 70 pixels) he goes for (896) and
+A slow ball low and near him (some 70 pixels) he goes for (1056 - 32
+a level) and
 picks up, and one low in his box that he is nearer than the players
 going for it - either team's joystick's, the one run after it, a
 pass's receiver - he goes for too (1024, its c12f46), when it is no
