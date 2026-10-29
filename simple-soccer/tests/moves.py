@@ -208,16 +208,9 @@ def sc_lob(s):
 
 def sc_header(s):
     open_play(s, 9, holder=7)
-    field(s, cyan=((418, 100, 6), (272, 100, 0)), yellow=((200, 170, 4), (420, 230, 4)))
+    field(s, cyan=((418, 100, 6), (280, 122, 0)), yellow=((200, 170, 4), (420, 230, 4)))
     s.put('kick_pl', 7)
-    flight(s, 410, 100, -600, 100, 2208, 4, 0x01A0)
-
-
-def sc_diving(s):
-    open_play(s, 9, holder=7)
-    field(s, cyan=((374, 46, 5), (290, 140, 0)), yellow=((200, 220, 4), (440, 230, 4)))
-    s.put('kick_pl', 7)
-    flight(s, 370, 52, 290 - 80 * 5, 140 + 88 * 5, 1792, 4, 0x0150)
+    flight(s, 410, 100, -600, 100, 2208, 4, 0x0150)
 
 
 def sc_tackle(s):
@@ -289,10 +282,8 @@ SCENES = [
      lead([(0, 'fire'), (10, 'up+left'), (22, 'none')])),
     ('lob', ('LOB - GOAL', 'AFTERTOUCH: THE STICK PULLED BACK'), 130, sc_lob,
      lead([(0, 'fire'), (10, 'down'), (22, 'none')])),
-    ('header', ('CROSS AND HEADER - GOAL', 'FIRE HELD AS THE BALL COMES TO HIS HEAD'), 110,
-     sc_header, [(0, 'fire'), (60, 'none')]),
-    ('diving', ('DIVING HEADER', 'FIRE PRESSED - THE BALL LOW BEFORE HIM'), 110, sc_diving,
-     [(0, 'none'), (29, 'fire'), (32, 'none')]),
+    ('header', ('CROSS AND DIVING HEADER - GOAL', 'FIRE AND THE STICK: HE DIVES AT THE BALL'), 110,
+     sc_header, [(0, 'none'), (26, 'up+fire'), (30, 'up'), (46, 'none')]),
     ('tackle', ('SLIDING TACKLE', 'FIRE - THE OTHER TEAM ON THE BALL'), 100, sc_tackle,
      [(0, 'up'), (8, 'up+fire'), (11, 'none'), (60, 'up'), (170, 'none')]),
     ('foul', ('FOUL - FREE KICK AND A YELLOW CARD', 'A SLIDING TACKLE FROM BEHIND'), 160,

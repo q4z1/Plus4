@@ -26,8 +26,7 @@ a match, or training: a keeper and two a side, to try the moves out.
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | fire, the other team on the ball | space | sliding tackle, the way you face |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
-| fire, the ball at head height | space | header, the way the stick points (fire may be held as the ball comes) |
-| fire, the ball in the air before you | space | diving header |
+| fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
 
 With one player the joystick in either port (or the keyboard) runs the
 home team. With two, the first joystick (and the keyboard) runs the home
@@ -173,7 +172,8 @@ Soccer's players decide by theirs: his pace (how fast he runs, with the
 ball and after it), his control (how surely his first touch takes the
 ball, how close he keeps it dribbling, how rarely a touch runs away from
 him), his tackling (how often he wins the ball off a player who has it),
-his heading (how far off a ball he still reaches with his head) and his
+his heading (how far off a ball the yellow chaser still reaches with
+his head; yours dive, as all do in Sensible Soccer) and his
 shooting (how hard he shoots). Each comes from his place in the team -
 the backs tackle and head, the midfielders keep the ball, the wingers
 are fast, the forwards shoot - from how good his team is (0 to 4, in
@@ -207,13 +207,14 @@ drawn, never in reach of the ball, no one's to pass to, the joystick
 gone to a team-mate - and his team plays on with ten.
 
 A ball in the air goes over the players' heads unless one of them goes
-for it: with fire down as it comes to his head - 11 to 22 high, within
-10 pixels - your player jumps and heads it on, the way the stick points
-or he faces, as fast as a pass and a little rising; with fire pressed as
-it comes at him lower and further off - 4 to 16 high, 10 to 30 pixels
-before him - he dives for it, as a sliding tackle in the air, and heads
-it on as hard as a shot if he gets to it. The yellow chaser heads a ball
-that comes to his head on towards the cyan goal. There are no crosses
+for it - and a header is a diving header, as Sensible Soccer has no
+other (c13af4, c140d4, measured against it): fire pressed with the
+stick pushed, the ball higher than 8 and within 49 pixels, and two
+frames on your player dives the stick's way (2048, slowing 36 a frame);
+in the first 16 frames of his dive, the ball 8 to 15 high and within 8
+pixels, he heads it on - the way he dives, a step nearer the stick's, a
+quarter faster than he goes (some 2400) and rising (0.625). The yellow
+chaser heads a ball that comes to his head on towards the cyan goal. There are no crosses
 as such, as in Sensible Soccer: a shot lifted with the aftertouch is
 one.
 
@@ -266,7 +267,7 @@ tried out on an open pitch.
 `tests/moves.py` makes a video of the moves in training, from the disk
 in Yape: `build/simple-soccer-moves.mp4`, a scene each - dribbling, a
 pass and its first touch, a one-two, shots, the aftertouch's bend and
-lob, a header and a diving header, a sliding tackle, a foul and its
+lob, a cross and a diving header, a sliding tackle, a foul and its
 card, a free kick, a penalty, a corner, a throw-in - with a caption that
 says what the joystick does. Each scene is set up in the running match:
 the game is held at the start of a frame (in a loop of its own, as Yape's

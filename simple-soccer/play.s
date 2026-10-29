@@ -111,7 +111,7 @@ SPEED_SLIDE = 1792              ; its speed at first,
 SLIDE_DECEL = 48                ; less each frame,
 SLIDE_REACH = 64                ; the ball this near (squared) it reaches
                                 ; (Sensible Soccer's, c13f7a; a diving
-DHEAD_REACH = 225               ; header this near),
+                                ; header too),
 SLIDE_Z     = 8                 ; this low
 HEAD_Z_LO   = 11                ; a header: the ball this high to this high,
 HEAD_Z_HI   = 22
@@ -119,9 +119,14 @@ HEAD_D2     = 100               ; this near (squared)
 HEAD_SPEED  = 1792              ; then as fast as a pass, a little rising
 HEAD_DZ     = $0040
 JUMP_T      = 10                ; frames he is drawn in the air
-DHEAD_Z_LO  = 4                 ; a diving header: the ball this high to
-DHEAD_Z_HI  = 16                ; this high, up to this far (squared) before
-DHEAD_D2    = 900               ; him; hit as hard as a shot
+DHEAD_Z_LO  = 8                 ; a diving header (Sensible Soccer's only
+DHEAD_Z_HI  = 15                ; header, c13af4, c140d4): fire pressed, the
+DHEAD_D2    = 2450              ; stick pushed, the ball higher than 8 this
+                                ; near (squared); he dives the stick's way,
+SPEED_DHEAD = 2048              ; so fast, slowing so much a frame, and in
+DHEAD_DECEL = 36                ; the first frames of it heads the ball 8 -
+DHEAD_T     = 16                ; 15 high on: a quarter faster than he goes,
+DHEAD_DZ    = $00A0             ; rising 0.625
 PRESSED     = 784               ; a cyan player this near (squared) the ball
                                 ; makes the yellow one on it pass,
 PASS_MIN    = 900               ; to a team-mate this far (squared) at least,
@@ -990,14 +995,12 @@ control:
         lda fire_n              ; feet, once held so long
         cmp #$FF
         beq @done               ; (shot)
-        lda kickoff             ; fire down, the ball at his head: a header
+        lda kickoff             ; pressed, the stick pushed, the ball in
+        bne @foot               ; the air near him: a diving header (as
+        ldx ctrl                ; Sensible Soccer has only that, c13af4) -
+        lda fire_n              ; two frames on, as its players act on
+        cmp #2                  ; their stick every second frame
         bne @foot
-        ldx ctrl
-        jsr can_head
-        bcs :+
-        jmp head_it
-:       lda fire_n              ; just pressed, the ball in the air before
-        bne @foot               ; him: a diving header
         jsr can_dive
         bcs @foot
         lda #$FF
@@ -1239,64 +1242,31 @@ can_head:
 @no:    sec
         rts
 
-; can_dive: carry clear if the ball is in the air before player X, low
-; enough for a diving header (DHEAD_Z_LO to DHEAD_Z_HI), not at his feet
-; (HEAD_D2) but in reach of one (DHEAD_D2), within 45 degrees of the way
-; he faces. Keeps X.
+; can_dive: carry clear if the stick is pushed and the ball in the air
+; (higher than DHEAD_Z_LO) near player X (DHEAD_D2). Keeps X.
 can_dive:
+        jsr stick_way
+        cmp #8
+        beq @no
         lda o_zl + BALL
-        cmp #DHEAD_Z_LO
+        cmp #DHEAD_Z_LO + 1
         bcc @no
-        cmp #DHEAD_Z_HI + 1
-        bcs @no
         jsr mate_dist
-        lda tmp + 1             ; (not at his feet: his to take there)
-        bne :+
         lda tmp
-        cmp #HEAD_D2 + 1
-        bcc @no
-:       lda tmp
         cmp #<(DHEAD_D2 + 1)
         lda tmp + 1
         sbc #>(DHEAD_D2 + 1)
-        bcs @no
-        jsr mate_way            ; the way from the ball to him, turned
-        bcs @no                 ; round: to the ball
-        eor #128
-        sta tmp
-        lda o_dir,x
-        lsr a
-        ror a
-        ror a
-        ror a                   ; (way * 32)
-        sec
-        sbc tmp
-        clc
-        adc #32
-        cmp #65
         rts
 @no:    sec
         rts
 
-; head_it: the joystick's player heads the ball, the way the stick points
-; (or he faces)
-head_it:
-        lda #$FF
-        sta fire_n
-        sta drib_dir
-        lda #0
-        sta kick_t
-        stx kick_pl
+; stick_way: A = the way the joystick points, 8 none. Keeps X.
+stick_way:
         lda pj
         and #$0F
         tay
         lda joy_dir,y
-        cmp #8
-        bne :+
-        lda o_dir,x
-:       tay
-        lda me
-        ; (on into header)
+        rts
 
 ; header: player X heads the ball way Y, for team A - up to it, the ball
 ; on that way
@@ -1323,9 +1293,15 @@ header:
 ; dive_head: player X dives for the ball, a sliding tackle in the air
 ; (slides heads it on when he reaches it). Keeps X.
 dive_head:
+        jsr stick_way           ; (the stick's way)
+        sta o_dir,x
         jsr slide
         lda #1
         sta o_hd,x
+        lda #<SPEED_DHEAD
+        sta o_spl,x
+        lda #>SPEED_DHEAD
+        sta o_sph,x
         rts
 
 ; shot: the ball the way the joystick's player faces, hard (his shooting)
@@ -5274,9 +5250,14 @@ slides:
 :       dec o_slide,x
         bne :+
         jmp stand               ; (over: up again)
-:       lda o_spl,x             ; slower
+:       lda #SLIDE_DECEL        ; slower
+        ldy o_hd,x
+        beq :+
+        lda #DHEAD_DECEL
+:       sta tmp
+        lda o_spl,x
         sec
-        sbc #SLIDE_DECEL
+        sbc tmp
         sta o_spl,x
         lda o_sph,x
         sbc #0
@@ -5296,21 +5277,22 @@ slides:
         lda o_zl + BALL
         ldy o_hd,x
         beq :+
+        cmp #DHEAD_Z_LO         ; (a header: 8 - 15 high, in his dive's
+        bcc @back               ; first frames)
         cmp #DHEAD_Z_HI + 1
-        bcc @reach
+        bcs @back
+        lda o_slide,x
+        cmp #SLIDE_T - DHEAD_T
+        bcs @reach
 @back:  rts
 :       cmp #SLIDE_Z + 1
         bcs @back
 @reach: jsr mate_dist
         lda tmp + 1
         bne @back
-        lda #SLIDE_REACH + 1
-        ldy o_hd,x
-        beq :+
-        lda #DHEAD_REACH + 1
-:       cmp tmp
-        beq @back
-        bcc @back
+        lda tmp
+        cmp #SLIDE_REACH + 1
+        bcs @back
         lda #1
         sta o_hit,x
         lda #0
@@ -5330,19 +5312,9 @@ slides:
         stx last_pl
         jsr touch
         ldy o_dir,x
-        lda o_hd,x
-        bne :+
-        jsr nudge               ; (a slide: a way nearer the stick's)
-:       jsr ball_ahead
-        lda o_hd,x
-        beq :+
-        jsr shot_speed          ; a diving header: as hard as a shot
-        lda #<HEAD_DZ
-        sta o_dzf + BALL
-        lda #>HEAD_DZ
-        sta o_dzl + BALL
-        jmp sfx_kick
-:       lda o_sph,x             ; a quarter faster than he slides (its
+        jsr nudge               ; (a way nearer the stick's)
+        jsr ball_ahead
+        lda o_sph,x             ; a quarter faster than he slides (its
         sta tmp + 1             ; c113f8), and he half as fast
         lda o_spl,x
         lsr tmp + 1
@@ -5355,7 +5327,14 @@ slides:
         lda tmp + 1
         adc o_sph,x
         sta o_sph + BALL
-        lsr o_sph,x
+        lda o_hd,x              ; a header: rising (c11522), he on as fast
+        beq :+
+        lda #<DHEAD_DZ
+        sta o_dzf + BALL
+        lda #>DHEAD_DZ
+        sta o_dzl + BALL
+        jmp sfx_kick
+:       lsr o_sph,x
         ror o_spl,x
         lda #0
         sta o_dzl + BALL
