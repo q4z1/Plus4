@@ -59,7 +59,10 @@ PY
 # boot's loading screen goes on while it unpacks), the loader's halves, the
 # boot - with where the packed game starts, the number its BASIC line SYSes
 # to - and the disk, its files a few sectors further apart than the DOS
-# would put them, for the fast loader (tools/mkd64.py)
+# would put them, for the fast loader (tools/mkd64.py): the music 20 (as
+# fast as the loader goes), the flags and the game, loaded while the music
+# plays, 36 - over a turn and a half of the disk for each sector (measured
+# with tests/loadtime.py; the ROM out at the end, so its interrupt goes on)
 EXOMIZER=${EXOMIZER:-$B/exomizer}
 $EXOMIZER sfx sys -t 4 -q -n -Di_irq_enter=1 -Di_irq_during=1 -Di_irq_exit=1 \
     -Di_ram_exit=1 \
@@ -73,7 +76,7 @@ START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open
 $B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAMESTART=$START \
     -Ln build/boot.lbl -o build/disk/boot.prg boot.s
 python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-15} \
-    "simple soccer=build/disk/boot.prg" music=build/disk/music.prg flags=build/disk/flags.prg \
-    game@${GAME_INTERLEAVE:-20}=build/disk/game.prg
+    "simple soccer=build/disk/boot.prg" music@${MUSIC_INTERLEAVE:-20}=build/disk/music.prg \
+    flags@${GAME_INTERLEAVE:-36}=build/disk/flags.prg game@${GAME_INTERLEAVE:-36}=build/disk/game.prg
 echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg), game packed $(stat -c%s build/disk/game.prg) bytes"
 

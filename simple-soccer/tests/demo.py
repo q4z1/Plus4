@@ -55,7 +55,8 @@ try:
     t0 = time.time()
     while time.time() - t0 < 180:           # loading: till the title is on
         time.sleep(1)
-        if y.mem(0xfffe, 2)[1] == 0 and y.mem(0xff06, 1)[0] == 0x1b:
+        # (the title's music interrupt: the boot's is in the zero page too)
+        if y.mem(0xfffe, 2) == [lab['synth'], 0] and y.mem(0xff06, 1)[0] == 0x1b:
             break
     print('title after %d s' % (time.time() - t0))
     host('pkill', '-USR2', '-x', 'yapesdl')  # the pictures and the sound from here

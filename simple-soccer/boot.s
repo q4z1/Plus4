@@ -64,7 +64,7 @@ KIRQ    = $0314         ; the KERNAL's interrupt goes on through this
 KIRQEND = $FCBE         ; and ends here, Y, X, A off the stack
 
 DRIVE   = $0400         ; drive.s, in the drive
-RESIDENT = $FA00        ; fastload.s
+RESIDENT = $FA00        ; fastload.s, $FA00-$FBFF
 FL_NAME = RESIDENT + 7
 FL_ADDR = RESIDENT + 9
 GAME    = $1001
@@ -134,9 +134,11 @@ eol:    .word 0
         inx
         bne :-
         .assert SPIN_FRAMES * 72 <= $300, error, "the ball's pictures: over $300"
-        sta RAMON               ; the ball's first picture (from under the
-        jsr spin                ; ROM), its cells
-        sta ROMON
+        sei                     ; the ball's first picture (from under the
+        sta RAMON               ; ROM - no interrupt meanwhile: the
+        jsr spin                ; KERNAL's would go through $FFFE in the
+        sta ROMON               ; RAM, not set yet), its cells
+        cli
         ldx #8
 :       txa
         clc
@@ -186,8 +188,10 @@ eol:    .word 0
         bne @alive
         beq @slow               ; it did not start
 @fast:  ldx #0                  ; the loader under the ROM (writes go to
-:       lda resident_load,x     ; the RAM)
+:       lda resident_load,x     ; the RAM; two pages)
         sta RESIDENT,x
+        lda resident_load + $100,x
+        sta RESIDENT + $100,x
         inx
         bne :-
         inc fast
@@ -421,8 +425,8 @@ drive_load:
         .incbin "build/drive.bin"
 drive_end:
 resident_load:
-        .incbin "build/fastload.bin"
-        .res 256 - (* - resident_load)
+        .incbin "build/fastload.bin"   ; (two pages copied: what follows
+                                        ; it does no harm there)
 
 ; ---- the last steps, at $0400 and $05EC ---------------------------------
 ;

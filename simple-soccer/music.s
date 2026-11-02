@@ -23,9 +23,10 @@
 ; Assembled with BOOT defined, the same is the loading screen's music: the
 ; disk's file "music" (build.sh, bootmus.cfg), which the boot (boot.s)
 ; loads to $E100 and starts there while the flags and the game load - its
-; interrupt out of the zero page (the game's file loads over that), its
-; wave pages around the boot's characters (page_tab), and once a frame,
-; counted in its own interrupts, its notes and the boot's ball (bm_hook).
+; interrupt in the zero page too, at $30 (bootmus.cfg: the game's, unused
+; till the title takes over), its wave pages around the boot's characters
+; (page_tab), and once a frame, counted in its own interrupts, its notes
+; and the boot's ball (bm_hook).
 ; The title then goes on with the song where it is (mus_start): its
 ; voices, their phases, taken over (build/gen/bootmus.inc: where they are).
 
@@ -42,13 +43,14 @@ bm_start:
         jmp start               ; A/Y: what to call each frame
 bm_hook:
         jmp $FFFF               ; (an rts once the title takes over)
+        .globalzp s_cnt
 .else
         .include "bootmus.inc"
         .export mus_start, mus_frame, mus_stop
+.endif
         .import __SYNTH_LOAD__, __SYNTH_SIZE__
         .globalzp s_a, s_w1, s_w2, s_w3 ; (known as zero page before they are
                                         ; there: adc s_w1 a zero page add)
-.endif
 
 TED_T1LO    = $FF00
 TED_T1HI    = $FF01
@@ -72,11 +74,7 @@ m_ptr:  .res 2                  ; a voice's notes
 
 ; ---- the interrupt (copied into the zero page by mus_start) ---------------
 
-.ifdef BOOT
-        .segment "SYNTH"
-.else
         .segment "SYNTH": zeropage
-.endif
 
 ; A voice's part, the same three times (12 bytes apart): the step added
 ; to the phase, its high byte into the address of the wave
@@ -111,13 +109,18 @@ s_w3 = * - 2
         sta s_out
 .ifdef BOOT
         dec s_cnt               ; a frame's worth of samples: the frame's
-        beq frame               ; work
+        bne :+                  ; work
+        jmp frame
+:
 .endif
         lda #0
 s_a = * - 1                     ; (A as it was)
         rti
-
 .ifdef BOOT
+s_cnt:  .byte 1                 ; samples to the next frame
+
+        .segment "TITLE"
+
 ; A frame of the music and the boot's own, the interrupt on meanwhile (it
 ; takes some 20 samples' time): A, as the interrupt found it, from s_a
 ; before the next one changes it
@@ -139,7 +142,6 @@ frame:  lda s_fpi
         pla
         rti
 
-s_cnt:  .byte 1                 ; samples to the next frame
 s_fpi:  .byte 0                 ; samples a frame: 111 (PAL), 93 (NTSC)
 .endif
 
@@ -282,13 +284,11 @@ pages:
         inx
         cpx #10
         bne @page
-.ifndef BOOT
         ldx #<(__SYNTH_SIZE__ - 1)
 :       lda __SYNTH_LOAD__,x
         sta synth,x
         dex
         bpl :-
-.endif
         rts
 
 ; voices: each at its start

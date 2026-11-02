@@ -55,8 +55,21 @@ puts up its loading screen at once - the name, a football turning, and
 flags and the game, and while the game unpacks itself (it is packed by
 exomizer: 21 KB on the disk, 49 KB in memory). On a 1541 (any of them),
 1570 or 1571 it loads with the fast loader taken over from trainschedule
-(`drive.s`, `fastload.s`); on any other drive - a 1551, an SD2IEC - the
-KERNAL's way, slower, the screen the same. The border turns red while a
+(`drive.s`, `fastload.s`), and the title's music starts as soon as the
+loader is in the drive: the boot loads the music's player first (the
+file `music`) and plays it through the loading and the unpacking, and the
+title goes on with the song where it is. On any other drive - a 1551, an
+SD2IEC - it loads the KERNAL's way, the screen the same, without the
+music till the title: the KERNAL's loading would choke on an interrupt
+5542 times a second.
+
+The music takes most of the machine while it plays, so the fast loader
+here waits by the clock: its waits are timed with the TED's timer 2
+instead of counted in cycles, so an interrupt in the middle of one uses
+it up instead of making it longer, and its bits are taken as tightly as
+the drive allows. With all that a 1541 brings up the title after some
+62 seconds (41 without the music); the files lie further apart on the
+disk to match (`build.sh`, `tests/loadtime.py`). The border turns red while a
 file will not load (no disk, a bad one); it tries again by itself.
 
 The ball is worked out by `tools/mkspinner.py`: a sphere with the twelve
@@ -358,7 +371,9 @@ pitch fall and gives the noise a random step, and puts it all into the
 interrupt's operands. International Karate drives the mixer with a SID
 emulation under Hubbard's own player; a tune written for it needs none.
 The wave pages are made at the start, where the match's pictures go
-later, and the interrupt ends with the title - the match has the TED's
+later (the boot's copy has its own, around the loading screen's
+characters, and counts its frames in its interrupts), and the interrupt
+ends with the title - the match has the TED's
 two voices to itself again.
 
 `tools/mkmusic.py` makes the notes into bytes for the player, and with
