@@ -19,13 +19,36 @@
 ; instrument's levels and puts its step and wave page into the interrupt.
 ; The wave pages are made at the start, $0400-$0DFF, free while the title
 ; is up (the figures' lists in the match).
+;
+; Assembled with BOOT defined, the same is the loading screen's music: the
+; disk's file "music" (build.sh, bootmus.cfg), which the boot (boot.s)
+; loads to $E100 and starts there while the flags and the game load - its
+; interrupt out of the zero page (the game's file loads over that), its
+; wave pages around the boot's characters (page_tab), and once a frame,
+; counted in its own interrupts, its notes and the boot's ball (bm_hook).
+; The title then goes on with the song where it is (mus_start): its
+; voices, their phases, taken over (build/gen/bootmus.inc: where they are).
 
         .include "game.inc"
 
+.ifdef BOOT
+        .export bm_start, bm_hook, synth, v_ptl, m_data, s_ph1, s_ph2, s_ph3
+
+        .segment "BMLOAD"
+        .addr bm_start          ; (the file's load address)
+
+        .segment "BMHEAD"
+bm_start:
+        jmp start               ; A/Y: what to call each frame
+bm_hook:
+        jmp $FFFF               ; (an rts once the title takes over)
+.else
+        .include "bootmus.inc"
         .export mus_start, mus_frame, mus_stop
         .import __SYNTH_LOAD__, __SYNTH_SIZE__
         .globalzp s_a, s_w1, s_w2, s_w3 ; (known as zero page before they are
                                         ; there: adc s_w1 a zero page add)
+.endif
 
 TED_T1LO    = $FF00
 TED_T1HI    = $FF01
@@ -33,14 +56,27 @@ TED_SOUND   = $FF11
 VOICES      = 3
 
         .segment "TITLE"
+m_data:
         .include "music.inc"    ; the notes (made by tools/mkmusic.py)
+
+.ifdef BOOT
+; the boot's wave pages, where its screen leaves room: $E700, $EF00-$F7FF
+page_tab:   .byte $E7, $EF, $F0, $F1, $F2, $F3, $F4, $F5, $F6, $F7
+FLAT        = $E7
+.else
+FLAT        = PAGES
+.endif
 
         .zeropage
 m_ptr:  .res 2                  ; a voice's notes
 
 ; ---- the interrupt (copied into the zero page by mus_start) ---------------
 
+.ifdef BOOT
+        .segment "SYNTH"
+.else
         .segment "SYNTH": zeropage
+.endif
 
 ; A voice's part, the same three times (12 bytes apart): the step added
 ; to the phase, its high byte into the address of the wave
@@ -65,34 +101,144 @@ s_out = * - 1                   ; (the sample worked out last time)
         voice s_ph2, s_f2l, s_f2h, s_w2
         voice s_ph3, s_f3l, s_f3h, s_w3
         clc
-        lda PAGES * 256
+        lda FLAT * 256
 s_w1 = * - 2                    ; (its phase, high)
 s_p1 = * - 1                    ; (its wave page)
-        adc PAGES * 256
+        adc FLAT * 256
 s_w2 = * - 2
-        adc PAGES * 256
+        adc FLAT * 256
 s_w3 = * - 2
         sta s_out
+.ifdef BOOT
+        dec s_cnt               ; a frame's worth of samples: the frame's
+        beq frame               ; work
+.endif
         lda #0
 s_a = * - 1                     ; (A as it was)
         rti
+
+.ifdef BOOT
+; A frame of the music and the boot's own, the interrupt on meanwhile (it
+; takes some 20 samples' time): A, as the interrupt found it, from s_a
+; before the next one changes it
+frame:  lda s_fpi
+        sta s_cnt
+        lda s_a
+        pha
+        txa
+        pha
+        tya
+        pha
+        cli
+        jsr mus_frame
+        jsr bm_hook
+        pla
+        tay
+        pla
+        tax
+        pla
+        rti
+
+s_cnt:  .byte 1                 ; samples to the next frame
+s_fpi:  .byte 0                 ; samples a frame: 111 (PAL), 93 (NTSC)
+.endif
 
 BASE        = $3B               ; a wave page's level 0
 BASE3       = 3 * BASE          ; three of them: $B1
 
         .segment "TITLE"
 
-; mus_start: the wave pages made, the interrupt in the zero page and on,
-; the voices at their start
-mus_start:
+.ifdef BOOT
+; start: the wave pages made, the voices at their start, the interrupt on
+; - instead of the boot's own, which was the raster's; A/Y what to call
+; each frame. From here the ROM must stay out: the interrupt goes through
+; $FFFE in the RAM.
+start:  sta bm_hook + 1
+        sty bm_hook + 2
+        jsr pages               ; (the boot's interrupt meanwhile)
+        jsr voices
+        lda #111                ; a frame, in samples: 312 lines of 57
+        bit TED_CTRL2           ; ticks of the timer (PAL), 262 (NTSC)
+        bvc :+
+        lda #93
+:       sta s_fpi
         sei
-        ; 10 pages: one flat (level 0), then 3 to a wave (pulse 50 %, saw,
-        ; noise) at the levels 1-3 - BASE + the wave (0-255) * (level + 1)
-        ; / 256
+        lda #<synth
+        sta $FFFE
+        lda #>synth
+        sta $FFFF
+        jsr timer
+        cli
+        rts
+.else
+; mus_start: the wave pages made, the interrupt in the zero page and on,
+; the voices at their start - or, if the boot's music plays (the disk's
+; loading screen: boot.s), the song going on as it is, from here
+mus_start:
+        lda $FFFE
+        cmp #<BM_SYNTH
+        bne @fresh
+        lda $FFFF
+        cmp #>BM_SYNTH
+        bne @fresh
+        lda #$60                ; (rts: the boot's ball no more - its code
+        sta BM_HOOK             ; is where the wave pages go)
+        cli                     ; (the game's start held it up)
+        jsr pages
+        sei
+        ldx #STATE - 1          ; the voices as they are,
+:       lda BM_STATE,x
+        sta v_ptl,x
+        dex
+        bpl :-
+        ldx #VOICES * 2 - 1     ; where they read their notes in this copy
+:       lda v_ptl,x             ; (v_ptl, v_rtl: low; v_pth, v_rth: high)
+        clc
+        adc #<(m_data - BM_DATA)
+        sta v_ptl,x
+        lda v_pth,x
+        adc #>(m_data - BM_DATA)
+        sta v_pth,x
+        dex
+        bpl :-
+        lda BM_PH1              ; their phases
+        sta s_ph1
+        lda BM_PH2
+        sta s_ph2
+        lda BM_PH3
+        sta s_ph3
+        jsr mus_frame           ; (the boot's frame, a little early: the
+        jmp @vector             ; steps and pages into this interrupt)
+@fresh: sei
+        lda #0                  ; no interrupts from the TED but the
+        sta TED_IRQEN           ; music's (the ROM is out, the match's is
+        lda TED_IRQ             ; not set up yet)
+        sta TED_IRQ
+        jsr pages
+        jsr voices
+        jsr timer
+@vector:
+        lda #<synth
+        sta $FFFE
+        lda #>synth
+        sta $FFFF
+        cli
+        rts
+.endif
+
+; pages: the wave pages, 10: one flat (level 0), then 3 to a wave (pulse
+; 50 %, saw, noise) at the levels 1-3 - BASE + the wave (0-255) * (level +
+; 1) / 256; and the interrupt into the zero page
+pages:
         ldx #0
-@page:  txa
+@page:
+.ifdef BOOT
+        lda page_tab,x
+.else
+        txa
         clc
         adc #PAGES
+.endif
         sta @put + 2
         lda pg_lvl,x
         sta g_lvl               ; (the level: added up level + 1 times)
@@ -136,14 +282,17 @@ mus_start:
         inx
         cpx #10
         bne @page
-        ; the interrupt into the zero page
+.ifndef BOOT
         ldx #<(__SYNTH_SIZE__ - 1)
 :       lda __SYNTH_LOAD__,x
         sta synth,x
         dex
         bpl :-
-        ; the voices at their start
-        ldx #VOICES - 1
+.endif
+        rts
+
+; voices: each at its start
+voices: ldx #VOICES - 1
 :       lda v_start_lo,x
         sta v_ptl,x
         lda v_start_hi,x
@@ -158,12 +307,10 @@ mus_start:
         bpl :-
         lda #TICK_DIV - TICK_ADD ; (a tick at once)
         sta m_acc
-        ; timer 1, its interrupt
-        lda #<synth
-        sta $FFFE
-        lda #>synth
-        sta $FFFF
-        lda #<LATCH
+        rts
+
+; timer: timer 1 and its interrupt, the only one (on with cli)
+timer:  lda #<LATCH
         sta TED_T1LO
         lda #>LATCH
         sta TED_T1HI
@@ -171,9 +318,9 @@ mus_start:
         sta TED_IRQEN
         lda TED_IRQ
         sta TED_IRQ
-        cli
         rts
 
+.ifndef BOOT
 ; mus_stop: the interrupt off, the TED quiet and out of its digital mode
 mus_stop:
         lda #0
@@ -183,6 +330,7 @@ mus_stop:
         lda #0
         sta TED_SOUND
         rts
+.endif
 
 ; mus_frame: a frame of the music - a tick (a sixteenth) every 21/4
 ; frames, and a voice's next note when its ticks are up; each voice's
@@ -330,7 +478,12 @@ sound:
         adc i_wave,y
         bne :++
 :       lda #PAGES
-:       ldy page_at,x
+:
+.ifdef BOOT
+        tay                     ; (the boot's pages are elsewhere)
+        lda page_tab - PAGES,y
+.endif
+        ldy page_at,x
         sta s_p1,y
         ldy step_at,x
         lda v_fl,x
@@ -352,10 +505,11 @@ pg_wave:    .byte 0, 0, 0, 0, 2, 2, 2, 3, 3, 3  ; each page's wave (mus_start's
 pg_lvl:     .byte 0, 1, 2, 3, 1, 2, 3, 1, 2, 3  ; 0 pulse, 2 saw, 3 noise), level
 step_at:    .byte 0, s_f2l - s_f1l, s_f3l - s_f1l
 
-; each voice's
+; each voice's (from v_ptl to m_rnd: what the title takes over from the
+; boot, the pointers' low bytes first)
 v_ptl:      .res VOICES         ; where its notes are
-v_pth:      .res VOICES
 v_rtl:      .res VOICES         ; where a pattern comes back to
+v_pth:      .res VOICES
 v_rth:      .res VOICES
 v_left:     .res VOICES         ; ticks to its next note
 v_len:      .res VOICES         ; ticks of a note
@@ -369,6 +523,7 @@ m_lvl:      .byte 0
 m_lo:       .byte 0
 m_hi:       .byte 0
 m_rnd:      .byte $5A
+STATE       = * - v_ptl
 g_lvl:      .byte 0             ; (mus_start's)
 g_wave:     .byte 0
 g_val:      .byte 0

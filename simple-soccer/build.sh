@@ -6,6 +6,8 @@
 # (cl65 only assembles it and links), then the disk. On it:
 #   simple soccer   the boot (boot.s): the loading screen, the fast loader
 #                   (drive.s, fastload.s, as trainschedule's), the rest
+#   music           the loading screen's music (music.s with BOOT,
+#                   bootmus.cfg), which the title goes on with
 #   flags           the title's flags (tools/mkflags.py, data/flags.txt)
 #   game            the game, packed by exomizer: it unpacks itself
 set -e
@@ -18,6 +20,23 @@ python3 tools/mkdata.py
 python3 tools/mkmusic.py
 python3 tools/mkflags.py
 python3 tools/mkspinner.py
+# the loading screen's music first: the game's title takes its song over,
+# from where build/gen/bootmus.inc says its voices are
+mkdir -p build/disk
+$B/cl65 -t none -g --asm-include-dir build/gen --asm-define BOOT=1 -c -o build/bootmus.o music.s
+$B/cl65 -t none -C bootmus.cfg -Ln build/bootmus.lbl -o build/disk/music.prg build/bootmus.o
+python3 - build/bootmus.lbl build/gen/bootmus.inc <<'PY'
+import re, sys
+lbl = {m.group(2): int(m.group(1), 16)
+       for m in re.finditer(r"^al ([0-9A-F]+) \.(\w+)$", open(sys.argv[1]).read(), re.M)}
+names = [('BM_START', 'bm_start'), ('BM_HOOK', 'bm_hook'), ('BM_SYNTH', 'synth'),
+         ('BM_STATE', 'v_ptl'), ('BM_DATA', 'm_data'),
+         ('BM_PH1', 's_ph1'), ('BM_PH2', 's_ph2'), ('BM_PH3', 's_ph3')]
+with open(sys.argv[2], 'w') as f:
+    f.write("; the loading screen's music (build.sh, from build/bootmus.lbl)\n")
+    for n, l in names:
+        f.write('%-11s = $%04X\n' % (n, lbl[l]))
+PY
 for f in simple-soccer engine play sound title music; do
     $B/cl65 -t plus4 -g --asm-include-dir build/gen $DEFS -c -o build/$f.o $f.s
 done
@@ -42,8 +61,8 @@ PY
 # to - and the disk, its files a few sectors further apart than the DOS
 # would put them, for the fast loader (tools/mkd64.py)
 EXOMIZER=${EXOMIZER:-$B/exomizer}
-mkdir -p build/disk
 $EXOMIZER sfx sys -t 4 -q -n -Di_irq_enter=1 -Di_irq_during=1 -Di_irq_exit=1 \
+    -Di_ram_exit=1 \
     -o build/disk/game.prg build/simple-soccer.prg
 printf '%s\n' 'MEMORY { RAM: start = $0000, size = $10000, file = %O; }' \
     'SEGMENTS { CODE: load = RAM, type = rw; }' > build/raw.cfg
@@ -54,7 +73,7 @@ START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open
 $B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAMESTART=$START \
     -Ln build/boot.lbl -o build/disk/boot.prg boot.s
 python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-15} \
-    "simple soccer=build/disk/boot.prg" flags=build/disk/flags.prg \
+    "simple soccer=build/disk/boot.prg" music=build/disk/music.prg flags=build/disk/flags.prg \
     game@${GAME_INTERLEAVE:-20}=build/disk/game.prg
 echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg), game packed $(stat -c%s build/disk/game.prg) bytes"
 

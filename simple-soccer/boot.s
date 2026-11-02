@@ -6,7 +6,12 @@
 ; 1571 - its DOS says so at $E5C5 - the fast loader's drive half goes into
 ; it (drive.s), the Plus/4's under the ROM at $FA00 (fastload.s), and the
 ; files come through them; any other drive (a 1551, 1581, SD2IEC ...) loads
-; the KERNAL's way. First the flags for the title (tools/mkflags.py:
+; the KERNAL's way. With the fast loader first the music (music.s, the
+; file "music" to $E100): it plays from then on, through the title, which
+; goes on with it - the ROM out for good, its interrupt through $FFFE, the
+; ball and the dots turned on by it once a frame. (Not the KERNAL's way:
+; its loading would be held up by the interrupt, 5542 a second, through
+; the ROM's handler.) Then the flags for the title (tools/mkflags.py:
 ; "flags" to $D480, where the title finds them), then
 ; the game, packed (exomizer), over this program at $1001: what runs then
 ; is at $0400 - the interrupt, the loading, the start - which neither the
@@ -24,6 +29,8 @@
 ; BASIC line would SYS to.
 
         .setcpu "6502"
+
+        .include "bootmus.inc"  ; (the music's: build.sh)
 
 SETLFS  = $FFBA
 SETNAM  = $FFBD
@@ -204,7 +211,24 @@ eol:    .word 0
         sta IRQEN
         cli
 
-        lda #<$D480             ; the flags: the title's
+        lda fast                ; the music, with the fast loader
+        beq @flags
+        lda #<BM_START
+        sta l_addr
+        lda #>BM_START
+        sta l_addr+1
+        lda #<name_music
+        ldy #>name_music
+        jsr load
+        sei
+        sta RAMON               ; the ROM out from here: the interrupt
+        inc music               ; through $FFFE
+        cli
+        lda #<tick              ; the ball and the dots each frame
+        ldy #>tick
+        jsr BM_START
+
+@flags: lda #<$D480             ; the flags: the title's
         sta l_addr
         lda #>$D480
         sta l_addr+1
@@ -214,6 +238,7 @@ eol:    .word 0
         jmp game                ; the game, over this
 
 name_flags: .byte "FLAGS", 0
+name_music: .byte "MUSIC", 0
 
 ; the ball's nine cells, a row of three at a time
 spin_cell:  .byte 0, 1, 2, 40, 41, 42, 80, 81, 82
@@ -417,7 +442,7 @@ irq_ram:
         pha
         tya
         pha
-        jsr tick
+        jsr irq_tick
         pla
         tay
         pla
@@ -426,13 +451,14 @@ irq_ram:
         rti
 irq_rom:
         sta RAMON
-        jsr tick
+        jsr irq_tick
         sta ROMON
         jmp KIRQEND
 
-tick:   lda IRQFLAG
+irq_tick:
+        lda IRQFLAG
         sta IRQFLAG
-        inc frame
+tick:   inc frame               ; (the music calls this once a frame)
         lda frame               ; the dots after "LOADING": a wave through
         lsr                     ; them, a step every 4 frames, each dot 4
         lsr                     ; steps behind the one before
@@ -516,8 +542,10 @@ load:   sta l_name
         lda l_addr+1
         sta FL_ADDR+1
         jsr RESIDENT
+        ldy music               ; the ROM back, unless the music plays
+        bne :+
         sta ROMON
-        bcc @done
+:       bcc @done
         bcs @red
 @kernal:
         lda l_name              ; its length
@@ -557,6 +585,7 @@ load:   sta l_name
 
 gname:  .byte "GAME", 0
 fast:   .byte 0                 ; 1: the drive runs the fast loader
+music:  .byte 0                 ; 1: the music plays, the ROM is out
 dev:    .byte 0
 l_name: .word 0
 l_addr: .word 0

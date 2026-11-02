@@ -105,11 +105,8 @@ title:
 :       lda TED_SCROLLY         ; blank while it is drawn (the boot's
         and #$EF                ; screen goes now)
         sta TED_SCROLLY
-        lda #0                  ; no interrupts from the TED but the
-        sta TED_IRQEN           ; music's (the ROM is out, the match's is
-        lda TED_IRQ             ; not set up yet)
-        sta TED_IRQ
-        jsr mus_start
+        jsr mus_start           ; (its interrupt the only one: the ROM is
+                                ; out, the match's is not set up yet)
         ldx #0                  ; the characters, the frames', the screen
 :       lda title_font,x        ; blank
         sta TFONT + $100,x

@@ -9,6 +9,7 @@
 
         .include "game.inc"
         .include "data.inc"
+        .include "bootmus.inc"  ; (the boot's music: build.sh)
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
@@ -56,6 +57,14 @@ ptr:    .res 2
         ldx #$FF
         txs
         sta TED_RAM
+        lda $FFFE               ; the boot's music playing (boot.s)? On,
+        cmp #<BM_SYNTH          ; into the title (music.s: mus_start)
+        bne :+
+        lda $FFFF
+        cmp #>BM_SYNTH
+        bne :+
+        cli
+:
         lda #<__BSS_RUN__
         sta ptr
         lda #>__BSS_RUN__
