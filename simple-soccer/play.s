@@ -81,9 +81,10 @@ BOX_T       = 137               ; from the line to (top) / from (bottom)
 BOX_B       = 601
 SPOT_T      = 107               ; the penalty spots (c11b9a)
 SPOT_B      = 631
-WALL_D      = 40                ; a free kick: the other team this far off
+WALL_D      = 40                ; a set piece: the other team this far off
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
+HOLD_LIFT   = 14                ; a keeper's hands up, the ball held in them
 SPEED_DIVE  = 2048              ; his dive (c0dffc),
 SPEED_DIVE_W = 1280             ; the wrong way at a penalty (c0dffe),
 DIVE_SLOW   = 72                ; less each frame after the first two
@@ -889,8 +890,9 @@ control:
 :       jmp @stick
 @set:   lda rs_team
         cmp me
-        bne @stick
-        lda pj
+        beq :+
+        jmp stand               ; (the other team's: he stands off, set_wall)
+:       lda pj
         and #$0F
         tay
         lda joy_dir,y
@@ -945,8 +947,9 @@ control:
         lda o_zl + BALL
         cmp #13
         bcs @far
-        lda frame_n             ; (a touch every second frame)
-        lsr a
+        lda frame_n             ; (a touch every second frame, the teams
+        eor me                  ; in turn, as Sensible Soccer's: face to
+        lsr a                   ; face, either may get it)
         bcs @far
         lda kickoff             ; (not the other team's set piece, nor
         bne @far                ; just tackled: lock_t)
@@ -973,7 +976,8 @@ control:
         jmp pass
 :       jmp shot
 @fire:  lda frame_n             ; fire as Sensible Soccer's players act on
-        lsr a                   ; it: every second frame (the dribble's),
+        eor me                  ; it: every second frame (the dribble's),
+        lsr a
         bcs @done               ; as it was the frame before - so one or
         lda pfire               ; two frames after it is pressed or let go
         and #J_FIRE             ; fire: let go within SHOT_HOLD - 1
@@ -1921,26 +1925,14 @@ mate_way:
 mate_dist:
         lda o_off,x             ; (one sent off: nowhere)
         bne @far
-        lda o_xl,x
-        sec
-        sbc o_xl + BALL
-        sta tmp
-        lda o_xh,x
-        sbc o_xh + BALL
-        jsr abs16
+        jsr adx
         bne @far
         tay
         lda sq8_lo,y
         sta mate_t
         lda sq8_hi,y
         sta mate_t + 1
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        sta tmp
-        lda o_yh,x
-        sbc o_yh + BALL
-        jsr abs16
+        jsr ady
         bne @far
         tay
         lda sq8_lo,y
@@ -1968,6 +1960,22 @@ dist_y:
         ldx hd_x
         ldy hd_y
         rts
+
+; adx, ady: |player X's x - the ball's|, |y - y|, as abs16 has it. Keeps X.
+adx:    lda o_xl,x
+        sec
+        sbc o_xl + BALL
+        sta tmp
+        lda o_xh,x
+        sbc o_xh + BALL
+        jmp abs16
+ady:    lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        sta tmp
+        lda o_yh,x
+        sbc o_yh + BALL
+        ; (on to abs16)
 
 ; abs16: |A:tmp| - the low byte in A, the high byte in the flags (Z: under
 ; 256)
@@ -2101,10 +2109,14 @@ ball_move:
         sta o_spl,x
         sta o_sph,x
 :       jsr step
-        ; turning: a picture on every 8 pixels of speed's worth
-        lda o_run,x
-        clc
-        adc o_sph,x
+        ; turning: a picture on every 16 pixels it rolls (a frame goes
+        ; speed / 512 of them) - no more than one a picture till a speed
+        ; of 3584, no picture skipped
+        lda o_sph,x
+        asl a
+        asl a
+        asl a
+        adc o_run,x             ; (carry clear: the speed under 8192)
         sta o_run,x
         bcc @height
         inc o_step,x
@@ -2815,7 +2827,16 @@ team_ai:
         bne @next
         cpx taker
         beq @next
-        jsr place_formation
+        lda kickoff             ; (a set piece waiting: the other team's
+        beq @go                 ; stand off where they are - set_wall)
+        cpx #11
+        lda #0
+        rol a
+        eor rs_team
+        beq @go
+        jsr stand
+        jmp @next
+@go:    jsr place_formation
 @next:  cpx #11                 ; (his and the other team's, then the next
         bcs :+                  ; one's)
         txa
@@ -3705,16 +3726,20 @@ in_box:
 @no:    sec
         rts
 
-; set_wall: a free kick's or a penalty's players placed, the taker behind
-; the ball already (restart)
+; set_wall: a set piece's players placed, the taker behind the ball
+; already (restart; hold, the keeper's): the other team's off the ball -
+; a penalty's out of the box - till it is taken (team_ai, control)
 set_wall:
         lda rs_kind
-        cmp #R_FREE
-        bcs :+
-        rts
+        bne :+
+        rts                     ; (a kick-off: line_up has them)
 :       lda rs_team
         eor flip
-        sta r_s
+        ldy rs_kind             ; (a corner: on the line - off into the
+        cpy #R_CORNER           ; pitch)
+        bne :+
+        eor #1
+:       sta r_s
         ldx #PLAYERS - 1
 @pl:    jsr wall_one
         dex
@@ -3729,9 +3754,9 @@ wall_one:
 :       lda rs_kind
         cmp #R_PENALTY
         beq @pen
-        cpx #11                 ; a free kick: the other team's within
-        lda #0                  ; WALL_D of the ball, WALL_D nearer their
-        rol a                   ; goal
+        cpx #11                 ; the rest: the other team's within WALL_D
+        lda #0                  ; of the ball, WALL_D nearer their goal (a
+        rol a                   ; free kick's wall)
         cmp rs_team
         beq @next
         jsr wall_near
@@ -3809,23 +3834,11 @@ line_in:    .byte <(LINE_T + 4), <(LINE_B - 4)
 ; wall_near: carry clear if player X is within WALL_D of the ball either
 ; way. Keeps X.
 wall_near:
-        lda o_xl,x
-        sec
-        sbc o_xl + BALL
-        sta tmp
-        lda o_xh,x
-        sbc o_xh + BALL
-        jsr abs16
+        jsr adx
         bne @no
         cmp #WALL_D
         bcs @no
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        sta tmp
-        lda o_yh,x
-        sbc o_yh + BALL
-        jsr abs16
+        jsr ady
         bne @no
         cmp #WALL_D
         rts
@@ -3868,18 +3881,22 @@ throw_in:
 @done:  rts
 
 ; throwing: a frame of the throw-in's look - the ball up over the taker's
-; head while he holds it, then thrown from there: lift, how high it is
-; drawn over where it is (on the ground, as far as the match goes)
+; head while he holds it, then thrown from there - and of a keeper's, the
+; ball in his hands: lift, how high it is drawn over where it is (on the
+; ground, as far as the match goes)
 throwing:
         lda kickoff
         beq @thrown
         lda rs_kind
+        ldy #HOLD_LIFT          ; (the keeper's: in his hands over his head)
+        cmp #R_KEEPER
+        beq @hold
         cmp #R_THROW
         bne @none
         lda #THROW_T
         sta throw_t
-        lda #THROW_HOLD
-        sta lift
+        ldy #THROW_HOLD
+@hold:  sty lift
         rts
 @thrown:
         ldy throw_t
@@ -3955,22 +3972,10 @@ nearest:
 @look:  inx
         lda o_off,x             ; (not one sent off)
         bne @skip
-        lda o_xl,x
-        sec
-        sbc o_xl + BALL
-        sta tmp
-        lda o_xh,x
-        sbc o_xh + BALL
-        jsr abs16
+        jsr adx
         sty mate_t + 1
         sta mate_t
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        sta tmp
-        lda o_yh,x
-        sbc o_yh + BALL
-        jsr abs16
+        jsr ady
         clc
         adc mate_t
         sta mate_t
@@ -4791,25 +4796,18 @@ hold:
         sta o_zf,x
         sta o_dzl,x
         sta o_dzf,x
-        ldx taker               ; just before him
+        ldx taker               ; where he is, drawn in his hands (throwing)
         lda o_xl,x
         sta o_xl + BALL
         lda o_xh,x
         sta o_xh + BALL
-        ldy #<(-5)
-        jsr top_of
-        beq :+
-        ldy #5
-:       tya
-        jsr sext
-        clc
-        adc o_yl,x
+        lda o_yl,x
         sta o_yl + BALL
-        lda tmp
-        adc o_yh,x
+        lda o_yh,x
         sta o_yh + BALL
         ldx #BALL
         jsr stand
+        jsr set_wall
         jmp await
 
 ; ---- holding the ball, tackles -------------------------------------------
@@ -5040,8 +5038,11 @@ slides:
         jmp sfx_kick
 :       lsr o_sph,x
         ror o_spl,x
-        lda #0
-        sta o_dzl + BALL
+        lda #0                  ; (off the ground: it drops - a step of 0
+        ldy o_zl + BALL         ; would hold it up there)
+        beq :+
+        lda #$FF
+:       sta o_dzl + BALL
         sta o_dzf + BALL
         jmp sfx_kick
 @done:  rts
@@ -5854,35 +5855,18 @@ br_cone:
         lda tmp + 1
         sbc mate_d + 1
         bcs @next
-        lda o_xl,x              ; his way from the ball
-        sec
-        sbc o_xl + BALL
-        sta z_ax
-        lda o_xh,x
-        sbc o_xh + BALL
-        sta z_ax + 1
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        sta z_ay
-        lda o_yh,x
-        sbc o_yh + BALL
-        sta z_ay + 1
-        lda tmp
+        lda tmp                 ; his way from the ball
         pha
         lda tmp + 1
         pha
-        jsr angle
+        jsr mate_way
+        sta br_w
         pla
         sta tmp + 1
         pla
         sta tmp
         bcs @next
         ldy z_obj
-        lda #128                ; (as the way he faces: 128 - theta)
-        sec
-        sbc z_th
-        sta br_w
         lda o_dir,y
         asl a
         asl a

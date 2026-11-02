@@ -146,10 +146,12 @@ team has not got - not yours, not the keeper - runs to it on his own, as
 a pass's receiver does to meet it. The joystick stays with the player
 who has the ball at his feet, goes to the one running to it once he
 gets to it, and else to the player nearest it - not the one on his way to it, not
-the one who has just passed or shot. Your player's shirt flickers white,
-so you see whom you run. As in Sensible Soccer, the
-players make up their minds every second frame; everyone moves every
-frame. Each player in the formation gets his place anew every 11th
+the one who has just passed or shot. Your player's shirt flickers a
+shade lighter or darker, so you see whom you run - and still see whose
+he is. As in Sensible Soccer, the
+players make up their minds every second frame, the two teams by turns -
+so two players at the ball touch it by turns, either may come away with
+it; everyone moves every frame. Each player in the formation gets his place anew every 11th
 frame, as there, and goes to it as fast as his team goes, his feet as
 fast as he goes.
 
@@ -157,7 +159,11 @@ Over a touch line the ball goes to the other team for a throw-in; over a
 goal line, between the posts and under the bar, it is a goal and the
 other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
-after a goal - then it is put down with the taker behind it. When it is
+after a goal - then it is put down with the taker behind it. The other
+team stands off till it is taken: its players within 40 pixels of the
+ball are put 40 pixels nearer their own goal (at a corner, into the
+pitch), and they stand where they are, its joystick's player too, till
+the ball moves - the same when a keeper has caught it. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot). The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
@@ -270,9 +276,12 @@ off. Each of the 35 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
 purple, green, blue, yellow) in eight shades, so the Netherlands play in
 a light red and the green teams in a dark green the grass sets off. The
-away team wears its second shirt when its first is the home team's
-colour. A team's name on the title shows the shirt it will play in. On
-a light shirt the joystick's player flickers black instead of white. It is loaded where the
+away team wears the first shirt that does not look like the home team's
+- not the same colour, nor within one shade as light: its own, its
+second, else white, red or dark blue. A team's name on the title shows
+the shirt it will play in. The joystick's player flickers to his shirt's
+colour a few shades darker (a light shirt, three) or lighter (a dark
+one, four; a dark green five, the grass between). It is loaded where the
 pictures go once the match is on, and runs before them.
 
 With two players the yellow team is run just as the cyan one: what a
@@ -373,7 +382,7 @@ he catches; one he gets to diving (6 pixels across) bounces off him,
 out to the side and away from his goal, at three quarters of its speed.
 A slow ball low and near him (some 70 pixels) he goes for (1056 - 32
 a level) and
-picks up, and one low in his box that he is nearer than the players
+picks up - holding it up in his hands till he kicks it out - and one low in his box that he is nearer than the players
 going for it - either team's joystick's, the one run after it, a
 pass's receiver - he goes for too (1024, its c12f46), when it is no
 shot at his goal. A cross he lets come down, as Sensible Soccer's

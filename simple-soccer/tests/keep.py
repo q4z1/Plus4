@@ -13,6 +13,9 @@ receive-*  a pass coming at its receiver (9, running to meet it, the
            the stick up, dribbled on (12 pixels)?
 pass-aside he passes with nobody straight ahead of him, one team-mate
            ahead and to the side: does the ball go to him (recv)?
+win-*      the yellow team's player on the ball comes at the joystick's,
+           who runs into him (ahead, a little to one side): does he win
+           it, and keep it 10 pictures on?
 
 Each case one line; the exit code counts the cases that went wrong
 (only the receive and pass cases can: dribbling is a measure).
@@ -114,6 +117,33 @@ def dribble(lab, dx):
         s.stop()
 
 
+def win(lab, x):
+    """The yellow team's player on the ball comes down at the joystick's,
+    who runs up into him (x across): the pictures till he has it (at most
+    60), and whether he still has it 10 pictures on."""
+    s = Scene(lab)
+    try:
+        p = s.get('ctrl')
+        s.obj(p, 304 + x, 420, d=0)
+        s.obj(BALL, 304, 324)
+        s.put('last_team', 0, 1)
+        s.v.poke(lab['dbg_joy'], [BITS['up']])
+        for k in range(60):
+            if k == 1:
+                c = s.get('ctrl_b')
+                if c < 22:
+                    s.obj(c, 304, 320, d=4)
+                    s.put('last_pl', 0, c)
+            s.picture()
+            if s.get('last_team') == 0:
+                for _ in range(10):
+                    s.picture()
+                return k, s.get('last_team') == 0
+        return 60, False
+    finally:
+        s.stop()
+
+
 def receive(lab, stick):
     s = Scene(lab)
     try:
@@ -174,12 +204,16 @@ def pass_aside(lab):
 def main():
     lab = labels()
     cases = sys.argv[1:] or ['dribble-ahead', 'dribble-side', 'receive-none',
-                             'receive-up', 'pass-aside']
+                             'receive-up', 'pass-aside', 'win-ahead', 'win-side']
     bad = 0
     for c in cases:
         if c.startswith('dribble'):
             k, y = dribble(lab, 0 if c == 'dribble-ahead' else 14)
             print('%-14s kept %2d pictures, up to y %d' % (c, k, y))
+        elif c.startswith('win'):
+            k, kept = win(lab, 0 if c == 'win-ahead' else 6)
+            print('%-14s %s after %2d pictures' % (c, 'kept' if kept else
+                                                   'won, lost' if k < 60 else 'never', k))
         elif c.startswith('receive'):
             ok, q, dd, sp = receive(lab, c.split('-')[1])
             bad += not ok

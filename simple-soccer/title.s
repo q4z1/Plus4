@@ -955,9 +955,9 @@ change:
         rts
 
 ; kits: the shirts the teams play in - the home team its own, the away
-; team its own unless it is the home team's colour, then its second,
-; and if that is too, white (red against white) - and the colour each
-; joystick's player flickers to: white, black on a light shirt
+; team the first of its own, its second, white, red and dark blue that is
+; not like the home team's (alike) - and the colour each joystick's
+; player flickers to: his own a shade lighter or darker (kit)
 kits:
         ldx t_team
         jsr rec
@@ -967,27 +967,20 @@ kits:
         ldx t_team + 1
         jsr rec
         ldy #NAME_W
+        lda (t_ptr),y           ; its own, its second
+        sta t_alt
+        iny
         lda (t_ptr),y
-        eor t_k
-        and #7
-        beq :+
-        lda (t_ptr),y           ; its own
-        jmp @set
-:       iny
-        lda (t_ptr),y
-        eor t_k
-        and #7
-        beq :+
-        lda (t_ptr),y           ; its second
-        jmp @set
-:       lda t_k
-        and #7
-        cmp #1
-        beq :+
-        lda #$71
+        sta t_alt + 1
+        ldy #0
+:       lda t_alt,y
+        jsr alike
         bne @set
-:       lda #$42
-@set:   ldx #1
+        iny
+        cpy #4
+        bne :-                  ; (dark blue the last: never like a home
+@set:   lda t_alt,y             ; shirt white and red are both like)
+        ldx #1
         jsr kit
         lda t_k
         ldx #0
@@ -995,15 +988,46 @@ kit:    pha                     ; team X in shirt A (hires: luminance, hue)
         ora #$08                ; (multicolour)
         sta team_col,x
         pla
-        ldy #COL_LINE
-        cmp #$60                ; light, or white: black
-        bcs :+
-        and #7
-        cmp #1
+        cmp #$40                ; flickering: light, $30 darker; dark, $40
+        bcs :+                  ; lighter - a dark green as light as the
+        adc #$40                ; grass ($45) lighter still
+        cmp #$55
         bne :++
-:       ldy #$08
-:       tya
+        lda #$65
+        bne :++
+:       sbc #$30
+:       ora #$08
         sta team_flk,x
+        rts
+
+; alike: Z clear if shirt A looks unlike the home team's (t_k) - not the
+; same colour, nor as light within one shade. Keeps Y.
+alike:
+        sta t_c
+        eor t_k
+        and #7
+        beq @no
+        lda t_c                 ; |luminance - luminance| > 1
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta t_c
+        lda t_k
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sec
+        sbc t_c
+        bcs :+
+        eor #$FF
+        adc #1
+:       cmp #2
+        bcs @yes
+@no:    lda #0
+        rts
+@yes:   lda #1
         rts
 
 ; rec: t_ptr = team X's record (teams: NAME_W + 3 bytes each). Keeps X.
@@ -1173,6 +1197,8 @@ t_k:        .res 1              ; (kits')
 
         .segment "TITLE"        ; (the title's only: gone with it)
 frames_of:  .byte 100, 167, 233         ; frames to a minute: 3, 5, 7 minutes
+t_alt:      .byte 0, 0, $71, $42, $26   ; (kits': the away team's own two,
+                                        ; then white, red, dark blue)
 
 ; The teams: a name, its shirt and its second, as the TED's colours
 ; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more),
