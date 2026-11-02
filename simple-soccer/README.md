@@ -213,11 +213,18 @@ and yours is as good as you are.
 
 Nothing else sets one player apart from another, as nothing does in
 Sensible Soccer: everyone shoots as hard (2208, rising 1.25, c11756),
-heads only diving and touches the ball as surely. The title works out
-the paces and the keepers once both teams are chosen.
+heads only diving and touches the ball as surely - but for one thing
+taken from the C64's Arlasoft Soccer, so a team keeps the ball it has
+won: when the two players on the joysticks are at the ball at once,
+low, one of them gets it - the better more often, his team's level
+(1-8, a star one more) against the other's: even 16 in 32, each level
+between them one in 32 more, at most 23. The ball stops dead at his
+feet, and the other team cannot dribble it for 12 frames. The title
+works out the paces, the keepers and these levels once both teams are
+chosen, a player's team's by its level too.
 
-Nothing between players is rolled for, as nothing is in Sensible
-Soccer: not a first touch, not a dribbler's touch, not a challenge.
+Nothing else between players is rolled for, as nothing is in Sensible
+Soccer: not a first touch, not a dribbler's touch.
 
 A sliding tackle that runs into the other team's player on the
 joystick while it is still fast knocks him over:

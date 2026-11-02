@@ -28,7 +28,7 @@
         .endrepeat              ; not the Plus/4's PETSCII)
 
         .import joy_scan, joy, title_font, min_frames, two, train, team_col, team_flk, sk
-        .import jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
+        .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import mus_start, mus_frame, mus_stop
         .export title
 
@@ -1107,7 +1107,12 @@ runs:
         lda #11
 :       tax
         ldy #0
-@one:   lda (t_ptr),y           ; a star 64 more
+@one:   lda (t_ptr),y           ; (at the ball: the level, a star one
+        asl a                   ; more - play.s duel)
+        lda t_c
+        adc #0
+        sta sk_duel,x
+        lda (t_ptr),y           ; a star 64 more
         asl a
         lda t_f
         bcc :+

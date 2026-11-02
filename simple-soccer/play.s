@@ -38,7 +38,7 @@
         .export lift, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
-        .export two, train, sk, jog_lo, jog_hi
+        .export two, train, sk, sk_duel, jog_lo, jog_hi
         .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
@@ -377,6 +377,8 @@ kp_sh:      .res 2
 kp_dn:      .res 2              ; and his guesses at a shot's pace: the
 kp_dv:      .res 2              ; first kp_dn of 16 his own, the rest kp_dv
                                 ; (title.s keeps: Sensible Soccer's)
+sk_duel:    .res PLAYERS        ; how good he is at the ball: his team's
+                                ; level 1-8, a star one more (title.s runs)
 
 
         .rodata
@@ -692,6 +694,7 @@ play_frame:
         sta pj_b
         lda joy_a
 :       sta pj
+        jsr duel
         lda #<control
         ldy #>control
         jsr each
@@ -830,7 +833,8 @@ play_others:
         lda o_mov,x             ; (those standing passed over)
         beq @next
         lda o_new,x             ; the way anew only for a new destination:
-        beq :+                  ; on a straight run it stays the same
+        ora o_slide,x           ; on a straight run it stays the same (a
+        beq :+                  ; slide's, slower each frame: always)
         lda #0
         sta o_new,x
         jsr aim
@@ -1032,6 +1036,66 @@ control:
 @wait:  lda #PASS_Q             ; (too soon: it goes as the ball comes)
         sta pass_q
 @done:  rts
+
+; duel: both joystick's players at the ball, low, and neither team just
+; having won it so: one of them gets it, as on the C64 (Arlasoft Soccer,
+; whose players keep the ball so): the better (sk_duel) the more often -
+; 16 in 32 even, each level between them one in 32 more, at most 23 -
+; the ball dead at his feet, and the other team not to dribble it for
+; LOCK_T frames
+duel:
+        lda lock_t
+        ora lock_t + 1
+        bne @no
+        lda o_zl + BALL
+        cmp #13
+        bcs @no
+        ldx ctrl_b
+        bmi @no
+        jsr @at
+        bcs @no
+        ldx ctrl
+        jsr @at
+        bcs @no
+        lda sk_duel,x           ; cyan's chance in 32: 16 + his level
+        clc                     ; less yellow's, 9 - 23
+        adc #16
+        ldy ctrl_b
+        sec
+        sbc sk_duel,y
+        cmp #9
+        bcs :+
+        lda #9
+:       cmp #24
+        bcc :+
+        lda #23
+:       sta tmp
+        jsr rnd
+        and #31
+        cmp tmp
+        ldy #1                  ; (the loser's team)
+        bcc :+
+        ldx ctrl_b
+        dey
+:       lda #LOCK_T
+        sta lock_t,y
+        tya
+        eor #1
+        sta last_team
+        stx last_pl
+        jsr touch
+        ldx #BALL
+        jmp stand
+@at:    lda o_slide,x           ; (player X at it: carry clear)
+        bne @far
+        jsr mate_dist
+        lda tmp + 1
+        bne @far
+        lda tmp
+        cmp #NEAR + 1
+        rts
+@far:   sec
+@no:    rts
 
 ; may_face: carry clear if a set piece's taker may face way A, as
 ; Sensible Soccer lets him (a bit for each way, c0f8ea): into the pitch
@@ -1786,16 +1850,7 @@ pass:
         lda #$FF
         sta tmp
         sta tmp + 1
-:       lda tmp
-        cmp mate_d
-        lda tmp + 1
-        sbc mate_d + 1
-        bcs @next
-        lda tmp
-        sta mate_d
-        lda tmp + 1
-        sta mate_d + 1
-        stx mate
+:       jsr closer
 @next:  dex
         cpx t_end
         bne @look
@@ -1960,6 +2015,21 @@ dist_y:
         ldx hd_x
         ldy hd_y
         rts
+
+; closer: player X mate, tmp his distance mate_d, if it is less than
+; mate_d. Keeps X.
+closer:
+        lda tmp
+        cmp mate_d
+        lda tmp + 1
+        sbc mate_d + 1
+        bcs :+
+        lda tmp
+        sta mate_d
+        lda tmp + 1
+        sta mate_d + 1
+        stx mate
+:       rts
 
 ; adx, ady: |player X's x - the ball's|, |y - y|, as abs16 has it. Keeps X.
 adx:    lda o_xl,x
@@ -2387,7 +2457,9 @@ aim:
         sta c_spl,x             ; (a speed of 0 noted: anew next time)
         sta c_sph,x
         rts
-:       lda z_th
+:       lda z_th                ; ($FF notes "there": an angle of 255 goes
+        cmp #$FF                ; as 0 - else the step from before stays,
+        adc #0                  ; and arrive puts him at the destination)
         sta c_th,x
         lda #128                ; the way it faces: ((128 - theta) + 16) / 32
         sec
@@ -3108,16 +3180,7 @@ switch:
         jsr kicker
         bcs @next
         jsr mate_dist
-        lda tmp
-        cmp mate_d
-        lda tmp + 1
-        sbc mate_d + 1
-        bcs @next
-        lda tmp
-        sta mate_d
-        lda tmp + 1
-        sta mate_d + 1
-        stx mate
+        jsr closer
 @next:  dex
         cpx t_lo
         bne @look
@@ -3212,16 +3275,7 @@ help:
 @look:  cpx ctrl
         beq @next
         jsr mate_dist
-        lda tmp
-        cmp mate_d
-        lda tmp + 1
-        sbc mate_d + 1
-        bcs @next
-        lda tmp
-        sta mate_d
-        lda tmp + 1
-        sta mate_d + 1
-        stx mate
+        jsr closer
 @next:  dex
         cpx t_lo
         bne @look
@@ -3978,22 +4032,12 @@ nearest:
         jsr ady
         clc
         adc mate_t
-        sta mate_t
+        sta tmp
         tya
         adc mate_t + 1
-        sta mate_t + 1
-        lda mate_t
-        cmp mate_d
-        lda mate_t + 1
-        sbc mate_d + 1
-        bcs :+
-        lda mate_t
-        sta mate_d
-        lda mate_t + 1
-        sta mate_d + 1
-        stx mate
-@skip:
-:       cpx r_t
+        sta tmp + 1
+        jsr closer
+@skip:  cpx r_t
         bne @look
         ldx mate
         rts
