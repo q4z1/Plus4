@@ -64,7 +64,9 @@ ptr:    .res 2
         cmp #>BM_SYNTH
         bne :+
         cli
-:
+:       lda TED_SCROLLY         ; the screen blank till the title's is
+        and #$EF                ; made: LOWV is the boot's screen codes
+        sta TED_SCROLLY         ; ($0C00-$0FFF), 0 an "@" each
         lda #<__BSS_RUN__
         sta ptr
         lda #>__BSS_RUN__
