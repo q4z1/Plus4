@@ -172,7 +172,6 @@ z_dvd:      .res 2              ; div16's: dividend, then quotient,
 z_dvs:      .res 2              ; divisor,
 z_rem:      .res 2              ; remainder
 z_py:       .res 2
-z_nf:       .res 1              ; play_others': frames at once
 z_f2:       .res 2              ; mul_f's
 z_f10:      .res 2
 z_f16:      .res 2
@@ -718,10 +717,13 @@ play_frame:
         jsr @one
 :       jsr keepers_move
         jsr others
+        lda at_n                ; (no aftertouch on either side: nothing
+        and at_n_b              ; for it to do)
+        bmi :+
         lda #<aftertouch
         ldy #>aftertouch
         jsr each
-        jsr ball_move
+:       jsr ball_move
         jsr catch
         jsr rules
         lda frame_n
@@ -817,10 +819,11 @@ keepers_move:
 ; play_others: everyone else on his way somewhere a frame on - all of
 ; them every frame, as the ball: each picture shows them where they are
 play_others:
-        lda #1                  ; (a frame of running picture)
-        sta z_nf
-        ldx #PLAYERS - 1
-@pl:    stx z_obj
+        ldx #PLAYERS
+@next:  dex
+        bpl :+
+        rts
+:       stx z_obj
         txa                     ; (the keepers, the two at the ball: their
         beq @next               ; own way)
         cpx #11
@@ -833,26 +836,65 @@ play_others:
         beq @next
         lda o_new,x             ; the way anew only for a new destination:
         ora o_slide,x           ; on a straight run it stays the same (a
-        beq :+                  ; slide's, slower each frame: always)
+        beq @step               ; slide's, slower each frame: always)
         lda #0
         sta o_new,x
         jsr aim
         ldx z_obj
-:       jsr step
-        jsr arrive
+@step:  lda o_xf,x              ; on by his step (as step, the step's
+        clc                     ; sign carried into the high byte)
+        adc o_vxf,x
+        sta o_xf,x
+        lda o_vxl,x
+        bmi @xl
+        adc o_xl,x
+        sta o_xl,x
+        bcc @y
+        inc o_xh,x
+        bcs @y
+@xl:    adc o_xl,x
+        sta o_xl,x
+        bcs @y
+        dec o_xh,x
+@y:     lda o_yf,x
+        clc
+        adc o_vyf,x
+        sta o_yf,x
+        lda o_vyl,x
+        bmi @yl
+        adc o_yl,x
+        sta o_yl,x
+        bcc @arr
+        inc o_yh,x
+        bcs @arr
+@yl:    adc o_yl,x
+        sta o_yl,x
+        bcs @arr
+        dec o_yh,x
+@arr:   jsr arrive
         lda o_vxf,x             ; there: the standing picture, passed over
         ora o_vxl,x             ; till he has somewhere to go
         ora o_vyf,x
         ora o_vyl,x
-        bne :+
+        bne @run
         sta o_step,x
         sta o_mov,x
-        beq @next
-:       jsr stride
-@next:  ldx z_obj
-        dex
-        bpl @pl
-        rts
+        jmp @next
+@run:   ldy o_sph,x             ; his running picture on: a step every
+        bne :+                  ; 16 / (speed / 256) frames - every 4 at full
+        iny                     ; speed, no feet faster than the ground goes
+                                ; by (under 256: as 256)
+:       sty z_t8
+        lda o_run,x
+        sec
+        sbc z_t8
+        bpl @ran
+:       inc o_step,x
+        clc
+        adc #16
+        bmi :-
+@ran:   sta o_run,x
+        jmp @next
 
 ; control: the joystick's player - where he runs, dribbling, fire; for
 ; the computer's team its brain works his stick out first, and a pass
@@ -1979,17 +2021,39 @@ mate_way:
 mate_dist:
         lda o_off,x             ; (one sent off: nowhere)
         bne @far
-        jsr adx
-        bne @far
+        lda o_xl,x              ; |x - the ball's x|, under 256
+        sec
+        sbc o_xl + BALL
         tay
-        lda sq8_lo,y
+        lda o_xh,x
+        sbc o_xh + BALL
+        beq @x
+        cmp #$FF
+        bne @far
+        tya                     ; (less: negated, the carry set)
+        eor #$FF
+        adc #0
+        beq @far                ; (256)
+        tay
+@x:     lda sq8_lo,y
         sta mate_t
         lda sq8_hi,y
         sta mate_t + 1
-        jsr ady
-        bne @far
+        lda o_yl,x              ; |y - the ball's y|
+        sec
+        sbc o_yl + BALL
         tay
-        lda sq8_lo,y
+        lda o_yh,x
+        sbc o_yh + BALL
+        beq @y
+        cmp #$FF
+        bne @far
+        tya
+        eor #$FF
+        adc #0
+        beq @far
+        tay
+@y:     lda sq8_lo,y
         clc
         adc mate_t
         sta tmp
@@ -3076,30 +3140,6 @@ place_formation:
         sta o_mov,x
         sta o_new,x
 @keep:  rts
-
-; stride: player X's running picture on for z_nf frames: a step every
-; 16 / (speed / 256) frames - every 4 at full speed, slower when he goes
-; slower (no feet faster than the ground goes by). Keeps X.
-stride:
-        ldy o_sph,x
-        bne :+
-        iny                     ; (under 256: as 256)
-:       lda #0
-:       clc
-        adc z_nf
-        dey
-        bne :-
-        sta z_t8                ; (speed / 256 * frames)
-        lda o_run,x
-        sec
-        sbc z_t8
-        bpl @ran
-:       inc o_step,x
-        clc
-        adc #16
-        bmi :-
-@ran:   sta o_run,x
-        rts
 
 ; pace: player X's speed to his new place: his team's (jog_*: Sensible
 ; Soccer's for it, c144dc). Keeps X.
