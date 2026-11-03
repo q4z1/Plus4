@@ -144,19 +144,20 @@ loop:
         lda frames
         sec
         sbc played
-        beq @go
+        beq draw_it
         cmp #MAX_STEPS + 1
         bcc :+
         lda #MAX_STEPS
 :       sta tmp
         sta pic_n
+loop_n:                         ; (tests: the frames this turn set here)
         lda frames
         sta played
 :       jsr play_frame
         dec tmp
         bne :-
         jsr play_picture
-@go:    jsr place
+draw_it: jsr place
         jsr follow
         jsr eng_begin
         jsr sort

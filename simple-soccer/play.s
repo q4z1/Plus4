@@ -2420,37 +2420,37 @@ ball_back:
 
 ; step: object X on by its step
 step:
-        lda o_vxl,x             ; (sign-extended)
-        and #$80
-        beq :+
-        lda #$FF
-:       sta tmp
-        lda o_xf,x
-        clc
+        lda o_xf,x              ; (the step's sign carried into the high
+        clc                     ; byte: up one, or down one unless a carry)
         adc o_vxf,x
         sta o_xf,x
-        lda o_xl,x
-        adc o_vxl,x
+        lda o_vxl,x
+        bmi @xl
+        adc o_xl,x
         sta o_xl,x
-        lda o_xh,x
-        adc tmp
-        sta o_xh,x
-        lda o_vyl,x
-        and #$80
-        beq :+
-        lda #$FF
-:       sta tmp
-        lda o_yf,x
+        bcc @y
+        inc o_xh,x
+        bcs @y
+@xl:    adc o_xl,x
+        sta o_xl,x
+        bcs @y
+        dec o_xh,x
+@y:     lda o_yf,x
         clc
         adc o_vyf,x
         sta o_yf,x
-        lda o_yl,x
-        adc o_vyl,x
+        lda o_vyl,x
+        bmi @yl
+        adc o_yl,x
         sta o_yl,x
-        lda o_yh,x
-        adc tmp
-        sta o_yh,x
-        rts
+        bcc :+
+        inc o_yh,x
+:       rts
+@yl:    adc o_yl,x
+        sta o_yl,x
+        bcs :+
+        dec o_yh,x
+:       rts
 
 ; aim: object X's step from the way to its destination and its speed,
 ; and the way it faces (players)
@@ -6001,6 +6001,8 @@ br_cone:
         lda tmp + 1
         sbc mate_d + 1
         bcs @next
+        jsr near45              ; (more than 45 degrees off: never in it)
+        bcs @next
         lda tmp                 ; his way from the ball
         pha
         lda tmp + 1
@@ -6046,6 +6048,110 @@ br_cone:
         clc
         rts
 @none:  sec
+        rts
+
+; near45: carry clear if player X is within 45 degrees of the way player
+; z_obj faces, seen from the ball (under 256 off it either way, as
+; mate_dist found) - a look that costs no angle: br_cone's cone (22.5
+; degrees either side) lies inside it. Keeps X.
+near45:
+        lda o_xl,x              ; dx, dy from the ball to him (z_ax, z_ay:
+        sec                     ; angle's, worked out anew after), and
+        sbc o_xl + BALL         ; their sizes (z_sx, z_sy)
+        sta z_ax
+        lda o_xh,x
+        sbc o_xh + BALL
+        sta z_ax + 1
+        lda z_ax
+        ldy z_ax + 1
+        bpl :+
+        eor #$FF
+        clc
+        adc #1
+:       sta z_sx
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        sta z_ay
+        lda o_yh,x
+        sbc o_yh + BALL
+        sta z_ay + 1
+        lda z_ay
+        ldy z_ay + 1
+        bpl :+
+        eor #$FF
+        clc
+        adc #1
+:       sta z_sy
+        ldy z_obj
+        lda o_dir,y
+        tay
+        beq @up
+        dey
+        beq @ur
+        dey
+        beq @right
+        dey
+        beq @dr
+        dey
+        beq @down
+        dey
+        beq @dl
+        dey
+        beq @left
+        lda z_ax + 1            ; up left: dx < 0, dy < 0
+        bpl @no
+        lda z_ay + 1
+        bpl @no
+        bmi @yes
+@up:    lda z_ay + 1            ; up: dy < 0, |dy| > |dx|
+        bpl @no
+        lda z_sx
+        cmp z_sy
+        bcc @yes
+        bcs @no
+@ur:    lda z_ay + 1            ; up right: dy < 0, dx > 0
+        bpl @no
+        lda z_ax + 1
+        bmi @no
+        lda z_sx
+        bne @yes
+        beq @no
+@right: lda z_ax + 1            ; right: dx > 0, |dx| > |dy|
+        bmi @no
+        lda z_sy
+        cmp z_sx
+        bcc @yes
+        bcs @no
+@dr:    lda z_ax + 1            ; down right: dx > 0, dy > 0
+        bmi @no
+        lda z_ay + 1
+        bmi @no
+        lda z_sx
+        beq @no
+        lda z_sy
+        bne @yes
+        beq @no
+@down:  lda z_ay + 1            ; down: dy > 0, |dy| > |dx|
+        bmi @no
+        lda z_sx
+        cmp z_sy
+        bcc @yes
+        bcs @no
+@dl:    lda z_ax + 1            ; down left: dx < 0, dy > 0
+        bpl @no
+        lda z_ay + 1
+        bmi @no
+        lda z_sy
+        bne @yes
+@no:    sec
+        rts
+@left:  lda z_ax + 1            ; left: dx < 0, |dx| > |dy|
+        bpl @no
+        lda z_sy
+        cmp z_sx
+        bcs @no
+@yes:   clc
         rts
 
 ; goal_way: br_g = the way from the ball to the goal it attacks (as

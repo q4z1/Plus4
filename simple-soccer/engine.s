@@ -933,9 +933,17 @@ fill_col:
         sta z_scr
         lda #SCR_H
         sta z_row
+        ldy z_c                 ; (Y the column throughout: alloc keeps it)
 fc_cell:
-        jsr map_row
-        ldy z_c
+        ldx z_wr                ; (map_row, in line)
+        lda wrow_lo,x
+        clc
+        adc col0
+        sta z_map
+        lda wrow_hi,x
+        adc #0
+        sta z_map + 1
+        inc z_wr
         lda (z_map),y
         tax
 fc_look = *
