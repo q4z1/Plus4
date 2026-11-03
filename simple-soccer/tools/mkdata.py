@@ -376,6 +376,9 @@ POSES = [('SLIDE_A', 0x4E), ('SLIDE_B', 0x52), ('DIVE_A', 0x64), ('DIVE_B', 0x65
          ('DOWN', 0x59), ('HOLD', 0x5A),
          ('THROW_RA', 0x60), ('THROW_RB', 0x61), ('THROW_LA', 0x62), ('THROW_LB', 0x63)]
 THROWS = {0x60, 0x61, 0x62, 0x63}
+# the poses with a shadow below them, as the running ones (the others
+# lie on the ground or are our own, in the air)
+SHADOWED = {0x5A}
 # Then the figures of the score and the minute shown while the ball is
 # dead: digits 3 x 7 multicolour pixels, and a dash, drawn like players
 DIGITS = {
@@ -419,7 +422,9 @@ BALL_IMAGES = {0x40, 0x41, 0x42, 0x43}  # white in the shared light colour
 
 
 
-PAD = 8
+# empty lines before a column's pixels and after them: over grass the
+# draw copies whole cells, at most 7 lines more than the pixels
+PAD = 7
 
 
 def has11(b):
@@ -448,13 +453,30 @@ def sprites():
             for m in re.finditer(r'sprite ([0-9a-f]{2})\n((?:[.sck]{12}\n){21})', txt)}
 
 
-def throw_pic(pic):
-    """A throw-in's picture as the running ones: no shadow, black socks
-    (its last line)"""
+def throw_pic(pic, stand):
+    """A throw-in's picture as the running ones: black socks (its last
+    line), and below them the shadow of one standing (stand's), no wider
+    than he is"""
     pic = no_shadow(pic)
     body = [i for i, l in enumerate(pic) if 's' in l or 'c' in l]
     pic[body[-1]] = pic[body[-1]].replace('c', 'k')
-    return pic
+    feet = [i for i, l in enumerate(stand) if 's' in l or 'c' in l][-1]
+    shadow = [l for l in stand[feet + 1:] if l.strip('.')]
+    return small_shadow(pic[:body[-1] + 1] + shadow + pic[body[-1] + 1 + len(shadow):])
+
+
+def small_shadow(pic):
+    """A player with the C64's shadow, but no wider than he is: the lines
+    below the last with skin or shirt in it only where his columns are -
+    never a column of characters for the shadow alone, and the same
+    shadow at every shift"""
+    body = [i for i, l in enumerate(pic) if 's' in l or 'c' in l]
+    if not body:
+        return pic
+    xs = [x for l in pic[:body[-1] + 1] for x, v in enumerate(l) if v != '.']
+    lo, hi = min(xs), max(xs)
+    return pic[:body[-1] + 1] + [''.join(v if lo <= x <= hi else '.' for x, v in enumerate(l))
+                                 for l in pic[body[-1] + 1:]]
 
 
 def no_shadow(pic):
@@ -470,11 +492,12 @@ def figure(pic, black=False, light=False):
     """A sprite cut to its pixels: (ox, oy, records): its first column and
     row in the sprite, and for each shift 0-3 (pixels to the right in its
     first character) the bytes the draw takes - the number of columns,
-    then per column its first line, its lines, the first and the last
-    line with a pixel in the cell's colour (from the first line; 255, 0
-    none), PAD empty lines, the lines' pixels, PAD empty lines, and the
-    bits to keep of what is under them (a column only as tall as its
-    pixels go)."""
+    where their pixels start (from the record's first byte), then per
+    column its first line, its lines, the first and the last line with a
+    pixel in the cell's colour (from the first line; 255, 0 none) and
+    the bits to keep of what is under them (a column only as tall as its
+    pixels go); then the columns' pixels one after the other, PAD empty
+    lines before each and after the last."""
     rows = [i for i, l in enumerate(pic) if l.strip('.')]
     cols = [i for i in range(12) if any(l[i] != '.' for l in pic)]
     oy, h = rows[0], rows[-1] - rows[0] + 1
@@ -492,7 +515,7 @@ def figure(pic, black=False, light=False):
                 pic[y][x] != '.' for y in range(oy, min(oy + h, last_body + 1))
                 for x in range((ncol - 1) * 4 - s + ox, ncol * 4 - s + ox) if ox <= x < ox + w):
             ncol -= 1
-        out = [ncol]
+        out, pix = [ncol, 0], [0] * PAD
         for c in range(ncol):
             data, keep = [], []
             for y in range(oy, oy + h):
@@ -514,11 +537,14 @@ def figure(pic, black=False, light=False):
             # the first and the last, from top; none: 255, 0
             col = [i - top for i in range(top, bot) if has11(data[i])]
             ctop, cbot = (col[0], col[-1]) if col else (255, 0)
-            # eight empty lines before the pixels and after them: over
-            # grass the draw copies whole cells (engine.s, fig_draw)
-            out += [top, bot - top, ctop, cbot] + [0] * PAD + data[top:bot] + [0] * PAD \
-                + keep[top:bot]
-        recs.append(out)
+            # PAD empty lines before the pixels and after them (those
+            # between two columns are both's): over grass the draw copies
+            # whole cells (engine.s, fig_draw)
+            out += [top, bot - top, ctop, cbot] + keep[top:bot]
+            pix += data[top:bot] + [0] * PAD
+        out[1] = len(out) + PAD
+        assert out[1] < 256
+        recs.append(out + pix)
     return ox, oy, recs
 
 
@@ -607,8 +633,9 @@ def main():
             hexrows(out, bytes(cols), 40)
         spr = sprites()
         figs = [figure(digit_pic(b[5]) if isinstance(b, str) else
-                       black_socks(no_shadow(spr[b])) if b in RUN_FRAMES else
-                       throw_pic(spr[b]) if b in THROWS else
+                       black_socks(small_shadow(spr[b])) if b in RUN_FRAMES else
+                       throw_pic(spr[b], spr[0x20]) if b in THROWS else
+                       small_shadow(spr[b]) if b in SHADOWED else
                        no_shadow(spr[b]) if b in dict(POSES).values() else spr[b],
                        b in BLACK, b in BALL_IMAGES) for b in IMAGES]
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi, light11\n        .rodata\n')
@@ -641,6 +668,7 @@ def main():
         out.write('MAP_W       = %d\nMAP_H       = %d            ; rows shown (wrow_*)\n\n'
                   % (w, len(shown_rows())))
         out.write('IMAGES      = %d\n' % len(IMAGES))
+        out.write('FIG_PAD     = %d             ; empty lines round a column\'s pixels\n' % PAD)
         out.write('IMG_BALL    = %d            ; four, turning\n' % IMAGES.index(0x40))
         out.write('IMG_SHADOW  = %d\n' % IMAGES.index(0x54))
         for name, b in POSES:

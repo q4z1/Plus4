@@ -489,16 +489,15 @@ each:
         jmp swap
 @call:  jmp (each_v)
 
-; swap: the two teams' controls traded (ctx, ctx_b)
+; swap: the two teams' controls traded (ctx, ctx_b) - unrolled, as each
+; calls it for every routine twice
 swap:
-        ldx #CTX_N - 1
-:       lda ctx,x
-        ldy ctx_b,x
-        sta ctx_b,x
-        tya
-        sta ctx,x
-        dex
-        bpl :-
+        .repeat CTX_N, I
+        lda ctx + I
+        ldy ctx_b + I
+        sta ctx_b + I
+        sty ctx + I
+        .endrepeat
         rts
 
 ; calm: the ball dead - no one after it, no aftertouch, no pass on its

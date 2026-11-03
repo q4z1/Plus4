@@ -454,7 +454,10 @@ covers cells, one after the other, so that their pixels lie one after
 the other in the character set: the column goes into that strip in one
 run. Over grass its pixels go straight in; where a line or another
 player is under it, that is copied into the strip first and the player
-goes in through a mask. Each picture keeps a list of the cells its
+goes in through a mask. Over grass the strip's whole cells are copied,
+the empty lines above and below the pixels with them: the columns of a
+figure lie one after the other with seven empty lines between them,
+shared by both. Each picture keeps a list of the cells its
 players took, with what they showed before, and puts them back before
 it is drawn again. A cache that fills up gives back the codes its
 picture does not show - found in one pass over its codes - before it
@@ -468,8 +471,10 @@ and the players' skin at once. A cell's own colour is a player's shirt
 where he has a bit of shirt in it; with nothing on the pitch in that
 colour, a player can take any cell and nothing under him changes. (Two
 players of different teams in one cell: the one behind loses his shirt
-there.) The socks are black, and neither the players nor the goals cast
-a shadow.
+there.) The socks are black, and the goals cast no shadow. The players
+cast the C64's, in the shared black, but no wider than they are: it
+never needs a column of characters of its own, and it looks the same
+wherever a player stands within a character.
 
 Where the TED does more than the C64, the game uses it: a cell's own
 colour can be any of eight hues in eight shades, so every spectator in

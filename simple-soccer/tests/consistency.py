@@ -35,7 +35,11 @@ def main():
     jump = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     ends = 'ends' in sys.argv[3:]
     rnd = random.Random(1)
-    rows = mkdata.pitch()
+    # the ground's rows as they are shown (data/rows.txt): which row of
+    # the map each is
+    shown = mkdata.shown_rows()
+    pitch = mkdata.pitch()
+    rows = [pitch[y] for y in shown]
     font = mkdata.chars()
     white = mkdata.ted_of(1, range(8)) | 0x08
     # the wave's spectators: as they sit, or a pixel up
@@ -102,7 +106,8 @@ def main():
                             if bad <= 10:
                                 print('picture %d at %d,%d: cell %d,%d code %d is not character %02x'
                                       % (b, col, row, c, r, code, ch))
-                        want = tint[row + r][col + c] if row + r in tint else white
+                        y = shown[row + r]
+                        want = tint[y][col + c] if y in tint else white
                         if cols[r * 40 + c] != want:
                             bad += 1
                             if bad <= 10:
