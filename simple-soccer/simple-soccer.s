@@ -13,7 +13,7 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, pose_of, score, game_min, hud, lift
+        .import play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, lift
         .importzp ctrl, ctrl_b
         .import o_off, card_pl, card_c
         .export team_col, team_flk
@@ -139,7 +139,8 @@ main:
 loop:
         jsr joy_read
         inc tick
-        ; the match a frame for each frame shown since the last turn
+        ; the match a frame for each frame shown since the last turn, then
+        ; what goes once a picture for those frames
         lda frames
         sec
         sbc played
@@ -148,11 +149,13 @@ loop:
         bcc :+
         lda #MAX_STEPS
 :       sta tmp
+        sta pic_n
         lda frames
         sta played
 :       jsr play_frame
         dec tmp
         bne :-
+        jsr play_picture
 @go:    jsr place
         jsr follow
         jsr eng_begin

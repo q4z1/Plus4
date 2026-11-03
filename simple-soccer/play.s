@@ -34,7 +34,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export play_init, play_frame, pose_of, score, game_min, hud, min_frames
+        .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
         .export lift, o_off, card_pl, card_c
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
@@ -67,7 +67,7 @@ NET_L       = 275               ; and between the side nettings (the posts
 NET_R       = 335               ; are drawn at 270 and 340, the ball 5 wide)
 DEAD_OUT    = 50                ; frames the ball is dead after going out,
 DEAD_GOAL   = 125               ; after a goal
-CPU_WAIT    = 20                ; the yellow team's set pieces: after 40 frames
+CPU_WAIT    = 40                ; the yellow team's set pieces: after 40 frames
 R_KICKOFF   = 0                 ; restarts
 R_THROW     = 1
 R_GOALKICK  = 2
@@ -177,8 +177,8 @@ z_f10:      .res 2
 z_f16:      .res 2
 smul_l:     .res 1              ; smul's multiplier
 smul_h:     .res 1
-z_q:        .res 2              ; mul8's product
-z_qp:       .res 2              ; mul8's pointers into its tables: qs_lo + a,
+z_q:        .res 2              ; mul_by's product
+z_qp:       .res 2              ; mul_by's pointers into its tables: qs_lo + a,
 z_qph:      .res 2              ; qs_hi + a, qn_lo + 255 - a, qn_hi + 255 - a
 z_qn:       .res 2
 z_qnh:      .res 2
@@ -269,6 +269,8 @@ dbg_plan:   .res 3 * 64         ; (a test's plan: see dbg_on)
         .bss
 
 frame_n:    .res 1              ; frames played
+pp_help:    .res 1              ; play_picture's: bit 7 clear, help
+pic_n:      .res 1              ; frames since the last picture (play_picture)
 form_i:     .res 1              ; team_ai's next of the eleven to place,
 form_n:     .res 1              ; and how many more
 b_th:       .res 1              ; the ball's angle, speed, product's low
@@ -435,7 +437,7 @@ sq8_hi:
 ; joystick on a forward
 play_init:
         jsr squad
-        lda #>qs_lo             ; mul8's tables
+        lda #>qs_lo             ; mul_by's tables
         sta z_qp + 1
         lda #>qs_hi
         sta z_qph + 1
@@ -667,12 +669,7 @@ play_frame:
 :       dec dead_t
         bne :+
         jmp restart
-:       lda frame_n
-        lsr a
-        bcs :+
-        jsr team_ai
 :       jsr keepers_move
-        jsr others
         jsr ball_move
         jmp net
 @live:  lda touch_t             ; (frames since the ball's last touch,
@@ -696,11 +693,7 @@ play_frame:
         lda #<control
         ldy #>control
         jsr each
-        lda frame_n             ; the others' minds every second frame, as
-        lsr a                   ; Sensible Soccer's
-        bcs :+
-        jsr team_ai
-:       lda two                 ; the computer's runner slides in as
+        lda two                 ; the computer's runner slides in as
         bne :+                  ; Sensible Soccer's, every frame (c154a8)
         ldx helper_b
         bmi :+
@@ -716,7 +709,6 @@ play_frame:
         bmi :+
         jsr @one
 :       jsr keepers_move
-        jsr others
         lda at_n                ; (no aftertouch on either side: nothing
         and at_n_b              ; for it to do)
         bmi :+
@@ -725,18 +717,38 @@ play_frame:
         jsr each
 :       jsr ball_move
         jsr catch
-        jsr rules
-        lda frame_n
-        lsr a
-        bcs :+
-        lda #<switch            ; (every second frame)
-        ldy #>switch
-        jmp each
-:       rts
+        jmp rules
 @one:   lda o_mov,x
         beq :+
         stx z_obj
         jsr player_move
+:       rts
+
+; play_picture: once a picture, after its frames (pic_n of them, 3 when
+; it comes in time): the others on their way as far as those frames take
+; them, then the teams' minds - their places in the formation, the
+; keepers', the runners to the ball, the joystick to the one at the ball.
+; The ball, the two at it and the keepers go every frame (play_frame).
+play_picture:
+        jsr play_others
+        jsr team_ai             ; (carry clear: the runners too)
+        ror pp_help
+        jsr @team               ; the cyan team's, then the yellow team's
+        jsr swap                ; (as each, the two at once)
+        jsr @team
+        lda dead_t              ; the yellow team on its own: its brain's
+        ora two                 ; stick for its joystick's player till the
+        bne :+                  ; next picture
+        ldx ctrl
+        bmi :+
+        jsr brain
+:       jmp swap
+@team:  bit pp_help
+        bmi :+
+        jsr help
+:       lda dead_t              ; (in play)
+        bne :+
+        jmp switch
 :       rts
 
 ; dbg_step: the joystick a frame on in a test's plan
@@ -773,9 +785,6 @@ dbg_step:
 @hold:  lda dbg_bits
         sta joy
         rts
-
-; others: the others moved, every frame
-others  = play_others
 
 ; keepers_move: both keepers a frame (unless one is a joystick's, moved
 ; already)
@@ -816,8 +825,8 @@ keepers_move:
         jsr player_move
 :       rts
 
-; play_others: everyone else on his way somewhere a frame on - all of
-; them every frame, as the ball: each picture shows them where they are
+; play_others: everyone else on his way somewhere pic_n frames on, once a
+; picture: his step pic_n times, so each picture shows him where he is
 play_others:
         ldx #PLAYERS
 @next:  dex
@@ -841,7 +850,8 @@ play_others:
         sta o_new,x
         jsr aim
         ldx z_obj
-@step:  lda o_xf,x              ; on by his step (as step, the step's
+@step:  ldy pic_n
+@sub:   lda o_xf,x              ; on by his step (as step, the step's
         clc                     ; sign carried into the high byte)
         adc o_vxf,x
         sta o_xf,x
@@ -864,14 +874,16 @@ play_others:
         bmi @yl
         adc o_yl,x
         sta o_yl,x
-        bcc @arr
+        bcc @next1
         inc o_yh,x
-        bcs @arr
+        bcs @next1
 @yl:    adc o_yl,x
         sta o_yl,x
-        bcs @arr
+        bcs @next1
         dec o_yh,x
-@arr:   jsr arrive
+@next1: dey
+        bne @sub
+        jsr arrive              ; (past it: put there)
         lda o_vxf,x             ; there: the standing picture, passed over
         ora o_vxl,x             ; till he has somewhere to go
         ora o_vyf,x
@@ -880,11 +892,17 @@ play_others:
         sta o_step,x
         sta o_mov,x
         jmp @next
-@run:   ldy o_sph,x             ; his running picture on: a step every
+@run:   lda o_sph,x             ; his running picture on: a step every
         bne :+                  ; 16 / (speed / 256) frames - every 4 at full
-        iny                     ; speed, no feet faster than the ground goes
-                                ; by (under 256: as 256)
-:       sty z_t8
+        lda #1                  ; speed, no feet faster than the ground goes
+:       ldy pic_n               ; by (under 256: as 256)
+        sta z_t8
+        lda #0
+:       clc
+        adc z_t8
+        dey
+        bne :-
+        sta z_t8                ; (speed / 256 * frames)
         lda o_run,x
         sec
         sbc z_t8
@@ -900,14 +918,7 @@ play_others:
 ; the computer's team its brain works his stick out first, and a pass
 ; or a shot it wants (br_ev) is made where fire would make one
 control:
-        lda me                  ; (the yellow team on its own: its brain's)
-        beq :+
-        lda two
-        bne :+
-        ldx ctrl
-        bmi :+
-        jsr brain
-:       lda pf                  ; (fire as it was the frame before)
+        lda pf                  ; (fire as it was the frame before)
         sta pfire
         lda pj
         sta pf
@@ -2824,23 +2835,34 @@ smul:
         eor #$FF
         clc
         adc #1
-:       jsr mul_set
+:       sta z_qp                ; (mul_set and mul_by, in line)
+        sta z_qph
+        eor #$FF
+        sta z_qn
+        sta z_qnh
         ldy smul_l              ; |A| * the low byte
-        jsr mul_by
-        lda z_q
+        lda (z_qp),y
+        sec
+        sbc (z_qn),y
         sta z_p
-        lda z_q + 1
+        lda (z_qph),y
+        sbc (z_qnh),y
         sta z_p + 1
         ldy smul_h              ; and the high byte, 8 bits up
-        jsr mul_by
-        lda z_p + 1
-        clc
-        adc z_q
-        sta z_p + 1
-        lda z_q + 1
-        adc #0
+        lda (z_qp),y
+        sec
+        sbc (z_qn),y
+        sta z_q
+        lda (z_qph),y
+        sbc (z_qnh),y
         sta z_p + 2
-        lda z_ms
+        lda z_q
+        clc
+        adc z_p + 1
+        sta z_p + 1
+        bcc :+
+        inc z_p + 2
+:       lda z_ms
         bpl :+
         lda #0
         sec
@@ -2854,11 +2876,6 @@ smul:
         sta z_p + 2
 :       rts
 
-; mul8: z_q = z_m * A (bytes, unsigned). Keeps X.
-mul8:
-        tay
-        lda z_m
-        jsr mul_set
 ; mul_by: z_q = a * Y, a the factor mul_set was given: a * b = (a + b)^2 / 4
 ; - (b - a)^2 / 4, the squares / 4 from tables the pointers point into a
 ; place along (both sums of the same evenness: nothing lost rounding).
@@ -2907,13 +2924,15 @@ qn_hi:
 ; an area for each player (data/tactics.txt), the ball's place on the
 ; pitch put into it - from the touch line to the other, from goal line to
 ; goal line. He runs there as fast as his team goes (pace) and stands.
-; Each gets his place worked out anew every 11th frame, two of each team
-; at a time, as Sensible Soccer's; a place hardly away from the last is
-; not a new one. The other team sends the
+; Each gets his place worked out anew every 11th frame, as Sensible
+; Soccer's - once a picture, one of each team for each of its frames; a
+; place hardly away from the last is not a new one. The other team sends the
 ; player nearest the ball after it; with it at his feet he takes it
 ; towards the goal and shoots from close to it. Before a kick-off no
 ; one moves.
 
+; team_ai: once a picture; carry clear if the teams' runners are to be
+; worked out too (help)
 team_ai:
         lda kickoff
         beq @play
@@ -2928,22 +2947,24 @@ team_ai:
 :       jsr cpu_take            ; (the yellow team's, after a while)
         lda rs_kind             ; a kick-off: everyone stays in line
         bne @play
+        sec
         rts
 @play:  lda kickoff             ; (a free kick, a penalty waiting: they
         beq :+                  ; stay where they were put)
         lda rs_kind
         cmp #R_FREE
         bcc :+
-        rts
-:       lda form_i              ; two of each team's eleven in turn, so
-        clc                     ; each anew every 11 frames (team_ai:
-        adc #2                  ; every second one) as Sensible Soccer's
-        cmp #11                 ; one a frame (c144d2)
+        rts                     ; (carry set)
+:       lda form_i              ; one of each team's eleven a frame in turn,
+        clc                     ; so each anew every 11 frames, as Sensible
+        adc pic_n               ; Soccer's (c144d2)
+        cmp #11
         bcc :+
         sbc #11
 :       sta form_i
         tax
-        lda #4
+        lda pic_n
+        asl a
         sta form_n
 @pl:    txa                     ; (the keepers: keeper)
         beq @next
@@ -2985,13 +3006,12 @@ team_ai:
 @more:  tax
         dec form_n
         bne @pl
-        ldx #0                  ; the keepers (every second frame, as
-        jsr keeper              ; Sensible Soccer's)
+        ldx #0                  ; the keepers (every second frame in
+        jsr keeper              ; Sensible Soccer)
         ldx #11
         jsr keeper
-        lda #<help
-        ldy #>help
-        jmp each
+        clc                     ; (the runners: help, play_picture)
+        rts
 
 ; place_formation: player X's destination, his place in the formation for
 ; where the ball is; jogging. Keeps X.
@@ -3029,9 +3049,17 @@ place_formation:
         lda #0                  ; (left of the touch line: there)
         sta z_t8
 :       sta tmp + 1             ; (the high byte: 0, 1)
-        lda z_t8
-        jsr mul8
-        lda z_q + 1
+        ldy z_t8                ; z_m * it (mul8, in line)
+        lda z_m
+        sta z_qp
+        sta z_qph
+        eor #$FF
+        sta z_qn
+        sta z_qnh
+        lda (z_qp),y
+        cmp (z_qn),y            ; (the low byte's borrow)
+        lda (z_qph),y
+        sbc (z_qnh),y
         sta tmp
         lda #0
         ldx tmp + 1
@@ -3045,7 +3073,7 @@ place_formation:
         dex
         bne :-
 :       sta tmp + 1
-        ldy z_ti                ; (mul8 took Y)
+        ldy z_ti                ; (the multiplying took Y)
         lda tmp
         clc
         adc tac_x0l,y
@@ -3065,9 +3093,17 @@ place_formation:
         lda #0
         sta z_t8
 :       sta tmp + 1             ; (0, 1, 2)
-        lda z_t8
-        jsr mul8
-        lda z_q + 1
+        ldy z_t8                ; (mul8, in line)
+        lda z_m
+        sta z_qp
+        sta z_qph
+        eor #$FF
+        sta z_qn
+        sta z_qnh
+        lda (z_qp),y
+        cmp (z_qn),y
+        lda (z_qph),y
+        sbc (z_qnh),y
         sta tmp
         lda #0
         sta z_t8
@@ -3178,10 +3214,10 @@ form22: .byte 0                 ; (the formations built in: mkdata FORMATIONS)
 
 ; ---- whose the joystick is ------------------------------------------------
 
-; switch: as Sensible Soccer and the C64 do it: the helper running to the
-; ball gets it as he is at it (at_ball, every frame - Sensible Soccer's
-; runner, c14314), his first touch (trap); else, every second frame, the
-; joystick's player keeps it while he has the ball at his feet, or it
+; switch, once a picture: as Sensible Soccer and the C64 do it: the
+; helper running to the ball gets it as he is at it (at_ball - Sensible
+; Soccer's runner, c14314), his first touch (trap); else the joystick's
+; player keeps it while he has the ball at his feet, or it
 ; goes to the player nearest it - not the helper on his way to it, not
 ; the one who has just passed or shot, not the keeper
 switch:
@@ -3203,10 +3239,7 @@ switch:
         lda #$FF
         sta helper
         jmp trap
-:       lda frame_n
-        lsr a
-        bcs @done
-        ldx ctrl                ; the joystick's at the ball: his still
+:       ldx ctrl                ; the joystick's at the ball: his still
         jsr near_ball
         bcs @done
         lda #$FF                ; else the nearest
@@ -3286,7 +3319,7 @@ at_no:  clc
 ; joystick's, not the keeper - runs to it on his own, as Sensible
 ; Soccer's and the C64's do (switch gives him the joystick there); a
 ; pass's receiver while it runs to him. Chosen anew each eighth frame;
-; team_ai: every second one.
+; team_ai: once a picture.
 help:
         lda kickoff
         ora dead_t
@@ -3303,9 +3336,10 @@ help:
 :       lda #$FF
         sta helper
         rts
-@in:    lda frame_n
-        and #6
-        bne @run
+@in:    lda frame_n             ; (anew each eighth frame: one in the
+        and #7                  ; frames since the last picture)
+        cmp pic_n
+        bcs @run
         lda #$FF
         sta mate_d
         sta mate_d + 1
@@ -4091,8 +4125,13 @@ cpu_take:
         lda rs_kind             ; (the rest: brain_set)
         cmp #R_PENALTY
         bne @done
-        dec cpu_t
-        bne @done
+        lda cpu_t               ; (frames)
+        sec
+        sbc pic_n
+        sta cpu_t
+        beq :+
+        bcs @done
+:
         lda #1
         sta last_team
         jsr touch
@@ -5460,7 +5499,16 @@ off_train:  .byte 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1
 ; The computer runs the yellow team on its own as Sensible Soccer's does
 ; (c14a4e): with a joystick for its joystick's player, as a player's -
 ; control, switch, help and the rest are the same for both teams. brain
-; works his stick out every frame, and when to pass or shoot.
+; works his stick out once a picture (play_picture), and when to pass or
+; shoot; what Sensible Soccer's does at random each frame it does as
+; often for the frames since the last picture (chance_*).
+
+; chance_*: Sensible Soccer's die each frame for the frames since the
+; last picture (1 - 4): 256 * (1 - (1 - p)^frames), p 1 in 4, 1 in 8,
+; 9 in 256 - the die is under it
+chance_4:   .byte 64, 112, 148, 175
+chance_8:   .byte 32, 60, 84, 106
+chance_9:   .byte 9, 18, 26, 34
 
 ; brain: the computer's joystick for its joystick's player X: pj his
 ; stick, br_ev 1 a pass, 2 a shot (control makes it). Keeps X.
@@ -5474,10 +5522,13 @@ brain:
         cmp me
         jeq brain_set
         rts
-:       lda br_t
-        beq :+
-        dec br_t
-:       jsr rnd
+:       lda br_t              ; (frames: down to 0)
+        sec
+        sbc pic_n
+        bcs :+
+        lda #0
+:       sta br_t
+        jsr rnd
         sta br_r
         lda at_n                ; its shot on its way: the aftertouch
         bmi :+
@@ -5504,9 +5555,10 @@ br_free:
         lda br_d + 1
         sbc #>800
         bcc @to
-        jsr rnd
-        and #$0E
-        beq @to
+        jsr rnd                 ; (1 in 8 a frame)
+        ldy pic_n
+        cmp chance_8 - 1,y
+        bcc @to
         lda o_dir,x
         jmp br_stick
 @to:    lda br_w
@@ -5526,9 +5578,10 @@ br_have:
         lda d6 + 1
         sbc #>(12800 / 16)
         bcc :+
-        lda br_r
-        and #3
-        bne @far
+        jsr rnd                 ; (1 in 4 a frame)
+        ldy pic_n
+        cmp chance_4 - 1,y
+        bcs @far
 :       ldy #15                 ; facing it: within 15 (3200 near: 50)
         lda d6
         cmp #<(3200 / 16 + 1)
@@ -5550,11 +5603,15 @@ br_have:
         jmp br_shoot
 @far:   lda br_6c               ; looking for a team-mate to pass to
         beq @near
-        dec br_6c
+        sec                     ; (frames: down to 0)
+        sbc pic_n
+        bcs :+
+        lda #0
+:       sta br_6c
         jsr br_cone
-        bcs br_side
+        jcs br_side
         jeq br_pass
-        bne br_side
+        jmp br_side
 @near:  lda d6                  ; near the goal (9800): on to it
         cmp #<(9800 / 16)
         lda d6 + 1
@@ -5586,17 +5643,19 @@ br_close:
 ; br_near (c14fb0): a cyan player coming - 9 in 256 a long ball if far
 ; (48400), 1 in 4 a pass if a team-mate is that way, else on to the goal
 br_near:
-        lda br_r
-        cmp #9
+        lda br_r                ; (9 in 256 a frame)
+        ldy pic_n
+        cmp chance_9 - 1,y
         bcs :+
         lda d6
         cmp #<(48400 / 16 + 1)
         lda d6 + 1
         sbc #>(48400 / 16 + 1)
         bcs br_long
-:       jsr rnd
-        and #$0C
-        bne br_goal
+:       jsr rnd                 ; (1 in 4 a frame)
+        ldy pic_n
+        cmp chance_4 - 1,y
+        bcs br_goal
         jsr br_cone
         bcs br_try
         beq br_pass
@@ -5605,9 +5664,9 @@ br_near:
 br_try:
         lda br_6c
         bne br_goal
-        jsr rnd
-        and #$7F
-        cmp #$20
+        jsr rnd                 ; (1 in 4 a frame)
+        ldy pic_n
+        cmp chance_4 - 1,y
         bcs br_goal
         lda #4
         sta br_6c
@@ -5738,10 +5797,13 @@ brain_set:
         lda rs_kind
         cmp #R_PENALTY
         beq @none
-        inc bs_t
-        bne :+
-        dec bs_t                ; (no further than 255)
-:       jsr rnd
+        lda bs_t                ; (frames, no further than 255)
+        clc
+        adc pic_n
+        bcc :+
+        lda #255
+:       sta bs_t
+        jsr rnd
         sta br_r
         jsr goal_way
         jsr rnd                 ; waiting: 50 + 0-63 frames
@@ -5818,9 +5880,10 @@ bs_pass:
 ; bs_turn (c14dd0): 1 frame in 8 he turns a way on, the way he turns
 ; looking, as far as he may - then back the other way
 bs_turn:
-        jsr rnd
-        and #$0E
-        bne @no
+        jsr rnd                 ; (1 in 8 a frame)
+        ldy pic_n
+        cmp chance_8 - 1,y
+        bcs @no
         lda o_dir,x
         clc
         adc bs_rot

@@ -162,11 +162,21 @@ gets to it, and else to the player nearest it - not the one on his way to it, no
 the one who has just passed or shot. Your player's shirt flickers a
 shade lighter or darker, so you see whom you run - and still see whose
 he is. As in Sensible Soccer, the
-players make up their minds every second frame, the two teams by turns -
-so two players at the ball touch it by turns, either may come away with
-it; everyone moves every frame. Each player in the formation gets his place anew every 11th
-frame, as there, and goes to it as fast as his team goes, his feet as
-fast as he goes.
+players at the ball make up their minds every second frame, the two
+teams by turns - so two players at the ball touch it by turns, either
+may come away with it. Each player in the formation gets his place anew
+every 11th frame, as there, and goes to it as fast as his team goes,
+his feet as fast as he goes.
+
+The ball, the two players the joysticks run and the keepers move every
+frame, and every touch of the ball is looked for every frame. The
+others, the teams' minds and the computer's joystick go once a picture,
+for the frames since the last: each runs as far as those frames take
+him, the formation's places and the runners to the ball are worked out
+for them, and what Sensible Soccer's computer does at random each frame
+it does as often for them. As the C64 does, which moves its players a
+picture's way at a time - on the Plus/4 the match would else take more
+time than the drawing.
 
 Over a touch line the ball goes to the other team for a throw-in; over a
 goal line, between the posts and under the bar, it is a goal and the
@@ -439,7 +449,8 @@ never sooner than three frames after the last - an even 16.7 pictures a
 second (`PACE=2 simple-soccer/build.sh` for 25, which a full screen of players
 cannot keep up). A picture that costs more than three frames to draw
 borrows the time from the cheaper one before it. The match itself runs
-50 times a second whatever the pictures do.
+50 frames a second whatever the pictures do (see above for what goes
+once a picture).
 
 When the view has moved by a cell or two since a picture was last drawn,
 its codes are not looked up afresh but moved over in memory, and only the
