@@ -112,6 +112,8 @@ back:       .res 1              ; the picture being drawn: 0, 1 or 2
 shown:      .res 1              ; the one on screen, $FF none yet
 queued:     .res 1              ; the one finished, waiting; $FF none
 since:      .res 1              ; frames since the last was put on screen
+mv_end:     .res 1              ; move_up's last page's end, move_down's
+mv_lo:      .res 1              ;   first page's start; its page's start
 ctrl2:      .res 1              ; $FF07 as the game wants it, without the
                                 ; fine scroll
 cam_x:      .res 2              ; the view's top left corner on the
@@ -512,45 +514,31 @@ tint:
         sta tc_col,x
         rts
 ; tint_row: row z_tr of the back picture's colours from its colour row A
-; (cmap_*), from col0 on - the copy's operands set in it, four a turn
+; (cmap_*), from col0 on - the copy's operands set in it, two a turn
 tint_row:
         tay
-        lda cmap_lo,y           ; (the copy's operands: @s1-4, @d1-4)
+        lda cmap_lo,y           ; (the copy's operands: @s1-2, @d1-2)
         clc
         adc col0
         sta @s1 + 1
         sta @s2 + 1
-        sta @s3 + 1
-        sta @s4 + 1
         lda cmap_hi,y
         adc #0
         sta @s1 + 2
         sta @s2 + 2
-        sta @s3 + 2
-        sta @s4 + 2
         jsr tint_dst
         lda z_dst
         sta @d1 + 1
         sta @d2 + 1
-        sta @d3 + 1
-        sta @d4 + 1
         lda z_dst + 1
         sta @d1 + 2
         sta @d2 + 2
-        sta @d3 + 2
-        sta @d4 + 2
-        ldy #SCR_W - 1          ; (four a turn: SCR_W a multiple of 4)
+        ldy #SCR_W - 1          ; (two a turn: SCR_W even)
 @s1: lda $FFFF,y
 @d1: sta $FFFF,y
         dey
 @s2: lda $FFFF,y
 @d2: sta $FFFF,y
-        dey
-@s3: lda $FFFF,y
-@d3: sta $FFFF,y
-        dey
-@s4: lda $FFFF,y
-@d4: sta $FFFF,y
         dey
         bpl @s1
         rts
@@ -567,7 +555,7 @@ tint_dst:
         rts
 
 tc_base:    .byte 0, SCR_H, 2 * SCR_H
-.assert SCR_W .mod 4 = 0, error, "tint: SCR_W not a multiple of 4"
+.assert SCR_W .mod 2 = 0, error, "tint: SCR_W odd"
 
 ; wave: the back picture's spectators of the wave (la_codes) as they sit,
 ; or a pixel up those of its step while a wave runs - in the characters
@@ -997,10 +985,11 @@ fc_put: sta (z_scr),y
         bne fc_cell
         rts
 
-; move_up: the codes moved to lower addresses, from z_src to z_dst (the
-; matrix), 1024 bytes, the lowest first, MOVE_U a turn. Past the 1000 the
-; TED shows it writes into the matrix's unused end, and reads from the
-; character set behind it.
+; move_up: the codes moved to lower addresses, from z_src (the matrix +
+; off) to z_dst (the matrix), the lowest first, MOVE_U a turn: 1000 - off
+; bytes (up to a multiple of MOVE_U) - the rest is the rows or columns
+; coming in, looked up after. Past the 1000 the TED shows it writes into
+; the matrix's unused end, and reads from the character set behind it.
 move_up:
         ldx #0                  ; the operands' low bytes, once
         ldy #0
@@ -1019,8 +1008,17 @@ move_up:
         inx
         cpx #MOVE_U
         bne :-
-        lda #4
+        lda #<(SCR_W * SCR_H + MOVE_U - 1)  ; whole pages, and the last
+        sec                     ; one's end (0: whole too)
+        sbc z_src
+        and #<(256 - MOVE_U)
+        sta mv_end
+        lda #>(SCR_W * SCR_H + MOVE_U - 1)
+        sbc #0
         sta z_cnt
+        lda mv_end
+        beq mu_page
+        inc z_cnt
 mu_page:                        ; their high bytes, a page at a time
         lda z_src + 1
         .repeat MOVE_U, K
@@ -1030,6 +1028,12 @@ mu_page:                        ; their high bytes, a page at a time
         .repeat MOVE_U, K
         sta mu_loop + 5 + 6 * K
         .endrepeat
+        lda #0                  ; (the last page: to mv_end)
+        ldx z_cnt
+        dex
+        bne :+
+        lda mv_end
+:       sta mu_end + 1
         ldx #0
         jsr mu_loop
         inc z_src + 1
@@ -1046,24 +1050,33 @@ mu_loop:
         clc
         adc #MOVE_U
         tax
+mu_end: cpx #0                  ; (its end: move_up sets it)
         bne mu_loop
         rts
 
 ; move_down: the codes moved to higher addresses, |off| = z_dst's low
-; byte up, 1024 bytes into the matrix's four pages from the top down,
-; the highest first, MOVE_U a turn. The bytes it puts below |off| in the
-; first page are cells of the rows or columns coming in, looked up after.
+; byte up, into the matrix's four pages from the top down, the highest
+; first, MOVE_U a turn: from the 1000th byte (up to a multiple of MOVE_U)
+; down to |off| (down to one) - below it are the rows or columns coming
+; in, looked up after.
 move_down:
         lda z_dst               ; |off|
         sta z_c
+        and #<(256 - MOVE_U)    ; (the first page's start)
+        sta mv_end
         lda z_src + 1           ; the top page
         clc
         adc #3
         sta z_dst + 1
         lda #4
         sta z_cnt
-md_page:                        ; source = destination page - |off|
-        lda #0
+md_page:                        ; this page from mv_lo (the first page:
+        lda #0                  ; mv_end) - its source destination - |off|
+        ldx z_cnt
+        dex
+        bne :+
+        lda mv_end
+:       sta mv_lo
         sec
         sbc z_c
         sta z_src
@@ -1080,6 +1093,8 @@ md_page:                        ; source = destination page - |off|
         adc #0
         sta md_loop + 2,y
         txa
+        clc
+        adc mv_lo
         sta md_loop + 4,y
         lda z_dst + 1
         sta md_loop + 5,y
@@ -1089,7 +1104,16 @@ md_page:                        ; source = destination page - |off|
         tay
         dex
         bpl :-
-        ldx #256 - MOVE_U
+        lda #256 - MOVE_U       ; X from the page's top (the top page's:
+        ldx z_cnt               ; past the 1000th byte) down to mv_lo
+        cpx #4
+        bne :+
+        lda #<(SCR_W * SCR_H + MOVE_U - 1 - 3 * 256) & <(256 - MOVE_U)
+        sec
+        sbc #MOVE_U
+:       sec
+        sbc mv_lo
+        tax
         jsr md_loop
         dec z_dst + 1
         dec z_cnt
