@@ -172,12 +172,10 @@ draw_it: jsr place
         jsr eng_end             ; (waits while a picture is still waiting)
         jmp loop
 
-; place: the ball's feet on the ground (follow's); the players' those in
-; the view (pick, in sort)
+; place: the ball's feet on the ground (follow's, seen's, draw_ball's;
+; the players' are worked out from their places where they are needed)
 place:
         ldx #BALL
-; place_one: figure X's feet on the ground. Keeps X.
-place_one:
         lda o_xl,x
         sec
         sbc #GROUND_X
@@ -241,8 +239,8 @@ follow:
 :       rts
 
 ; sort: order, the players in the view by where their feet are, from the
-; top down - picked first (as seen has it, without placing the others:
-; most of them are out of it), then sorted by insertion; s_off for all
+; top down - picked first (as seen has it, from their places: most of
+; them are out of it), then sorted by insertion; s_off for all
 ; (1: not in this picture), the ball's by seen
 sort:
         lda cam_x               ; the view's corner as the players' places
@@ -266,27 +264,9 @@ sort:
         sta s_off,x
         lda o_off,x             ; (one sent off: never)
         bne @no
-        lda o_xl,x              ; across: from 18 left of it to 10 right
-        sec
-        sbc cg_xl
-        sta tmp2
-        lda o_xh,x
-        sbc cg_xh
-        beq @y
-        cmp #1
-        beq @right
-        cmp #$FF
-        bne @no
-        lda tmp2
-        cmp #<(-18)
-        bcc @no
-        bcs @y
-@right: lda tmp2
-        cmp #<(SCR_W * 8 + 10)
-        bcs @no
-@y:     lda o_yl,x              ; down: from 8 above to 14 below
-        sec
-        sbc cg_yl
+        lda o_yl,x              ; down: from 8 above to 14 below (first:
+        sec                     ; fewer are in the view's height than in
+        sbc cg_yl               ; its width)
         sta tmp2
         lda o_yh,x
         sbc cg_yh
@@ -296,13 +276,30 @@ sort:
         lda tmp2
         cmp #<(-8)
         bcc @no
-        bcs @vis
+        bcs @x
 @down:  lda tmp2
         cmp #VIS_H * 8 + 14
         bcs @no
+@x:     lda o_xl,x              ; across: from 18 left of it to 10 right
+        sec
+        sbc cg_xl
+        sta tmp2
+        lda o_xh,x
+        sbc cg_xh
+        beq @vis
+        cmp #1
+        beq @right
+        cmp #$FF
+        bne @no
+        lda tmp2
+        cmp #<(-18)
+        bcc @no
+        bcs @vis
+@right: lda tmp2
+        cmp #<(SCR_W * 8 + 10)
+        bcs @no
 @vis:   lda #0
         sta s_off,x
-        jsr place_one
         ldy vis_n
         txa
         sta order,y
@@ -324,10 +321,10 @@ sort:
         ldy order,x
         lda order - 1,x
         tax
-        lda s_yl,y
-        cmp s_yl,x
-        lda s_yh,y
-        sbc s_yh,x
+        lda o_yl,y              ; (o_y: the feet's s_y less GROUND_Y)
+        cmp o_yl,x
+        lda o_yh,y
+        sbc o_yh,x
         bcs @in
         ldx s_i
         lda order,x
@@ -337,10 +334,10 @@ sort:
         beq @put
         ldy order - 1,x         ; the figure above the gap: lower than
         ldx tmp                 ; tmp, it moves down into the gap
-        lda s_yl,x
-        cmp s_yl,y
-        lda s_yh,x
-        sbc s_yh,y
+        lda o_yl,x
+        cmp o_yl,y
+        lda o_yh,x
+        sbc o_yh,y
         bcs @put
         ldx s_j
         lda order - 1,x
@@ -367,19 +364,19 @@ draw:
         jmp @end
 :       lda order,x
         tax
-        lda s_xl,x
-        sec
-        sbc #FOOT_X
+        lda o_xl,x              ; (its feet on the ground less FOOT_X,
+        sec                     ; FOOT_Y: from its place)
+        sbc #GROUND_X + FOOT_X
         sta fig_x
-        lda s_xh,x
+        lda o_xh,x
         sbc #0
         sta fig_x + 1
-        lda s_yl,x
-        sec
-        sbc #FOOT_Y
+        lda o_yl,x
+        clc
+        adc #GROUND_Y - FOOT_Y
         sta fig_y
-        lda s_yh,x
-        sbc #0
+        lda o_yh,x
+        adc #0
         sta fig_y + 1
         jsr pose_of             ; (lying, diving, holding the ball)
         cmp #$FF
@@ -601,19 +598,19 @@ draw_card:
         beq :+
         ldy #COL_RED
 :       sty fig_col
-        lda s_xl,x
-        clc
-        adc #CARD_X - FOOT_X
-        sta fig_x
-        lda s_xh,x
-        adc #0
-        sta fig_x + 1
-        lda s_yl,x
+        lda o_xl,x              ; (from its place, as draw's)
         sec
-        sbc #FOOT_Y
-        sta fig_y
-        lda s_yh,x
+        sbc #GROUND_X + FOOT_X - CARD_X
+        sta fig_x
+        lda o_xh,x
         sbc #0
+        sta fig_x + 1
+        lda o_yl,x
+        clc
+        adc #GROUND_Y - FOOT_Y
+        sta fig_y
+        lda o_yh,x
+        adc #0
         sta fig_y + 1
         jmp fig_draw
 @none:  rts
