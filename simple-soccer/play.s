@@ -250,7 +250,8 @@ o_run:  .res NOBJ               ; frames to its next step
 o_mov:  .res NOBJ               ; players: 1 while on the way somewhere
 o_new:  .res NOBJ               ; 1: a new destination, the way not yet worked out
 o_slide: .res NOBJ              ; frames left of a sliding tackle, 0 none
-o_hit:  .res NOBJ               ; 1: the tackle has reached the ball
+o_hit:  .res NOBJ               ; 1: the tackle has reached the ball ($80:
+                                ; missed it, lost to a better one: slides)
 o_dive: .res NOBJ               ; a keeper's frames left of a dive, 0 none
 o_dvd:  .res NOBJ               ; its way: 0 right, 1 left
         .segment "LOWBSS"       ; (down low: simple-soccer.cfg)
@@ -1107,27 +1108,13 @@ duel:
         bcs @no
         ldx ctrl_b
         bmi @no
-        jsr @at
+        jsr at_feet
         bcs @no
         ldx ctrl
-        jsr @at
+        jsr at_feet
         bcs @no
-        lda sk_duel,x           ; cyan's chance in 32: 16 + his level
-        clc                     ; less yellow's, 9 - 23
-        adc #16
         ldy ctrl_b
-        sec
-        sbc sk_duel,y
-        cmp #9
-        bcs :+
-        lda #9
-:       cmp #24
-        bcc :+
-        lda #23
-:       sta tmp
-        jsr rnd
-        and #31
-        cmp tmp
+        jsr odds
         ldy #1                  ; (the loser's team)
         bcc :+
         ldx ctrl_b
@@ -1141,7 +1128,12 @@ duel:
         jsr touch
         ldx #BALL
         jmp stand
-@at:    lda o_slide,x           ; (player X at it: carry clear)
+@no:    rts
+
+; at_feet: carry clear if player X is at the ball (NEAR), not sliding.
+; Keeps X.
+at_feet:
+        lda o_slide,x
         bne @far
         jsr mate_dist
         lda tmp + 1
@@ -1150,7 +1142,51 @@ duel:
         cmp #NEAR + 1
         rts
 @far:   sec
-@no:    rts
+        rts
+
+; odds: carry clear if player X wins the ball from player Y, the better
+; (sk_duel) the more often: 16 in 32 even, each level between them one in
+; 32 more, 9 - 23. Keeps X, Y.
+odds:
+        lda sk_duel,x
+        clc
+        adc #16
+        sec
+        sbc sk_duel,y
+        cmp #9
+        bcs :+
+        lda #9
+:       cmp #24
+        bcc :+
+        lda #23
+:       sta tmp
+        jsr rnd
+        and #31
+        cmp tmp
+        rts
+
+; contest: carry clear if the helper X, at the ball, gets it - at once if
+; the other team's joystick's player has it not at his feet, else as
+; duel's (odds); the loser's team not to touch it for LOCK_T frames. In
+; switch: ctrl_b is the other team's. Keeps X.
+contest:
+        stx z_obj
+        ldx ctrl_b
+        bmi @got
+        jsr at_feet
+        ldx z_obj
+        bcs @got
+        ldy ctrl_b
+        jsr odds
+        lda me                  ; (lost: his team's lock)
+        bcs :+
+        eor #1                  ; (won: the other's)
+:       tay
+        lda #LOCK_T
+        sta lock_t,y
+        rts
+@got:   clc
+        rts
 
 ; may_face: carry clear if a set piece's taker may face way A, as
 ; Sensible Soccer lets him (a bit for each way, c0f8ea): into the pitch
@@ -2986,16 +3022,8 @@ team_ai:
         bne @next
         cpx taker
         beq @next
-        lda kickoff             ; (a set piece waiting: the other team's
-        beq @go                 ; stand off where they are - set_wall)
-        cpx #11
-        lda #0
-        rol a
-        eor rs_team
-        beq @go
-        jsr stand
-        jmp @next
-@go:    jsr place_formation
+        jsr place_formation     ; (a set piece: the other team's off its
+                                ; way - keep_off)
 @next:  cpx #11                 ; (his and the other team's, then the next
         bcs :+                  ; one's)
         txa
@@ -3129,6 +3157,7 @@ place_formation:
         lda z_t8
         adc tac_y0h,y
         sta z_py + 1
+        jsr keep_off
         ; hardly away from the last place (the ball has hardly moved):
         ; that one kept - a new way would cost a new angle; standing, and
         ; hardly away from where he stands, he stays
@@ -3179,6 +3208,87 @@ place_formation:
         sta o_mov,x
         sta o_new,x
 @keep:  rts
+
+; keep_off: player X's new place (z_px, z_py) out of the way of the
+; other team's set piece, while it is dead or waits: out of a goal
+; kick's box, else WALL_D from where it is taken (as set_wall puts those
+; already there), on its side - so the teams stand ready before it is
+; taken, as their formations have it. Keeps X.
+keep_off:
+        lda dead_t
+        ora kickoff
+        beq @done
+        lda rs_kind             ; (not a kick-off: line_up; nor a penalty:
+        beq @done               ; set_wall)
+        cmp #R_PENALTY
+        beq @done
+        jsr team_y              ; (his team's own: as they are)
+        cpy rs_team
+        beq @done
+        jsr rs_side
+        lda rs_kind
+        cmp #R_GOALKICK
+        beq @box
+        lda #WALL_D             ; within WALL_D of it both ways: WALL_D
+        sta z_t8                ; off it on the side
+        lda z_px
+        sec
+        sbc rs_x
+        tay
+        lda z_px + 1
+        sbc rs_x + 1
+        jsr within
+        bcs @done
+        lda z_py
+        sec
+        sbc rs_y
+        tay
+        lda z_py + 1
+        sbc rs_y + 1
+        jsr within
+        bcs @done
+        ldy r_s
+        lda rs_y
+        clc
+        adc wall_dl,y
+        sta z_py
+        lda rs_y + 1
+        adc wall_dh,y
+        sta z_py + 1
+@done:  rts
+@box:   lda z_px                ; a goal kick: in its box, to its edge
+        cmp #<BOX_L
+        lda z_px + 1
+        sbc #>BOX_L
+        bcc @done
+        lda #<BOX_R
+        cmp z_px
+        lda #>BOX_R
+        sbc z_px + 1
+        bcc @done
+        ldy r_s
+        bne @bottom
+        lda z_py
+        cmp #<BOX_T
+        lda z_py + 1
+        sbc #>BOX_T
+        bcs @done
+        bcc @out
+@bottom:
+        lda #<BOX_B
+        cmp z_py
+        lda #>BOX_B
+        sbc z_py + 1
+        bcs @done
+@out:   lda box_out,y
+        sta z_py
+        lda box_oh,y
+        sta z_py + 1
+        rts
+
+wall_dl:    .byte <(-WALL_D), <WALL_D
+wall_dh:    .byte >(-WALL_D), >WALL_D
+box_oh:     .byte >(BOX_T + 12), >(BOX_B - 12)
 
 ; pace: player X's speed to his new place: his team's (jog_*: Sensible
 ; Soccer's for it, c144dc). Keeps X.
@@ -3234,10 +3344,15 @@ switch:
         lda o_slide,x
         beq :+
         rts
-:       ldx helper              ; the helper at the ball: his
-        bmi :+
+:       ldx helper              ; the helper at the ball: his - against
+        bmi :+                  ; the other team's player with it at his
+        ldy me                  ; feet, the better more often (contest);
+        lda lock_t,y            ; not just after losing it so
+        bne :+
         jsr at_ball
         bcc :+
+        jsr contest
+        bcs :+
         stx ctrl
         lda #$FF
         sta helper
@@ -3858,22 +3973,32 @@ in_box:
 
 ; set_wall: a set piece's players placed, the taker behind the ball
 ; already (restart; hold, the keeper's): the other team's off the ball -
-; a penalty's out of the box - till it is taken (team_ai, control)
+; a goal kick's out of its box, a penalty's all out of the box - till it
+; is taken (team_ai, control, keep_off)
 set_wall:
         lda rs_kind
         bne :+
         rts                     ; (a kick-off: line_up has them)
-:       lda rs_team
-        eor flip
-        ldy rs_kind             ; (a corner: on the line - off into the
-        cpy #R_CORNER           ; pitch)
-        bne :+
-        eor #1
-:       sta r_s
+:       jsr rs_side
         ldx #PLAYERS - 1
 @pl:    jsr wall_one
         dex
         bpl @pl
+        rts
+
+; rs_side: r_s = the side of the set piece (rs_*) the other team keeps
+; off towards: the goal its team attacks (0 the top) - a goal kick's,
+; a corner's the other (its box; off the line into the pitch). Keeps X.
+rs_side:
+        lda rs_team
+        eor flip
+        ldy rs_kind
+        cpy #R_GOALKICK
+        beq :+
+        cpy #R_CORNER
+        bne :++
+:       eor #1
+:       sta r_s
         rts
 
 ; wall_one: set_wall's player X. Keeps X.
@@ -3886,9 +4011,12 @@ wall_one:
         beq @pen
         cpx #11                 ; the rest: the other team's within WALL_D
         lda #0                  ; of the ball, WALL_D nearer their goal (a
-        rol a                   ; free kick's wall)
-        cmp rs_team
+        rol a                   ; free kick's wall) - a goal kick's out of
+        cmp rs_team             ; its box
         beq @next
+        lda rs_kind
+        cmp #R_GOALKICK
+        beq @box
         jsr wall_near
         bcs @next
         lda r_s
@@ -3911,7 +4039,7 @@ wall_one:
         beq @keeper             ; others out of the box
         cpx #11
         beq @keeper
-        jsr in_box
+@box:   jsr in_box
         bcs @next
         ldy r_s
         lda box_out,y
@@ -5124,7 +5252,29 @@ slides:
         lda tmp
         cmp #SLIDE_REACH + 1
         bcs @bump
-        jsr clean
+        lda o_hd,x              ; the other team's joystick's player with
+        bne @take               ; it at his feet: the better more often
+        ldy ctrl_b              ; (odds, as duel's - Arlasoft's: both
+        cpx #11                 ; teams at it); lost, the tackle misses
+        bcc :+                  ; it (o_hit $80: his fall a foul, bump)
+        ldy ctrl
+:       tya
+        bmi @take
+        stx z_obj
+        tax
+        jsr at_feet
+        ldx z_obj
+        bcs @take
+        ldy ctrl_b
+        cpx #11
+        bcc :+
+        ldy ctrl
+:       jsr odds
+        bcc @take
+        lda #$80
+        sta o_hit,x
+        jmp bump
+@take:  jsr clean
         sta o_hit,x
         lda #0                  ; his, whoever's it was (c13f5a) - and
         cpx #11                 ; the other team's joystick's player
@@ -5260,6 +5410,7 @@ bump:
         bcs @no
         lda o_hit,x
         beq @foul
+        bmi @foul               ; (missed it: slides)
         cmp #2
         beq @no
         lda o_dir,x             ; (from behind: the ways at most one
