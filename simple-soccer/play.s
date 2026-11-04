@@ -3222,9 +3222,9 @@ keep_off:
         beq @done               ; set_wall)
         cmp #R_PENALTY
         beq @done
-        jsr team_y              ; (his team's own: as they are)
-        cpy rs_team
-        beq @done
+        jsr team_y              ; (his team's own: as they are - but a
+        cpy rs_team             ; corner's, three into the box: @own)
+        beq @own
         jsr rs_side
         lda rs_kind
         cmp #R_GOALKICK
@@ -3285,7 +3285,35 @@ keep_off:
         lda box_oh,y
         sta z_py + 1
         rts
+@own:   cmp #R_CORNER           ; its corner: 8, 9, 10 to the near post,
+        bne @done               ; the far one, the spot (corner_*: 256 +
+        txa                     ; x, y the top's, then the bottom's)
+        cpx #11
+        bcc :+
+        sbc #11
+:       sec
+        sbc #8
+        cmp #3
+        bcs @done
+        tay
+        lda corner_x,y
+        sta z_px
+        lda #1
+        sta z_px + 1
+        lda rs_y + 1            ; (the top: 0, the bottom: 2)
+        sta z_py + 1
+        beq :+
+        iny                     ; (the bottom's: three on)
+        iny
+        iny
+:       lda corner_y,y
+        sta z_py
+        rts
 
+corner_x:   .byte 304 - 256, 286 - 256, 324 - 256
+corner_y:   .byte LINE_T + 58, LINE_T + 22, LINE_T + 30
+            .byte <(LINE_B - 58), <(LINE_B - 22), <(LINE_B - 30)
+.assert >(LINE_B - 58) = 2 && >(LINE_B - 22) = 2, error, "corner_yb: high bytes"
 wall_dl:    .byte <(-WALL_D), <WALL_D
 wall_dh:    .byte >(-WALL_D), >WALL_D
 box_oh:     .byte >(BOX_T + 12), >(BOX_B - 12)
