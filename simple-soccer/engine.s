@@ -1571,10 +1571,8 @@ fd_xin2:
         bit z_nf
         bmi fd_clip
         lda #0                  ; (all of the figure on the picture: all
-        sta z_k0                ; its cells)
-        lda z_nc
-        sta z_k1
-        bpl fd_pool             ; (always)
+        sta z_k0                ; its cells - fd_fast)
+        beq fd_pool
 fd_clip:
         ; its cells on the picture: rows cy + ro + k, k from k0 = -row
         ; (0 at least) to k1 = VIS_H - row (its cells at most)
@@ -1611,6 +1609,42 @@ fd_pool:
 fd_skip:
         jmp fd_ncol
 :       sta pool_next           ; (0: used up)
+        bit z_nf
+        bmi fd_gen
+fd_fast:                        ; the same for all of the figure on the
+        lda z_cl                ; picture: k0 0, k1 nc, its cells in the
+        sta z_x0                ; cell's colour all in it
+        clc
+        adc z_nc
+        sta fp_end
+        lda z_c0
+        sec
+        sbc z_x0
+        sta fp_cc
+        ldy #4
+        lda (z_dat),y
+        cmp #$FF
+        beq fd_kc0              ; (from 255: none)
+        adc z_y0                ; (the carry clear: under 255)
+        lsr a
+        lsr a
+        lsr a
+        clc
+        adc z_x0
+        tax
+        iny
+        lda (z_dat),y
+        clc
+        adc z_y0
+        lsr a
+        lsr a
+        lsr a
+        sec                     ; (to the cell after kc1)
+        adc z_x0
+        sta fc_ce
+        txa
+        bcc fd_kc0              ; (always: under 255)
+fd_gen:
         ; each cell on the picture: its colour, its new code; what it
         ; showed goes into the list (and the cell's place), and is the
         ; strip's background - grass, else its pixels copied in
@@ -1636,9 +1670,8 @@ fd_skip:
         ldy #4                  ; kc0 (255: none, kc1 not looked at)
         lda (z_dat),y
         cmp #$FF
-        beq @none
-        clc
-        adc z_y0
+        beq fd_kc0
+        adc z_y0                ; (the carry clear: under 255)
         lsr a
         lsr a
         lsr a
@@ -1668,7 +1701,7 @@ fd_skip:
         lda z_kk
         clc
         adc z_t
-@none:  sta fc_c0
+fd_kc0: sta fc_c0
         lda z_ro
         clc
         adc z_k0
@@ -1718,12 +1751,11 @@ fp_end = * + 1
         bne fd_cell
         stx z_cl
         jmp fd_strip
-fd_bgl: sty z_yy                ; more than grass: its pixels into the strip
-        ldy #$80                ; (taken: its white turned light)
-        bne :+
-fd_bg:  sty z_yy
-        ldy #0
-:       sty z_rmp
+fd_bgl: sec                     ; more than grass: its pixels into the strip
+        .byte $24               ; (taken: its white turned light - bit zp
+fd_bg:  clc                     ; over the clc)
+        ror z_rmp
+        sty z_yy
         stx z_ix
         jsr char_at
         lda z_fnt
