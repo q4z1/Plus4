@@ -486,7 +486,7 @@ tint:
         cmp tc_row,x            ; white, and white already
         beq @next
         sta tc_row,x
-        jsr @dst
+        jsr tint_dst
         lda #COL_LINE
         ldy #SCR_W - 1
 :       sta (z_dst),y
@@ -501,20 +501,7 @@ tint:
         beq @next
         lda tc_row,x
 @copy:  sta tc_row,x
-        tay
-        lda cmap_lo,y
-        clc
-        adc col0
-        sta z_src
-        lda cmap_hi,y
-        adc #0
-        sta z_src + 1
-        jsr @dst
-        ldy #SCR_W - 1
-:       lda (z_src),y
-        sta (z_dst),y
-        dey
-        bpl :-
+        jsr tint_row
 @next:  inc z_ti
         inc z_tr
         lda z_tr
@@ -524,7 +511,53 @@ tint:
         lda col0
         sta tc_col,x
         rts
-@dst:   ldy z_tr                ; z_dst = the row in the colour matrix
+; tint_row: row z_tr of the back picture's colours from its colour row A
+; (cmap_*), from col0 on - the copy's operands set in it, four a turn
+tint_row:
+        tay
+        lda cmap_lo,y           ; (the copy's operands: @s1-4, @d1-4)
+        clc
+        adc col0
+        sta @s1 + 1
+        sta @s2 + 1
+        sta @s3 + 1
+        sta @s4 + 1
+        lda cmap_hi,y
+        adc #0
+        sta @s1 + 2
+        sta @s2 + 2
+        sta @s3 + 2
+        sta @s4 + 2
+        jsr tint_dst
+        lda z_dst
+        sta @d1 + 1
+        sta @d2 + 1
+        sta @d3 + 1
+        sta @d4 + 1
+        lda z_dst + 1
+        sta @d1 + 2
+        sta @d2 + 2
+        sta @d3 + 2
+        sta @d4 + 2
+        ldy #SCR_W - 1          ; (four a turn: SCR_W a multiple of 4)
+@s1: lda $FFFF,y
+@d1: sta $FFFF,y
+        dey
+@s2: lda $FFFF,y
+@d2: sta $FFFF,y
+        dey
+@s3: lda $FFFF,y
+@d3: sta $FFFF,y
+        dey
+@s4: lda $FFFF,y
+@d4: sta $FFFF,y
+        dey
+        bpl @s1
+        rts
+
+; tint_dst: z_dst = the row z_tr in the colour matrix
+tint_dst:
+        ldy z_tr
         lda r40_lo,y
         sta z_dst
         lda r40_hi,y
@@ -534,6 +567,7 @@ tint:
         rts
 
 tc_base:    .byte 0, SCR_H, 2 * SCR_H
+.assert SCR_W .mod 4 = 0, error, "tint: SCR_W not a multiple of 4"
 
 ; wave: the back picture's spectators of the wave (la_codes) as they sit,
 ; or a pixel up those of its step while a wave runs - in the characters
