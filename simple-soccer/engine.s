@@ -863,14 +863,26 @@ cells:
 ; at z_scr
 cl_rows:
 cl_row:   jsr map_row
+        lda z_map               ; (the row's places in the code: abs,y is
+        sta cl_src + 1          ; quicker than (zp),y)
+        lda z_map + 1
+        sta cl_src + 2
+        lda z_scr
+        sta cl_dst + 1
+        lda z_scr + 1
+        sta cl_dst + 2
         ldy #SCR_W - 1
-cl_cell:  lda (z_map),y
+cl_cell:
+cl_src = *
+        lda $FFFF,y
         beq cl_put              ; (the grass, code 0 in every set: first)
         tax
 cl_look = *
         lda xlat0,x             ; (the picture's cache)
         beq cl_none
-cl_put:   sta (z_scr),y
+cl_put:
+cl_dst = *
+        sta $FFFF,y
         dey
         bpl cl_cell
         lda z_scr
