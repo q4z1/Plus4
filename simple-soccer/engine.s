@@ -1529,15 +1529,15 @@ fd_col: ldy #3
         lsr a
         sta z_ro
         ldy #4                  ; its cells with pixels in the cell's colour:
-        lda (z_dat),y           ; strip cells kc0 .. kc1 (none: 255, 0)
-        cmp #$FF
+        lda (z_dat),y           ; strip cells kc0 .. kc1 (none: kc0 255 -
+        cmp #$FF                ; kc1 never looked at then)
         beq :+
         clc
         adc z_y0
         lsr a
         lsr a
         lsr a
-:       sta z_kc0
+        sta z_kc0
         iny
         lda (z_dat),y
         clc
@@ -1546,6 +1546,9 @@ fd_col: ldy #3
         lsr a
         lsr a
         sta z_kc1
+        jmp :++
+:       sta z_kc0
+:
         lda z_y0                ; its cells: (y0 + lines + 7) / 8
         clc
         adc z_h
@@ -1693,12 +1696,18 @@ fd_strip:
         ; with the block (strip line j at y = j + A, A = 32 - cells * 8):
         ; the strip less A is code c0 + cells - 4's pixels, the pixels
         ; less y0 and A the column's pixels - 32 + cells * 8 - y0
-        lda z_c0
+        lda z_c0                ; (char_at, in line)
         clc
         adc z_nc
         sec
         sbc #4
-        jsr char_at
+        tay
+        lda chr_lo,y
+        sta z_fnt
+        lda chr_hi,y
+        clc
+        adc z_fnthi
+        sta z_fnt + 1
         ldx z_nc
         lda fr_off,x
         sec
