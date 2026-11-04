@@ -907,22 +907,17 @@ shift:
         beq @rows               ; or the first -dc
         bmi @left
         sta z_k
-:       lda #SCR_W
+        lda #SCR_W
         sec
         sbc z_k
-        jsr fill_col
-        dec z_k
-        bne :-
-        beq @rows
+        jsr fill_cols
+        jmp @rows
 @left:  eor #$FF
         clc
         adc #1
         sta z_k
-:       dec z_k
-        lda z_k
-        jsr fill_col
-        lda z_k
-        bne :-
+        lda #0
+        jsr fill_cols
 @rows:  lda z_dr                ; the rows likewise
         beq @done
         bmi @top
@@ -962,9 +957,13 @@ fill_row:
         sta z_row
         jmp cl_rows
 
-; fill_col: column A of the back picture's codes looked up afresh
-fill_col:
+; fill_cols: columns A to A + z_k - 1 of the back picture's codes looked
+; up afresh, the rows shown, a row at a time (its ground row found once)
+fill_cols:
         sta z_c
+        clc
+        adc z_k
+        sta z_cnt               ; (past the last)
         lda row0
         sta z_wr
         lda z_atthi
@@ -975,9 +974,7 @@ fill_col:
         sta z_scr
         lda #VIS_H
         sta z_row
-        ldy z_c                 ; (Y the column throughout: alloc keeps it)
-fc_cell:
-        ldx z_wr                ; (map_row, in line)
+fc_row: ldx z_wr                ; (map_row, in line)
         lda wrow_lo,x
         clc
         adc col0
@@ -986,6 +983,8 @@ fc_cell:
         adc #0
         sta z_map + 1
         inc z_wr
+        ldy z_c                 ; (Y the column: alloc keeps it)
+fc_cell:
         lda (z_map),y
         tax
 fc_look = *
@@ -995,6 +994,9 @@ fc_look = *
         beq fc_put
         jsr alloc
 fc_put: sta (z_scr),y
+        iny
+        cpy z_cnt
+        bne fc_cell
         lda z_scr
         clc
         adc #SCR_W
@@ -1002,7 +1004,7 @@ fc_put: sta (z_scr),y
         bcc :+
         inc z_scr + 1
 :       dec z_row
-        bne fc_cell
+        bne fc_row
         rts
 
 ; move_up: the codes moved to lower addresses, from z_src (the matrix +
