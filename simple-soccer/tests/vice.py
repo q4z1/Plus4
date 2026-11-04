@@ -139,7 +139,10 @@ class Vice:
         return data[:length]
 
     def poke(self, addr, values):
-        self.cmd(f'> {addr:04x} ' + ' '.join(f'{v & 255:02x}' for v in values))
+        """(32 bytes a command: VICE's monitor drops a longer line)"""
+        values = list(values)
+        for i in range(0, len(values), 32):
+            self.cmd(f'> {addr + i:04x} ' + ' '.join(f'{v & 255:02x}' for v in values[i:i + 32]))
 
     def screenshot(self, path):
         return self.cmd(f'screenshot "{os.path.abspath(path)}" 2')
