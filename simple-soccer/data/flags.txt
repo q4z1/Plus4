@@ -1,7 +1,8 @@
 # The teams' flags for the title, drawn by tools/mkflags.py: each a list
 # of shapes, painted in turn on a flag 3 wide and 2 high (x 0-1 across,
 # y 0-1 down), separated by ";". The teams are title.s's, in its order.
-# A flag is 6 x 4 multicolour cells: stripes down in thirds lie on their edges.
+# A flag is 6 x 3 multicolour cells: stripes in thirds, down or across, lie on
+# their edges.
 #
 #   field C                    all of it
 #   hstripes C C ...           stripes across, top to bottom (C*n: n as wide)

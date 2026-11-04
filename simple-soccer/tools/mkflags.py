@@ -5,9 +5,9 @@ mkflags.py - the teams' flags for the title (data/flags.txt), as the file
 
     mkflags.py [--png preview.png]
 
-A flag is 6 x 4 multicolour cells, 24 x 32 multicolour pixels (each two
-hires pixels wide: 48 x 32, 3 to 2) - a third of the width 2 cells, so
-stripes down in thirds lie on the cells' edges. A cell has
+A flag is 6 x 3 multicolour cells, 24 x 24 multicolour pixels (each two
+hires pixels wide: 48 x 24, 2 to 1) - a third of the width 2 cells, of
+the height one, so stripes in thirds lie on the cells' edges. A cell has
 four colours: the title's background ($FF15, a navy blue - the flags'
 navy and dark blue), white ($FF16) and red ($FF17), which every cell
 shares, and one of its own: the most a cell needs of any other. Where a
@@ -25,10 +25,12 @@ next flag made ready in the one not shown).
 
 The file, at $D480:
   $D480  the patterns, 8 bytes each
-  $DB60  each team (title.s's order): its 24 cells' patterns, a row of 6 at
+  $DB60  each team (title.s's order): its 18 cells' patterns, a row of 6 at
          a time, as their numbers, then their own colours, two cells a
          byte (the first in the low four bits), as places in the palette
   $E060  the palette, 15 colours, multicolour (bit 3 set); "F" at $E06F
+  $E070  each team's second shared colour (its "red": $FF17 while its
+         flag is drawn - the title's two flags are on lines of their own)
 """
 import math
 import os
@@ -39,19 +41,21 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
-CELLS_W, CELLS_H = 6, 4
+CELLS_W, CELLS_H = 6, 3
 W, H = CELLS_W * 4, CELLS_H * 8          # multicolour pixels
 HW, HH = W * 2, H                       # hires pixels
 LOAD = 0xD480
 TEAMS_AT = 0xDB60
 PALETTE_AT = 0xE060
+SECOND_AT = 0xE070                      # each team's second shared colour
 MOST = 37                               # patterns a flag may have
 BG, WHITE, RED = 0x16, 0x71, 0x32       # the title's, $FF16, $FF17
 SHARED = {'navy': 0, 'white': 1, 'red': 2}
 OWN = {                                 # the TED's colours (luminance, hue)
     'black': 0x00, 'yellow': 0x67, 'gold': 0x67, 'green': 0x35,
     'dark': 0x15, 'blue': 0x36, 'sky': 0x53, 'maroon': 0x12,
-}
+    'red': RED,                         # (a cell's own where a flag's second
+}                                       # shared colour is another: Ghana)
 COLOURS = dict(OWN, navy=BG, white=WHITE, red=RED)
 LETTERS = {'N': 'navy', 'W': 'white', 'R': 'red', 'K': 'black', 'Y': 'yellow',
            'O': 'gold', 'G': 'green', 'D': 'dark', 'B': 'blue', 'S': 'sky', 'M': 'maroon'}
@@ -263,20 +267,22 @@ def dist(a, b):
     return 4 * (luma(ra) - luma(rb)) ** 2 + sum((p - q) ** 2 for p, q in zip(ra, rb))
 
 
-def cells(img, rule=None):
+def cells(img, rule=None, second='red'):
     """each cell: (its pattern: 8 bytes, its own colour); and how many
     pixels came out in another colour. rule (the flag's "cells C L"): a
     cell with any C in it takes C for its own, and what else it cannot
-    show comes out L"""
+    show comes out L. second: the flag's second shared colour ($FF17 while
+    it is drawn), red unless another loses fewer pixels (best_second)"""
     out, lost = [], 0
+    shared = ('navy', 'white', second)
     for cy in range(CELLS_H):
         for cx in range(CELLS_W):
             px = [img[cy * 8 + y][cx * 4 + x] for y in range(8) for x in range(4)]
-            others = [p for p in px if p not in SHARED]
+            others = [p for p in px if p not in shared]
             own = max(sorted(set(others)), key=others.count) if others else 'black'
             if rule and rule[0] in others:
                 own = rule[0]
-            have = ['navy', 'white', 'red', own]
+            have = ['navy', 'white', second, own]
             pat = []
             for y in range(8):
                 b = 0
@@ -291,19 +297,31 @@ def cells(img, rule=None):
     return out, lost
 
 
+def best_second(img):
+    """the flag's second shared colour: the one that leaves the fewest
+    pixels in another colour - red, unless another does better (Brazil's
+    green and yellow, Ghana's gold, green and red: each cell has room for
+    one colour of its own besides)"""
+    return min(['red'] + [c for c in OWN if c != 'red'], key=lambda c: (cells(img, None, c)[1], c != 'red'))
+
+
 def main():
     names = teams()
     defs, sprites = read()
     missing = [n for n in names if n not in defs]
     if missing:
         raise SystemExit('no flag for %s' % ', '.join(missing))
-    all_cells = {}
+    all_cells, second = {}, {}
     for n in names:
         rule = [sh[1:] for sh in defs[n] if sh[0] == 'cells']
-        all_cells[n], lost = cells(paint([sh for sh in defs[n] if sh[0] != 'cells'], sprites),
-                                   rule[0] if rule else None)
+        img = paint([sh for sh in defs[n] if sh[0] != 'cells'], sprites)
+        second[n] = best_second(img)
+        all_cells[n], lost = cells(img, rule[0] if rule and second[n] == 'red' else None,
+                                   second[n])
         if lost and not rule:
             print('  %-13s %d pixels in another colour' % (n, lost))
+        if second[n] != 'red':
+            print('  %-13s %s for red' % (n, second[n]))
     pats = []
     for n in names:
         for pat, _ in all_cells[n]:
@@ -318,7 +336,7 @@ def main():
     palette = sorted(set(own for n in names for _, own in all_cells[n]),
                      key=lambda c: list(OWN).index(c))
     assert len(palette) <= 15
-    data = bytearray(PALETTE_AT + 16 - LOAD)
+    data = bytearray(SECOND_AT + len(names) - LOAD)
     for i, p in enumerate(pats):
         data[i * 8:i * 8 + 8] = p
     assert len(pats) * 8 <= TEAMS_AT - LOAD, 'the patterns overrun the teams'
@@ -335,16 +353,18 @@ def main():
     for i, c in enumerate(palette):
         data[PALETTE_AT - LOAD + i] = OWN[c] | 0x08
     data[PALETTE_AT - LOAD + 15] = ord('F')     # (the title: the flags are there)
+    for i, n in enumerate(names):
+        data[SECOND_AT - LOAD + i] = COLOURS[second[n]]
     os.makedirs(os.path.join(ROOT, 'build', 'disk'), exist_ok=True)
     open(os.path.join(ROOT, 'build', 'disk', 'flags.prg'), 'wb').write(
         struct.pack('<H', LOAD) + bytes(data))
     print('flags: %d teams, %d patterns, %d colours of their own, %d bytes'
           % (len(names), len(pats), len(palette), len(data)))
     if len(sys.argv) > 2 and sys.argv[1] == '--png':
-        preview(sys.argv[2], names, all_cells)
+        preview(sys.argv[2], names, all_cells, second)
 
 
-def preview(path, names, all_cells):
+def preview(path, names, all_cells, second):
     """the flags as the TED shows them, framed, 5 to a row, twice the size"""
     per, gap = 5, 12
     fw, fh = HW * 2, HH * 2
@@ -367,7 +387,7 @@ def preview(path, names, all_cells):
             for y in range(8):
                 for x in range(4):
                     v = pat[y] >> (6 - 2 * x) & 3
-                    rgb = [bg, RGB[WHITE], RGB[RED], RGB[OWN[own]]][v]
+                    rgb = [bg, RGB[WHITE], RGB[COLOURS[second[n]]], RGB[OWN[own]]][v]
                     for dy in range(2):
                         for dx in range(4):
                             pix[oy + (cy * 8 + y) * 2 + dy][ox + (cx * 4 + x) * 4 + dx] = rgb

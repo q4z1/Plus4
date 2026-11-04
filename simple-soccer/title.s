@@ -16,7 +16,7 @@
 ; FLAGS): their cells' patterns, all of them once, which the two flags
 ; shown have copied into the codes the font leaves free - each side two
 ; sets of 37: a flag chosen is made ready in the set not shown (prep),
-; and only its 24 cells change over (commit), just below the picture's
+; and only its 18 cells change over (commit), just below the picture's
 ; last line - nothing is ever drawn half. A line chosen only changes
 ; colours. No team plays itself: choosing passes the other side's by.
 
@@ -62,23 +62,35 @@ PLAYERS_ROW = 7
 MODE_ROW    = 8
 LINE_COL    = 7                 ; (their text,
 VALUE_COL   = 24                ; the digits, the mode)
-LABEL_ROW   = 10                ; "HOME", "AWAY"
-FLAG_ROW    = 12                ; the flags' first row, 4 rows of 6 cells
-FLAG_W      = 6
-FLAG_H      = 4
+FLAG_ROW    = 11                ; the home flag's first row, 3 rows of 6
+FLAG_W      = 6                 ; cells - the away one's DROP rows lower:
+FLAG_H      = 3                 ; no line of the picture has both, so each
+DROP        = FLAG_H + 1        ; has a second shared colour of its own
+FLAG_REC    = FLAG_W * FLAG_H * 3 / 2   ; a team's: cells, colours
 HOME_COL    = 5                 ;   the home team's first column
 AWAY_COL    = 29                ;   the away team's
-NAME_ROW    = 17                ; their names, a field of NAME_W under each
-NAME_W      = 13
-FIRE_ROW    = 19
-PORTS_ROW   = 21                ; (where the joysticks go)
+LABEL_ROW   = FLAG_ROW          ; "HOME" beside the home flag, "AWAY" beside
+NAME_ROW    = FLAG_ROW + 1      ; the away one (TEXT_DROP rows lower), each over
+NAME_COL    = 14                ; its name, a field of FIELD_W - all in the
+FIELD_W     = 12                ; middle between the flags, as "VS"
+NAME_W      = 13                ; (a name in teams: the longest 12 so far)
+LABEL_COL   = NAME_COL + (FIELD_W - 4) / 2
+TEXT_DROP   = DROP + 1          ; (the away side's words at its flag's foot,
+                                ; the home side's at its top: "VS" between)
+FIRE_ROW    = 20
+PORTS_ROW   = 22                ; (where the joysticks go)
 PORTS_COL   = 6
-CREDIT_ROW  = 23
+CREDIT_ROW  = 24
+LINE_0      = 3                 ; the raster line of the text's first row
+SPLIT_HOME  = LINE_0 + (FLAG_ROW - 1) * 8           ; (the frame's row
+SPLIT_AWAY  = LINE_0 + (FLAG_ROW + DROP - 1) * 8    ; above each flag,
+SPLIT_BELOW = LINE_0 + (FLAG_ROW + DROP + FLAG_H) * 8   ; and below)
 
 FLAGS       = $D480             ; the disk's (tools/mkflags.py): the patterns,
-FLAGS_TEAMS = $DB60             ; each team's 24 cells and 12 colour bytes,
+FLAGS_TEAMS = $DB60             ; each team's 18 cells and 9 colour bytes,
 FLAGS_PAL   = $E060             ; the palette,
 FLAGS_SIG   = $E06F             ; "F": they are there (a test has none)
+FLAGS_2ND   = $E070             ; each team's second shared colour
 LOC         = $E100             ; (prep's: a pattern's code, 256 bytes,
 CBUF        = $E200             ; the cells' codes and colours made ready)
 CCOL        = $E220
@@ -352,6 +364,7 @@ title:
         sbc #200
         cmp #16
         bcc @next
+        jsr split
         jmp @wait
 @go:    jsr mus_stop
         jmp chosen
@@ -412,7 +425,7 @@ show_rows:
         sta TCOL + LABEL_ROW * 40 + 3,y
         ldy field_at - 3,x
         sta TCOL + NAME_ROW * 40 - 1,y
-        sta TCOL + NAME_ROW * 40 + NAME_W,y
+        sta TCOL + NAME_ROW * 40 + FIELD_W,y
 @next:  dex
         bpl @row
         rts
@@ -546,30 +559,21 @@ prep:
         asl a
         ora t_nb
         sta t_k2
-        lda t_team,x            ; t_ptr: its cells, FLAGS_TEAMS + team * 36
-        sta t_c
-        lda #0
+        lda #<FLAGS_TEAMS       ; t_ptr: its cells, FLAGS_TEAMS + team *
+        sta t_ptr               ; FLAG_REC
+        lda #>FLAGS_TEAMS
         sta t_ptr + 1
-        lda t_c
-        ldy #5                  ; (* 32)
-:       asl a
-        rol t_ptr + 1
-        dey
-        bne :-
-        sta t_f
-        lda t_c                 ; + * 4
-        asl a
-        asl a
+        ldy t_team,x
+        beq @at
+:       lda t_ptr
         clc
-        adc t_f
+        adc #FLAG_REC
+        sta t_ptr
         bcc :+
         inc t_ptr + 1
-:       clc
-        adc #<FLAGS_TEAMS
-        sta t_ptr
-        lda t_ptr + 1
-        adc #>FLAGS_TEAMS
-        sta t_ptr + 1
+:       dey
+        bne :--
+@at:
         ldy #FLAG_W * FLAG_H - 1        ; its patterns: none given a code yet
         lda #$FF
 :       pha
@@ -656,7 +660,33 @@ commit:
         lda t_bank,x
         eor #1
         sta t_bank,x
+        ldy t_team,x            ; (its second shared colour: split)
+        lda FLAGS_2ND,y
+        sta t_2nd,x
 @none:  rts
+
+; split: $FF17 each flag's second shared colour while it is drawn - from
+; the frame's row above it - and red again below them (the logo's); each
+; written in the right border (anywhere else the TED shows a white pixel
+; there). Interrupts held off for that line at most.
+split:
+        ldx #0
+@one:   lda TED_LINE            ; (its row: from its first line, 6 lines)
+        sec
+        sbc split_at,x
+        cmp #6
+        bcs @one
+        lda t_2nd,x
+        sei
+:       ldy $FF1E               ; (the beam's place across: the border)
+        cpy #147
+        bcc :-
+        sta TED_COL2
+        cli
+        inx
+        cpx #3
+        bne @one
+        rts
 
 ; new_code: the next free code of the set being made ready (t_k2: side *
 ; 2 + set) for pattern X, its pattern copied there from FLAGS; the code
@@ -733,14 +763,14 @@ draw_names:
         beq :-
         iny
         sty t_c
-        lda #NAME_W             ; in the middle: (NAME_W - length) / 2 in
+        lda #FIELD_W             ; in the middle: (FIELD_W - length) / 2 in
         sec
         sbc t_c
         lsr a
         sta t_f
         ldx t_x
         ldy field_at,x
-        ldx #NAME_W             ; the field blank
+        ldx #FIELD_W             ; the field blank
         lda #' '
 :       sta TCODE + NAME_ROW * 40,y
         iny
@@ -764,7 +794,7 @@ draw_names:
         and #$F7
         ora #$40
         ldy field_at,x
-        ldx #NAME_W
+        ldx #FIELD_W
 :       sta TCOL + NAME_ROW * 40,y
         iny
         dex
@@ -777,10 +807,12 @@ draw_names:
 ROWS        = 5                 ; the lines to choose on: length, players,
 row_of:     .byte LEN_ROW, PLAYERS_ROW, MODE_ROW    ; mode, the home team,
                                                     ; the away team
-label_at:   .byte HOME_COL + 1, AWAY_COL + 1
-field_at:   .byte HOME_COL - 4, AWAY_COL - 4
-flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + HOME_COL), <(TCODE + FLAG_ROW * 40 + AWAY_COL)
-flag_hi:    .byte >(TCODE + FLAG_ROW * 40 + HOME_COL), >(TCODE + FLAG_ROW * 40 + AWAY_COL)
+label_at:   .byte LABEL_COL, TEXT_DROP * 40 + LABEL_COL     ; (the away
+field_at:   .byte NAME_COL, TEXT_DROP * 40 + NAME_COL       ; side's lower)
+.assert TEXT_DROP * 40 + NAME_COL + FIELD_W < 256, error, "field_at"
+flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + HOME_COL), <(TCODE + (FLAG_ROW + DROP) * 40 + AWAY_COL)
+flag_hi:    .byte >(TCODE + FLAG_ROW * 40 + HOME_COL), >(TCODE + (FLAG_ROW + DROP) * 40 + AWAY_COL)
+split_at:   .byte SPLIT_HOME, SPLIT_AWAY, SPLIT_BELOW
 ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
 PORTS_W     = * - ports_1
 ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
@@ -828,19 +860,19 @@ lines:
         .byte "PLAYERS:       <          >", 0
         .byte MODE_ROW, LINE_COL, C_TEXT
         .byte "MODE:          <          >", 0
-        .byte LABEL_ROW, HOME_COL + 1, C_TEXT
+        .byte LABEL_ROW, LABEL_COL, C_TEXT
         .byte "HOME", 0
-        .byte LABEL_ROW, AWAY_COL + 1, C_TEXT
+        .byte LABEL_ROW + TEXT_DROP, LABEL_COL, C_TEXT
         .byte "AWAY", 0
-        .byte NAME_ROW, HOME_COL - 5, C_TEXT
+        .byte NAME_ROW, NAME_COL - 1, C_TEXT
         .byte "<", 0
-        .byte NAME_ROW, HOME_COL - 4 + NAME_W, C_TEXT
+        .byte NAME_ROW, NAME_COL + FIELD_W, C_TEXT
         .byte ">", 0
-        .byte NAME_ROW, AWAY_COL - 5, C_TEXT
+        .byte NAME_ROW + TEXT_DROP, NAME_COL - 1, C_TEXT
         .byte "<", 0
-        .byte NAME_ROW, AWAY_COL - 4 + NAME_W, C_TEXT
+        .byte NAME_ROW + TEXT_DROP, NAME_COL + FIELD_W, C_TEXT
         .byte ">", 0
-        .byte FLAG_ROW + 1, 19, C_DIM
+        .byte FLAG_ROW + FLAG_H, 19, C_DIM      ; (between the flags)
         .byte "VS", 0
         .byte FIRE_ROW, 9, C_FIRE0
         .byte "PRESS FIRE TO KICK OFF", 0
@@ -873,6 +905,8 @@ t_ccol:     .byte 0
 t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
                                 ; cyan and yellow there were before)
 t_bank:     .byte 0, 0          ; each side's set of codes shown
+t_2nd:      .byte FLAG_RED, FLAG_RED, FLAG_RED  ; $FF17 while each side's
+                                ; flag is drawn (commit), and below them
 t_nb:       .byte 0             ; (prep's: the set it fills,
 t_k2:       .byte 0             ; that set's place in code_*)
 t_pend:     .byte 0             ; a side's flag ready, 1 + side; 0 none

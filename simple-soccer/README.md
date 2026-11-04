@@ -78,25 +78,27 @@ turning about one of them, eight pictures of 24 x 24 pixels; a fifth of
 a turn brings a football back to how it was, so they go round without a
 jump.
 
-The title shows the two teams' flags side by side, framed, "VS" between
-them and each team's name below its own (`data/flags.txt`, drawn by
-`tools/mkflags.py`). A flag is 6 x 4 multicolour cells, 48 x 32 pixels,
-3 to 2: a third of its width is two cells, so stripes down in thirds lie
-on the cells' edges. A cell has four colours - the title's background, a
-navy blue that is the flags' navy (the frame keeps it from the
-background), white and red, which all cells share, and one of its own -
-so most flags come out to the pixel: the stripes, the Union Jack and the
-stars of Australia and New Zealand, the USA's canton, Korea's circle,
-Canada's leaf (the small emblems drawn pixel for pixel). Where a cell
-would need two colours of its own - Brazil's green and yellow - the cells
-its yellow lozenge runs through are yellow, their green the navy of its
-globe: the lozenge keeps its straight edges. No colour shows that is not
-in the flag.
+The title shows the two teams' flags framed, the home one on the left, the
+away one lower down on the right, "VS" between them and each team's name
+beside its own (`data/flags.txt`, drawn by `tools/mkflags.py`). A flag is
+6 x 3 multicolour cells, 48 x 24 pixels, 2 to 1: a third of its width is
+two cells, a third of its height one, so stripes in thirds lie on the
+cells' edges. A cell has four colours - the title's background, a navy
+blue that is the flags' navy (the frame keeps it from the background),
+white and a second shared colour, and one of its own - so most flags come
+out to the pixel: the stripes, the Union Jack and the stars of Australia
+and New Zealand, the USA's canton, Korea's circle, Canada's leaf (the
+small emblems drawn pixel for pixel). The second shared colour is red,
+unless another lets more of the flag come out: Brazil's is yellow (its
+green each cell's own), Ghana's and Mexico's gold. The two flags share no
+line of the picture, so the title sets that colour for each while it is
+drawn (in the border at the end of a line, where the TED shows no stray
+pixel for it). No colour shows that is not in the flag.
 
-The patterns of all the flags' cells are on the disk once each (184 of
+The patterns of all the flags' cells are on the disk once each (150 of
 them); the title copies those of the two flags shown into the character
 codes its own font leaves free. Each side has two sets of codes: a flag
-chosen is made ready in the set not on the screen, and only its 24
+chosen is made ready in the set not on the screen, and only its 18
 cells change over, below the picture's last line - a flag is never seen
 half drawn, and the screen is multicolour throughout (the name's
 colours too are ones a multicolour screen leaves to text). A team cannot
