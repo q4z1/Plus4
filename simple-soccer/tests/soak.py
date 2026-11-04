@@ -13,9 +13,13 @@ jump     a player more than JUMP pixels from where he was a picture
          before (play going on: not a set piece's placing)
 keeper   a keeper further than KEEPER_OUT from his line (play going on)
 hangs    the ball in the air, its height and step the same for HANG
-         pictures
+         pictures (in play: after a goal it rests in the net)
 out      the ball outside the walls round the pitch
 gone     a set piece waiting, a joystick's player out of the picture
+behind   a keeper's ball held behind the goal line (kicked, it is a goal)
+stuck    a set piece waiting longer than STUCK pictures for the computer
+         (it takes its own within 150 frames, 50 pictures) or STUCK_ME
+         for a joystick (the random plan presses fire often)
 
 The exit code counts the things seen (at most 255).
 """
@@ -32,6 +36,8 @@ BALL = 22
 JUMP = 30
 KEEPER_OUT = 220
 HANG = 15
+STUCK = 80
+STUCK_ME = 400
 LINE = (49, 689)
 GROUND_X, GROUND_Y = 23, 58
 KINDS = ['kick-off', 'throw-in', 'goal kick', 'corner', 'keeper\'s', 'free kick', 'penalty']
@@ -88,7 +94,7 @@ def main():
         hang = 0
         was_live = False
         gone = set()
-        pieces = last_kick = 0
+        pieces = last_kick = waited = 0
         for pic in range(n):
             if pic in pa:
                 v.poke(lab['dbg_joy'], [pa[pic]])
@@ -121,7 +127,7 @@ def main():
                 line = LINE[team ^ flip ^ 1]
                 if abs(pos[k][1] - line) > KEEPER_OUT:
                     tell('keeper', '%d at %s, his line y %d' % (k, pos[k], line))
-            if z > 0 and last and z == last_z and dz == last_dz:
+            if live and z > 0 and last and z == last_z and dz == last_dz:
                 hang += 1
                 if hang == HANG:
                     tell('hangs', 'ball at %s height %d step %d' % (pos[BALL], z, dz))
@@ -144,8 +150,17 @@ def main():
                                  % (c, p, pos[p], pos[BALL], KINDS[m('rs_kind')], m('rs_team')))
                         if out:
                             gone.add(c)
+                waited += 1
+                if waited == 1 and m('rs_kind') == 4 and not LINE[0] <= pos[BALL][1] <= LINE[1]:
+                    tell('behind', 'keeper %d holds it at %s' % (m('taker'), pos[BALL]))
+                cpu = m('rs_team') == 1 and not two
+                if waited == (STUCK if cpu else STUCK_ME):
+                    tell('stuck', '%s for %s waiting %d pictures, the ball at %s, taker %d, half %d'
+                         % (KINDS[m('rs_kind')], 'the computer' if cpu else m('rs_team'),
+                            waited, pos[BALL], m('taker'), m('half')))
             else:
                 gone = set()
+                waited = 0
             pieces += bool(kick) and not last_kick
             last, last_z, last_dz, was_live, last_kick = pos, z, dz, live, kick
             last_raw = raw

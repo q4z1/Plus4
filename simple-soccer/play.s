@@ -518,9 +518,11 @@ calm:
 ; line_up: both teams lined up for a kick-off (rs_team's), standing
 line_up:
         lda rs_team             ; the cyan team: the kick-off's line if it
-        ldx #0                  ; takes it, else the other
-        jsr @team
+        eor flip                ; takes it, else the other (the sides
+        ldx #0                  ; changed: the yellow team's, as the two
+        jsr @team               ; change places after)
         lda rs_team             ; the yellow team likewise
+        eor flip
         eor #1
         ldx #11
         jsr @team
@@ -5516,19 +5518,19 @@ brain:
         lda #0
         sta pj
         sta br_ev
+        lda br_t                ; (frames: down to 0 - at set pieces too,
+        sec                     ; else one kicked just before the whistle
+        sbc pic_n               ; keeps it from ever taking it)
+        bcs :+
+        lda #0
+:       sta br_t
         lda kickoff             ; (its set pieces: brain_set; the other
-        beq :+                  ; team's: nothing)
+        beq @play               ; team's: nothing)
         lda rs_team
         cmp me
         jeq brain_set
         rts
-:       lda br_t              ; (frames: down to 0)
-        sec
-        sbc pic_n
-        bcs :+
-        lda #0
-:       sta br_t
-        jsr rnd
+@play:  jsr rnd
         sta br_r
         lda at_n                ; its shot on its way: the aftertouch
         bmi :+
@@ -5790,8 +5792,9 @@ br_after:
 ; facing his way first, or in and up or down - else passed; a free kick
 ; 15 in 16 shot if he faces the goal (else he turns to it), 1 in 16
 ; passed; a goal kick and the keeper's kicked long. A pass only to a
-; team-mate nearest that way (br_cone), else he turns on. The penalty:
-; cpu_take's. (Not here, for room: a kick-off shot after 150 frames, a
+; team-mate nearest that way (br_cone), else he turns on - after 150
+; frames kicked (Sensible Soccer's kick-off; here any set piece's, that
+; none waits for ever). The penalty: cpu_take's. (Not here, for room: a
 ; long throw 1 in 16.) Keeps X.
 brain_set:
         lda rs_kind
@@ -5823,7 +5826,10 @@ brain_set:
         jsr goal_dir
         jmp br_stick
 @none:  rts
-@go:    ldy rs_kind
+@go:    lda bs_t                ; (no one to pass to after 150 frames:
+        cmp #150                ; kicked - as Sensible Soccer's kick-off,
+        jcs bs_shot             ; and so no set piece waits for ever)
+        ldy rs_kind
         cpy #R_KICKOFF
         beq bs_pass             ; a kick-off: passed
         cpy #R_THROW
