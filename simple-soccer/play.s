@@ -397,6 +397,13 @@ tac_y0l:    .res 44
 tac_y0h:    .res 44
 
 
+        .segment "DATA"         ; (in MAIN: the BSS is full)
+o_3xf:  .res NOBJ               ; each object's step three times over
+o_3xl:  .res NOBJ               ; (triple): play_others's for a picture
+o_3yf:  .res NOBJ               ; of three frames
+o_3yl:  .res NOBJ
+tr_t:   .res 2                  ; (triple's)
+
         .rodata
 ; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
 ; defence, midfield, attack - x as the yellow team stands, then y as the
@@ -666,6 +673,10 @@ stand:
         sta o_vxl,x
         sta o_vyf,x
         sta o_vyl,x
+        sta o_3xf,x
+        sta o_3xl,x
+        sta o_3yf,x
+        sta o_3yl,x
         rts
 
 ; ---- a frame --------------------------------------------------------------
@@ -867,7 +878,11 @@ play_others:
         sta o_new,x
         jsr aim
         ldx z_obj
-@step:  ldy pic_n
+@step:  ldy pic_n                ; (three frames, as mostly: his step
+        cpy #3                  ; three times, o_3*, in one go - step3)
+        bne @sub
+        jsr step3
+        jmp @arr
 @sub:   lda o_xf,x              ; on by his step (as step, the step's
         clc                     ; sign carried into the high byte)
         adc o_vxf,x
@@ -900,7 +915,7 @@ play_others:
         dec o_yh,x
 @next1: dey
         bne @sub
-        jsr arrive              ; (past it: put there)
+@arr:   jsr arrive              ; (past it: put there)
         lda o_vxf,x             ; there: the standing picture, passed over
         ora o_vxl,x             ; till he has somewhere to go
         ora o_vyf,x
@@ -930,6 +945,72 @@ play_others:
         bmi :-
 @ran:   sta o_run,x
         jmp @next
+
+; triple: object X's step three times over, o_3* (play_others's for a
+; picture of three frames) - kept wherever the step is set. Keeps X.
+triple:
+        lda o_vxf,x
+        asl a
+        sta tr_t
+        lda o_vxl,x
+        rol a
+        sta tr_t + 1
+        lda tr_t
+        clc
+        adc o_vxf,x
+        sta o_3xf,x
+        lda tr_t + 1
+        adc o_vxl,x
+        sta o_3xl,x
+        lda o_vyf,x
+        asl a
+        sta tr_t
+        lda o_vyl,x
+        rol a
+        sta tr_t + 1
+        lda tr_t
+        clc
+        adc o_vyf,x
+        sta o_3yf,x
+        lda tr_t + 1
+        adc o_vyl,x
+        sta o_3yl,x
+        rts
+
+; step3: object X on by its step three times over (o_3*), at once - as
+; three of play_others's steps. Keeps X.
+step3:  lda o_xf,x
+        clc
+        adc o_3xf,x
+        sta o_xf,x
+        lda o_3xl,x
+        bmi @x3
+        adc o_xl,x
+        sta o_xl,x
+        bcc @y3
+        inc o_xh,x
+        bcs @y3
+@x3:    adc o_xl,x
+        sta o_xl,x
+        bcs @y3
+        dec o_xh,x
+@y3:    lda o_yf,x
+        clc
+        adc o_3yf,x
+        sta o_yf,x
+        lda o_3yl,x
+        bmi @y3n
+        adc o_yl,x
+        sta o_yl,x
+        bcc @done
+        inc o_yh,x
+        rts
+@y3n:   adc o_yl,x
+        sta o_yl,x
+        bcs @done
+        dec o_yh,x
+@done:  rts
+
 
 ; control: the joystick's player - where he runs, dribbling, fire; for
 ; the computer's team its brain works his stick out first, and a pass
@@ -2242,6 +2323,8 @@ arrive:
         sta o_xf,x
         sta o_vxf,x
         sta o_vxl,x
+        sta o_3xf,x
+        sta o_3xl,x
 @y:     lda o_vyl,x
         ora o_vyf,x
         beq @done
@@ -2260,6 +2343,8 @@ arrive:
         sta o_yf,x
         sta o_vyf,x
         sta o_vyl,x
+        sta o_3yf,x
+        sta o_3yl,x
 @done:  rts
 
 ; ball_move: the ball a frame - see the top
@@ -2580,6 +2665,10 @@ aim:
         sta o_vxl,x
         sta o_vyf,x
         sta o_vyl,x
+        sta o_3xf,x
+        sta o_3xl,x
+        sta o_3yf,x
+        sta o_3yl,x
         sta c_spl,x             ; (a speed of 0 noted: anew next time)
         sta c_sph,x
         rts
@@ -2636,7 +2725,7 @@ aim:
         sta o_vyl,x
         cpx #BALL
         beq :+
-        rts
+        jmp triple
 
 :       lda z_p                 ; the ball's: noted for its friction
         sta b_py0
