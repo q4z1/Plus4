@@ -1498,26 +1498,20 @@ fd_yok:   lda z_ty
         adc row40s_lo,y
         sta z_att
         sta z_scr
-        lda z_cx
+        ldx z_lst               ; (into the picture's list: the base's place
+        sta l_lo,x              ; in the matrix, where its cells start in
+        lda z_cx                ; the picture's pages of places and codes)
         and #$80
         beq :+
         lda #$FF
 :       adc row40s_hi,y
+        sta l_hi,x
         clc
         adc z_atthi
         sta z_att + 1
         clc                     ; (a base above the matrix carries)
         adc #4
         sta z_scr + 1
-        ; into the picture's list: the base's place in the matrix, where
-        ; its cells start in the picture's pages of places and codes
-        ldx z_lst
-        lda z_att
-        sta l_lo,x
-        lda z_att + 1
-        sec
-        sbc z_atthi
-        sta l_hi,x
         lda z_cl
         sta l_ci,x
         sta z_cl0
@@ -1788,10 +1782,8 @@ fd_strip:
         ; with the block (strip line j at y = j + A, A = 32 - cells * 8):
         ; the strip less A is code c0 + cells - 4's pixels, the pixels
         ; less y0 and A the column's pixels - 32 + cells * 8 - y0
-        lda z_c0                ; (char_at, in line)
-        clc
-        adc z_nc
-        sec
+        lda pool_next           ; (char_at, in line; c0 + cells, as fd_pool
+        sec                     ; left it - 0 for 256 is as good)
         sbc #4
         tay
         lda chr_lo,y
