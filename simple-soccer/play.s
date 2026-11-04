@@ -2940,7 +2940,8 @@ angle:
         lsr a
         lsr a
         lsr a
-        adc #>atan_tab          ; (carry clear)
+        clc
+        adc #>atan_tab
         sta z_ptr + 1
         tya
         asl a
