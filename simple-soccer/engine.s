@@ -123,8 +123,7 @@ shown:      .res 1              ; the one on screen, $FF none yet
 queued:     .res 1              ; the one finished, waiting; $FF none
 since:      .res 1              ; frames since the last was put on screen
 cut_d:      .res 1              ; the lines the cut took this frame (0: none)
-mv_end:     .res 1              ; move_up's last page's end, move_down's
-mv_lo:      .res 1              ;   first page's start; its page's start
+mv_end:     .res 1              ; move_up's last page's end
 ctrl2:      .res 1              ; $FF07 as the game wants it, without the
                                 ; fine scroll
 cam_x:      .res 2              ; the view's top left corner on the
@@ -1076,69 +1075,50 @@ mu_end: cpx #0                  ; (its end: move_up sets it)
         bne mu_loop
         rts
 
-; move_down: the codes moved to higher addresses, |off| = z_dst's low
-; byte up, into the matrix's four pages from the top down, the highest
-; first, MOVE_U a turn: from the 1000th byte (up to a multiple of MOVE_U)
-; down to |off| (down to one) - below it are the rows or columns coming
-; in, looked up after.
+; move_down: the codes moved to higher addresses by |off| (z_dst's low
+; byte), the highest first, MOVE_U a turn, a page of the source at a time
+; from the top down: source page P to P's place + |off| - so the source's
+; operands are page + 15 - K and the destination's page + |off| + 15 - K,
+; neither carrying: their low bytes set once, their high bytes all the
+; page. From the end of the rows shown (VIS_H, up to a multiple of
+; MOVE_U) down to the matrix's |off|th byte - below it are the rows or
+; columns coming in, looked up after.
 move_down:
-        lda z_dst               ; |off|
-        sta z_c
-        and #<(256 - MOVE_U)    ; (the first page's start)
-        sta mv_end
-        lda z_src + 1           ; the top page
+        ldx #0                  ; the destination's low bytes, once
+        lda z_dst
         clc
-        adc #3
-        sta z_dst + 1
-        lda #4
-        sta z_cnt
-md_page:                        ; this page from mv_lo (the first page:
-        lda #0                  ; mv_end) - its source destination - |off|
-        ldx z_cnt
-        dex
-        bne :+
-        lda mv_end
-:       sta mv_lo
+        adc #MOVE_U - 1
+:       sta md_loop + 4,x
         sec
-        sbc z_c
-        sta z_src
-        lda z_dst + 1
-        sbc #0
-        sta z_src + 1
-        ldx #MOVE_U - 1         ; operand K: + MOVE_U - 1 - K
-        ldy #0
-:       txa
-        clc
-        adc z_src
-        sta md_loop + 1,y
-        lda z_src + 1
-        adc #0
-        sta md_loop + 2,y
+        sbc #1
+        pha
         txa
         clc
-        adc mv_lo
-        sta md_loop + 4,y
-        lda z_dst + 1
-        sta md_loop + 5,y
-        tya
-        clc
         adc #6
-        tay
-        dex
-        bpl :-
-        lda #256 - MOVE_U       ; X from the page's top (the top page's:
-        ldx z_cnt               ; past the rows shown) down to mv_lo
-        cpx #4
-        bne :+
-        lda #<(VIS_H * SCR_W + MOVE_U - 1 - 3 * 256) & <(256 - MOVE_U)
-        sec
-        sbc #MOVE_U
-:       sec
-        sbc mv_lo
         tax
+        pla
+        cpx #6 * MOVE_U
+        bne :-
+        lda z_src + 1           ; the top page: from the end of the rows
+        clc                     ; shown less |off|
+        adc #3
+        sta z_dst + 1
+        lda #<(VIS_H * SCR_W - 3 * 256 - 1)
+        sec
+        sbc z_dst
+        and #<(256 - MOVE_U)
+        tax
+md_page:                        ; the page's high bytes, all of them
+        lda z_dst + 1
+        .repeat MOVE_U, K
+        sta md_loop + 2 + 6 * K
+        sta md_loop + 5 + 6 * K
+        .endrepeat
         jsr md_loop
+        ldx #256 - MOVE_U       ; (the pages below: whole)
+        lda z_dst + 1
         dec z_dst + 1
-        dec z_cnt
+        cmp z_src + 1
         bne md_page
         rts
 md_loop:
