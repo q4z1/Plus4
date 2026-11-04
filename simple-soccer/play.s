@@ -85,6 +85,7 @@ WALL_D      = 40                ; a set piece: the other team this far off
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 HOLD_LIFT   = 14                ; a keeper's hands up, the ball held in them
+HOLD_TOP    = 6                 ; (the top goal's keeper: before his chest)
 SPEED_DIVE  = 2048              ; his dive (c0dffc),
 SPEED_DIVE_W = 1280             ; the wrong way at a penalty (c0dffe),
 DIVE_SLOW   = 72                ; less each frame after the first two
@@ -4017,10 +4018,15 @@ throwing:
         lda kickoff
         beq @thrown
         lda rs_kind
-        ldy #HOLD_LIFT          ; (the keeper's: in his hands over his head)
-        cmp #R_KEEPER
+        ldy #HOLD_LIFT          ; (the keeper's: in his hands over his head
+        cmp #R_KEEPER           ; - the top one's before his chest: over
+        bne @throw              ; his head it would be drawn on his line,
+        lda rs_team             ; in the net)
+        eor flip
         beq @hold
-        cmp #R_THROW
+        ldy #HOLD_TOP
+        bne @hold
+@throw: cmp #R_THROW
         bne @none
         lda #THROW_T
         sta throw_t
