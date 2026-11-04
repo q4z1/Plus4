@@ -865,6 +865,7 @@ cl_rows:
 cl_row:   jsr map_row
         ldy #SCR_W - 1
 cl_cell:  lda (z_map),y
+        beq cl_put              ; (the grass, code 0 in every set: first)
         tax
 cl_look = *
         lda xlat0,x             ; (the picture's cache)
@@ -881,9 +882,7 @@ cl_put:   sta (z_scr),y
 :       dec z_row
         bne cl_row
         rts
-cl_none:  cpx #0                  ; the grass: code 0
-        beq cl_put
-        jsr alloc
+cl_none:  jsr alloc
         jmp cl_put
 
 ; shift: the back picture, built three cells off at most (z_dc, z_dr),
@@ -1033,12 +1032,11 @@ fc_row: ldx z_wr                ; (map_row, in line)
         ldy z_c                 ; (Y the column: alloc keeps it)
 fc_cell:
         lda (z_map),y
+        beq fc_put              ; (the grass, code 0 in every set: first)
         tax
 fc_look = *
         lda xlat0,x             ; (the picture's cache)
         bne fc_put
-        cpx #0                  ; the grass: code 0
-        beq fc_put
         jsr alloc
 fc_put: sta (z_scr),y
         iny
