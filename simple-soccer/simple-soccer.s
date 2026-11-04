@@ -213,7 +213,8 @@ follow:
         sta cam_x + 1
 :       lda s_yl,x
         sec
-        sbc #96
+        sbc #88                 ; (the middle of the 22 rows shown: engine.s
+                                ; CUT_LINE)
         sta cam_y
         lda s_yh,x
         sbc #0
@@ -448,7 +449,8 @@ ball_at:
 ; the ground that moves with the view, so they keep still on the screen
 HUD_X       = 20                ; (from the view's left, top - or bottom,
 HUD_Y       = 10                ; the stands at the top of the view: no
-HUD_LOW     = 170               ; figure goes over them, see engine.s tint)
+HUD_LOW     = 154               ; figure goes over them, see engine.s tint;
+                                ; above the cut, engine.s CUT_LINE)
 HUD_HIGH    = 80                ; (the view higher than this: at the bottom)
 draw_hud:
         lda hud

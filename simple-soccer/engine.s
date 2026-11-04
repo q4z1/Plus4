@@ -41,6 +41,16 @@ EVICT_AT    = 86                ; a cache this full gives codes back (evict)
 STRIP       = 32                ; a figure's column: four cells at most
 MOVE_U      = 16                ; bytes a turn when the codes are moved
 VBL_LINE    = 205               ; the interrupt: below the picture
+CUT_D       = 16                ; the picture's last line shown: 200 - CUT_D,
+CUT_LINE    = 200 - CUT_D - 1   ; 22 rows of the 24 - the raster counter CUT_D
+CUT_IRQ     = CUT_LINE - 8      ; on at the end of a line from CUT_IRQ to
+                                ; CUT_LINE (the display ends at 200 as the
+                                ; counter has it, whichever: line 200 - CUT_D),
+                                ; so the CPU runs at twice the speed below; and
+                                ; CUT_D back in the border (VBL_LINE): 312
+                                ; lines a frame still, the PAL phase kept
+                                ; (even). The lines before CUT_LINE leave
+                                ; room for an interrupt held up (joy_read).
 
         .zeropage
 z_map:      .res 2              ; the ground row being copied, from col0
@@ -112,8 +122,7 @@ back:       .res 1              ; the picture being drawn: 0, 1 or 2
 shown:      .res 1              ; the one on screen, $FF none yet
 queued:     .res 1              ; the one finished, waiting; $FF none
 since:      .res 1              ; frames since the last was put on screen
-mv_end:     .res 1              ; move_up's last page's end, move_down's
-mv_lo:      .res 1              ;   first page's start; its page's start
+cut_d:      .res 1              ; the lines the cut took this frame (0: none)
 ctrl2:      .res 1              ; $FF07 as the game wants it, without the
                                 ; fine scroll
 cam_x:      .res 2              ; the view's top left corner on the
@@ -263,14 +272,35 @@ eng_init:
 nmi:    rti
 
 ; ---- the interrupt: in the vertical blank, a finished picture in --------
+; (and at CUT_IRQ the cut: the display ends at 200 - CUT_D)
 
 irq:    pha
-        txa
+        lda TED_IRQ
+        sta TED_IRQ
+        lda TED_LINE            ; (CUT_IRQ: the cut)
+        cmp #VBL_LINE
+        bcs @vbl
+        lda #VBL_LINE           ; (the compare first: the counter's jump must
+        sta TED_RCMP            ; not meet it)
+:       lda $FF1E               ; early in the first line it can (not one
+        cmp #60                 ; the TED holds the CPU on), so the counter
+        bcs :-                  ; is written well before it moves on (~184:
+                                ; the next lines take some 90 of $FF1E's)
+        lda TED_LINE
+        cmp #CUT_LINE + 1
+        bcs @late
+        adc #CUT_D              ; (carry clear)
+        sta TED_LINE
+        lda #CUT_D
+        .byte $2C               ; (bit: over the lda)
+@late:  lda #0                  ; (too late: no cut this frame)
+        sta cut_d
+        pla
+        rti
+@vbl:   txa
         pha
         tya
         pha
-        lda TED_IRQ
-        sta TED_IRQ
         jsr snd_tick            ; (the sounds, 50 times a second)
         inc frames
         inc since
@@ -296,7 +326,13 @@ irq:    pha
         sta queued
         lda #0
         sta since
-@done:  pla
+@done:  lda #CUT_IRQ             ; the cut next, and the lines it took back
+        sta TED_RCMP
+        lda TED_LINE
+        sec
+        sbc cut_d
+        sta TED_LINE
+        pla
         tay
         pla
         tax
@@ -985,11 +1021,10 @@ fc_put: sta (z_scr),y
         bne fc_cell
         rts
 
-; move_up: the codes moved to lower addresses, from z_src (the matrix +
-; off) to z_dst (the matrix), the lowest first, MOVE_U a turn: 1000 - off
-; bytes (up to a multiple of MOVE_U) - the rest is the rows or columns
-; coming in, looked up after. Past the 1000 the TED shows it writes into
-; the matrix's unused end, and reads from the character set behind it.
+; move_up: the codes moved to lower addresses, from z_src to z_dst (the
+; matrix), 1024 bytes, the lowest first, MOVE_U a turn. Past the 1000 the
+; TED shows it writes into the matrix's unused end, and reads from the
+; character set behind it.
 move_up:
         ldx #0                  ; the operands' low bytes, once
         ldy #0
@@ -1008,17 +1043,8 @@ move_up:
         inx
         cpx #MOVE_U
         bne :-
-        lda #<(SCR_W * SCR_H + MOVE_U - 1)  ; whole pages, and the last
-        sec                     ; one's end (0: whole too)
-        sbc z_src
-        and #<(256 - MOVE_U)
-        sta mv_end
-        lda #>(SCR_W * SCR_H + MOVE_U - 1)
-        sbc #0
+        lda #4
         sta z_cnt
-        lda mv_end
-        beq mu_page
-        inc z_cnt
 mu_page:                        ; their high bytes, a page at a time
         lda z_src + 1
         .repeat MOVE_U, K
@@ -1028,12 +1054,6 @@ mu_page:                        ; their high bytes, a page at a time
         .repeat MOVE_U, K
         sta mu_loop + 5 + 6 * K
         .endrepeat
-        lda #0                  ; (the last page: to mv_end)
-        ldx z_cnt
-        dex
-        bne :+
-        lda mv_end
-:       sta mu_end + 1
         ldx #0
         jsr mu_loop
         inc z_src + 1
@@ -1050,33 +1070,24 @@ mu_loop:
         clc
         adc #MOVE_U
         tax
-mu_end: cpx #0                  ; (its end: move_up sets it)
         bne mu_loop
         rts
 
 ; move_down: the codes moved to higher addresses, |off| = z_dst's low
-; byte up, into the matrix's four pages from the top down, the highest
-; first, MOVE_U a turn: from the 1000th byte (up to a multiple of MOVE_U)
-; down to |off| (down to one) - below it are the rows or columns coming
-; in, looked up after.
+; byte up, 1024 bytes into the matrix's four pages from the top down,
+; the highest first, MOVE_U a turn. The bytes it puts below |off| in the
+; first page are cells of the rows or columns coming in, looked up after.
 move_down:
         lda z_dst               ; |off|
         sta z_c
-        and #<(256 - MOVE_U)    ; (the first page's start)
-        sta mv_end
         lda z_src + 1           ; the top page
         clc
         adc #3
         sta z_dst + 1
         lda #4
         sta z_cnt
-md_page:                        ; this page from mv_lo (the first page:
-        lda #0                  ; mv_end) - its source destination - |off|
-        ldx z_cnt
-        dex
-        bne :+
-        lda mv_end
-:       sta mv_lo
+md_page:                        ; source = destination page - |off|
+        lda #0
         sec
         sbc z_c
         sta z_src
@@ -1093,8 +1104,6 @@ md_page:                        ; this page from mv_lo (the first page:
         adc #0
         sta md_loop + 2,y
         txa
-        clc
-        adc mv_lo
         sta md_loop + 4,y
         lda z_dst + 1
         sta md_loop + 5,y
@@ -1104,16 +1113,7 @@ md_page:                        ; this page from mv_lo (the first page:
         tay
         dex
         bpl :-
-        lda #256 - MOVE_U       ; X from the page's top (the top page's:
-        ldx z_cnt               ; past the 1000th byte) down to mv_lo
-        cpx #4
-        bne :+
-        lda #<(SCR_W * SCR_H + MOVE_U - 1 - 3 * 256) & <(256 - MOVE_U)
-        sec
-        sbc #MOVE_U
-:       sec
-        sbc mv_lo
-        tax
+        ldx #256 - MOVE_U
         jsr md_loop
         dec z_dst + 1
         dec z_cnt
