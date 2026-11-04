@@ -158,6 +158,7 @@ z_ax:       .res 2              ; aim's: the way to the destination
 z_ay:       .res 2
 z_sx:       .res 1              ;   its signs
 z_sy:       .res 1
+z_sw:       .res 1              ; angle's: bit 7, dx and dy swapped
 z_th:       .res 1              ;   the angle
 z_p:        .res 3              ; smul's product
 z_m:        .res 1
@@ -2636,6 +2637,7 @@ aim:
         cpx #BALL
         beq :+
         rts
+
 :       lda z_p                 ; the ball's: noted for its friction
         sta b_py0
         lda c_th,x
@@ -2827,27 +2829,47 @@ angle:
         lsr z_ay
         dey
         bne :-
-@look:  lda z_ay                ; atan_tab[ay * 32 + ax]
+@look:  lda z_ax                ; the larger as ax (ay the larger: swapped,
+        cmp z_ay                ; and the angle 64 less)
+        lda #0
+        bcs :+
+        lda z_ax
+        ldy z_ay
+        sta z_ay
+        sty z_ax
+        lda #$80
+:       sta z_sw
+        lda z_ax                ; (both 0: none)
+        beq @none
+@up:    cmp #16                 ; both doubled till the larger is 16-31 (the
+        bcs :+                  ; angle the same: it goes by the ratio)
+        asl z_ay
+        asl a
+        bcc @up
+:       sbc #16                 ; atan_tab[(ax - 16) * 32 + ay]
+        tay
         lsr a
         lsr a
         lsr a
-        clc
-        adc #>atan_tab
+        adc #>atan_tab          ; (carry clear)
         sta z_ptr + 1
-        lda z_ay
+        tya
         asl a
         asl a
         asl a
         asl a
         asl a
-        ora z_ax
+        ora z_ay
         tay
         lda #<atan_tab
         sta z_ptr
         lda (z_ptr),y
-        cmp #$FF
-        beq @none
-        sta z_th
+        bit z_sw
+        bpl :+
+        eor #$FF                ; (64 - it)
+        clc
+        adc #65
+:       sta z_th
         lda z_sx
         bmi @left
         lda z_sy

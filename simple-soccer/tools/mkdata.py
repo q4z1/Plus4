@@ -12,8 +12,11 @@ and the colours, for the code):
   img_*        the figures (data/sprites.txt), cut to what they cover and
                shifted to each of the four pixels in a character, ready
                to go into the characters under them
-  atan_tab     the angle of a move from its steps (|dy| * 32 + |dx|, both
-               under 32): 0 along x .. 64 along y, $FF none - the angle
+  atan_tab     the angle of a move from its steps: 0 along x .. 64 along
+               y, by the larger of |dx|, |dy| (16-31: the smaller ones
+               doubled up to it, the ratio the same) and the smaller -
+               (big - 16) * 32 + small; with |dy| the larger, 64 less
+               it (play.s angle). The angle
                Sensible Soccer steers by, linear in dy/dx rather than a
                true arc tangent
   sin_tab      127 * sin, 256 steps to a circle (signed)
@@ -666,8 +669,9 @@ def main():
             out.write(name + ':                ; formation * 22 + player\n')
             hexrows(out, bytes(f(t) for form in forms for t in form), 22)
         out.write('\n        .export atan_tab, sin_tab\n        .segment "TABLES"\n')
-        out.write('atan_tab:               ; |dy| * 32 + |dx|\n')
-        hexrows(out, bytes(atan(dx, dy) for dy in range(32) for dx in range(32)))
+        out.write('atan_tab:               ; (big - 16) * 32 + small\n')
+        hexrows(out, bytes(atan(big, small) if small <= big else 0
+                           for big in range(16, 32) for small in range(32)))
         out.write('sin_tab:\n')
         hexrows(out, bytes((int(round(32767 * math.sin(2 * math.pi * i / 256))) >> 8) & 255
                            for i in range(256)))

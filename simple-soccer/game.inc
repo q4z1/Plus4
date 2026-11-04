@@ -23,6 +23,9 @@ KEY_ROW     = $FD30
 
 SCR_W       = 40                ; built: 40 x 25 cells, of which the TED
 SCR_H       = 25                ; shows 38 x 24 and a bit, by the scroll
+VIS_H       = 23                ; - but the picture ends 16 lines early
+                                ; (engine.s CUT_D): 22 and a bit shown, rows
+                                ; 23 and 24 never - nothing is drawn there
 
 ; frames a picture stays on screen at least: 3, 16.7 pictures a second
 ; (build.sh: PACE=2 for 25)

@@ -22,7 +22,7 @@
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
 
 MAX_X       = (MAP_W - SCR_W) * 8 + 7
-MAX_Y       = (MAP_H - SCR_H) * 8 + 7
+MAX_Y       = (MAP_H - VIS_H) * 8 + 7
 
 PLAYERS     = 22                ; 0-10 cyan, the joystick's; 11-21 yellow
 BALL        = PLAYERS           ; the figures' last
@@ -586,7 +586,7 @@ seen:
         clc
         rts
 @down:  lda tmp2                ; 0..213
-        cmp #SCR_H * 8 + 14
+        cmp #VIS_H * 8 + 14
         rts
 @no:    sec
         rts

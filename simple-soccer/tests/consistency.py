@@ -95,7 +95,7 @@ def main():
                 codes = v.mem(MAT[b] + 0x400, 1000)
                 cols = v.mem(MAT[b], 1000)
                 fnt = v.mem(FNT[b], 2048)
-                for r in range(25):
+                for r in range(23):      # (VIS_H: rows 23, 24 never shown)
                     for c in range(40):
                         if (c, r) in figs:
                             continue
