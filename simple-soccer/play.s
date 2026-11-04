@@ -3515,20 +3515,64 @@ switch:
         jmp trap
 :       ldx ctrl                ; the joystick's at the ball: his still
         jsr near_ball
-        bcs @done
+        jcs @done
         lda #$FF                ; else the nearest
         sta mate_d
         sta mate_d + 1
         sta mate
         ldx t_hi
 @look:  cpx helper
-        beq @next
-        cpx kick_pl             ; (kicker, closer: in line)
-        bne :+
-        lda kick_t
+        jeq @next
+        cpx kick_pl             ; (kicker, mate_dist, closer: in line -
+        bne :+                  ; given up once |dx| squared alone is no
+        lda kick_t              ; nearer than the nearest so far)
         cmp #KICKED_T
-        bcc @next
-:       jsr mate_dist
+        jcc @next
+:       lda o_off,x
+        bne @next
+        lda o_xl,x
+        sec
+        sbc o_xl + BALL
+        tay
+        lda o_xh,x
+        sbc o_xh + BALL
+        beq @dx
+        cmp #$FF
+        bne @next
+        tya
+        eor #$FF
+        adc #0
+        beq @next
+        tay
+@dx:    lda sq8_lo,y
+        sta mate_t
+        cmp mate_d
+        lda sq8_hi,y
+        sta mate_t + 1
+        sbc mate_d + 1
+        bcs @next
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        tay
+        lda o_yh,x
+        sbc o_yh + BALL
+        beq @dy
+        cmp #$FF
+        bne @next
+        tya
+        eor #$FF
+        adc #0
+        beq @next
+        tay
+@dy:    lda sq8_lo,y
+        clc
+        adc mate_t
+        sta tmp
+        lda sq8_hi,y
+        adc mate_t + 1
+        sta tmp + 1
+        bcs @next
         lda tmp
         cmp mate_d
         lda tmp + 1
@@ -3541,7 +3585,7 @@ switch:
         stx mate
 @next:  dex
         cpx t_lo
-        bne @look
+        jne @look
         ldx mate
         bmi @done               ; (no one)
 @got:   cpx ctrl
