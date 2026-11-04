@@ -43,7 +43,9 @@ def main():
     font = mkdata.chars()
     white = mkdata.ted_of(1, range(8)) | 0x08
     # the wave's spectators: as they sit, or a pixel up
-    up = {c: list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]] for c, _ in mkdata.WAVE}
+    new = mkdata.compact()[2]           # (WAVE has the codes as they were)
+    up = {new[c]: list(font[new[c] * 8 + 1:new[c] * 8 + 8]) + [font[new[c] * 8 + 7]]
+          for c, _ in mkdata.WAVE}
     tint = dict(mkdata.colours())
     lab = labels()
     v = Vice(PRG, WORK)

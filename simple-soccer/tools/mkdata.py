@@ -253,7 +253,19 @@ def board_pitch():
 
 
 def pitch():
-    return ground_and_font()[0]
+    return compact()[0]
+
+
+@functools.lru_cache(None)
+def compact():
+    """the ground and its characters with the codes it uses only, in
+    their order from 0 on (the map leaves a few dozen of the 256 unused:
+    a shorter font) - and old code -> new"""
+    rows, font = ground_and_font()
+    used = sorted(set(c for r in rows for c in r) | {0})
+    new = {c: i for i, c in enumerate(used)}
+    return ([bytes(new[c] for c in r) for r in rows],
+            bytes(b for c in used for b in font[c * 8:c * 8 + 8]), new)
 
 
 # The goals without the shadows they cast: the band of black below each
@@ -318,7 +330,7 @@ def colours():
     """the cells' own colours where they are not white: [(row, 79
     colours)] - the crowd's shirts, the boards"""
     rnd = random.Random(1)
-    rows = pitch()
+    rows = ground_and_font()[0]         # (the codes as they were)
     white = ted_of(1, range(8)) | 0x08
     out = []
     for y, r in enumerate(rows):
@@ -334,7 +346,7 @@ def colours():
 
 
 def chars():
-    return ground_and_font()[1]
+    return compact()[1]
 
 
 def base_chars():
@@ -613,8 +625,9 @@ def main():
         out.write('title_font:              ; characters 32 on\n')
         hexrows(out, bytes(title_font()))
         out.write('\n        .export la_codes, la_step, la_norm, la_up\n        .rodata\n')
-        font = chars()
-        out.write('la_codes: .byte ' + ', '.join('$%02X' % c for c, _ in WAVE) + '    ; the wave\'s\n')
+        font = ground_and_font()[1]     # (WAVE's codes as they were)
+        new = compact()[2]
+        out.write('la_codes: .byte ' + ', '.join('$%02X' % new[c] for c, _ in WAVE) + '    ; the wave\'s\n')
         out.write('la_step:  .byte ' + ', '.join(str(k) for _, k in WAVE) + '    ; raised at\n')
         out.write('la_norm:                ; as they sit\n')
         hexrows(out, bytes(b for c, _ in WAVE for b in font[c * 8:c * 8 + 8]), 8)
