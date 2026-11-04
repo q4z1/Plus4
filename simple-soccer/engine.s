@@ -31,7 +31,7 @@
         .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
         .import _pitch_font, wrow_lo, wrow_hi
-        .import img_ox, img_oy, img_lo, img_hi, light11
+        .import img_ox, img_oy, img_lo, img_hi
         .import crow_of, cmap_lo, cmap_hi
         .import la_codes, la_step, la_norm, la_up
         .import snd_init, snd_tick
@@ -1633,10 +1633,15 @@ fd_bg:  stx z_ix                ; more than grass: its pixels into the strip
         dey
         bpl :-
         bmi fd_copied
-fd_light:                       ; (its own colour light)
-        lda (z_src),y
-        tax
-        lda light11,x
+fd_light:                       ; (its own colour light: each %11 pixel
+        lda (z_src),y           ; %01 - the high bit of each pair whose low
+        sta z_t                 ; bit is set too cleared)
+        lsr a
+        and z_t
+        and #$55
+        asl a
+        eor #$FF
+        and z_t
         sta (z_fnt),y
         dey
         bpl fd_light

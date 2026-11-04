@@ -669,9 +669,7 @@ def main():
                        small_shadow(spr[b]) if b in SHADOWED else
                        no_shadow(spr[b]) if b in dict(POSES).values() else spr[b],
                        b in BLACK, b in BALL_IMAGES) for b in IMAGES]
-        out.write('\n        .export img_ox, img_oy, img_lo, img_hi, light11\n        .rodata\n')
-        out.write('light11:                ; a byte\'s %11 pixels made %01\n')
-        hexrows(out, bytes(light11(b) for b in range(256)))
+        out.write('\n        .export img_ox, img_oy, img_lo, img_hi\n        .rodata\n')
         out.write('img_ox: .byte ' + ', '.join(str(f[0]) for f in figs) + '\n')
         out.write('img_oy: .byte ' + ', '.join(str(f[1]) for f in figs) + '\n')
         names = ['img%d_%d' % (i, s) for i in range(len(figs)) for s in range(4)]
