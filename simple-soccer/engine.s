@@ -148,6 +148,7 @@ la_t:       .res 1              ; frames till the next,
 la_th:      .res 1
 la_rnd:     .res 1              ; (its random)
 la_s:       .res 1              ; (the step raised, $FF none)
+tc_r0:      .res 3              ; (tint's: each picture's row0 when tinted)
 tc_col:     .res 3              ; tint's: each picture's col0 when tinted,
 tc_row:     .res 3 * SCR_H      ; and each of its rows' ground row's
                                 ; colours (crow_of), $FF white
@@ -243,6 +244,7 @@ eng_init:
         lda #$FF
         sta b_col,x
         sta tc_col,x
+        sta tc_r0,x
         dex
         bpl :-
         ldx #3 * SCR_H - 1      ; (the matrices all white)
@@ -524,7 +526,16 @@ eng_pool:
 ; last tinted. No figure gets into those rows (the players keep inside
 ; the walls), so restore can put white back.
 tint:
-        ldx back
+        ldx back                ; (the view where it was: all as it was)
+        lda row0
+        cmp tc_r0,x
+        bne :+
+        lda col0
+        cmp tc_col,x
+        bne :+
+        rts
+:       lda row0
+        sta tc_r0,x
         lda tc_base,x
         sta z_ti
         lda #0
