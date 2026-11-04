@@ -3003,7 +3003,8 @@ smul:
         eor #$FF
         sta z_qn
         sta z_qnh
-        ldy smul_l              ; |A| * the low byte
+        ldy smul_l              ; |A| * the low byte (0: none - many a
+        beq @lo0                ; speed has none)
         lda (z_qp),y
         sec
         sbc (z_qn),y
@@ -3011,7 +3012,7 @@ smul:
         lda (z_qph),y
         sbc (z_qnh),y
         sta z_p + 1
-        ldy smul_h              ; and the high byte, 8 bits up
+@hi:    ldy smul_h              ; and the high byte, 8 bits up
         lda (z_qp),y
         sec
         sbc (z_qn),y
@@ -3038,6 +3039,9 @@ smul:
         sbc z_p + 2
         sta z_p + 2
 :       rts
+@lo0:   sty z_p                 ; (Y 0)
+        sty z_p + 1
+        beq @hi
 
 ; mul_by: z_q = a * Y, a the factor mul_set was given: a * b = (a + b)^2 / 4
 ; - (b - a)^2 / 4, the squares / 4 from tables the pointers point into a
@@ -3519,10 +3523,22 @@ switch:
         ldx t_hi
 @look:  cpx helper
         beq @next
-        jsr kicker
+        cpx kick_pl             ; (kicker, closer: in line)
+        bne :+
+        lda kick_t
+        cmp #KICKED_T
+        bcc @next
+:       jsr mate_dist
+        lda tmp
+        cmp mate_d
+        lda tmp + 1
+        sbc mate_d + 1
         bcs @next
-        jsr mate_dist
-        jsr closer
+        lda tmp
+        sta mate_d
+        lda tmp + 1
+        sta mate_d + 1
+        stx mate
 @next:  dex
         cpx t_lo
         bne @look

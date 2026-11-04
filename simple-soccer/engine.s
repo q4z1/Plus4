@@ -123,6 +123,9 @@ shown:      .res 1              ; the one on screen, $FF none yet
 queued:     .res 1              ; the one finished, waiting; $FF none
 since:      .res 1              ; frames since the last was put on screen
 cut_d:      .res 1              ; the lines the cut took this frame (0: none)
+f_r8l:      .res 1              ; row0 * 8 and col0 * 4 (eng_begin, for
+f_r8h:      .res 1              ;   fig_draw)
+f_c4:       .res 1
 mv_end:     .res 1              ; move_up's last page's end
 ctrl2:      .res 1              ; $FF07 as the game wants it, without the
                                 ; fine scroll
@@ -390,6 +393,19 @@ eng_begin:
         lsr z_t
         ror a
         sta row0
+        asl a                   ; (row0 * 8, col0 * 4: fig_draw's for every
+        sta f_r8l               ; figure)
+        lda #0
+        rol a
+        asl f_r8l
+        rol a
+        asl f_r8l
+        rol a
+        sta f_r8h
+        lda col0
+        asl a
+        asl a
+        sta f_c4
 
         ; the picture to draw: neither the one shown nor the one waiting
         sei
@@ -540,20 +556,7 @@ tint:
         beq @next
         lda tc_row,x
 @copy:  sta tc_row,x
-        tay
-        lda cmap_lo,y
-        clc
-        adc col0
-        sta z_src
-        lda cmap_hi,y
-        adc #0
-        sta z_src + 1
-        jsr tint_dst
-        ldy #SCR_W - 1
-:       lda (z_src),y
-        sta (z_dst),y
-        dey
-        bpl :-
+        jsr tint_row
 @next:  inc z_ti
         inc z_tr
         lda z_tr
@@ -563,6 +566,51 @@ tint:
         lda col0
         sta tc_col,x
         rts
+; tint_row: row z_tr of the back picture's colours from its colour row A
+; (cmap_*), from col0 on - the copy's operands set in it, four a turn
+tint_row:
+        tay
+        lda cmap_lo,y
+        clc
+        adc col0
+        sta @s1 + 1
+        sta @s2 + 1
+        sta @s3 + 1
+        sta @s4 + 1
+        lda cmap_hi,y
+        adc #0
+        sta @s1 + 2
+        sta @s2 + 2
+        sta @s3 + 2
+        sta @s4 + 2
+        jsr tint_dst
+        lda z_dst
+        sta @d1 + 1
+        sta @d2 + 1
+        sta @d3 + 1
+        sta @d4 + 1
+        lda z_dst + 1
+        sta @d1 + 2
+        sta @d2 + 2
+        sta @d3 + 2
+        sta @d4 + 2
+        ldy #SCR_W - 1          ; (four a turn: SCR_W a multiple of 4)
+@s1:    lda $FFFF,y
+@d1:    sta $FFFF,y
+        dey
+@s2:    lda $FFFF,y
+@d2:    sta $FFFF,y
+        dey
+@s3:    lda $FFFF,y
+@d3:    sta $FFFF,y
+        dey
+@s4:    lda $FFFF,y
+@d4:    sta $FFFF,y
+        dey
+        bpl @s1
+        rts
+.assert SCR_W .mod 4 = 0, error, "tint_row: SCR_W not a multiple of 4"
+
 ; tint_dst: z_dst = the row z_tr in the colour matrix
 tint_dst:
         ldy z_tr
@@ -1316,10 +1364,6 @@ flush:
 fig_draw:
         ; the figure's left edge in multicolour pixels of the picture,
         ; mx = (fig_x - col0 * 8) / 2 + its first column in the sprite
-        lda col0
-        asl a
-        asl a
-        sta z_t                 ; col0 * 4: half of col0 * 8
         lda fig_x + 1
         cmp #$80                ; fig_x / 2, its sign kept (the ground is
         ror a                   ; 632 wide: over 512)
@@ -1327,7 +1371,7 @@ fig_draw:
         lda fig_x
         ror a
         sec
-        sbc z_t
+        sbc f_c4                ; (col0 * 4: half of col0 * 8)
         sta z_mx
         bcs :+
         dec z_mx + 1
@@ -1360,22 +1404,12 @@ fd_xok:   ; the column of its first cell, signed: mx >> 2 (arithmetic)
         ror a
         sta z_cx
         ; its top, ty = fig_y - row0 * 8 + its first row in the sprite
-        lda row0
-        sta z_t
-        lda #0
-        asl z_t
-        rol a
-        asl z_t
-        rol a
-        asl z_t
-        rol a
-        sta z_t2
         lda fig_y
         sec
-        sbc z_t
+        sbc f_r8l
         sta z_ty
         lda fig_y + 1
-        sbc z_t2
+        sbc f_r8h
         sta z_ty + 1
         lda img_oy,x
         clc
