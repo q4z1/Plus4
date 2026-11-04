@@ -328,7 +328,28 @@ def ground_and_font():
             made[data] = free.pop(0)
             font[made[data] * 8:made[data] * 8 + 8] = data
         rows[cy][cx] = made[data]
+    # the benches facing the pitch: on the C64 the people on them face the
+    # crowd - each bench mirrored across, its cells and each cell's pixels
+    def mirror(data):
+        return bytes(((v & 3) << 6) | ((v >> 2 & 3) << 4) | ((v >> 4 & 3) << 2) | (v >> 6)
+                     for v in data)
+    used = set(c for r in rows for c in r)
+    free = [c for c in range(1, 256) if c not in used]
+    pattern = {bytes(font[c * 8:c * 8 + 8]): c for c in sorted(used, reverse=True)}
+    for top, bottom, left, right in BENCHES:
+        for y in range(top, bottom + 1):
+            old = [rows[y][x] for x in range(left, right + 1)]
+            for i, c in enumerate(reversed(old)):
+                data = mirror(font[c * 8:c * 8 + 8])
+                if data not in pattern:
+                    pattern[data] = free.pop(0)
+                    font[pattern[data] * 8:pattern[data] * 8 + 8] = data
+                rows[y][left + i] = pattern[data]
     return [bytes(r) for r in rows], font
+
+
+# the benches (rows top-bottom, columns left-right of the ground's cells)
+BENCHES = [(25, 33, 73, 77), (37, 45, 73, 77)]
 
 
 def colours():
