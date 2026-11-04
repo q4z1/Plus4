@@ -88,7 +88,6 @@ z_r:        .res 1
 z_y0:       .res 1              ; a column: the line in its first cell,
 z_nc:       .res 1              ;   its cells,
 z_c0:       .res 1              ;   their first code,
-z_cc:       .res 1              ; a cell's code
 z_i:        .res 1              ; and its number in the column
 z_mix:      .res 1              ; bit 7: a cell showed more than grass
 z_grass:    .res 1              ; a bit for each cell to be cleared
@@ -96,8 +95,6 @@ z_d:        .res 2              ; the column's pixels, less its first line
 z_kp:       .res 2              ; and its bits to keep
 z_px:       .res 2              ; the column's pixels, from its first line
 z_rmp:      .res 1              ; bit 7: the cell's white turns light
-z_kc0:      .res 1              ; the column's cells with pixels in the
-z_kc1:      .res 1              ;   cell's colour, in the strip
 z_kk:       .res 1              ; the cell's in the strip
 z_ev:       .res 1              ; bit 7: the back picture's cache gives back
 z_fn:       .res 1              ; evict's
@@ -431,6 +428,7 @@ eng_begin:
         sta ev_push + 2
         lda codes_hi,x          ; (its pages of the cells' places, codes)
         sta pc_code + 2
+        sta pt_code + 2
         sta pm_code + 2
         sta rs_code + 2
         lda offs_hi,x
@@ -1538,27 +1536,6 @@ fd_col: ldy #3
         lsr a
         lsr a
         sta z_ro
-        ldy #4                  ; its cells with pixels in the cell's colour:
-        lda (z_dat),y           ; strip cells kc0 .. kc1 (none: kc0 255 -
-        cmp #$FF                ; kc1 never looked at then)
-        beq :+
-        clc
-        adc z_y0
-        lsr a
-        lsr a
-        lsr a
-        sta z_kc0
-        iny
-        lda (z_dat),y
-        clc
-        adc z_y0
-        lsr a
-        lsr a
-        lsr a
-        sta z_kc1
-        jmp :++
-:       sta z_kc0
-:
         lda z_y0                ; its cells: (y0 + lines + 7) / 8
         clc
         adc z_h
@@ -1604,14 +1581,61 @@ fd_skip:
         ; each cell on the picture: its colour, its new code; what it
         ; showed goes into the list (and the cell's place), and is the
         ; strip's background - grass, else its pixels copied in
+        ; - set once for the column, as X goes (the list, from x0): the
+        ; cells' codes c0 + k0 on (X + c0 + k0 - x0), the end (x0 + k1 -
+        ; k0), the cells with pixels in the cell's colour (the strip's
+        ; kc0 .. kc1 those of k0 .. k1 - 1; none: from 255, as the list
+        ; never gets to 255 - the codes do)
         lda z_c0
         clc
         adc z_k0
-        sta z_cc
-        lda z_k1
+        sec
+        sbc z_cl
+        sta fp_cc
+        lda z_cl
+        sta z_x0
         sec
         sbc z_k0
-        sta z_n
+        sta z_t                 ; (x0 - k0: X for a k, less k)
+        clc
+        adc z_k1
+        sta fp_end
+        ldy #4                  ; kc0 (255: none, kc1 not looked at)
+        lda (z_dat),y
+        cmp #$FF
+        beq @none
+        clc
+        adc z_y0
+        lsr a
+        lsr a
+        lsr a
+        cmp z_k0
+        bcs :+
+        lda z_k0
+:       sta z_kk                ; (from max(kc0, k0))
+        iny
+        lda (z_dat),y           ; kc1
+        clc
+        adc z_y0
+        lsr a
+        lsr a
+        lsr a
+        tax
+        inx
+        cpx z_k1
+        bcc :+
+        ldx z_k1
+:       cpx z_kk                ; (to min(kc1 + 1, k1); none: as many)
+        bcs :+
+        ldx z_kk
+:       txa
+        clc
+        adc z_t
+        sta fc_ce
+        lda z_kk
+        clc
+        adc z_t
+@none:  sta fc_c0
         lda z_ro
         clc
         adc z_k0
@@ -1622,55 +1646,60 @@ fd_skip:
         tay
         lda #0
         sta z_mix
-        lda z_k0
-        sta z_kk
-        ldx z_cl                ; (X: the list, Y: the cell)
-        stx z_x0
+        ldx z_x0                ; (X: the list, Y: the cell)
 fd_cell:                        ; its colour, where it has pixels in it and
-        lda #0                  ; the cell another: he takes it, what is
-        sta z_rmp               ; under it in the cell's colour (another
-        lda z_kk                ; player's shirt - the ground's white, the
-        cmp z_kc0               ; ball's, is in the shared light colour)
-        bcc fd_keep             ; turned to the light one
-        lda z_kc1
-        cmp z_kk
-        bcc fd_keep
+fc_c0 = * + 1                   ; the cell another: he takes it, what is
+        cpx #0                  ; under it in the cell's colour (another
+        bcc fd_keep             ; player's shirt - the ground's white, the
+fc_ce = * + 1                   ; ball's, is in the shared light colour)
+        cpx #0                  ; turned to the light one
+        bcs fd_keep
         lda (z_att),y
         cmp fig_col
         beq fd_keep
-        lda #$80
-        sta z_rmp
         lda fig_col
         sta (z_att),y
+        lda (z_scr),y
+pt_code = *
+        sta codes,x             ; (the picture's page)
+        bne fd_bgl
+        beq fd_put
 fd_keep:
         lda (z_scr),y
 pc_code = *
         sta codes,x             ; (the picture's page)
         bne fd_bg
-fd_put: lda z_cc
+fd_put: txa                     ; its code
+        clc
+fp_cc = * + 1
+        adc #0
         sta (z_scr),y
         tya
 pc_offs = *
         sta offs,x              ; (the picture's page)
-        inx
-        inc z_cc
-        inc z_kk
-        tya
-        clc
-        adc #SCR_W
+        adc #SCR_W              ; (the carry clear: the codes end at 255)
         tay
-        dec z_n
+        inx
+fp_end = * + 1
+        cpx #0
         bne fd_cell
         stx z_cl
         jmp fd_strip
-fd_bg:  stx z_ix                ; more than grass: its pixels into the strip
-        sty z_yy
+fd_bgl: sty z_yy                ; more than grass: its pixels into the strip
+        ldy #$80                ; (taken: its white turned light)
+        bne :+
+fd_bg:  sty z_yy
+        ldy #0
+:       sty z_rmp
+        stx z_ix
         jsr char_at
         lda z_fnt
         sta z_src
         lda z_fnt + 1
         sta z_src + 1
-        lda z_cc
+        txa                     ; (its code, as fd_put's)
+        clc
+        adc fp_cc
         jsr char_at
         ldy #7
         bit z_rmp

@@ -435,15 +435,9 @@ vec_yh:     .byte >(-1000), >(-1000), >0, >1000, >1000, >1000, >0, >(-1000)
 SP_RUN      = 0
 SP_BALL     = 1
 SP_CHASE    = 2
-; squares, for distances
-sq_lo:
-        .repeat 64, I
-        .byte <(I * I)
-        .endrepeat
-sq_hi:
-        .repeat 64, I
-        .byte >(I * I)
-        .endrepeat
+; squares, for distances (sq_*: those under 64, the same)
+sq_lo       = sq8_lo
+sq_hi       = sq8_hi
 sq8_lo:
         .repeat 256, I
         .byte <(I * I)
