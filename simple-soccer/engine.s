@@ -728,14 +728,8 @@ wave:
         bpl @one
         rts
 LA_N        = 7
-r40_lo:
-        .repeat SCR_H, I
-        .byte <(I * SCR_W)
-        .endrepeat
-r40_hi:
-        .repeat SCR_H, I
-        .byte >(I * SCR_W)
-        .endrepeat
+r40_lo      = row40s_lo + 3     ; (rows 0 .. 27 of row40s, times 40)
+r40_hi      = row40s_hi + 3
 
 ; full: alloc's way out when the cache ran into the pool during a build
 ; (the stack as eng_begin had it): the cache emptied, the cells built anew
@@ -1209,14 +1203,8 @@ lst_base: .byte 0, 85, 170
 codes_hi: .byte >codes, >(codes + 256), >(codes + 512)
 offs_hi:  .byte >offs, >(offs + 256), >(offs + 512)
 
-row40_lo:
-        .repeat SCR_H, I
-        .byte <(I * SCR_W)
-        .endrepeat
-row40_hi:
-        .repeat SCR_H, I
-        .byte >(I * SCR_W)
-        .endrepeat
+row40_lo    = row40s_lo + 3
+row40_hi    = row40s_hi + 3
 
 ; alloc: a code in the back picture's set for ground character X, its
 ; pixels copied in; the code in A. Keeps Y.
@@ -1939,7 +1927,7 @@ fd_ncol:                        ; the next column: its four bytes and the
         inc z_lst
 :       rts
 
-y40:    .byte 0, 40, 80, 120, 160, 200
+y40         = row40s_lo + 3     ; (0, 40 .. 200: its low bytes)
 ; by a column's cells (1-4): where fblock is entered, its first y, the
 ; pixels' place against the record's
 fbn_lo:
