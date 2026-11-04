@@ -12,7 +12,7 @@
 ; ball and the dots turned on by it once a frame. (Not the KERNAL's way:
 ; its loading would be held up by the interrupt, 5542 a second, through
 ; the ROM's handler.) Then the flags for the title (tools/mkflags.py:
-; "flags" to $D480, where the title finds them), then
+; "flags" to FLAGS, just below $E100, where the title finds them), then
 ; the game, packed (exomizer), over this program at $1001: what runs then
 ; is at $0400 - the interrupt, the loading, the start - which neither the
 ; game's file nor the KERNAL's loading touch. The interrupt goes on while
@@ -31,6 +31,7 @@
         .setcpu "6502"
 
         .include "bootmus.inc"  ; (the music's: build.sh)
+        .include "flags.inc"    ; (FLAGS: tools/mkflags.py)
 
 SETLFS  = $FFBA
 SETNAM  = $FFBD
@@ -232,9 +233,9 @@ eol:    .word 0
         ldy #>tick
         jsr BM_START
 
-@flags: lda #<$D480             ; the flags: the title's
+@flags: lda #<FLAGS             ; the flags: the title's (build/gen/flags.inc)
         sta l_addr
-        lda #>$D480
+        lda #>FLAGS
         sta l_addr+1
         lda #<name_flags
         ldy #>name_flags

@@ -134,9 +134,11 @@ with a forward at the ball, another beside him and its wingers up on the
 halfway line, the other team out of the centre circle - and stand till
 the ball is played.
 
-Everyone else keeps to his place in the team's formation (`data/tactics.txt`,
-eight of them, 4-4-2 for now): each player has an area, and where the ball
-is on the pitch decides where in it he stands - he runs there.
+Everyone else keeps to his place in the team's formation (`data/tactics.txt`:
+4-4-2, 5-4-1, 4-5-1, 5-3-2, 3-5-2, 4-3-3, attack, defend - each team's
+chosen on the title, or one at random): each player has an area, and where
+the ball is on the pitch decides where in it he stands - he runs there.
+The line-up for a kick-off is 4-4-2's whatever the formation.
 
 The computer plays the yellow team as Sensible Soccer's does (c14a4e):
 with a joystick of its own for its joystick's player, everything else -
@@ -184,11 +186,16 @@ Over a touch line the ball goes to the other team for a throw-in; over a
 goal line, between the posts and under the bar, it is a goal and the
 other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
-after a goal - then it is put down with the taker behind it. The other
-team stands off till it is taken: its players within 40 pixels of the
-ball are put 40 pixels nearer their own goal (at a corner, into the
-pitch), and they stand where they are, its joystick's player too, till
-the ball moves - the same when a keeper has caught it. When it is
+after a goal - then it is put down with the taker behind it. Meanwhile
+both teams go to their places in their formations for where it is taken,
+the other team's kept out of its way: out of the box at a goal kick,
+else 40 pixels from the ball, on the side of their own goal (at a
+corner, into the pitch). At a corner three of the corner's team go into
+the box - to the near post, the far post and the penalty spot. Whoever is
+still in the way when the ball is put down is put out of it, and the
+other team's joystick's player stands where he is till the ball moves -
+the same when a keeper has caught it. If the computer finds no one to
+pass to, it kicks the ball after 150 frames. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot). The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
@@ -244,7 +251,11 @@ won: when the two players on the joysticks are at the ball at once,
 low, one of them gets it - the better more often, his team's level
 (1-8, a star one more) against the other's: even 16 in 32, each level
 between them one in 32 more, at most 23. The ball stops dead at his
-feet, and the other team cannot dribble it for 12 frames. The title
+feet, and the other team cannot dribble it for 12 frames. The same roll
+decides when the other team's player running to the ball gets to it
+while the joystick's player has it at his feet, and when a sliding
+tackle reaches it there: lost, the tackle misses the ball, and if it
+knocks him over, that is a foul. The title
 works out the paces, the keepers and these levels once both teams are
 chosen, a player's team's by its level too.
 
@@ -304,7 +315,9 @@ three blasts at half and full time, and the crowd roaring at a goal.
 A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
 minutes), one player or two, a match or training, and the home and the away team to choose -
 the stick up and down to a line, left and right on it - fire to kick
-off. Each of the 35 teams has its shirt and a second one: the TED gives a
+off. TEAM SETTINGS (right on it) turns to a second page of those four
+lines: each team's formation, or RANDOM; MAIN SETTINGS (left on it)
+turns back. Each of the 35 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
 purple, green, blue, yellow) in eight shades, so the Netherlands play in
 a light red and the green teams in a dark green the grass sets off. The

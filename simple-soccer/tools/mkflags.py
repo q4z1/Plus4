@@ -20,17 +20,21 @@ the background.
 The cells' patterns are shared by all the flags: each different one once,
 256 at most (an error, not a blur, if there are more). The title copies
 the patterns of the two flags it shows into the character codes its own
-font leaves free, 37 at most a flag (it keeps two sets for each side, the
+font leaves free, 18 at most a flag (it keeps two sets for each side, the
 next flag made ready in the one not shown).
 
-The file, at $D480:
-  $D480  the patterns, 8 bytes each
-  $DB60  each team (title.s's order): its 18 cells' patterns, a row of 6 at
-         a time, as their numbers, then their own colours, two cells a
-         byte (the first in the low four bits), as places in the palette
-  $E060  the palette, 15 colours, multicolour (bit 3 set); "F" at $E06F
-  $E070  each team's second shared colour (its "red": $FF17 while its
-         flag is drawn - the title's two flags are on lines of their own)
+The file, one part after the other, ending at $E100 (the loading screen's
+music there) - its address and its parts' in build/gen/flags.inc, for the
+boot and the title, which lies below it:
+  the patterns, 8 bytes each
+  each team (title.s's order): its 18 cells' patterns, a row of 6 at a
+    time, as their numbers, then their own colours, two cells a byte (the
+    first in the low four bits), as places in the palette
+  the palette, 15 colours, multicolour (bit 3 set), then "F"
+  each team's second shared colour (its "red": $FF17 while its flag is
+    drawn - the title's two flags are on lines of their own)
+  the title's font (tools/mkdata.py's title_font: only the title needs it,
+    so it is here rather than in the game's file)
 """
 import math
 import os
@@ -39,16 +43,18 @@ import struct
 import sys
 import zlib
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mkdata  # noqa: E402  (the title's font)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..')
 CELLS_W, CELLS_H = 6, 3
 W, H = CELLS_W * 4, CELLS_H * 8          # multicolour pixels
 HW, HH = W * 2, H                       # hires pixels
-LOAD = 0xD480
-TEAMS_AT = 0xDB60
-PALETTE_AT = 0xE060
-SECOND_AT = 0xE070                      # each team's second shared colour
-MOST = 37                               # patterns a flag may have
+END = 0xE100                            # the file ends below (the loading
+                                        # screen's music there), as far up
+                                        # as it goes: the title below it
+MOST = CELLS_W * CELLS_H                # patterns a flag may have
 BG, WHITE, RED = 0x16, 0x71, 0x32       # the title's, $FF16, $FF17
 SHARED = {'navy': 0, 'white': 1, 'red': 2}
 OWN = {                                 # the TED's colours (luminance, hue)
@@ -336,28 +342,36 @@ def main():
     palette = sorted(set(own for n in names for _, own in all_cells[n]),
                      key=lambda c: list(OWN).index(c))
     assert len(palette) <= 15
-    data = bytearray(SECOND_AT + len(names) - LOAD)
-    for i, p in enumerate(pats):
-        data[i * 8:i * 8 + 8] = p
-    assert len(pats) * 8 <= TEAMS_AT - LOAD, 'the patterns overrun the teams'
-    at = TEAMS_AT - LOAD
+    # the file: the patterns, the teams, the palette ("F" its 16th byte),
+    # the second colours, the title's font - one after the other
+    data = bytearray()
+    for p in pats:
+        data += p
+    at = {'FLAGS_TEAMS': len(data)}
     for n in names:
         cs = all_cells[n]
-        for pat, _ in cs:
-            data[at] = pats.index(pat)
-            at += 1
-        for i in range(0, len(cs), 2):
-            data[at] = palette.index(cs[i][1]) | palette.index(cs[i + 1][1]) << 4
-            at += 1
-    assert at <= PALETTE_AT - LOAD, 'the teams overrun the palette'
-    for i, c in enumerate(palette):
-        data[PALETTE_AT - LOAD + i] = OWN[c] | 0x08
-    data[PALETTE_AT - LOAD + 15] = ord('F')     # (the title: the flags are there)
-    for i, n in enumerate(names):
-        data[SECOND_AT - LOAD + i] = COLOURS[second[n]]
+        data += bytes(pats.index(pat) for pat, _ in cs)
+        data += bytes(palette.index(cs[i][1]) | palette.index(cs[i + 1][1]) << 4
+                      for i in range(0, len(cs), 2))
+    at['FLAGS_PAL'] = len(data)
+    data += bytes(OWN[c] | 0x08 for c in palette) + bytes(15 - len(palette))
+    at['FLAGS_SIG'] = len(data)
+    data += b'F'                                # (the title: the flags are there)
+    at['FLAGS_2ND'] = len(data)
+    data += bytes(COLOURS[second[n]] for n in names)
+    at['FLAGS_FONT'] = len(data)
+    data += bytes(mkdata.title_font())
+    load = END - len(data)
+    at = {k: load + v for k, v in at.items()}
     os.makedirs(os.path.join(ROOT, 'build', 'disk'), exist_ok=True)
     open(os.path.join(ROOT, 'build', 'disk', 'flags.prg'), 'wb').write(
-        struct.pack('<H', LOAD) + bytes(data))
+        struct.pack('<H', load) + bytes(data))
+    with open(os.path.join(ROOT, 'build', 'gen', 'flags.inc'), 'w') as f:
+        f.write('; the flags\' file (tools/mkflags.py) - do not edit\n')
+        f.write('FLAGS       = $%04X             ; the patterns, 8 bytes each\n' % load)
+        for k, v in at.items():
+            f.write('%-11s = $%04X\n' % (k, v))
+        f.write('FLAGS_END   = $%04X\n' % (load + len(data)))
     print('flags: %d teams, %d patterns, %d colours of their own, %d bytes'
           % (len(names), len(pats), len(palette), len(data)))
     if len(sys.argv) > 2 and sys.argv[1] == '--png':

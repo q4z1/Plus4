@@ -39,10 +39,10 @@
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two, train, sk, sk_duel, jog_lo, jog_hi
+        .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
-        .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -350,7 +350,6 @@ k_i:        .res 1              ; and the player looked at)
 k_on:       .res 1              ; (k_shot's: 1 a shot at his goal)
 pfire:      .res 1              ; (control's: pf as it was)
 mf_c:       .res 1
-formation:  .res 2              ; each team's (data/tactics.txt), 0 4-4-2
 d2:         .res 2              ; dist2's result
 mate:       .res 1              ; pass's
 mate_d:     .res 2
@@ -382,6 +381,19 @@ kp_dv:      .res 2              ; first kp_dn of 16 his own, the rest kp_dv
                                 ; (title.s keeps: Sensible Soccer's)
 sk_duel:    .res PLAYERS        ; how good he is at the ball: his team's
                                 ; level 1-8, a star one more (title.s runs)
+tac_ys:     .res 44             ; (tac_*: below)
+
+; the formations the teams play (data/tactics.txt; title.s chosen copies
+; them from its lib_*): each team's 22 players - 0-10 at the bottom of the
+; pitch, 11-21 at the top - the cyan team's first, then the yellow
+; team's: each one's area's corner and how far across it he goes for each
+; pixel the ball goes (x / 510, y / 641, times 256)
+        .segment "FORMS"        ; (RAM with the ROM out, not cleared)
+tac_x0l:    .res 44
+tac_x0h:    .res 44
+tac_xs:     .res 44
+tac_y0l:    .res 44
+tac_y0h:    .res 44
 
 
         .rodata
@@ -3048,11 +3060,11 @@ team_ai:
 ; where the ball is; jogging. Keeps X.
 place_formation:
         stx z_obj
-        txa                     ; the team's formation
-        ldy formation
+        txa                     ; the team's formation: its own of tac_*
+        ldy #0                  ; (the title's choice)
         cpx #11
         bcc :+
-        ldy formation + 1
+        iny
 :       sta z_ti                ; (the sides changed: the other team's
         lda flip                ; areas - the tables have the team at the
         beq :+                  ; bottom first)
@@ -3351,7 +3363,7 @@ slack:
 @pos:   cpy #SLACK + 1
         rts
 
-form22: .byte 0                 ; (the formations built in: mkdata FORMATIONS)
+form22: .byte 0, 22             ; (each team's in tac_*)
 
 ; ---- whose the joystick is ------------------------------------------------
 

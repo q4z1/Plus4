@@ -45,14 +45,16 @@ $B/cl65 -t plus4 -C simple-soccer.cfg -m build/simple-soccer.map -Ln build/simpl
     -o build/simple-soccer.prg build/simple-soccer.o build/engine.o build/play.o build/sound.o build/title.o build/music.o build/data.o
 echo "build/simple-soccer.prg: $(stat -c%s build/simple-soccer.prg) bytes"
 # the title and the music's interrupt, loaded after it, under the flags the
-# boot has put at $D480 (tools/mkflags.py)
-python3 - build/simple-soccer.map <<'PY'
+# boot has put at FLAGS (tools/mkflags.py: build/gen/flags.inc)
+python3 - build/simple-soccer.map build/gen/flags.inc <<'PY'
 import re, sys
 m = open(sys.argv[1]).read()
 end = int(re.search(r"^TITLE\s+\S+\s+(\S+)", m, re.M).group(1), 16)
 synth = int(re.search(r"^SYNTH\s+\S+\s+\S+\s+(\S+)", m, re.M).group(1), 16)
-if end + 1 + synth > 0xD480:
-    sys.exit("the title runs into the flags at $D480: up to $%04X" % (end + synth))
+flags = int(re.search(r"^FLAGS\s+= \$(\S+)", open(sys.argv[2]).read(), re.M).group(1), 16)
+if end + 1 + synth > flags:
+    sys.exit("the title runs into the flags at $%04X: up to $%04X" % (flags, end + synth))
+print("title: up to $%04X, the flags from $%04X" % (end + synth, flags))
 PY
 
 # The game packed (it leaves the screen and the interrupt as they are: the

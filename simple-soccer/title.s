@@ -1,7 +1,8 @@
 ; title.s - the title before the first match: the name, the length of
 ; the match, one player or two, and the two teams with their flags to
 ; choose (the joystick up and down to a line, left and right on it), fire
-; to kick off.
+; to kick off. A second page of the four lines at the top (TEAM SETTINGS,
+; right on it; back: left on MAIN SETTINGS) has each team's formation.
 ;
 ; It lies at $C000, loaded with the program but where the pictures go
 ; once the match is on (engine.s): it runs first, on a screen of its own
@@ -13,21 +14,25 @@
 ; (hues 0-7, bit 3 clear - the name's too), the flags' cells multicolour,
 ; with the background (a navy blue), white and red shared and one colour
 ; of each cell's own. The flags come from the disk (tools/mkflags.py, at
-; FLAGS): their cells' patterns, all of them once, which the two flags
-; shown have copied into the codes the font leaves free - each side two
-; sets of 37: a flag chosen is made ready in the set not shown (prep),
+; FLAGS, with the title's font): their cells' patterns, all of them once,
+; which the two flags shown have copied into the codes the font leaves
+; free - each side two sets of 18: a flag chosen is made ready in the set
+; not shown (prep),
 ; and only its 18 cells change over (commit), just below the picture's
 ; last line - nothing is ever drawn half. A line chosen only changes
 ; colours. No team plays itself: choosing passes the other side's by.
 
         .include "game.inc"
         .include "data.inc"
+        .include "flags.inc"    ; (tools/mkflags.py: the flags' file's parts)
 
         .repeat 256, I          ; (text as it is, ASCII: the title's font
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, title_font, min_frames, two, train, team_col, team_flk, sk
+        .import joy_scan, joy, min_frames, two, train, team_col, team_flk, sk
+        .import lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh
+        .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import mus_start, mus_frame, mus_stop
         .export title
@@ -60,6 +65,9 @@ SUB_ROW     = 4
 LEN_ROW     = 6
 PLAYERS_ROW = 7
 MODE_ROW    = 8
+MORE_ROW    = 9                 ; (TEAM SETTINGS, MAIN SETTINGS)
+FORMS       = 9                 ; formations to choose: data/tactics.txt's
+                                ; eight, then RANDOM
 LINE_COL    = 7                 ; (their text,
 VALUE_COL   = 24                ; the digits, the mode)
 FLAG_ROW    = 11                ; the home flag's first row, 3 rows of 6
@@ -86,11 +94,12 @@ SPLIT_HOME  = LINE_0 + (FLAG_ROW - 1) * 8           ; (the frame's row
 SPLIT_AWAY  = LINE_0 + (FLAG_ROW + DROP - 1) * 8    ; above each flag,
 SPLIT_BELOW = LINE_0 + (FLAG_ROW + DROP + FLAG_H) * 8   ; and below)
 
-FLAGS       = $D480             ; the disk's (tools/mkflags.py): the patterns,
-FLAGS_TEAMS = $DB60             ; each team's 18 cells and 9 colour bytes,
-FLAGS_PAL   = $E060             ; the palette,
-FLAGS_SIG   = $E06F             ; "F": they are there (a test has none)
-FLAGS_2ND   = $E070             ; each team's second shared colour
+                                ; (FLAGS: the patterns, FLAGS_TEAMS each
+                                ; team's 18 cells and 9 colour bytes,
+                                ; FLAGS_PAL the palette, FLAGS_SIG "F" if
+                                ; they are there - a test has none -,
+                                ; FLAGS_2ND each team's second shared
+                                ; colour, FLAGS_FONT the title's font)
 LOC         = $E100             ; (prep's: a pattern's code, 256 bytes,
 CBUF        = $E200             ; the cells' codes and colours made ready)
 CCOL        = $E220
@@ -119,17 +128,15 @@ title:
         sta TED_SCROLLY
         jsr mus_start           ; (its interrupt the only one: the ROM is
                                 ; out, the match's is not set up yet)
-        ldx #0                  ; the characters, the frames', the screen
-:       lda title_font,x        ; blank
-        sta TFONT + $100,x
-        lda title_font + $100,x
+        ldx #0                  ; the characters (from the flags' file:
+:       lda FLAGS_FONT,x        ; codes 32 on), the frames', the screen
+        sta TFONT + $100,x      ; blank
+        lda FLAGS_FONT + $100,x
         sta TFONT + $200,x
-        lda title_font + $200,x
+        lda FLAGS_FONT + $200,x
         sta TFONT + $300,x
-        lda title_font + $300,x
+        lda FLAGS_FONT + $300,x
         sta TFONT + $400,x
-        lda title_font + $400,x
-        sta TFONT + $500,x
         lda #' '
         sta TCODE,x
         sta TCODE + $100,x
@@ -160,7 +167,7 @@ title:
 :       tya
         asl a
         asl a
-        ora #128
+        adc #96                 ; (carry clear: under 64)
         sta t_code
         txa
         asl a
@@ -207,9 +214,15 @@ title:
         sta t_ptr
         lda #>lines
         sta t_ptr + 1
+        jsr draw_lines
+        jmp title_on
+
+; draw_lines: the lines at t_ptr (lines' form: row, column, colour, the
+; text, 0 - $FF the end)
+draw_lines:
 @line:  ldy #0
         lda (t_ptr),y           ; row ($FF: no more)
-        bmi @shown
+        bmi @done
         tax
         lda row_lo,x
         clc
@@ -251,7 +264,12 @@ title:
         bcc @line
         inc t_ptr + 1
         bne @line
-@shown: jsr draw_frames
+@done:  rts
+
+; title_on: the title drawn on, and then chosen on
+title_on:
+        jsr draw_menu
+        jsr draw_frames
         jsr kits
         ldx #0
         jsr prep
@@ -316,8 +334,9 @@ title:
         dex
         bpl :-
         jsr skip
-        bcs @go
-        jsr joy_scan            ; (joy_read, but the music not held up)
+        bcc :+
+        jmp @go
+:       jsr joy_scan            ; (joy_read, but the music not held up)
         lda t_was               ; let go of: held before, not now
         eor #$FF
         and joy
@@ -328,33 +347,40 @@ title:
         ldx joy
         stx t_was
         and #J_FIRE
-        bne @go
-        lda t_new               ; up, down: a line up or down
+        beq :+
+        jmp @go
+:       lda t_new               ; up, down: a line up or down
         and #J_UP
-        beq :+
+        beq @down
         lda t_row
-        beq :+
+        beq @down
         dec t_row
-        jsr show_rows
-:       lda t_new
+        jsr hole                ; (the second page's empty line: over it)
+        bne :+
+        dec t_row
+:       jsr show_rows
+@down:  lda t_new
         and #J_DOWN
-        beq :+
+        beq @side
         lda t_row
         cmp #ROWS - 1
-        beq :+
+        beq @side
         inc t_row
-        jsr show_rows
-:       lda t_new               ; left, right: the choice on it
+        jsr hole
+        bne :+
+        inc t_row
+:       jsr show_rows
+@side:  lda t_new               ; left, right: the choice on it
         and #J_LEFT | J_RIGHT
         beq @next
         and #J_RIGHT            ; (0: left)
         ldx t_row
         jsr change
         bcc :+
-        ldx t_row               ; (a team: its flag made ready, in with the
-        dex                     ; next picture's end)
-        dex
-        dex
+        lda t_row               ; (a team: its flag made ready, in with the
+        sec                     ; next picture's end)
+        sbc #MENU_N
+        tax
         jsr prep
         inx
         stx t_pend
@@ -392,16 +418,21 @@ skip:
         rts
 
 ; show_rows: the line the stick is on in white, the others grey - the
-; length's, the players' and the mode's text, a team's label and its arrows
+; four lines' text at the top, a team's label and its arrows
 show_rows:
         ldx #ROWS - 1
 @row:   lda #C_DIM
         cpx t_row
         bne :+
         lda #C_TEXT
-:       cpx #3
+:       cpx #MENU_N
         bcs @team
-        ldy row_of,x            ; (TCOL: $400 below the codes)
+        pha                     ; (TCOL: $400 below the codes)
+        txa
+        clc
+        adc #LEN_ROW
+        tay
+        pla
         pha
         lda row_lo,y
         clc
@@ -418,12 +449,12 @@ show_rows:
         dey
         bpl :-
         bmi @next
-@team:  ldy label_at - 3,x      ; "HOME" / "AWAY", "<" and ">" round the name
+@team:  ldy label_at - MENU_N,x  ; "HOME" / "AWAY", "<" and ">" round the name
         sta TCOL + LABEL_ROW * 40,y
         sta TCOL + LABEL_ROW * 40 + 1,y
         sta TCOL + LABEL_ROW * 40 + 2,y
         sta TCOL + LABEL_ROW * 40 + 3,y
-        ldy field_at - 3,x
+        ldy field_at - MENU_N,x
         sta TCOL + NAME_ROW * 40 - 1,y
         sta TCOL + NAME_ROW * 40 + FIELD_W,y
 @next:  dex
@@ -431,8 +462,11 @@ show_rows:
         rts
 
 ; show_values: the length's and the players' digits, the mode (training:
-; no length, "-"), and where the joysticks go
+; no length, "-"), and where the joysticks go - on the second page the
+; teams' formations
 show_values:
+        lda t_page
+        bne @forms
         ldx t_sel
         lda digit_of,x
         ldy t_train
@@ -464,6 +498,59 @@ show_values:
         dex
         bpl :--
         rts
+@forms: ldx #0                  ; (X: the home line's place, the away's
+        ldy t_form              ; 40 on)
+        jsr @name
+        ldx #40
+        ldy t_form + 1
+@name:  tya                     ; (its name: FORM_W letters)
+        asl a
+        sta t_c
+        asl a
+        adc t_c
+        tay
+        lda #FORM_W
+        sta t_i
+:       lda form_names,y
+        sta TCODE + LEN_ROW * 40 + VALUE_COL,x
+        lda #C_VALUE
+        sta TCOL + LEN_ROW * 40 + VALUE_COL,x
+        inx
+        iny
+        dec t_i
+        bne :-
+        rts
+
+; draw_menu: the four lines at the top, the page's (t_page)
+draw_menu:
+        ldx #MENU_W - 1
+        lda #' '
+:       sta TCODE + LEN_ROW * 40 + LINE_COL,x
+        sta TCODE + PLAYERS_ROW * 40 + LINE_COL,x
+        sta TCODE + MODE_ROW * 40 + LINE_COL,x
+        sta TCODE + MORE_ROW * 40 + LINE_COL,x
+        dex
+        bpl :-
+        ldx t_page
+        lda menu_lo,x
+        sta t_ptr
+        lda menu_hi,x
+        sta t_ptr + 1
+        jsr draw_lines
+        ldx t_page              ; "<" and ">" round the values
+        ldy arrows_n,x
+:       tya
+        sec
+        sbc #40
+        tay
+        lda #'<'
+        sta TCODE + LEN_ROW * 40 + VALUE_COL - 2,y
+        lda #'>'
+        sta TCODE + LEN_ROW * 40 + LINE_COL + MENU_W - 1,y
+        tya
+        bne :-
+        jsr show_values
+        jmp show_rows
 
 ; draw_frames: a grey frame round each flag's place
 draw_frames:
@@ -696,12 +783,9 @@ new_code:
         ldy t_k2
         lda t_n
         inc t_n
-        cmp code_split,y        ; (the set's codes: two runs, the second
-        bcs :+                  ; from code_split on)
+        clc                     ; (the set's codes)
         adc code_lo,y
-        bcc @have
-:       adc code_hi,y           ; (carry set: + 1)
-@have:  sta t_code
+        sta t_code
         ldy #0                  ; the pattern, FLAGS + X * 8, to TFONT +
         sty t_s + 1             ; code * 8
         txa
@@ -743,9 +827,7 @@ new_code:
 ; the four sets of 37 codes the flags have (tools/mkflags.py: MOST): the
 ; home team's 8-31 and 96-108, 109-127 and 164-181; the away team's
 ; 182-218, 219-255 - all the font leaves free but the frames' 0-7
-code_split: .byte 24, 19, 255, 255
-code_lo:    .byte 8, 109, 182, 219
-code_hi:    .byte 96 - 24 - 1, 164 - 19 - 1, 0, 0
+code_lo:    .byte 8, 132, 150, 168  ; (18 each: the font has 32-131)
 
 ; draw_names: both teams' names, in the middle of their fields, in the
 ; shirts they play in
@@ -804,9 +886,36 @@ draw_names:
         bpl @side
         rts
 
-ROWS        = 5                 ; the lines to choose on: length, players,
-row_of:     .byte LEN_ROW, PLAYERS_ROW, MODE_ROW    ; mode, the home team,
-                                                    ; the away team
+MENU_N      = 4                 ; the lines to choose on: four at the top
+ROWS        = MENU_N + 2        ; (the page's), the home team, the away team
+MENU_W      = 27
+menu_lo:    .byte <menu_1, <menu_2
+menu_hi:    .byte >menu_1, >menu_2
+team22:     .byte 0, 22         ; (each team's part of tac_*)
+FORM_W      = 6
+form_names: .byte "4-4-2 5-4-1 4-5-1 5-3-2 3-5-2 4-3-3 ATTACKDEFENDRANDOM"
+.assert * - form_names = FORMS * FORM_W, error, "form_names"
+; the pages' four lines (as lines)
+; (draw_menu puts the arrows round the values, arrows_n lines of them)
+menu_1: .byte LEN_ROW, LINE_COL, C_TEXT
+        .byte "MATCH LENGTH:", 0
+        .byte LEN_ROW, VALUE_COL + 2, C_TEXT
+        .byte "MIN", 0
+        .byte PLAYERS_ROW, LINE_COL, C_TEXT
+        .byte "PLAYERS:", 0
+        .byte MODE_ROW, LINE_COL, C_TEXT
+        .byte "MODE:", 0
+        .byte MORE_ROW, LINE_COL, C_TEXT
+        .byte "TEAM SETTINGS >", 0
+        .byte $FF
+menu_2: .byte LEN_ROW, LINE_COL, C_TEXT
+        .byte "HOME FORMATION", 0
+        .byte PLAYERS_ROW, LINE_COL, C_TEXT
+        .byte "AWAY FORMATION", 0
+        .byte MORE_ROW, LINE_COL, C_TEXT
+        .byte "< MAIN SETTINGS", 0
+        .byte $FF
+arrows_n:   .byte 3 * 40, 2 * 40
 label_at:   .byte LABEL_COL, TEXT_DROP * 40 + LABEL_COL     ; (the away
 field_at:   .byte NAME_COL, TEXT_DROP * 40 + NAME_COL       ; side's lower)
 .assert TEXT_DROP * 40 + NAME_COL + FIELD_W < 256, error, "field_at"
@@ -854,12 +963,6 @@ digit_of:   .byte "357"
 lines:
         .byte SUB_ROW, 5, $61
         .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
-        .byte LEN_ROW, LINE_COL, C_TEXT
-        .byte "MATCH LENGTH:  <   MIN    >", 0
-        .byte PLAYERS_ROW, LINE_COL, C_TEXT
-        .byte "PLAYERS:       <          >", 0
-        .byte MODE_ROW, LINE_COL, C_TEXT
-        .byte "MODE:          <          >", 0
         .byte LABEL_ROW, LABEL_COL, C_TEXT
         .byte "HOME", 0
         .byte LABEL_ROW + TEXT_DROP, LABEL_COL, C_TEXT
@@ -905,6 +1008,8 @@ t_ccol:     .byte 0
 t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
                                 ; cyan and yellow there were before)
 t_bank:     .byte 0, 0          ; each side's set of codes shown
+t_page:     .byte 0             ; the four lines' page: 0 the first
+t_form:     .byte 0, 0          ; each team's formation (form_names)
 t_2nd:      .byte FLAG_RED, FLAG_RED, FLAG_RED  ; $FF17 while each side's
                                 ; flag is drawn (commit), and below them
 t_nb:       .byte 0             ; (prep's: the set it fills,
@@ -922,11 +1027,76 @@ chosen:
         lda t_train
         sta train
         jsr skills
+        jsr formations
         jmp kits
+
+; formations: each team's formation chosen (RANDOM: one of the eight, as
+; the beam has it) copied from lib_* into its part of play.s's tac_*
+formations:
+        ldx #1
+@team:  stx t_x
+        lda t_form,x
+        cmp #FORMS - 1
+        bcc :+
+        lda $FF1E               ; (RANDOM)
+        and #7
+:       sta t_c                 ; its place in lib_*: * 22
+        asl a
+        sta t_f
+        asl a
+        asl a
+        adc t_f
+        adc t_c
+        asl a
+        tay
+        lda team22,x            ; its team's in tac_*
+        tax
+        lda #22
+        sta t_i
+@copy:  lda lib_x0l,y
+        sta tac_x0l,x
+        lda lib_xs,y
+        sta tac_xs,x
+        lda lib_y0l,y
+        sta tac_y0l,x
+        lda lib_ys,y
+        sta tac_ys,x
+        lda lib_hh,y            ; (the high bytes: x's in bits 0-1, y's in
+        pha                     ; 2-3)
+        and #3
+        sta tac_x0h,x
+        pla
+        lsr a
+        lsr a
+        sta tac_y0h,x
+        iny
+        inx
+        dec t_i
+        bne @copy
+        ldx t_x
+        dex
+        bpl @team
+        rts
+
+; hole: Z set if t_row is the second page's empty line (MODE_ROW's)
+hole:
+        lda t_page
+        beq :+
+        lda t_row
+        cmp #2
+        rts
+:       lda #1                  ; (Z clear)
+        rts
 
 ; change: the choice on line X a step left (A 0) or right; carry set if a
 ; team changed (its shirts worked out anew)
 change:
+        cpx #MENU_N
+        bcs @team
+        ldy t_page
+        bne @page2
+        cpx #3
+        beq @to2
         cpx #1
         beq @players
         bcs @more
@@ -958,10 +1128,37 @@ change:
 :       sta t_train
         clc
         rts
+@to2:   tay                     ; TEAM SETTINGS: right, the second page
+        beq @done
+        lda #1
+@page:  sta t_page
+        jsr draw_menu
+        clc
+        rts
+@page2: cpx #3                  ; MAIN SETTINGS: left, the first page
+        bne @form
+        tay
+        bne @done
+        tya
+        beq @page
+@form:  tay                     ; a team's formation: the one before or
+        beq :+                  ; after
+        lda t_form,x
+        cmp #FORMS - 1
+        beq @done
+        inc t_form,x
+        clc
+        rts
+:       lda t_form,x
+        beq @done
+        dec t_form,x
+        clc
+        rts
 @team:  sta t_c                 ; a team: the one before or after, round
-        dex                     ; the list - not the other side's
-        dex
-        dex
+        txa                     ; the list - not the other side's
+        sec
+        sbc #MENU_N
+        tax
 @step:  lda t_c
         beq @prev
         inc t_team,x

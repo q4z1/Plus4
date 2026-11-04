@@ -17,12 +17,13 @@ and the colours, for the code):
                Sensible Soccer steers by, linear in dy/dx rather than a
                true arc tangent
   sin_tab      127 * sin, 256 steps to a circle (signed)
-  tac_*        the formations (data/tactics.txt): for each of the first
-               FORMATIONS (the ones the game plays: 4-4-2 alone so far)
-               and each player (0-10 the team at the bottom, 11-21 the
-               one at the top) his area's corner and how far across it
-               he goes for each pixel the ball goes (x / 510, y / 641,
-               times 256)
+  lib_*        the formations (data/tactics.txt), for the title, which
+               copies the two the teams play into play.s's tac_*: for
+               each and each player (0-10 the team at the bottom, 11-21
+               the one at the top) his area's corner and how far across
+               it he goes for each pixel the ball goes (x / 510, y / 641,
+               times 256); the corner's high bytes together in lib_hh
+               (x's in bits 0-1, y's in 2-3)
 
 The colours are the TED's nearest to the C64's (VICE's "pepto" palette
 against the one Yape shows, tools/yape-pal.txt).
@@ -147,14 +148,15 @@ FONT5 = {
     '(': '...X. ..X.. .X... .X... .X... ..X.. ...X.',
     ')': '.X... ..X.. ...X. ...X. ...X. ..X.. .X...',
 }
-LOGO_LETTERS = 'SIMPLECOR'           # their four cells each from code 128
+LOGO_LETTERS = 'SIMPLECOR'           # their four cells each from code 96
 
 
 def title_font():
     """the title's characters from code 32: the font (32-95), the
-    letters of the name at twice the size (128 on, four each: top left,
-    top right, bottom left, bottom right)"""
-    font = bytearray(8 * (128 + 4 * len(LOGO_LETTERS) - 32))
+    letters of the name at twice the size (96 on, four each: top left,
+    top right, bottom left, bottom right) - in the flags' file
+    (tools/mkflags.py): the title alone needs them"""
+    font = bytearray(8 * (96 + 4 * len(LOGO_LETTERS) - 32))
     for ch, rows in FONT5.items():
         c = ord(ch) - 32
         for y, row in enumerate(rows.split()):
@@ -168,7 +170,7 @@ def title_font():
                         for dx in range(2):
                             big[2 + 2 * y + dy][1 + 2 * x + dx] = 1
         for q, (qx, qy) in enumerate(((0, 0), (8, 0), (0, 8), (8, 8))):
-            c = 128 + 4 * k + q - 32
+            c = 96 + 4 * k + q - 32
             for y in range(8):
                 font[c * 8 + y] = sum(big[qy + y][qx + x] << (7 - x) for x in range(8))
     return font
@@ -578,11 +580,6 @@ def shown_rows():
     return out
 
 
-# the formations built in, from the first in data/tactics.txt: the game
-# plays 4-4-2 alone so far (play.s form22) - the others cost a kilobyte
-FORMATIONS = 1
-
-
 def tactics():
     """[formation][player 0-21] = (x from, x slope, y from, y slope): the
     team at the bottom (0-10) has the second area of each line, the team
@@ -597,7 +594,7 @@ def tactics():
             for team, (x0, y0, x1, y1) in ((0, v[5:9]), (1, v[1:5])):
                 forms[-1][team * 11 + pl] = (x0, min(255, round((x1 - x0 + 1) * 256 / 510)),
                                              y0, min(255, round((y1 - y0 + 1) * 256 / 641)))
-    return forms[:FORMATIONS]
+    return forms
 
 
 def hexrows(out, data, per=16):
@@ -621,9 +618,6 @@ def main():
         out.write('wrow_hi: .hibytes ' + ', '.join('_pitch_map + %d' % (r * w) for r in shown) + '\n')
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
-        out.write('\n        .export title_font\n        .segment "TITLE"\n')
-        out.write('title_font:              ; characters 32 on\n')
-        hexrows(out, bytes(title_font()))
         out.write('\n        .export la_codes, la_step, la_norm, la_up\n        .rodata\n')
         font = ground_and_font()[1]     # (WAVE's codes as they were)
         new = compact()[2]
@@ -663,11 +657,12 @@ def main():
             for sh, rec in enumerate(f[2]):
                 out.write('img%d_%d:\n' % (i, sh))
                 hexrows(out, rec)
-        out.write('\n        .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys\n        .rodata\n')
+        out.write('\n        .export lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh\n        .segment "TITLE"\n')
         forms = tactics()
-        for name, f in (('tac_x0l', lambda t: t[0] & 255), ('tac_x0h', lambda t: t[0] >> 8),
-                        ('tac_xs', lambda t: t[1]), ('tac_y0l', lambda t: t[2] & 255),
-                        ('tac_y0h', lambda t: t[2] >> 8), ('tac_ys', lambda t: t[3])):
+        assert all(t[0] >> 8 < 4 and t[2] >> 8 < 4 for form in forms for t in form)
+        for name, f in (('lib_x0l', lambda t: t[0] & 255), ('lib_xs', lambda t: t[1]),
+                        ('lib_y0l', lambda t: t[2] & 255), ('lib_ys', lambda t: t[3]),
+                        ('lib_hh', lambda t: t[0] >> 8 | (t[2] >> 8) << 2)):
             out.write(name + ':                ; formation * 22 + player\n')
             hexrows(out, bytes(f(t) for form in forms for t in form), 22)
         out.write('\n        .export atan_tab, sin_tab\n        .segment "TABLES"\n')
