@@ -115,6 +115,7 @@ vis_n:  .res 1                  ; the players in the view (order's)
 hud_n:  .res 1                  ; draw_hud's place
 s_i:    .res 1                  ; sort's
 s_j:    .res 1
+s_key:  .res PLAYERS            ; (order's)
 
         .bss
 s_off:  .res FIGS               ; 1: not in this picture (seen)
@@ -283,7 +284,7 @@ sort:
 @x:     lda o_xl,x              ; across: from 18 left of it to 10 right
         sec
         sbc cg_xl
-        sta tmp2
+        sta tmp
         lda o_xh,x
         sbc cg_xh
         beq @vis
@@ -291,11 +292,11 @@ sort:
         beq @right
         cmp #$FF
         bne @no
-        lda tmp2
+        lda tmp
         cmp #<(-18)
         bcc @no
         bcs @vis
-@right: lda tmp2
+@right: lda tmp
         cmp #<(SCR_W * 8 + 10)
         bcs @no
 @vis:   lda #0
@@ -303,6 +304,10 @@ sort:
         ldy vis_n
         txa
         sta order,y
+        lda tmp2                ; its key: how far down, -8..197, plus 8
+        clc
+        adc #8
+        sta s_key,y
         inc vis_n
 @no:    dex
         bpl @pick
@@ -315,41 +320,31 @@ sort:
         cmp #2
         bcs :+
         rts
-:       lda #1
-        sta s_i
-@next:  ldx s_i                 ; (mostly no lower than the one above: next)
-        ldy order,x
-        lda order - 1,x
-        tax
-        lda o_yl,y              ; (o_y: the feet's s_y less GROUND_Y)
-        cmp o_yl,x
-        lda o_yh,y
-        sbc o_yh,x
+:       ldx #1
+@next:  lda s_key,x             ; (mostly no lower than the one above: next)
+        cmp s_key - 1,x
         bcs @in
-        ldx s_i
+        stx s_i
+        sta tmp                 ; it, the gap X
         lda order,x
-        sta tmp
-        stx s_j                 ; the gap
-@back:  ldx s_j
-        beq @put
-        ldy order - 1,x         ; the figure above the gap: lower than
-        ldx tmp                 ; tmp, it moves down into the gap
-        lda o_yl,x
-        cmp o_yl,y
-        lda o_yh,x
-        sbc o_yh,y
-        bcs @put
-        ldx s_j
+        sta s_j
+@back:  lda s_key - 1,x         ; the one above the gap: lower than it, it
+        sta s_key,x             ; moves down into the gap
         lda order - 1,x
         sta order,x
-        dec s_j
-        jmp @back
-@put:   ldx s_j
-        lda tmp
+        dex
+        beq @put
+        lda s_key - 1,x
+        cmp tmp
+        beq @put
+        bcs @back
+@put:   lda tmp
+        sta s_key,x
+        lda s_j
         sta order,x
-@in:    inc s_i
-        lda s_i
-        cmp vis_n
+        ldx s_i
+@in:    inx
+        cpx vis_n
         bne @next
         rts
 
