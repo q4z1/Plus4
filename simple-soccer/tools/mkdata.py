@@ -539,6 +539,9 @@ def figure(pic, black=False, light=False):
     rows = [i for i, l in enumerate(pic) if l.strip('.')]
     cols = [i for i in range(12) if any(l[i] != '.' for l in pic)]
     oy, h = rows[0], rows[-1] - rows[0] + 1
+    # four rows of cells at most, from any line of the first (engine.s:
+    # fig_draw's z_nf)
+    assert h <= 25, 'a figure over 25 lines'
     ox, w = cols[0], cols[-1] - cols[0] + 1
     # the shadow: black below the last line with skin or shirt in it. A
     # column at the right with nothing but shadow in it is left out - a

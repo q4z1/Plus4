@@ -96,6 +96,7 @@ z_kp:       .res 2              ; and its bits to keep
 z_px:       .res 2              ; the column's pixels, from its first line
 z_rmp:      .res 1              ; bit 7: the cell's white turns light
 z_kk:       .res 1              ; the cell's in the strip
+z_nf:       .res 1              ; bit 7: some of the figure off the picture
 z_ev:       .res 1              ; bit 7: the back picture's cache gives back
 z_fn:       .res 1              ; evict's
 z_cl:       .res 1              ; the next code in the picture's page
@@ -1469,6 +1470,15 @@ fd_yok:   lda z_ty
         ldy #0
         lda (z_dat),y
         sta z_ncol
+        sec                     ; all of it on the picture (z_nf bit 7
+        lda z_cx                ; clear): its columns cx .. cx + ncol - 1
+        bmi :+                  ; from 0 to 39, its rows cy .. cy + 3 (four
+        adc z_ncol              ; at most: tools/mkdata.py) from 0 to
+        cmp #SCR_W + 2          ; VIS_H - 1
+        bcs :+
+        lda z_cy
+        cmp #VIS_H - 3
+:       ror z_nf
         iny
         lda (z_dat),y           ; the first column's pixels
         clc
@@ -1518,13 +1528,16 @@ fd_yok:   lda z_ty
 fd_col: ldy #3
         lda (z_dat),y
         sta z_h                 ; its lines
+        bit z_nf                ; (all of the figure on the picture: no
+        bpl fd_xin2             ; column off it, no cell above or below)
         lda z_cx
         clc
         adc z_c
         cmp #SCR_W
-        bcc :+
+        bcc fd_xin2
         jmp fd_ncol             ; (off the picture, left or right)
-:       dey
+fd_xin2:
+        dey
         lda (z_dat),y           ; its first line, from the figure's top cell:
         clc                     ; the row of its first cell in the figure,
         adc z_l0                ; and the line in it
@@ -1544,8 +1557,16 @@ fd_col: ldy #3
         lsr a
         lsr a
         sta z_nc
+        bit z_nf
+        bmi fd_clip
+        lda #0                  ; (all of the figure on the picture: all
+        sta z_k0                ; its cells)
+        lda z_nc
+        sta z_k1
+        bpl fd_pool             ; (always)
+fd_clip:
         ; its cells on the picture: rows cy + ro + k, k from k0 = -row
-        ; (0 at least) to k1 = 25 - row (its cells at most)
+        ; (0 at least) to k1 = VIS_H - row (its cells at most)
         lda z_cy
         clc
         adc z_ro
@@ -1567,6 +1588,7 @@ fd_col: ldy #3
         cmp z_k0
         beq fd_skip
         bcc fd_skip
+fd_pool:
         ; as many codes from the pool as it has cells, one after the other
         lda pool_next
         beq fd_skip             ; (used up)
