@@ -250,7 +250,6 @@ recv:       .res 1              ; the player a pass went to, $FF none,
 helper:     .res 1              ; the player running to a ball his team has
                                 ; not got (help), $FF none
 at_n:       .res 1              ; the aftertouch's frame, $FF none
-drib_dir:   .res 1              ; dribbling: the way
 kick_pl:    .res 1              ; the player who last passed or shot,
 CTX_VAR     = * - ctx           ; (swap: these traded, the rest flipped)
 me:         .res 1              ; the team: 0 cyan, 1 yellow
@@ -504,8 +503,8 @@ play_init:
         jmp sfx_whistle
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
-ctx_new:    .byte 0, $FF, 0, $FF, $FF, $FF, 0, 0, 0, 0, 10, $FF
-ctx_new_b:  .byte 0, $FF, 0, $FF, $FF, $FF, $FF, $FF, 1, 11, 21, 10
+ctx_new:    .byte 0, $FF, 0, $FF, $FF, $FF, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, $FF, $FF, $FF, 1, 11, 21, 10
 .assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
 
 ; each: the routine at A (low) / Y (high) for the cyan team's control,
@@ -1176,9 +1175,7 @@ control:
         cmp #8
         bne @run
         jsr meet                ; the stick let go: he stops, or meets a
-        lda #$FF                ; pass, or stops the ball at his feet
-        sta drib_dir
-        jmp @fire
+        jmp @fire               ; pass, or stops the ball at his feet
 @run:   sta o_dir,x
         tay
         lda #1
@@ -1699,7 +1696,6 @@ shot:
         lda #0
         sta at_n
         lda #$FF
-        sta drib_dir
         rts
 
 ; aftertouch: for ten frames after a shot, the joystick bends it - the
@@ -1935,8 +1931,6 @@ dribble:
         sta last_pl
         lda #$FF                ; (a pass met)
         sta recv
-        lda o_dir,x
-        sta drib_dir
         lda o_spl,x             ; (DRIB_KICK faster than he runs)
         clc
         adc #<DRIB_KICK
@@ -1944,7 +1938,7 @@ dribble:
         lda o_sph,x
         adc #>DRIB_KICK
         sta o_sph + BALL
-        ldy drib_dir            ; up: the ball a pixel further out beside
+        ldy o_dir,x             ; up: the ball a pixel further out beside
         bne @ahead              ; him while it is within 4 of his x (to
         lda o_xl + BALL         ; the right if level), as Sensible Soccer
         sec                     ; has it - else it would be hidden behind
@@ -2246,7 +2240,6 @@ kicked: ; (on the ground)
         sta o_dzl + BALL
         sta o_dzf + BALL
         lda #$FF
-        sta drib_dir
         jsr sfx_kick
         rts
 
@@ -5510,7 +5503,6 @@ slide:
         adc vec_yh,y
         sta o_tyh,x
         lda #$FF
-        sta drib_dir
         rts
 
 ; slides: the sliding tackles on a frame (the joystick's players, the
