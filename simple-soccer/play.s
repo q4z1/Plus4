@@ -440,6 +440,8 @@ SP_CHASE    = 2
 ; squares, for distances (sq_*: those under 64, the same)
 sq_lo       = sq8_lo
 sq_hi       = sq8_hi
+        .pushseg
+        .segment "PAGES"        ; (on pages of their own: no index crosses)
 sq8_lo:
         .repeat 256, I
         .byte <(I * I)
@@ -448,6 +450,7 @@ sq8_hi:
         .repeat 256, I
         .byte >(I * I)
         .endrepeat
+        .popseg
 
         .code
 

@@ -1987,6 +1987,8 @@ char_at:
         sta z_fnt + 1
         rts
 
+        .pushseg
+        .segment "PAGES"        ; (on pages of their own: no index crosses)
 chr_lo:                         ; code * 8
         .repeat 256, I
         .byte <(I * 8)
@@ -1995,6 +1997,7 @@ chr_hi:
         .repeat 256, I
         .byte >(I * 8)
         .endrepeat
+        .popseg
 
 ; ---- input ----------------------------------------------------------------
 
