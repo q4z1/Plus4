@@ -387,8 +387,10 @@ chooses between the next match and the title, fire on its letting go.
 The league is saved on the disk after every change (the file `league`,
 42 bytes): with the fast loader into the file as it is and read back, on
 any other drive the KERNAL's way. The disk keeps one league; as long as
-it goes on the title offers MODE: CONTINUE, and a new LEAGUE takes its
-place.
+it goes on the title offers MODE: CONTINUE. LEAGUE chosen while one goes
+on first shows its page and asks: KEEP THIS LEAGUE (the choice the stick
+is on: back to the title, CONTINUE chosen) or START A NEW LEAGUE, which
+takes its place.
 
 ## Back to the title
 

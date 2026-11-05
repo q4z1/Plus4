@@ -117,7 +117,17 @@ cup:    ldx #$FF
         cmp #K_PLAYED
         beq @played
         jmp restart             ; (K_TITLE)
-@new:   jsr new_league
+@new:   lda L_ON                ; one going on: kept, unless the stick
+        cmp #1                  ; says it is to go (ask)
+        bne :+
+        jsr ask
+        bcc :+
+        lda #MODE_ON_T          ; (kept: CONTINUE on the title)
+        sta t_train
+        lda #K_TITLE
+        sta K_REQ
+        jmp restart
+:       jsr new_league
         jmp @save
 @played:
         jsr record
@@ -143,6 +153,28 @@ restart:
         inx
         bne :-
         jmp start
+
+; ask: (LEAGUE chosen, a league going on) its page, and that a new one
+; takes its place - the disk keeps one; C set if it is to be kept (the
+; choice the stick is on at first)
+ask:    jsr page
+        ldy #ROW_NEXT
+        lda #C_HEAD
+        jsr row
+        lda #<t_going
+        ldx #>t_going
+        jsr text
+        ldy #ROW_DISK
+        lda #C_DIM
+        jsr row
+        lda #4
+        jsr col
+        lda #<t_one
+        ldx #>t_one
+        jsr text
+        lda #2                  ; (the choices: keep it, a new one)
+        sta m_off
+        jmp menu
 
 ; ---- the league ------------------------------------------------------------
 
@@ -925,7 +957,9 @@ menu:   lda L_ON
         ldy m_n
         bne :+
         lda #1                  ; (over: the title only)
-:       tay
+:       clc
+        adc m_off
+        tay
         lda m_lo,y
         ldx m_hi,y
         jsr text
@@ -1201,8 +1235,13 @@ t_back:     .byte "BACK TO THE TITLE", 0
 t_saving:   .byte "SAVING ...", 0
 t_saved:    .byte "THE LEAGUE IS SAVED ON THE DISK", 0
 t_failed:   .byte "COULD NOT SAVE THE LEAGUE ON THE DISK", 0
-m_lo:       .byte <t_play, <t_back  ; (the league over: the title only)
-m_hi:       .byte >t_play, >t_back
+m_lo:       .byte <t_play, <t_back, <t_keep, <t_anew   ; (the league over:
+m_hi:       .byte >t_play, >t_back, >t_keep, >t_anew   ; the title only; m_off 2: ask's)
+t_keep:     .byte "KEEP THIS LEAGUE", 0
+t_anew:     .byte "START A NEW LEAGUE", 0
+t_going:    .byte "A NEW LEAGUE WOULD TAKE THIS ONE", 0
+t_one:      .byte "THE DISK KEEPS ONE LEAGUE ONLY", 0
+MODE_ON_T   = 3                 ; (title.s MODE_ON: CONTINUE)
 
 row_lo:
         .repeat 25, I
@@ -1252,6 +1291,7 @@ c_tmp3: .res 1
 m_n:    .res 1
 m_sel:  .res 1
 m_was:  .res 1
+m_off:  .byte 0                 ; menu's texts: 0 the page's, 2 ask's
 m_x:    .res 1
 sim_x:  .res 1
 sim_y:  .res 1

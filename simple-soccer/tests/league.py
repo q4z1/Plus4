@@ -14,6 +14,8 @@ what:  back    a match to its full time, fire: the title again, the
                offers CONTINUE, its page
        two     two players: each one's match against the computer, then
                (a league saved before its last matchday) theirs, the end
+       ask     LEAGUE with a league going on: the question - kept, then
+               a new one
        all     all of them (the default)
 
 The match is not played out: its minute is poked to 89. The joystick is
@@ -115,7 +117,7 @@ def page(v, name):
 
 def on_page(v):
     """cup.s's page: its menu drawn, the screen at $0C00"""
-    return v.mem(0xFF14, 1)[0] == 0x08 and any('NEXT MATCH' in l or 'TITLE' in l
+    return v.mem(0xFF14, 1)[0] == 0x08 and any('NEXT MATCH' in l or 'TITLE' in l or 'LEAGUE' in l
                                                for l in screen(v)[23:25])
 
 
@@ -283,6 +285,43 @@ def two(drive):
         v.stop()
 
 
+def ask(drive):
+    """LEAGUE chosen with a league going on: its page and the question;
+    kept (fire: the first choice) - back at the title, CONTINUE, the
+    league as it was; then a new one (down, fire)"""
+    lg = [0, 1, 0, 0, 0, 0, 14, 10, 5, 2, 1, 0, 32, 16, 0x13, 0x21, 0x00, 0x03] + [255] * 24
+    lg[0] = -sum(lg[1:]) & 255
+    v = boot_with(lg, drive)
+    try:
+        v.poke(K_CH + 2, [2])               # LEAGUE
+        press(v)
+        wait(v, lambda: on_page(v), 'the question', 180)
+        v.run_for(2)
+        lines = page(v, 'ask')
+        assert 'WOULD TAKE' in lines[19] and 'KEEP THIS LEAGUE' in lines[23], 'no question'
+        press(v)                            # keep it
+        wait(v, lambda: at_title(v), 'the title', 180)
+        v.run_for(1)
+        ch = ram(v, K_CH, 7)
+        print('kept: choices', ch, 'modes', v.mem(lab['t_modes'], 1))
+        assert ch[2] == 3 and ram(v, L_BLOCK, 42) == lg, 'not kept'
+        v.poke(K_CH + 2, [2])               # LEAGUE again: a new one
+        press(v)
+        wait(v, lambda: on_page(v), 'the question', 180)
+        v.run_for(1)
+        press(v, DOWN)
+        press(v)
+        wait(v, lambda: on_page(v) and 'MATCHDAY 1' in screen(v)[2] and
+             any('SAVED' in l for l in screen(v)), 'the new league', 180)
+        v.run_for(1)
+        page(v, 'ask-new')
+        new = ram(v, L_BLOCK, 42)
+        print('new', new)
+        assert new[1] == 1 and new[14:] == [255] * 28, 'not a new league'
+    finally:
+        v.stop()
+
+
 def main():
     drive = sys.argv[1] if len(sys.argv) > 1 else '1541'
     what = sys.argv[2] if len(sys.argv) > 2 else 'all'
@@ -298,6 +337,8 @@ def main():
         saved(drive)
     if what in ('two', 'all'):
         two(drive)
+    if what in ('ask', 'all'):
+        ask(drive)
     print('ok')
 
 
