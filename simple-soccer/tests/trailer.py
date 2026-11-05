@@ -16,7 +16,8 @@ chosen and the kick-off, and moves.py's scenes, each played and (the
 shorter ones) played again at half speed, with its caption below the
 pitch; then the league - LEAGUE chosen on the title, its first page,
 the end of a match and the matchday's results and table after it, and
-the last matchday's, the league won (--league records that, also from
+the last matchday's, the league won, and its winner's page (--league
+records that, also from
 the disk in Yape: WORK/league); the title once more at the end. The parts wiped into one
 another with a soft edge, old-school as in those films - across, an
 iris, round like a clock hand; the captions only while no wipe runs.
@@ -101,7 +102,9 @@ LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
                ('AFTER EACH MATCH - THE MATCHDAY',
                 'AND THE TABLE - SAVED ON THE DISK'),
                ('THE LAST MATCHDAY',
-                'FIRST AGAINST SECOND - FOR THE LEAGUE')]
+                'FIRST AGAINST SECOND - FOR THE LEAGUE'),
+               ('THE WINNER',
+                'A PAGE OF ITS OWN - AFTER EVERY MATCH TOO')]
 L_BLOCK, L_LEN, K_CH = 0xFFC8, 42, 0xFCE7      # (game.inc)
 END_FRAME = 150                 # the title's picture the end holds (MODE: TRAINING)
 
@@ -456,6 +459,12 @@ def record_league():
         match('day4', LEAGUE_SCORE[0])
         y.poke(L_BLOCK, league_block(6))    # six
         match('day7', LEAGUE_SCORE[1])
+        stick('fire', 0.2)                  # back to the title: the winner's page first
+        mark('champ-back')
+        wait(lambda: y.mem(0xfffe, 2) == [lab['synth'], 0] and y.mem(0xff06, 1)[0] & 0x10,
+             'the winner\'s page')
+        mark('champ')
+        time.sleep(7.0)
     finally:
         y.stop()
     d = os.path.join(WORK, 'league')
@@ -486,6 +495,9 @@ def league_parts(gain):
              (mk[name + '-back'] + 5, mk[name + '-back'] + 5 + load, 1),
              (mk[name + '-page'], mk[name + '-page'] + int(6.5 * FPS), 1)]
         out.append(('league%d' % (k + 1), p, [(LEAGUE_CAPS[k], X, -X)]))
+    p = [(mk['champ-back'] + 5, mk['champ-back'] + 5 + load, 1),
+         (mk['champ'], mk['champ'] + int(6.0 * FPS), 1)]
+    out.append(('league4', p, [(LEAGUE_CAPS[3], X, -X)]))
     return [(o,) + part('league', o, p, gain, mute=True, caps=c) + (1,) for o, p, c in out]
 
 
