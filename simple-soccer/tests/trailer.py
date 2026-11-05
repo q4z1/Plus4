@@ -8,13 +8,15 @@
 It opens as a film of a galaxy far away does: a line in blue on black,
 the name going off into the stars, a text crawling up into the distance.
 Then the end of the loading - the football turning - going on into the
-title, as the disk does it (--boot records that, from the disk in Yape:
+title, as the disk does it, and the title's second page with the
+formations chosen there (--boot records that, from the disk in Yape:
 ~/.cache/simple-soccer/moves/boot). Then the title once more, TRAINING
 chosen and the kick-off, and moves.py's scenes, each played and (the
 shorter ones) played again at half speed, with its caption below the
-pitch; the title once more at the end. The parts fade into one
-another, into the end an old-school wipe as in those films, round like
-a clock hand; the captions only while neither runs. Last the credits,
+pitch; the title once more at the end. The parts wiped into one
+another with a soft edge, old-school as in those films - across, an
+iris, round like a clock hand; the captions only while no wipe runs.
+Last the credits,
 crawling off into the stars as the opening's text does.
 
 The scenes are the pictures and the sound moves.py keeps in
@@ -42,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import moves  # noqa: E402
 from yape import Yape, SHOT, host  # noqa: E402
 from moves import WORK, SCENES, FIRST, WAIT, TITLE, HERE, YELLOW_CAP, WHITE_CAP  # noqa: E402
-from PIL import Image, ImageChops, ImageDraw  # noqa: E402
+from PIL import Image, ImageChops, ImageDraw, ImageFilter  # noqa: E402
 
 OUT = os.path.join(HERE, 'build', 'simple-soccer-trailer.mp4')
 T = os.path.join(WORK, 'trailer')
@@ -56,22 +58,28 @@ SCENE_MIN = 8.0                 # seconds a scene is on, at least (the captions 
 TAIL = 30                       # frames after a scene's move, at least
 SONG = 0.30                     # the song's level: as loud as the Plus/4's own
 BED = 0.50                      # under the game's sound (1: alone)
-# how one part goes into the next: a fade, but into the end a wipe as in
-# those films. (A wipe between two pictures of the pitch read as a fault:
-# grass on both sides, the lines not meeting - and black ahead of the
-# new picture did not do either.)
+# how one part goes into the next: old-school wipes as in those films
+# (and as MEGA65 Smaragd Dash's trailer has them, in its order), into
+# the end round like a clock hand - their edge soft, EDGE pixels at the
+# machine's size (a hard one between two pictures of the pitch read as a
+# fault: grass on both sides, the lines not meeting)
+WIPES = ['left', 'radial', 'open', 'right', 'down', 'radial',
+         'left', 'close', 'right', 'up', 'open']
 END_WIPE = 'radial'
+EDGE = 4
 
 # the scenes' replays, frames from the scene's first (what moves.py's
 # piece() starts with) - where the default (the move's last frames) does
 # not show the moment
 REPLAY = {}
 BOOT_LOAD = 8.0                 # seconds of the loading screen shown
-BOOT_TITLE = 9.0                # of the title after it
+BOOT_TITLE = 7.0                # of the title after it, before its second page is chosen
 BOOT_CAPS = [('THE LOADER - A FAST LOADER WITH MUSIC',
               'THE TITLE SONG PLAYS ALL THROUGH THE LOADING'),
              ('THE TITLE - 35 NATIONAL TEAMS',
-              'ONE OR TWO PLAYERS - A MATCH OR TRAINING')]
+              'ONE OR TWO PLAYERS - A MATCH OR TRAINING'),
+             ('TEAM SETTINGS - A FORMATION EACH SIDE',
+              '4-4-2 TO 4-3-3 - ATTACK DEFEND OR RANDOM')]
 END = ('SIMPLE SOCCER FOR THE COMMODORE PLUS/4', 'GITHUB.COM/Q4Z1/PLUS4')
 END_FRAME = 150                 # the title's picture the end holds (MODE: TRAINING)
 
@@ -283,13 +291,31 @@ def record_boot():
             if y.mem(0xfffe, 2) == [moves.labels()['synth'], 0] and y.mem(0xff06, 1)[0] == 0x1b:
                 break
         print('title after %d s' % (time.time() - t0))
-        time.sleep(BOOT_TITLE + 4)
+        time.sleep(BOOT_TITLE - 1.8)
+
+        def stick(how, wait=0.45):
+            y.poke(moves.lab['dbg_joy'], [moves.bits(how)])
+            time.sleep(0.15)
+            y.poke(moves.lab['dbg_joy'], [0])
+            time.sleep(wait)
+        for how in ('down', 'down', 'down'):        # to TEAM SETTINGS
+            stick(how)
+        page2 = len(pictures())
+        stick('right', 1.0)                         # the second page
+        stick('up', 0.5)                            # AWAY FORMATION
+        for wait in (0.35, 0.35, 0.6):              # 5-4-1, 4-5-1, 5-3-2
+            stick('right', wait)
+        stick('up', 0.5)                            # HOME FORMATION
+        for wait in (0.35, 0.35, 0.35, 0.35, 0.35, 1.2):     # ... 4-3-3, ATTACK
+            stick('right', wait)
+        time.sleep(0.5)
     finally:
         y.stop()
     d = os.path.join(WORK, 'boot')
     subprocess.run(['rm', '-rf', d])
     os.makedirs(d)
-    shots = [f for f in glob.glob(SHOT + '.*') if f.rsplit('.', 1)[1].isdigit()]
+    shots = pictures()
+    end = len(shots)
     for f in shots:
         os.rename(f, os.path.join(d, 'f%04d.ppm' % int(f.rsplit('.', 1)[1])))
     os.rename(moves.WAV, os.path.join(d, 'sound.raw'))
@@ -303,7 +329,23 @@ def record_boot():
         mid = (lo + hi) // 2
         lo, hi = (mid, hi) if not is_title(mid) else (lo, mid)
     open(os.path.join(d, 'title.txt'), 'w').write('%d\n' % hi)
-    print('%d pictures, the title from %d on' % (len(every), hi))
+    # the second page: the first picture after the stick went right on
+    # TEAM SETTINGS that differs from the one before it in its four lines
+    menu = (64, 84, 320, 124)
+    k = page2 + 1
+    while k < end - 1 and not ImageChops.difference(
+            Image.open(every[k]).crop(menu).convert('RGB'),
+            Image.open(every[page2]).crop(menu).convert('RGB')).getbbox():
+        k += 1
+    open(os.path.join(d, 'settings.txt'), 'w').write('%d %d\n' % (k, end))
+    print('%d pictures, the title from %d on, its second page from %d (%d s after it)'
+          % (len(every), hi, k, (k - hi) // FPS))
+    assert hi < k < end - FPS, 'the title or its second page not where it should be'
+
+
+def pictures():
+    """the pictures Yape has written so far"""
+    return [f for f in glob.glob(SHOT + '.*') if f.rsplit('.', 1)[1].isdigit()]
 
 
 # ---- the wipes -----------------------------------------------------------------
@@ -338,11 +380,11 @@ def reach(kind, q):
 
 def wiped(kind, a, b, p):
     """p (0..1) of the way from picture a to b: faded, or wiped with a
-    hard edge"""
+    soft edge"""
     if kind == 'fade':
         return Image.blend(a, b, p)
     out = a.copy()
-    out.paste(b, (0, 0), reach(kind, p))
+    out.paste(b, (0, 0), reach(kind, p).filter(ImageFilter.GaussianBlur(EDGE)))
     return out
 
 
@@ -383,7 +425,7 @@ def body_video(parts, path):
             ff.stdin.write(pic(d, k).tobytes())
         if i < len(parts) - 1:
             nd = parts[i + 1][1]
-            kind = END_WIPE if i == len(parts) - 2 else 'fade'
+            kind = END_WIPE if i == len(parts) - 2 else WIPES[i % len(WIPES)]
             for k in range(xf):
                 ff.stdin.write(wiped(kind, pic(d, last + k), pic(nd, k), (k + 1) / (xf + 1)).tobytes())
     ff.stdin.close()
@@ -500,11 +542,13 @@ def main():
     # it); the captions on while no wipe runs
     parts = []
     t0 = int(open(os.path.join(WORK, 'boot', 'title.txt')).read())
+    p2, end = map(int, open(os.path.join(WORK, 'boot', 'settings.txt')).read().split())
     a = t0 - int(BOOT_LOAD * FPS)
     # (its sound not Yape's: the monitor, asked whether the title was on
     # yet, left gaps in it - the song runs on under it instead, the same)
-    parts.append(('boot',) + part('boot', 'boot', [(a, t0 + int(BOOT_TITLE * FPS), 1)], gain, mute=True,
-                                  caps=[(BOOT_CAPS[0], 0, BOOT_LOAD), (BOOT_CAPS[1], BOOT_LOAD, -X)])
+    parts.append(('boot',) + part('boot', 'boot', [(a, end, 1)], gain, mute=True,
+                                  caps=[(BOOT_CAPS[0], 0, BOOT_LOAD), (BOOT_CAPS[1], BOOT_LOAD, (p2 - a) / FPS),
+                                        (BOOT_CAPS[2], (p2 - a) / FPS, -X)])
                  + (1,))
     parts.append(('title',) + part('title', 'title', [(0, len(frames_of('title')), 1)], gain, mute=True,
                                    caps=[(TITLE, X, -X)]) + (1,))
