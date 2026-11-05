@@ -199,6 +199,8 @@ pf:         .res 2              ; his joystick the frame before
 at_j:       .res 1              ; (aftertouch's: the joystick's way,
 at_d:       .res 1              ; and its team's at_dir)
 at_dir:     .res 2              ; the shot's way
+kick_t:     .res 2              ; frames since its last pass or shot (kick_pl)
+recv_t:     .res 2              ; frames recv still goes to meet a pass
 
         .zeropage
 z_ax:       .res 2              ; aim's: the way to the destination
@@ -245,13 +247,11 @@ pj:         .res 1              ; his joystick, J_ bits
 ctrl:       .res 1              ; the joystick's player, $FF none
 fire_n:     .res 1              ; frames fire has been held
 recv:       .res 1              ; the player a pass went to, $FF none,
-recv_t:     .res 1              ; and the frames he still goes to meet it
 helper:     .res 1              ; the player running to a ball his team has
                                 ; not got (help), $FF none
 at_n:       .res 1              ; the aftertouch's frame, $FF none
 drib_dir:   .res 1              ; dribbling: the way
 kick_pl:    .res 1              ; the player who last passed or shot,
-kick_t:     .res 1              ; and the frames since (switch, help)
 CTX_VAR     = * - ctx           ; (swap: these traded, the rest flipped)
 me:         .res 1              ; the team: 0 cyan, 1 yellow
 t_lo:       .res 1              ; its keeper: 0, 11
@@ -504,8 +504,8 @@ play_init:
         jmp sfx_whistle
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
-ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 10, $FF
-ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, $FF, $FF, 0, 1, 11, 21, 10
+ctx_new:    .byte 0, $FF, 0, $FF, $FF, $FF, 0, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, $FF, $FF, $FF, $FF, 1, 11, 21, 10
 .assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
 
 ; each: the routine at A (low) / Y (high) for the cyan team's control,
@@ -1124,18 +1124,18 @@ triple:
 ; the computer's team its brain works his stick out first, and a pass
 ; or a shot it wants (br_ev) is made where fire would make one
 control:
-        ldy me                  ; (fire as it was the frame before)
-        lda pf,y
+        ldx me                  ; (fire as it was the frame before)
+        lda pf,x
         sta pfire
         lda pj
-        sta pf,y
-        lda kick_t              ; (frames since his team's last kick)
+        sta pf,x
+        lda kick_t,x            ; (frames since his team's last kick)
         cmp #255
         beq :+
-        inc kick_t
-:       lda recv_t
+        inc kick_t,x
+:       lda recv_t,x
         beq :+
-        dec recv_t
+        dec recv_t,x
 :       ldx ctrl
         lda o_slide,x           ; (sliding: the stick has no say)
         beq :+
@@ -1458,7 +1458,8 @@ meet:
         jsr dist2
         cpx recv                ; a pass to him: after it, while it runs
         bne @stand
-        lda recv_t
+        ldy me
+        lda recv_t,y
         beq @stand
         lda o_xl + BALL
         sta o_txl,x
@@ -1674,8 +1675,9 @@ dive_head:
 ; shot: the ball the way the joystick's player faces, hard (his shooting)
 ; and rising; the aftertouch on
 shot:
+        ldy me
         lda #0
-        sta kick_t
+        sta kick_t,y
         lda me
         sta last_team
         jsr touch
@@ -2113,8 +2115,9 @@ ball_ahead:
 ; far: the one the way he faces if there is one near enough, else the
 ; nearest to that side; or, no one, straight on
 pass:
+        ldy me
         lda #0
-        sta kick_t
+        sta kick_t,y
         lda me
         sta last_team
         jsr touch
@@ -2164,8 +2167,9 @@ pass:
         bmi :+
         stx recv                ; he runs to meet it (help), the joystick
         stx helper              ; to the nearest of the others (switch)
+        ldy me
         lda #RECV_T
-        sta recv_t
+        sta recv_t,y
         jmp kick_to
 :       ldx ctrl                ; no one: straight on
         ldy o_dir,x
@@ -3627,7 +3631,8 @@ switch:
         jeq @next
         cpx kick_pl             ; (kicker, mate_dist, closer: in line -
         bne :+                  ; given up once |dx| squared alone is no
-        lda kick_t              ; nearer than the nearest so far)
+        ldy me                  ; nearer than the nearest so far)
+        lda kick_t,y
         cmp #KICKED_T
         jcc @next
 :       lda o_off,x
@@ -3703,13 +3708,17 @@ switch:
 ; or less. Keeps X.
 kicker:
         cpx kick_pl
+        bne @no
+        lda me                  ; (the team's: Y kept)
         bne :+
         lda kick_t
-        cmp #KICKED_T
-        bcs :+
+        jmp @t
+:       lda kick_t + 1
+@t:     cmp #KICKED_T
+        bcs @no
         sec
         rts
-:       clc
+@no:    clc
         rts
 
 ; at_ball: carry set if cyan player X is at the ball as Sensible Soccer's
@@ -3756,7 +3765,8 @@ help:
         lda kickoff
         ora dead_t
         bne :+
-        lda recv_t              ; (a pass to him on its way: he runs)
+        ldy me                  ; (a pass to him on its way: he runs)
+        lda recv_t,y
         beq @own
         lda recv
         cmp helper
@@ -6174,7 +6184,8 @@ br_pass:
         sta br_6c
         lda br_t
         bne @no
-        lda kick_t
+        ldy me
+        lda kick_t,y
         cmp #BR_KICKED
         bcc @no
         lda #BR_WAIT
@@ -6210,7 +6221,11 @@ br_long:
 br_shoot:
         ldy br_t
         bne br_none
-        ldy kick_t
+        pha                     ; (the kind kept)
+        ldy me
+        lda kick_t,y
+        tay
+        pla
         cpy #BR_KICKED
         bcc br_none
 br_kick:
