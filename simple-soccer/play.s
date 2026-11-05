@@ -196,7 +196,9 @@ tr_t:       .res 2              ; (triple's)
 at_side:    .res 2              ; the side its shot bends to, $FF none yet
 pass_q:     .res 2              ; frames a pass let go of too soon waits
 pf:         .res 2              ; his joystick the frame before
-at_j:       .res 1              ; (aftertouch's: the joystick's way)
+at_j:       .res 1              ; (aftertouch's: the joystick's way,
+at_d:       .res 1              ; and its team's at_dir)
+at_dir:     .res 2              ; the shot's way
 
         .zeropage
 z_ax:       .res 2              ; aim's: the way to the destination
@@ -247,7 +249,6 @@ recv_t:     .res 1              ; and the frames he still goes to meet it
 helper:     .res 1              ; the player running to a ball his team has
                                 ; not got (help), $FF none
 at_n:       .res 1              ; the aftertouch's frame, $FF none
-at_dir:     .res 1              ; the shot's way
 drib_dir:   .res 1              ; dribbling: the way
 kick_pl:    .res 1              ; the player who last passed or shot,
 kick_t:     .res 1              ; and the frames since (switch, help)
@@ -503,8 +504,8 @@ play_init:
         jmp sfx_whistle
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
-ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 0, 10, $FF
-ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, $FF, $FF, 0, 1, 11, 21, 10
+ctx_new:    .byte 0, $FF, 0, $FF, 0, $FF, $FF, 0, 0, 0, 0, 0, 10, $FF
+ctx_new_b:  .byte 0, $FF, 0, $FF, 0, $FF, $FF, $FF, $FF, 0, 1, 11, 21, 10
 .assert * - ctx_new_b = CTX_N, error, "ctx_new_b: not CTX_N"
 
 ; each: the routine at A (low) / Y (high) for the cyan team's control,
@@ -1682,8 +1683,10 @@ shot:
         sta last_pl
         sta kick_pl
         ldx ctrl
-        ldy o_dir,x
-        sty at_dir
+        ldy me                  ; (the team's)
+        lda o_dir,x
+        sta at_dir,y
+        tay
         jsr ball_ahead
         jsr shot_speed
         lda #<SHOT_DZ
@@ -1706,7 +1709,9 @@ aftertouch:
         ldx at_n
         bpl :+
         rts                     ; (none)
-:       ldy me                  ; (at_side: the team's)
+:       ldy me                  ; (at_side, at_dir: the team's)
+        lda at_dir,y
+        sta at_d
         txa
         bne :+
         lda #$FF                ; frame 0: no side yet
@@ -1722,7 +1727,7 @@ aftertouch:
         lda at_j                ; no side yet: across the shot latches it
         cmp #8
         beq @lift
-        lda at_dir
+        lda at_d
         sec
         sbc at_j
         and #7
@@ -1733,7 +1738,7 @@ aftertouch:
         bcc :+                  ; 1-3: side 0, 5-7: side 1
         lda #1
 :       sta at_side,y
-@bend:  lda at_dir              ; the destination on by curl * weight
+@bend:  lda at_d                ; the destination on by curl * weight
         asl a
         ora at_side,y
         tay
@@ -1754,7 +1759,7 @@ aftertouch:
         lda at_j
         cmp #8
         beq @mid                ; let go
-        lda at_dir
+        lda at_d
         sec
         sbc at_j
         and #7
@@ -1780,10 +1785,10 @@ aftertouch:
         sta o_spl + BALL
         lda lift_hi,y
         sta o_sph + BALL
-        lda at_dir              ; slower diagonally (7/8) and up or down (3/4)
+        lda at_d                ; slower diagonally (7/8) and up or down (3/4)
         lsr a
         bcs @diag
-        lda at_dir
+        lda at_d
         and #3
         bne @next
         jsr spd_quarter         ; up, down: - 1/4
@@ -6244,8 +6249,9 @@ br_after:
         cmp #1
         beq @none
         asl a                   ; (0: on, 2: back, 4 round)
-@add:   clc
-        adc at_dir
+@add:   ldy me
+        clc
+        adc at_dir,y
         and #7
         jmp br_stick
 @none:  rts
