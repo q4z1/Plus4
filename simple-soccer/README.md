@@ -394,8 +394,11 @@ takes its place.
 
 ## Back to the title
 
-After full time fire goes back to the title, with the choices as they
-were. The title is no longer in memory then - the match's pictures are
+After full time fire brings up the winner's page - the title's screen
+with both flags, FULL TIME and who won it (or A DRAW), the score where
+"VS" was - and fire again the title, with the choices as they were. A
+league over has its own: THE LEAGUE IS WON BY, the first and second in
+the flags' places. The title is no longer in memory then - the match's pictures are
 where it was - so it comes from the disk again, with its flags (some 10 KB,
 "LOADING" on the screen meanwhile). The way there outlasts the match in
 memory the game never touches (`resident.s`): the fast loader's Plus/4
@@ -405,7 +408,9 @@ the KERNAL is woken up again as the machine's reset does it (IOINIT,
 RAMTAS, RESTOR - not BASIC, not the screen), from code at $0600 below the
 ROM. Either way the file `cup` (`cup.s`) comes first: it loads the flags
 and the title, puts the league's page up, saves the league, and starts
-the game again from its beginning. `tests/league.py` goes through it in
+the game again from its beginning - the winner's page set up for the
+title to show first (two hooks in it, turned to code `cup` leaves at
+$E340, free while the title runs). `tests/league.py` goes through it in
 VICE, with a 1541 or a 1551.
 
 ## The title's music

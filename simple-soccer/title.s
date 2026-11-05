@@ -37,6 +37,13 @@
         .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import mus_start, mus_frame, mus_stop
         .export title, teams, TEAMS_N
+        .export t_hook1, t_hook2, draw_menu, draw_lines, lines   ; (cup.s: the winner)
+        .exportzp t_ptr, t_s, t_d
+        .export T_LEN_ROW = LEN_ROW, T_MODE_ROW = MODE_ROW, T_FIRE_ROW = FIRE_ROW
+        .export T_NAME_ROW = NAME_ROW, T_NAME_COL = NAME_COL, T_FIELD_W = FIELD_W
+        .export T_LABEL_ROW = LABEL_ROW, T_LABEL_COL = LABEL_COL, T_DROP = TEXT_DROP
+        .export T_VS_ROW = FLAG_ROW + FLAG_H, T_MORE_ROW = MORE_ROW
+        .export T_PORTS_ROW = PORTS_ROW, T_CREDIT_ROW = CREDIT_ROW, T_SUB_ROW = SUB_ROW
 
 TCOL        = MAT2              ; the title's colours,
 TCODE       = MAT2 + $400       ; codes,
@@ -287,6 +294,7 @@ title_on:
         jsr draw_names
         jsr show_rows
         jsr show_values
+        jsr t_hook1             ; (cup.s: the winner's page over it)
         ; the TED: multicolour text, 40 columns, 25 rows, the title's
         ; matrix and characters
         lda TED_CTRL2
@@ -344,7 +352,10 @@ title_on:
         bcc :+
         jmp @go
 :       jsr joy_scan            ; (joy_read, but the music not held up)
-        lda t_was               ; let go of: held before, not now
+        jsr t_hook2             ; (cup.s: the winner's page, its stick -
+        bcc :+                  ; C set: nothing for the title)
+        jmp @next
+:       lda t_was               ; let go of: held before, not now
         eor #$FF
         and joy
         sta t_new               ; (pushed: now, not before)
@@ -452,6 +463,17 @@ k_init:
         lda #MODE_MATCH
         sta t_train
 :       rts
+
+; t_hook1, t_hook2: as the title is loaded nothing (none, C clear); after
+; a match cup.s makes them jumps to its winner's page (cup.s WIN): drawn
+; once the title is, and the stick its own till fire leaves it
+t_hook1:
+        rts
+        .byte 0, 0
+t_hook2:
+        clc
+        rts
+        .byte 0
 
 ; skip: carry set if a test asks for no title (SKIP: "TS", "TT" for
 ; training), the ask taken back - the match then 3 minutes, one player,

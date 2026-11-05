@@ -3,7 +3,7 @@
 ;
 ; The match has the whole of the memory; after it, the title (title.s)
 ; and its flags come back from the disk. k_go (resident.s) loads this to
-; CUP (picture 2's place, $E800) and starts it, the ROM out, no interrupt,
+; CUP ($E500, up to picture 2's place) and starts it, the ROM out, no interrupt,
 ; "LOADING ..." on the screen - the ROM's characters, the colours at $0800
 ; and the codes at $0C00. It loads the flags and the title, and then
 ; (K_REQ):
@@ -44,6 +44,12 @@
         .include "resident.inc" ; (RES_LOAD, RES_NM, RES_DST: build.sh)
 
         .import score, start, teams, TEAMS_N, joy_read, joy
+        .import t_hook1, t_hook2, draw_menu, draw_lines, lines
+        .importzp t_ptr, t_s, t_d
+        .importzp T_LEN_ROW, T_MODE_ROW, T_FIRE_ROW, T_NAME_ROW, T_NAME_COL, T_FIELD_W
+        .importzp T_LABEL_ROW, T_LABEL_COL, T_DROP, T_VS_ROW, T_MORE_ROW
+        .importzp T_PORTS_ROW, T_CREDIT_ROW, T_SUB_ROW
+        .import __WIN_LOAD__, __WIN_RUN__, __WIN_SIZE__
         .import __CUPLOW_LOAD__, __CUPLOW_RUN__, __CUPLOW_SIZE__
 
         .repeat 256, I          ; (text as it is, ASCII: put makes screen
@@ -71,6 +77,7 @@ c_ptr       = $D0               ; put's place on the screen
 c_col       = $D2               ; its colour
 c_txt       = $D3               ; text's
 c_tmp       = $D5
+wl_p        = c_ptr             ; (win_*: the list's end so far)
 
 ; the page's rows
 ROW_HEAD    = 0
@@ -116,7 +123,8 @@ cup:    ldx #$FF
         beq @page
         cmp #K_PLAYED
         beq @played
-        jmp restart             ; (K_TITLE)
+        jsr win_match           ; (K_TITLE: after a match - its winner)
+        jmp restart
 @new:   lda L_ON                ; one going on: kept, unless the stick
         cmp #1                  ; says it is to go (ask)
         bne :+
@@ -138,6 +146,9 @@ cup:    ldx #$FF
 @menu:  jsr menu                ; C set: the next match
         bcs :+
         jsr to_title
+        lda L_ON                ; (the league over: its winner)
+        bne restart
+        jsr win_league
         jmp restart
 :       jsr to_match
         ; fall through
@@ -176,7 +187,480 @@ ask:    jsr page
         sta m_off
         jmp menu
 
-; ---- the league ------------------------------------------------------------
+; ---- the winner's page ---------------------------------------------------------
+;
+; The title (title.s) as it is, its four lines at the top made what
+; the match came to - FULL TIME and who won it, the score where "VS"
+; was; or the league's winner, first and second in the flags' places -
+; "PRESS FIRE TO GO ON"; fire, and it is the title. WIN's code does that
+; from $E340 (free while the title runs), its hooks turned to it; what
+; it writes is a list made here (w_lst): each entry the place (from
+; TCODE), its colour, how many characters, them.
+
+TCODE       = MAT2 + $400       ; (title.s: the title's codes, colours)
+
+; win_match: the match's page - its teams as the title has them
+win_match:
+        jsr win_start
+        lda #<t_ft
+        ldx #>t_ft
+        jsr wl_head
+        lda score               ; who won: home, away, or neither
+        cmp score + 1
+        beq @draw
+        ldx #0
+        bcs :+
+        inx
+:       lda t_team,x
+        jsr wl_name
+        lda #<t_wins
+        ldx #>t_wins
+        jsr wl_cat
+        jmp @line
+@draw:  lda #<t_draw
+        ldx #>t_draw
+        jsr wl_cat
+@line:  jsr wl_second
+        lda #0                  ; the score where "VS" was: "2 - 1"
+        sta w_n
+        lda score
+        jsr wl_num
+        lda #<t_vs
+        ldx #>t_vs
+        jsr wl_cat
+        lda score + 1
+        jsr wl_num
+        jsr wl_vs
+        jmp win_end
+
+; win_league: the league's - its first and second in the title's two
+; places (the choices the title has after it)
+win_league:
+        jsr table
+        lda order
+        jsr slot_team
+        sta t_team
+        lda order + 1
+        jsr slot_team
+        sta t_team + 1
+        jsr win_start
+        lda #<t_wonby
+        ldx #>t_wonby
+        jsr wl_head
+        lda t_team
+        jsr wl_name
+        jsr wl_second
+        lda #0                  ; no "VS": first and second
+        sta w_n
+        jsr wl_vs
+        ldx #1                  ; "1ST" and "2ND" for "HOME" and "AWAY"
+:       stx w_x
+        lda w_lab_r,x
+        ldy #<T_LABEL_COL
+        jsr wl_at
+        lda #C_TEXT
+        jsr wl_colour
+        ldx w_x
+        lda w_lab_lo,x
+        ldy w_lab_hi,x
+        tax
+        tya
+        stx c_txt
+        sta c_txt + 1
+        jsr wl_text
+        ldx w_x
+        dex
+        bpl :-
+        jmp win_end
+
+; slot_team: league team A's in the title's teams
+slot_team:
+        tax
+        lda L_TEAM,x
+        rts
+
+; win_start: the list empty, its first entries: the arrows round the
+; names gone, "PRESS FIRE TO GO ON"
+win_start:
+        lda #<w_lst_load
+        sta wl_p
+        lda #>w_lst_load
+        sta wl_p + 1
+        ldx #3
+:       stx w_x
+        lda w_arr_r,x
+        ldy w_arr_c,x
+        jsr wl_at
+        lda #C_TEXT
+        jsr wl_colour
+        lda #<t_blank1
+        sta c_txt
+        lda #>t_blank1
+        sta c_txt + 1
+        jsr wl_text
+        ldx w_x
+        dex
+        bpl :-
+        lda #<T_FIRE_ROW
+        ldy #9
+        jsr wl_at
+        lda #$75                ; (title.s C_FIRE0: it flashes the row)
+        jsr wl_colour
+        lda #<t_goon
+        sta c_txt
+        lda #>t_goon
+        sta c_txt + 1
+        jmp wl_text
+
+; wl_head: text A/X, yellow, in the middle of the first line
+wl_head:
+        sta c_txt
+        stx c_txt + 1
+        lda #<T_LEN_ROW
+        jsr wl_mid
+        lda #$77                ; (title.s C_VALUE)
+        jsr wl_colour
+        jmp wl_text
+
+; wl_name: team A's name (title.s teams) into w_buf; wl_cat: text A/X
+; after it
+wl_name:
+        jsr rec
+        ldy #NAME_W             ; (to its last letter)
+:       dey
+        lda (c_txt),y
+        and #$7F
+        cmp #' '
+        beq :-
+        iny
+        sty w_n
+:       dey
+        lda (c_txt),y
+        and #$7F
+        sta w_buf,y
+        tya
+        bne :-
+        rts
+wl_cat: sta c_txt
+        stx c_txt + 1
+        ldy #0
+        ldx w_n
+:       lda (c_txt),y
+        sta w_buf,x
+        beq :+
+        inx
+        iny
+        bne :-
+:       stx w_n
+        rts
+
+; wl_num: goals A after w_buf's w_n
+wl_num: ldx w_n
+        cmp #10
+        bcc :+
+        pha
+        lda #'1'                ; (14 at most)
+        sta w_buf,x
+        inx
+        pla
+        sec
+        sbc #10
+:       ora #'0'
+        sta w_buf,x
+        inx
+        stx w_n
+        rts
+
+; wl_second: w_buf (w_n long), white, in the middle of the third line
+wl_second:
+        lda #<T_MODE_ROW
+        ldx w_n
+        jsr wl_mid_n
+        lda #$71                ; (title.s C_TEXT)
+        bne wl_buf
+; wl_vs: w_buf (w_n long, 0: none) in the middle of seven where "VS"
+; is (blanks round it: "VS" gone)
+wl_vs:  lda #<T_VS_ROW
+        ldy #17
+        jsr wl_at
+        lda #$71                ; (title.s C_TEXT)
+        jsr wl_colour
+        lda #7
+        jsr wl_byte
+        lda #7                  ; (the blanks before it)
+        sec
+        sbc w_n
+        lsr a
+        sta w_y
+        ldx #0
+@char:  txa
+        sec
+        sbc w_y
+        bcc @blank
+        cmp w_n
+        bcs @blank
+        tay
+        lda w_buf,y
+        .byte $2C               ; (bit: past the next)
+@blank: lda #' '
+        jsr wl_byte
+        inx
+        cpx #7
+        bne @char
+        rts
+; wl_buf: an entry of w_buf, w_n long, in colour A (its place: wl_at)
+wl_buf: jsr wl_colour
+        ldx w_n
+        txa
+        jsr wl_byte
+        ldx #0
+:       cpx w_n
+        beq :+
+        lda w_buf,x
+        jsr wl_byte
+        inx
+        bne :-
+:       rts
+
+; wl_mid: the text at c_txt (0-terminated) in the middle of line A;
+; wl_mid_n: X long
+wl_mid: pha
+        ldy #$FF
+:       iny
+        lda (c_txt),y
+        bne :-
+        tya
+        tax
+        pla
+wl_mid_n:
+        pha
+        txa
+        lsr a
+        eor #$FF
+        sec
+        adc #20                 ; (20 - length / 2)
+        tay
+        pla
+        ; fall through
+; wl_at: a new entry at line A, column Y: its place
+wl_at:  tax
+        tya
+        clc
+        adc t40_lo,x
+        pha
+        lda t40_hi,x
+        adc #0
+        tax
+        pla
+        jsr wl_byte
+        txa
+        jmp wl_byte
+; wl_colour: its colour A
+wl_colour = wl_byte
+; wl_text: the text at c_txt (0-terminated): how long, then it
+wl_text:
+        ldy #$FF
+:       iny
+        lda (c_txt),y
+        bne :-
+        tya
+        jsr wl_byte
+        ldy #0
+:       lda (c_txt),y
+        beq :+
+        jsr wl_byte
+        iny
+        bne :-
+:       rts
+; wl_byte: A onto the list. Keeps X and Y.
+wl_byte:
+        sty w_y2
+        ldy #0
+        sta (wl_p),y
+        inc wl_p
+        bne :+
+        inc wl_p + 1
+:       ldy w_y2
+        rts
+
+; win_end: the list ended, WIN where it runs, the title's hooks to it
+win_end:
+        lda #$FF
+        jsr wl_byte
+        jsr wl_byte
+        ldx #0                  ; (its first page, then the rest: no more
+:       lda __WIN_LOAD__,x      ; - CUP starts after it)
+        sta __WIN_RUN__,x
+        inx
+        bne :-
+        ldx #<(__WIN_SIZE__ - $100)
+:       lda __WIN_LOAD__ + $100 - 1,x
+        sta __WIN_RUN__ + $100 - 1,x
+        dex
+        bne :-
+        lda #$4C                ; (jmp)
+        sta t_hook1
+        sta t_hook2
+        lda #<win_draw
+        sta t_hook1 + 1
+        lda #>win_draw
+        sta t_hook1 + 2
+        lda #<win_key
+        sta t_hook2 + 1
+        lda #>win_key
+        sta t_hook2 + 2
+        rts
+
+t_ft:       .byte "FULL TIME", 0
+t_wins:     .byte " WINS", 0
+t_draw:     .byte "A DRAW", 0
+t_wonby:    .byte "THE LEAGUE IS WON BY", 0
+t_goon:     .byte "PRESS FIRE TO GO ON   ", 0   ; (over "... TO KICK OFF")
+t_blank1:   .byte " ", 0
+t_1st:      .byte "1ST ", 0
+t_2nd:      .byte "2ND ", 0
+w_lab_r:    .byte <T_LABEL_ROW, <(T_LABEL_ROW + T_DROP)
+w_lab_lo:   .byte <t_1st, <t_2nd
+w_lab_hi:   .byte >t_1st, >t_2nd
+w_arr_r:    .byte <T_NAME_ROW, <T_NAME_ROW, <(T_NAME_ROW + T_DROP), <(T_NAME_ROW + T_DROP)
+w_arr_c:    .byte <(T_NAME_COL - 1), <(T_NAME_COL + T_FIELD_W), <(T_NAME_COL - 1), <(T_NAME_COL + T_FIELD_W)
+t40_lo:
+        .repeat 25, I
+        .byte <(I * 40)
+        .endrepeat
+t40_hi:
+        .repeat 25, I
+        .byte >(I * 40)
+        .endrepeat
+w_buf:  .res 32
+w_n:    .res 1
+w_x:    .res 1
+w_y:    .res 1
+w_y2:   .res 1
+
+; ---- WIN: the winner's page in the title, at $E340 ------------------------------
+
+        .segment "WIN"
+
+; win_draw (t_hook1): the title drawn - its four lines blank, the line
+; under the name, and the joysticks' and the credit's at the foot; what
+; the list says over it
+win_draw:
+        ldx #39
+        lda #' '
+:       sta a:TCODE + 40 * T_LEN_ROW,x
+        sta a:TCODE + 40 * (T_LEN_ROW + 1),x
+        sta a:TCODE + 40 * (T_LEN_ROW + 2),x
+        sta a:TCODE + 40 * T_MORE_ROW,x
+        sta a:TCODE + 40 * T_PORTS_ROW,x
+        sta a:TCODE + 40 * T_CREDIT_ROW,x
+        sta a:TCODE + 40 * T_SUB_ROW,x
+        dex
+        bpl :-
+        lda #1
+        sta w_on
+        lda #0
+        beq w_walk
+
+; win_key (t_hook2): C clear while the page is gone (the title's own);
+; else C set - fire's letting go makes it the title: what the list
+; wrote blank again, the four lines and the title's texts as they are
+win_key:
+        lda w_on
+        bne :+
+        clc
+        rts
+:       lda joy
+        and #J_FIRE
+        beq :+
+        sta w_held
+        sec
+        rts
+:       lda w_held
+        bne :+
+        sec
+        rts
+:       lda #0
+        sta w_on
+        lda #$80
+        jsr w_walk
+        lda #<lines             ; (the texts first: the menu's values then
+        sta t_ptr               ; fill the joysticks' line)
+        lda #>lines
+        sta t_ptr + 1
+        jsr draw_lines
+        jsr draw_menu
+        sec
+        rts
+
+; w_walk: the list's texts (A 0), or blanks where they are (A $80)
+w_walk: sta w_mode
+        lda #<w_lst
+        sta t_s
+        lda #>w_lst
+        sta t_s + 1
+@entry: ldy #1
+        lda (t_s),y             ; (its place, from TCODE; $FFFF the end)
+        cmp #$FF
+        beq @done
+        clc
+        adc #>TCODE
+        sta t_d + 1
+        dey
+        lda (t_s),y
+        sta t_d                 ; (TCODE: at a page's start)
+        ldy #2
+        lda (t_s),y
+        sta w_col
+        iny
+        lda (t_s),y
+        sta w_len
+        lda t_s                 ; on to its characters
+        clc
+        adc #4
+        sta t_s
+        bcc :+
+        inc t_s + 1
+:       ldy #0
+@char:  cpy w_len
+        beq @next
+        lda (t_s),y
+        bit w_mode
+        bpl :+
+        lda #' '
+:       sta (t_d),y
+        lda t_d + 1             ; (its colour: $400 below)
+        pha
+        sec
+        sbc #4
+        sta t_d + 1
+        lda w_col
+        sta (t_d),y
+        pla
+        sta t_d + 1
+        iny
+        bne @char
+@next:  tya
+        clc
+        adc t_s
+        sta t_s
+        bcc @entry
+        inc t_s + 1
+        bne @entry
+@done:  rts
+
+w_on:   .byte 0
+w_held: .byte 0
+w_mode: .byte 0
+w_col:  .byte 0
+w_len:  .byte 0
+w_lst:                          ; (made by cup.s: w_lst_load)
+w_lst_load = w_lst - __WIN_RUN__ + __WIN_LOAD__
+        .res 160
+
+        .segment "CUP"
+.assert <TCODE = 0, error, "w_walk: TCODE at a page's start"
+.assert __WIN_SIZE__ > $100 && __WIN_SIZE__ <= $200, error, "WIN: win_end copies a page and the rest"
 
 ; new_league: the players' teams (title.s's choices: K_CH) - one, or two
 ; - and the computer's at random, none twice; nothing played

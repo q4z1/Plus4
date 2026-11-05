@@ -69,6 +69,29 @@ def wait(v, test, what, seconds=120):
     raise RuntimeError('waited in vain: ' + what)
 
 
+def title_text(v):
+    """the title's screen (its own font: ASCII), as lines"""
+    codes = v.mem(0xEC00, 1000)
+    return [''.join(chr(c) if 32 <= c < 96 else ' ' for c in codes[r * 40:r * 40 + 40]).rstrip()
+            for r in range(25)]
+
+
+def winner(v, head, second, vs, name):
+    """the winner's page: its lines; fire, and it is the title"""
+    v.run_for(1)
+    t = title_text(v)
+    print('\n'.join(l for l in t if l))
+    v.screenshot(os.path.join(CACHE, f'league-{name}.png'))
+    assert head in t[6] and second in t[8] and vs in t[14], 'not the winner\'s page'
+    assert not t[4].strip() and not t[22].strip() and not t[24].strip(), 'the foot still there'
+    press(v)
+    v.run_for(1)
+    t = title_text(v)
+    assert 'MATCH LENGTH' in t[6] and 'VS' in t[14] and 'KICK OFF' in t[20] and 'PORT' in t[22], \
+        'not the title after it'
+    v.screenshot(os.path.join(CACHE, f'league-{name}-title.png'))
+
+
 def at_title(v):
     return v.mem(0xFFFE, 2) == [lab['synth'], 0] and v.mem(0xFF06, 1)[0] & 0x10
 
@@ -106,6 +129,7 @@ def full_time(v, goals=None):
         v.poke(lab['score'], goals)
     v.run_for(1)                # (the result shown 2 seconds at least)
     assert v.mem(lab['full'], 1)[0] == 1, 'gone on from full time'
+    return v.mem(lab['score'], 2)
 
 
 def page(v, name):
@@ -130,12 +154,13 @@ def back(v):
     press(v)                                # (fire: let go of)
     wait(v, lambda: in_match(v), 'the match', 60)
     print('match: teams', ram(v, K_CH + 3, 2), 'min_frames', v.mem(lab['min_frames'], 1))
-    full_time(v)
+    sc = full_time(v)
     press(v)
     t = time.time()
     wait(v, lambda: at_title(v), 'the title again', 180)
     print(f'back at the title after {time.time() - t:.1f} s (warp)')
-    v.run_for(1)
+    winner(v, 'FULL TIME', 'A DRAW' if sc[0] == sc[1] else
+           ('CANADA WINS' if sc[0] > sc[1] else 'CROATIA WINS'), '%d - %d' % tuple(sc), 'winner')
     print('choices', ram(v, K_CH, 7))
     assert ram(v, K_CH, 7)[:5] == [1, 0, 0, 5, 9], 'the choices lost'
     v.screenshot(os.path.join(CACHE, 'league-title2.png'))
@@ -278,7 +303,7 @@ def two(drive):
         assert ram(v, L_BLOCK + 1, 1) == [0], 'still on'
         press(v)                        # (the title only)
         wait(v, lambda: at_title(v), 'the title', 180)
-        v.run_for(1)
+        winner(v, 'THE LEAGUE IS WON BY', 'ITALY', '', 'champion')
         print('modes up to', v.mem(lab['t_modes'], 1), 'choices', ram(v, K_CH, 7))
         assert v.mem(lab['t_modes'], 1)[0] == 2, 'CONTINUE after the end'
     finally:

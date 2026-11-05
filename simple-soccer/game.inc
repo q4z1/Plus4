@@ -92,4 +92,4 @@ L_MATCHES   = 28                ; away; $FF not played (cup.s: the order)
 L_LEN       = L_RES + L_MATCHES - L_BLOCK
 L_END       = L_BLOCK + L_LEN
 
-CUP         = $E800             ; cup.s: the way back, the league's page
+CUP         = $E500             ; cup.s: the way back, the league's page
