@@ -120,6 +120,7 @@ s_key:  .res PLAYERS            ; (order's)
 
         .bss
 s_off:  .res FIGS               ; 1: not in this picture (seen)
+p_key:  .res PLAYERS            ; (sort's: each player's key, $FF listed)
 team_col:   .res 2              ; each team's shirts, multicolour (title.s)
 team_flk:   .res 2              ; and the colour its joystick's player
                                 ; flickers to: white, black on a light shirt
@@ -140,7 +141,8 @@ main:
         bpl :-
         jsr eng_init
         jsr play_init
-        ldx #0                  ; an order to sort from
+        ldx #0                  ; an order to sort from (none in it yet)
+        stx vis_n
 :       txa
         sta order,x
         inx
@@ -264,8 +266,7 @@ sort:
         lda cam_y + 1
         sbc #0
         sta cg_yh
-        lda #0
-        sta vis_n
+        ldy #0                  ; (the players in the view)
         ldx #PLAYERS - 1
 @pick:  lda #1                  ; (out of it till found in it)
         sta s_off,x
@@ -307,34 +308,75 @@ sort:
         bcs @no
 @vis:   lda #0
         sta s_off,x
-        ldy vis_n
-        txa
-        sta order,y
         lda tmp2                ; its key: how far down, -8..197, plus 8
         clc
         adc #8
-        sta s_key,y
-        inc vis_n
+        sta p_key,x
+        iny
 @no:    dex
         bpl @pick
+        sty s_j
         ldx #BALL               ; the ball's, as seen has it
         jsr seen
         lda #0
         rol a
         sta s_off,x
-        lda vis_n               ; (none or one: sorted)
-        cmp #2
+        ; the list: the last picture's order first, those of it still in
+        ; the view (they hardly move: mostly in order already), then any
+        ; new to it - their keys $FF in p_key once listed
+        lda #0
+        sta s_i
+        tay
+@old:   ldx s_i
+        cpx vis_n
+        beq @new
+        inc s_i
+        lda order,x
+        tax
+        lda s_off,x
+        bne @old                ; (out of the view now)
+        txa
+        sta order,y
+        lda p_key,x
+        sta s_key,y
+        lda #$FF
+        sta p_key,x
+        iny
+        bne @old
+@new:   cpy s_j                 ; (all of them listed: none new)
+        beq @sort
+        ldx #PLAYERS - 1
+@add:   lda s_off,x
+        bne :+
+        lda p_key,x
+        cmp #$FF
+        beq :+
+        sta s_key,y
+        txa
+        sta order,y
+        iny
+:       dex
+        bpl @add
+@sort:  sty vis_n
+        cpy #2                  ; (none or one: sorted)
         bcs :+
         rts
+        ; by the key, the same key the higher number first: one order
+        ; whatever the list's (as the players' numbers went in before)
 :       ldx #1
-@next:  lda s_key,x             ; (mostly no lower than the one above: next)
+@next:  lda s_key,x             ; (mostly in place: next)
         cmp s_key - 1,x
-        bcs @in
-        stx s_i
+        bcc @move               ; (lower: up)
+        bne @in
+        lda order,x             ; (the same: up past a lower number)
+        cmp order - 1,x
+        bcc @in
+        lda s_key,x
+@move:  stx s_i
         sta tmp                 ; it, the gap X
         lda order,x
         sta s_j
-@back:  lda s_key - 1,x         ; the one above the gap: lower than it, it
+@back:  lda s_key - 1,x         ; the one above the gap: after it, it
         sta s_key,x             ; moves down into the gap
         lda order - 1,x
         sta order,x
@@ -342,8 +384,11 @@ sort:
         beq @put
         lda s_key - 1,x
         cmp tmp
-        beq @put
-        bcs @back
+        bcc @put
+        bne @back
+        lda order - 1,x
+        cmp s_j
+        bcc @back
 @put:   lda tmp
         sta s_key,x
         lda s_j
