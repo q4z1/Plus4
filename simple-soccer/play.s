@@ -735,9 +735,10 @@ play_frame:
         lda joy_a
 :       sta pj
         jsr duel
-        lda #<control
-        ldy #>control
-        jsr each
+        jsr control             ; (as each: the cyan team's, the yellow
+        jsr swap                ; team's swapped in)
+        jsr control
+        jsr swap
         lda two                 ; the computer's runner slides in as
         bne :+                  ; Sensible Soccer's, every frame (c154a8)
         ldx helper_b
@@ -2609,6 +2610,61 @@ step:
         dec o_yh,x
 :       rts
 
+; smul_in: z_p (24 bits, signed) = A (signed) * smul_l/h; the step is its
+; upper two bytes. Two products of bytes from tables of squares / 4 (a * b
+; = (a + b)^2 / 4 - (a - b)^2 / 4). Keeps X. In line: aim's, twice.
+.macro smul_in
+        sta z_ms
+        bpl :+
+        eor #$FF
+        clc
+        adc #1
+:       sta z_qp                ; (mul_set and mul_by, in line)
+        sta z_qph
+        eor #$FF
+        sta z_qn
+        sta z_qnh
+        ldy smul_l              ; |A| * the low byte (0: none - many a
+        bne :+                  ; speed has none)
+        sty z_p
+        sty z_p + 1
+        beq :++
+:       lda (z_qp),y
+        sec
+        sbc (z_qn),y
+        sta z_p
+        lda (z_qph),y
+        sbc (z_qnh),y
+        sta z_p + 1
+:       ldy smul_h              ; and the high byte, 8 bits up
+        lda (z_qp),y
+        sec
+        sbc (z_qn),y
+        sta z_q
+        lda (z_qph),y
+        sbc (z_qnh),y
+        sta z_p + 2
+        lda z_q
+        clc
+        adc z_p + 1
+        sta z_p + 1
+        bcc :+
+        inc z_p + 2
+:       lda z_ms
+        bpl :+
+        lda #0
+        sec
+        sbc z_p
+        sta z_p
+        lda #0
+        sbc z_p + 1
+        sta z_p + 1
+        lda #0
+        sbc z_p + 2
+        sta z_p + 2
+:
+.endmacro
+
 ; aim: object X's step from the way to its destination and its speed,
 ; and the way it faces (players)
 aim:
@@ -2741,7 +2797,7 @@ aim:
         sta smul_h
         ldy c_th,x
         lda sin_tab,y
-        jsr smul
+        smul_in
         lda z_p
         sta b_px0               ; (the ball's, for its friction)
         lda z_p + 1
@@ -2753,7 +2809,7 @@ aim:
         adc #64
         tay
         lda sin_tab,y
-        jsr smul
+        smul_in
         lda z_p + 1
         sta o_vyf,x
         lda z_p + 2
@@ -3007,60 +3063,6 @@ angle:
         rts
 
 halves: .byte 0, 1, 2, 2, 3, 3, 3, 3   ; (for the top three bits of 8)
-
-; smul: z_p (24 bits, signed) = A (signed) * smul_l/h; the step is its
-; upper two bytes. Two products of bytes from tables of squares / 4 (a * b
-; = (a + b)^2 / 4 - (a - b)^2 / 4). Keeps X.
-smul:
-        sta z_ms
-        bpl :+
-        eor #$FF
-        clc
-        adc #1
-:       sta z_qp                ; (mul_set and mul_by, in line)
-        sta z_qph
-        eor #$FF
-        sta z_qn
-        sta z_qnh
-        ldy smul_l              ; |A| * the low byte (0: none - many a
-        beq @lo0                ; speed has none)
-        lda (z_qp),y
-        sec
-        sbc (z_qn),y
-        sta z_p
-        lda (z_qph),y
-        sbc (z_qnh),y
-        sta z_p + 1
-@hi:    ldy smul_h              ; and the high byte, 8 bits up
-        lda (z_qp),y
-        sec
-        sbc (z_qn),y
-        sta z_q
-        lda (z_qph),y
-        sbc (z_qnh),y
-        sta z_p + 2
-        lda z_q
-        clc
-        adc z_p + 1
-        sta z_p + 1
-        bcc :+
-        inc z_p + 2
-:       lda z_ms
-        bpl :+
-        lda #0
-        sec
-        sbc z_p
-        sta z_p
-        lda #0
-        sbc z_p + 1
-        sta z_p + 1
-        lda #0
-        sbc z_p + 2
-        sta z_p + 2
-:       rts
-@lo0:   sty z_p                 ; (Y 0)
-        sty z_p + 1
-        beq @hi
 
 ; mul_by: z_q = a * Y, a the factor mul_set was given: a * b = (a + b)^2 / 4
 ; - (b - a)^2 / 4, the squares / 4 from tables the pointers point into a
@@ -6385,16 +6387,59 @@ br_cone:
 @look:  cpx z_obj
         jeq @next
         lda o_slide,x
-        bne @next
-        jsr mate_dist           ; (one far off: never the nearest that way)
-        lda tmp + 1
+        jne @next
+        lda o_off,x             ; (mate_dist, closer: in line - given up
+        jne @next               ; once |dx| squared alone is no nearer than
+        lda o_xl,x              ; the nearest so far, as switch; one far
+        sec                     ; off: never the nearest that way)
+        sbc o_xl + BALL
+        tay
+        lda o_xh,x
+        sbc o_xh + BALL
+        beq @dx
         cmp #$FF
-        beq @next
+        jne @next
+        tya
+        eor #$FF
+        adc #0
+        jeq @next
+        tay
+@dx:    lda sq8_lo,y
+        sta mate_t
+        cmp mate_d
+        lda sq8_hi,y
+        sta mate_t + 1
+        sbc mate_d + 1
+        jcs @next
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        tay
+        lda o_yh,x
+        sbc o_yh + BALL
+        beq @dy
+        cmp #$FF
+        jne @next
+        tya
+        eor #$FF
+        adc #0
+        jeq @next
+        tay
+@dy:    lda sq8_lo,y
+        clc
+        adc mate_t
+        sta tmp
+        lda sq8_hi,y
+        adc mate_t + 1
+        sta tmp + 1
+        jcs @next
+        cmp #$FF                ; (from $FF00 on: as far off)
+        jeq @next
         lda tmp
         cmp mate_d
         lda tmp + 1
         sbc mate_d + 1
-        bcs @next
+        jcs @next
         jsr near45              ; (more than 45 degrees off: never in it)
         bcs @next
         lda tmp                 ; his way from the ball
