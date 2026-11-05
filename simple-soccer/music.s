@@ -22,7 +22,7 @@
 ;
 ; Assembled with BOOT defined, the same is the loading screen's music: the
 ; disk's file "music" (build.sh, bootmus.cfg), which the boot (boot.s)
-; loads to $E100 and starts there while the flags and the game load - its
+; loads to $E200 and starts there while the flags and the game load - its
 ; interrupt in the zero page too, at $30 (bootmus.cfg: the game's, unused
 ; till the title takes over), its wave pages around the boot's characters
 ; (page_tab), and once a frame, counted in its own interrupts, its notes

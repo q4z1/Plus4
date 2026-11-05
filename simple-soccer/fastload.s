@@ -1,23 +1,18 @@
-; fastload.s - the fast loader's half in the Plus/4, at $FA00
+; fastload.s - the fast loader's half in the Plus/4, at $0200
 ;
 ; (Taken over from trainschedule, its waits since timed instead of
-; counted: here only the boot, boot.s, loads through it - the game's
-; variables are over it from $F800 on.)
+; counted.) Part of resident.s, which puts the code that has to outlast
+; the match round it: the boot (boot.s) loads through it, and so does the
+; way back from a match to the title (resident.s, cup.s) - from $0200,
+; where the game never writes, the KERNAL being out. Its other half runs
+; in the drive (drive.s, which says how the two talk).
 ;
-; The boot program (boot.s) puts it here, under the KERNAL's ROM, where the
-; game leaves it alone; the game calls it there (front.s) - ROM switched
-; off, as it always is in the game. Its other half runs in the drive
-; (drive.s, which says how the two talk).
-;
-;   $FA00  jmp load
-;   $FA03  "RSFL", so the game can tell it is here
-;   $FA07  the name: the address of a 0-terminated string
-;   $FA09  where to (the file's own load address is not sent)
-;
-; load returns the end of what it loaded in A/X, C clear; or C set and 0
-; if the file is not there or the disk failed. Saving is not here - no
-; room: the best scores' code (scores.s) has its own half of it, which the
-; game loads only with them. It uses no zero page but the CPU's port, $01:
+; load: the file whose name (0-terminated) nm+1/nm+2 point at, to where
+; dst+1/dst+2 say (the file's own load address is not sent); the caller
+; writes them. It returns the end of what it loaded in A/X, C clear; or
+; C set and 0 if the file is not there or the disk failed. Saving is not
+; here - no room: cup.s has its own half of it. It uses no zero page but
+; the CPU's port, $01:
 ; bit 0 DATA out, bit 1 CLK out (1 = pull the line low), bit 3 the tape
 ; motor (kept off), bit 6 CLK in, bit 7 DATA in (1 = high).
 ;
@@ -46,25 +41,9 @@ T_BIT   = 26            ; ticks: 29 us, an edge to reading DATA
 T_BYTE  = 55            ;   62 us, the last edge to a new byte's first bit
 T_PUT   = 31            ;   34 us, an edge to changing DATA
 
-        .org $FA00
-
-        jmp load
-        .byte $52, $53, $46, $4C        ; "RSFL"
-fname:  .word 0
-faddr:  .word 0
-
 load:   lda #0                  ; timer 2 running, from 0 (a write to the
         sta TIMER               ; low byte stops it, to the high byte
         sta TIMER+1             ; starts it)
-        lda fname
-        sta nm+1
-        lda fname+1
-        sta nm+2
-        lda faddr
-        sta dst+1
-        lda faddr+1
-        sta dst+2
-
         lda #DATLO              ; asking
         sta PORT
 @listen:
@@ -84,7 +63,7 @@ nm:     lda $FFFF,y
         cpy #16
         bne @pad
 @sent:  lda #0                  ; what to do with it: load (saving is
-        jsr put                 ; scores.s's)
+        jsr put                 ; cup.s's)
         lda #FREE
         sta PORT
 
@@ -208,5 +187,3 @@ count:  .res 1
 last:   .res 1
 edge:   .res 1              ; the timer at the last edge
 limit:  .res 1              ; ticks to wait from it
-
-        .assert * <= $FC00, error, "the loader is over two pages"

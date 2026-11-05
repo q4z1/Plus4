@@ -32,6 +32,7 @@
 
         .macpack longbranch
         .include "game.inc"
+        .include "resident.inc" ; (K_GO: build.sh)
         .include "data.inc"
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
@@ -5929,8 +5930,10 @@ whistle:
         sta rs_y + 1
         jmp calm
 
-; new_match: after full time, the ball kept dead till fire, which starts
-; a new match: no goals, the first minute, the cyan team to kick off
+; new_match: after full time, the ball kept dead till fire, which goes
+; back to the title (resident.s: the title and the league's page from the
+; disk, cup.s) - or, a test without the disk, starts a new match: no
+; goals, the first minute, the cyan team to kick off
 new_match:
         lda min_t               ; (the result shown 2 seconds at least:
         cmp #100                ; min_t counts them, the clock stopped)
@@ -5942,6 +5945,13 @@ new_match:
         bne :+
 @on:    inc dead_t              ; (dead on)
         rts
+:       lda K_MAGIC
+        cmp #K_MAGIC_0
+        bne :+
+        lda K_MAGIC + 1
+        cmp #K_MAGIC_1
+        bne :+
+        jmp K_GO
 :       lda #0
         sta full
         sta half

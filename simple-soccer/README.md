@@ -13,7 +13,8 @@ goal kicks, corners, fouls with free kicks and penalties, goals and
 kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
 other, with 35 national teams from all over the world to choose from -
-a match, or training: a keeper and four a side, to try the moves out.
+a match, training (a keeper and four a side, to try the moves out), or a
+league of eight teams for one player or two, kept on the disk.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
@@ -364,6 +365,46 @@ the game is held at the start of a frame (in a loop of its own, as Yape's
 monitor stops the CPU in the middle of an instruction), the players and
 the ball are put in place, and the stick's moves go in as a plan by the
 match's frames.
+
+## The league
+
+MODE: LEAGUE on the title starts a league of eight teams, each against
+each once: seven matchdays of four matches. The home team chosen is the
+first player's; with PLAYERS 2 the away team is the second player's, in
+the same league - the other six (or seven) the computer picks at random.
+The players meet each other on the last matchday; before that each plays
+the computer's teams, the joystick in either port, as in a match with
+one player. The length chosen is the length of every match of it.
+
+After each match of a player comes the league's page: the matchday's
+results, the table (points, then goal difference, then goals), and the
+next match - or, the league over, who won it. The computer's matches of
+a matchday are worked out once the players have played theirs: six
+chances a side, each going in more often the better the team is than the
+other (Sensible Soccer's levels of the teams). On the page the stick
+chooses between the next match and the title, fire on its letting go.
+
+The league is saved on the disk after every change (the file `league`,
+42 bytes): with the fast loader into the file as it is and read back, on
+any other drive the KERNAL's way. The disk keeps one league; as long as
+it goes on the title offers MODE: CONTINUE, and a new LEAGUE takes its
+place.
+
+## Back to the title
+
+After full time fire goes back to the title, with the choices as they
+were. The title is no longer in memory then - the match's pictures are
+where it was - so it comes from the disk again, with its flags (some 10 KB,
+"LOADING" on the screen meanwhile). The way there outlasts the match in
+memory the game never touches (`resident.s`): the fast loader's Plus/4
+half at $0200 - the KERNAL's page 2 and 3, of no use to the game - and a
+little code at $FF40, under the ROM. On a drive without the fast loader
+the KERNAL is woken up again as the machine's reset does it (IOINIT,
+RAMTAS, RESTOR - not BASIC, not the screen), from code at $0600 below the
+ROM. Either way the file `cup` (`cup.s`) comes first: it loads the flags
+and the title, puts the league's page up, saves the league, and starts
+the game again from its beginning. `tests/league.py` goes through it in
+VICE, with a 1541 or a 1551.
 
 ## The title's music
 

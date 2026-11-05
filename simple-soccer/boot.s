@@ -4,15 +4,20 @@
 ;
 ; As trainschedule's boot: if the drive is a 1541 (any of them), 1570 or
 ; 1571 - its DOS says so at $E5C5 - the fast loader's drive half goes into
-; it (drive.s), the Plus/4's under the ROM at $FA00 (fastload.s), and the
+; it (drive.s), the Plus/4's at $0200 (fastload.s, in resident.s: the ROM
+; out from then on, the KERNAL's page 2 and 3 of no more use), and the
 ; files come through them; any other drive (a 1551, 1581, SD2IEC ...) loads
-; the KERNAL's way. With the fast loader first the music (music.s, the
-; file "music" to $E100): it plays from then on, through the title, which
+; the KERNAL's way. Either way it leaves what outlasts a match (resident.s:
+; RES kept at RES_STORE for the game's start, K_CODE, K_VARS - the way back
+; from a match to the disk). With the fast loader first the music (music.s, the
+; file "music" to $E200): it plays from then on, through the title, which
 ; goes on with it - the ROM out for good, its interrupt through $FFFE, the
 ; ball and the dots turned on by it once a frame. (Not the KERNAL's way:
 ; its loading would be held up by the interrupt, 5542 a second, through
 ; the ROM's handler.) Then the flags for the title (tools/mkflags.py:
-; "flags" to FLAGS, just below $E100, where the title finds them), then
+; "flags" to FLAGS, just below $E200, where the title finds them), the
+; league the disk keeps (the file "league", to L_BLOCK under the ROM, if
+; it is there and whole), then
 ; the game, packed (exomizer), over this program at $1001: what runs then
 ; is at $0400 - the interrupt, the loading, the start - which neither the
 ; game's file nor the KERNAL's loading touch. The interrupt goes on while
@@ -30,8 +35,10 @@
 
         .setcpu "6502"
 
+        .include "game.inc"     ; (K_*, L_*: what outlasts a match)
         .include "bootmus.inc"  ; (the music's: build.sh)
         .include "flags.inc"    ; (FLAGS: tools/mkflags.py)
+        .include "resident.inc" ; (resident.s's labels: build.sh)
 
 SETLFS  = $FFBA
 SETNAM  = $FFBD
@@ -65,10 +72,8 @@ KIRQ    = $0314         ; the KERNAL's interrupt goes on through this
 KIRQEND = $FCBE         ; and ends here, Y, X, A off the stack
 
 DRIVE   = $0400         ; drive.s, in the drive
-RESIDENT = $FA00        ; fastload.s, $FA00-$FBFF
-FL_NAME = RESIDENT + 7
-FL_ADDR = RESIDENT + 9
 GAME    = $1001
+L_LOAD  = $2000         ; the league loaded here first (past this program)
 MATRIX  = $0800         ; colours; the codes at $0C00
 CODES   = MATRIX + $400
 ROMFONT = $D000         ; the ROM's capitals and graphics
@@ -188,15 +193,30 @@ eol:    .word 0
         dey
         bne @alive
         beq @slow               ; it did not start
-@fast:  ldx #0                  ; the loader under the ROM (writes go to
-:       lda resident_load,x     ; the RAM; two pages)
-        sta RESIDENT,x
-        lda resident_load + $100,x
-        sta RESIDENT + $100,x
+@fast:  inc fast
+@slow:  ldx #0                  ; what outlasts a match (resident.s): RES
+:       lda resident_load,x     ; kept under the ROM (writes go to the
+        sta RES_STORE,x         ; RAM) till the game starts, K_CODE where
+        lda resident_load + $100,x  ; it stays
+        sta RES_STORE + $100,x
         inx
         bne :-
-        inc fast
-@slow:
+        ldx #K_CODE_LEN
+:       lda resident_load + $200 - 1,x
+        sta K_CODE - 1,x
+        dex
+        bne :-
+        lda #K_MAGIC_0          ; and what it is to know: where the boot
+        sta K_MAGIC             ; came from, how it loaded
+        sta K_STORED
+        lda #K_MAGIC_1
+        sta K_MAGIC + 1
+        lda dev
+        sta K_DEV
+        lda fast
+        sta K_FAST
+        lda #K_TITLE
+        sta K_REQ
         sei                     ; our interrupt: the ball, the dots - through
         lda #0                  ; $FFFE while the RAM is in, through the
         sta IRQEN               ; KERNAL while the ROM is
@@ -214,7 +234,18 @@ eol:    .word 0
         sta RCMP
         lda #$02                ; the raster interrupt, line < 256
         sta IRQEN
-        cli
+        lda fast                ; the fast loader: the ROM out from here
+        beq :++                 ; (the interrupt through $FFFE), and its
+        sta RAMON               ; Plus/4 half at RES (the KERNAL's page 2
+        inc music               ; and 3: of no more use)
+        ldx #0
+:       lda RES_STORE,x
+        sta RES,x
+        lda RES_STORE + $100,x
+        sta RES + $100,x
+        inx
+        bne :-
+:       cli
 
         lda fast                ; the music, with the fast loader
         beq @flags
@@ -225,10 +256,6 @@ eol:    .word 0
         lda #<name_music
         ldy #>name_music
         jsr load
-        sei
-        sta RAMON               ; the ROM out from here: the interrupt
-        inc music               ; through $FFFE
-        cli
         lda #<tick              ; the ball and the dots each frame
         ldy #>tick
         jsr BM_START
@@ -240,10 +267,44 @@ eol:    .word 0
         lda #<name_flags
         ldy #>name_flags
         jsr load
+        lda #<L_LOAD            ; the league as the disk keeps it - if it
+        sta l_addr              ; does, and as it was saved (its bytes add
+        lda #>L_LOAD            ; up to 0): else none. Loaded low, where
+        sta l_addr+1            ; the game goes next (the KERNAL's LOAD
+        inc l_opt               ; under the ROM left it empty from a
+        lda #<name_league       ; 1551), then under the ROM
+        ldy #>name_league
+        jsr load
+        dec l_opt               ; (C kept)
+        sei
+        sta RAMON
+        ldx #L_LEN - 1
+        lda #0
+        bcs @none
+:       clc
+        adc L_LOAD,x
+        pha
+        lda L_LOAD,x
+        sta L_BLOCK,x
+        pla
+        dex
+        bpl :-
+        tax
+        bne @none
+        lda L_ON
+        cmp #1
+        beq :+
+@none:  lda #0
+        sta L_ON
+:       ldx music
+        bne :+
+        sta ROMON
+:       cli
         jmp game                ; the game, over this
 
 name_flags: .byte "FLAGS", 0
 name_music: .byte "MUSIC", 0
+name_league: .byte "LEAGUE", 0
 
 ; the ball's nine cells, a row of three at a time
 spin_cell:  .byte 0, 1, 2, 40, 41, 42, 80, 81, 82
@@ -426,8 +487,8 @@ drive_load:
         .incbin "build/drive.bin"
 drive_end:
 resident_load:
-        .incbin "build/fastload.bin"   ; (two pages copied: what follows
-                                        ; it does no harm there)
+        .incbin "build/resident.bin"    ; (RES's two pages, then K_CODE's)
+K_CODE_LEN = K_END - K_CODE
 
 ; ---- the last steps, at $0400 and $05EC ---------------------------------
 ;
@@ -537,20 +598,16 @@ load:   sta l_name
         sty l_name+1
 @again: lda fast
         beq @kernal
-        sta RAMON               ; the loader is under the ROM
-        lda l_name
-        sta FL_NAME
+        lda l_name              ; (the ROM is out: music)
+        sta RES_NM
         lda l_name+1
-        sta FL_NAME+1
+        sta RES_NM+1
         lda l_addr
-        sta FL_ADDR
+        sta RES_DST
         lda l_addr+1
-        sta FL_ADDR+1
-        jsr RESIDENT
-        ldy music               ; the ROM back, unless the music plays
-        bne :+
-        sta ROMON
-:       bcc @done
+        sta RES_DST+1
+        jsr RES_LOAD
+        bcc @done
         bcs @red
 @kernal:
         lda l_name              ; its length
@@ -584,13 +641,17 @@ load:   sta l_name
         sta BORDER
         pla
         rts
-@red:   lda #$32                ; no disk, or it failed
+@red:   lda l_opt               ; (a file that may not be there: C set)
+        beq :+
+        rts
+:       lda #$32                ; no disk, or it failed
         sta BORDER
         jmp @again
 
 gname:  .byte "GAME", 0
 fast:   .byte 0                 ; 1: the drive runs the fast loader
-music:  .byte 0                 ; 1: the music plays, the ROM is out
+music:  .byte 0                 ; 1: the ROM is out (the fast loader)
+l_opt:  .byte 0                 ; 1: the file may not be there
 dev:    .byte 0
 l_name: .word 0
 l_addr: .word 0
@@ -599,3 +660,5 @@ spin_t: .byte SPIN_T
 spin_k: .byte 0
 tail2_end:
         .assert tail2_end <= $06EC, error, "the boot's second tail: over a page"
+
+        .assert tail2_load + (tail2_end - tail2) <= L_LOAD, error, "boot.s: into L_LOAD"

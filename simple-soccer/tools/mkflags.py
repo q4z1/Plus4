@@ -23,7 +23,7 @@ the patterns of the two flags it shows into the character codes its own
 font leaves free, 18 at most a flag (it keeps two sets for each side, the
 next flag made ready in the one not shown).
 
-The file, one part after the other, ending at $E100 (the loading screen's
+The file, one part after the other, ending at $E200 (the loading screen's
 music there) - its address and its parts' in build/gen/flags.inc, for the
 boot and the title, which lies below it:
   the patterns, 8 bytes each
@@ -51,7 +51,7 @@ ROOT = os.path.join(HERE, '..')
 CELLS_W, CELLS_H = 6, 3
 W, H = CELLS_W * 4, CELLS_H * 8          # multicolour pixels
 HW, HH = W * 2, H                       # hires pixels
-END = 0xE100                            # the file ends below (the loading
+END = 0xE200                            # the file ends below (the loading
                                         # screen's music there), as far up
                                         # as it goes: the title below it
 MOST = CELLS_W * CELLS_H                # patterns a flag may have

@@ -17,7 +17,7 @@
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c
-        .export team_col, team_flk
+        .export team_col, team_flk, start
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -50,14 +50,27 @@ MAX_STEPS   = 4                 ; frames of play caught up in a turn at most
         .zeropage
 ptr:    .res 2
 
-; The start, where the program's BASIC line SYSes to: the ROM out, the
-; variables cleared; no C, no cc65 start-up.
+; The start, where the program's BASIC line SYSes to - and where cup.s
+; starts it again after a match: the ROM out, the variables cleared; no
+; C, no cc65 start-up.
         .segment "STARTUP"
-        sei
+start:  sei
         cld
         ldx #$FF
         txs
         sta TED_RAM
+        lda K_STORED            ; the boot's way back to the disk where the
+        cmp #K_MAGIC_0          ; game leaves it (resident.s), the first
+        bne :++                 ; time (before the variables over its copy
+        lsr K_STORED            ; are cleared)
+        inx
+:       lda RES_STORE,x
+        sta RES,x
+        lda RES_STORE + $100,x
+        sta RES + $100,x
+        inx
+        bne :-
+:
         lda $FFFE               ; the boot's music playing (boot.s)? On,
         cmp #<BM_SYNTH          ; into the title (music.s: mus_start)
         bne :+

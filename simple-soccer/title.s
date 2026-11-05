@@ -25,6 +25,7 @@
         .include "game.inc"
         .include "data.inc"
         .include "flags.inc"    ; (tools/mkflags.py: the flags' file's parts)
+        .include "resident.inc" ; (K_GO: build.sh)
 
         .repeat 256, I          ; (text as it is, ASCII: the title's font
         .charmap I, I           ; has its characters at their ASCII codes,
@@ -35,7 +36,7 @@
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import mus_start, mus_frame, mus_stop
-        .export title
+        .export title, teams, TEAMS_N
 
 TCOL        = MAT2              ; the title's colours,
 TCODE       = MAT2 + $400       ; codes,
@@ -100,9 +101,9 @@ SPLIT_BELOW = LINE_0 + (FLAG_ROW + DROP + FLAG_H) * 8   ; and below)
                                 ; they are there - a test has none -,
                                 ; FLAGS_2ND each team's second shared
                                 ; colour, FLAGS_FONT the title's font)
-LOC         = $E100             ; (prep's: a pattern's code, 256 bytes,
-CBUF        = $E200             ; the cells' codes and colours made ready)
-CCOL        = $E220
+LOC         = $E200             ; (prep's: a pattern's code, 256 bytes,
+CBUF        = $E300             ; the cells' codes and colours made ready)
+CCOL        = $E320
 FRAME_CODE  = 0                 ; the frames' 8 characters' first code
 
         .zeropage
@@ -116,14 +117,20 @@ t_d:    .res 2
 
 title:
         lda #0
-        sta t_sel               ; (3 minutes, one player, a match, unless
-        sta t_two               ; chosen)
-        sta t_train
         sta t_row
-        jsr skip                ; (a test: none)
+        jsr k_init              ; (the choices as last time)
+        lda K_REQ               ; a league's match (cup.s): kicked off at
+        cmp #K_PLAYED           ; once, as cup.s has chosen it
+        bne :+
+        jmp chosen
+:       jsr skip                ; (a test: none)
         bcc :+
         rts
-:       lda TED_SCROLLY         ; blank while it is drawn (the boot's
+:       jsr joy_scan            ; (fire held from the match before: let
+        lda joy                 ; go of first - its letting go kicks off)
+        and #J_FIRE
+        bne :-
+        lda TED_SCROLLY         ; blank while it is drawn (the boot's
         and #$EF                ; screen goes now)
         sta TED_SCROLLY
         jsr mus_start           ; (its interrupt the only one: the ROM is
@@ -393,7 +400,58 @@ title_on:
         jsr split
         jmp @wait
 @go:    jsr mus_stop
+        lda t_train             ; the league: its page from the disk
+        cmp #MODE_LEAGUE        ; (cup.s) - a new one or the one going on
+        bcc :+
+        sbc #MODE_LEAGUE - K_NEW    ; (carry set)
+        sta K_REQ
+        jmp K_GO
+:       lda #K_TITLE            ; a match, training: back here after
+        sta K_REQ
         jmp chosen
+
+; k_init: the choices kept from the match before (K_CH), the first time
+; the first of each - 3 minutes, one player, a match - and Argentina
+; against Brazil (the cyan and yellow there were before); the modes there
+; are to choose: the league only from the disk, going on with one only
+; if there is one (L_ON)
+k_init:
+        lda K_CHOK
+        cmp #K_MAGIC_0
+        bne :+
+        lda K_CHOK + 1
+        cmp #K_MAGIC_1
+        beq @kept
+:       ldx #K_CH_N - 1
+:       lda ch_first,x
+        sta K_CH,x
+        dex
+        bpl :-
+        lda #K_MAGIC_0
+        sta K_CHOK
+        lda #K_MAGIC_1
+        sta K_CHOK + 1
+@kept:  ldx #MODE_TRAIN         ; (no disk: no league)
+        lda K_MAGIC
+        cmp #K_MAGIC_0
+        bne @none
+        lda K_MAGIC + 1
+        cmp #K_MAGIC_1
+        bne @none
+        inx                     ; (a new league)
+        lda L_ON
+        cmp #1
+        bne @set
+        inx                     ; (and the one going on)
+        bne @set
+@none:  lda #K_TITLE            ; (a test: nothing of cup.s)
+        sta K_REQ
+@set:   stx t_modes
+        cpx t_train             ; (the one last time no more: a match)
+        bcs :+
+        lda #MODE_MATCH
+        sta t_train
+:       rts
 
 ; skip: carry set if a test asks for no title (SKIP: "TS", "TT" for
 ; training), the ask taken back - the match then 3 minutes, one player,
@@ -470,23 +528,28 @@ show_values:
         ldx t_sel
         lda digit_of,x
         ldy t_train
-        beq :+
+        cpy #MODE_TRAIN
+        bne :+
         lda #'-'
 :       sta TCODE + LEN_ROW * 40 + VALUE_COL
         lda t_two
         clc
         adc #'1'
         sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
+        tya                     ; (the mode's name: MODE_W letters)
+        asl a
+        asl a
+        asl a
+        ora #MODE_W - 1
+        tay
         ldx #MODE_W - 1
-:       lda mode_0,x
-        ldy t_train
-        beq :+
-        lda mode_1,x
-:       sta TCODE + MODE_ROW * 40 + VALUE_COL,x
+:       lda modes,y
+        sta TCODE + MODE_ROW * 40 + VALUE_COL,x
         lda #C_VALUE
         sta TCOL + MODE_ROW * 40 + VALUE_COL,x
+        dey
         dex
-        bpl :--
+        bpl :-
         sta TCOL + LEN_ROW * 40 + VALUE_COL
         sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
         ldx #PORTS_W - 1
@@ -926,10 +989,18 @@ ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
 PORTS_W     = * - ports_1
 ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
 .assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
-mode_0:     .byte "MATCH   "
-MODE_W      = * - mode_0
-mode_1:     .byte "TRAINING"
-.assert * - mode_1 = MODE_W, error, "mode_1: not MODE_W"
+modes:      .byte "MATCH   "    ; (t_train: MODE_*)
+MODE_W      = * - modes
+            .byte "TRAINING"
+            .byte "LEAGUE  "
+            .byte "CONTINUE"
+.assert * - modes = MODE_W * 4, error, "modes: not MODE_W each"
+.assert MODE_W = 8, error, "modes: 8 letters each (show_values)"
+MODE_MATCH  = 0
+MODE_TRAIN  = 1
+MODE_LEAGUE = 2                 ; a new league (cup.s: K_NEW)
+MODE_ON     = 3                 ; the league going on (K_ON)
+ch_first:   .byte 0, 0, MODE_MATCH, 0, 3, 0, 0  ; (k_init: K_CH's order)
 
 ; a flag's frame, multicolour, in the cells round it: a line next to the
 ; flag - corners top left, top, top right, left, right, bottom left,
@@ -1005,11 +1076,9 @@ t_c:        .byte 0
 t_i:        .byte 0
 t_n:        .byte 0
 t_ccol:     .byte 0
-t_team:     .byte 0, 3          ; the teams chosen (Argentina, Brazil: the
-                                ; cyan and yellow there were before)
 t_bank:     .byte 0, 0          ; each side's set of codes shown
 t_page:     .byte 0             ; the four lines' page: 0 the first
-t_form:     .byte 0, 0          ; each team's formation (form_names)
+t_modes:    .byte 0             ; the last mode there is to choose (k_init)
 t_2nd:      .byte FLAG_RED, FLAG_RED, FLAG_RED  ; $FF17 while each side's
                                 ; flag is drawn (commit), and below them
 t_nb:       .byte 0             ; (prep's: the set it fills,
@@ -1024,8 +1093,12 @@ chosen:
         sta min_frames
         lda t_two
         sta two
+        ldy #0                  ; (training: MODE_TRAIN only)
         lda t_train
-        sta train
+        cmp #MODE_TRAIN
+        bne :+
+        iny
+:       sty train
         jsr skills
         jsr formations
         jmp kits
@@ -1092,7 +1165,9 @@ hole:
 ; team changed (its shirts worked out anew)
 change:
         cpx #MENU_N
-        bcs @team
+        bcc :+
+        jmp @team
+:
         ldy t_page
         bne @page2
         cpx #3
@@ -1122,10 +1197,17 @@ change:
         rts
 @more:  cpx #2
         bne @team
-        tay                     ; a match, training
-        beq :+
-        lda #1
-:       sta t_train
+        tay                     ; a match, training, the league (k_init:
+        beq :+                  ; what there is)
+        lda t_train
+        cmp t_modes
+        bcs @done
+        inc t_train
+        clc
+        rts
+:       lda t_train
+        beq @done
+        dec t_train
         clc
         rts
 @to2:   tay                     ; TEAM SETTINGS: right, the second page
@@ -1419,10 +1501,14 @@ keeps:
 
 ; ---- what the title keeps in the program ------------------------------------
 
+; the choices, kept from match to match (game.inc K_CH, resident.s)
+t_sel       = K_CH              ; the length chosen: 3, 5, 7 minutes
+t_two       = K_CH + 1          ; 1: two players
+t_train     = K_CH + 2          ; the mode: MODE_*
+t_team      = K_CH + 3          ; the teams chosen (2)
+t_form      = K_CH + 5          ; each team's formation (form_names) (2)
+
         .bss
-t_sel:      .res 1              ; the length chosen: 3, 5, 7 minutes
-t_two:      .res 1              ; 1: two players
-t_train:    .res 1              ; 1: training
 t_row:      .res 1              ; the line the stick is on: 0 length, 1 players,
                                 ; 2 mode, 3 the home team, 4 the away team
 t_k:        .res 1              ; (kits')
@@ -1498,3 +1584,5 @@ teams:
         team "URUGUAY", LIGHT_SKY, WHITE, 3, %01010000001     ; (not in it: ours)
         team "USA", WHITE, DARK_BLUE, 4, %01100000001
 TEAMS       = (* - teams) / (NAME_W + 3)
+TEAMS_N     = TEAMS             ; (cup.s: the league's)
+.assert TEAMS <= 64, error, "teams: cup.s picks them from 64"
