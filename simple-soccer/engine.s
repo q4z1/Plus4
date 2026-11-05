@@ -77,7 +77,7 @@ z_c:        .res 1              ; fill_col's column; fig_draw's, from 0
 z_mx:       .res 2              ; left edge, multicolour pixels
 z_ty:       .res 2              ; top, lines
 z_cx:       .res 1              ; cell of its current column
-z_cy:       .res 1              ; and its top row
+z_cy:       .res 1              ; and its top row + 3
 z_l0:       .res 1              ; its top line in that cell
 z_rec:      .res 2              ; the image record
 z_dat:      .res 2              ; the current column's pixels
@@ -1440,14 +1440,12 @@ fd_yin:   lda z_ty
 fd_yok:   lda z_ty
         and #7
         sta z_l0
-        lda z_ty + 1
+        lda z_ty                ; its top row + 3: (ty + 24) / 8, unsigned
+        clc                     ; (ty from -24 on)
+        adc #24
         lsr a
-        lda z_ty
-        ror a
-        cmp #$80
-        ror a
-        cmp #$80
-        ror a
+        lsr a
+        lsr a
         sta z_cy
         ; the record for the shift: the number of columns, where their
         ; pixels start, then per column its first line, its lines, its
@@ -1475,7 +1473,8 @@ fd_yok:   lda z_ty
         adc z_ncol              ; at most: tools/mkdata.py) from 0 to
         cmp #SCR_W + 2          ; VIS_H - 1
         bcs :+
-        lda z_cy
+        lda z_cy                ; (the carry clear: cy + 3 - 3)
+        sbc #2
         cmp #VIS_H - 3
 :       ror z_nf
         iny
@@ -1489,10 +1488,7 @@ fd_yok:   lda z_ty
         ; the figure's base: its top left cell, row cy, column cx, on the
         ; matrix or off it (both signed) - each of its cells is a Y from
         ; there, 40 * its row + its column
-        lda z_cy
-        clc
-        adc #3
-        tay                     ; (rows -3 .. 27)
+        ldy z_cy                ; (rows -3 .. 27)
         lda z_cx
         clc
         adc row40s_lo,y
@@ -1537,19 +1533,17 @@ fd_xin2:
         tax
         and #7
         sta z_y0
+        adc z_h                 ; its cells: (y0 + lines + 7) / 8 (the
+        adc #7                  ; carry clear: all under 256)
+        lsr a
+        lsr a
+        lsr a
+        sta z_nc
         txa
         lsr a
         lsr a
         lsr a
         sta z_ro
-        lda z_y0                ; its cells: (y0 + lines + 7) / 8
-        clc
-        adc z_h
-        adc #7
-        lsr a
-        lsr a
-        lsr a
-        sta z_nc
         bit z_nf
         bmi fd_clip
         lda #0                  ; (all of the figure on the picture: all
@@ -1561,6 +1555,7 @@ fd_clip:
         lda z_cy
         clc
         adc z_ro
+        sbc #2                  ; (the carry clear: less 3)
         sta z_row
         lda #0
         ldx z_row
