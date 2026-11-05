@@ -97,6 +97,9 @@ LEAGUE_RES = [(2, 0), (1, 1), (3, 0), (1, 0), (1, 2), (0, 0), (1, 4), (2, 1),
               (0, 4), (1, 0), (4, 1), (0, 1), (2, 4), (3, 2), (3, 4), (3, 3),
               None, (1, 1), (0, 2), (2, 3)]
 LEAGUE_SCORE = ([2, 1], [3, 0])         # France 1:2 Germany, Germany 3:0 Brazil
+MATCH_SCORE = [2, 1]                    # the match before the league: Germany 2:1 Brazil
+MATCH_CAP = ('FULL TIME - THE WINNER',
+             'THEN FIRE AND BACK TO THE TITLE')
 LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
                 'EACH AGAINST EACH - ONE OR TWO PLAYERS'),
                ('AFTER EACH MATCH - THE MATCHDAY',
@@ -383,12 +386,13 @@ def record_league():
     """the league from a copy of the disk in Yape (it writes the disk
     back), from the title on: LEAGUE chosen, the page of a new league;
     then (the league poked) the end of matchday 4's match and the page
-    after it, and of the last matchday's, the league won - to
-    WORK/league (f0000.ppm ...), where each is in marks.txt"""
+    after it, and of the last matchday's, the league won, its winner's
+    page - and first a match, its end and its winner's page, back to the
+    title - to WORK/league (f0000.ppm ...), where each is in marks.txt"""
     img = os.path.join(WORK, 'league.d64')
     subprocess.run(['cp', moves.D64, img], check=True)
     moves.clear_shots()
-    y = Yape(img, series=7500, title=True,
+    y = Yape(img, series=9000, title=True,
              env=('YAPE_WAV=' + moves.WAV, 'SDL_AUDIODRIVER=dummy'))
     lab = moves.labels()
     marks = {}
@@ -444,8 +448,27 @@ def record_league():
         print('title after %d s' % (time.time() - t0))
         host('pkill', '-USR2', '-x', 'yapesdl')  # the pictures from here
         time.sleep(1.0)
+        stick('fire', 0.2)                  # a match first: kicked off,
+        wait(in_match, 'the match')         # to its last minute
+        time.sleep(1.0)
+        y.poke(lab['score'], MATCH_SCORE)
+        y.poke(lab['game_min'], [89])
+        mark('m')
+        while y.mem(lab['full'], 1)[0] != 1:
+            stick('up+fire', 0.1)
+            y.poke(lab['score'], MATCH_SCORE)
+        mark('m-ft')
+        time.sleep(3.0)
+        stick('fire', 0.2)                  # its winner's page
+        mark('m-back')
+        wait(lambda: y.mem(0xfffe, 2) == [lab['synth'], 0] and y.mem(0xff06, 1)[0] & 0x10,
+             'the winner\'s page')
+        mark('m-win')
+        time.sleep(6.0)
+        stick('fire', 0.2)                  # the title
+        time.sleep(0.8)
         mark('title')
-        time.sleep(2.0)
+        time.sleep(1.0)
         stick('down')
         stick('down', 0.8)
         stick('right', 0.6)                 # TRAINING
@@ -486,10 +509,13 @@ def league_parts(gain):
     mk = dict(l.split() for l in open(os.path.join(WORK, 'league', 'marks.txt')))
     mk = {k: int(v) for k, v in mk.items()}
     load = int(1.2 * FPS)
-    a = [(mk['fire'] - int(4.5 * FPS), mk['fire'] + 10, 1),
+    m = [(mk['m'] + 10, mk['m-ft'] + int(1.5 * FPS), 1),
+         (mk['m-back'] + 5, mk['m-back'] + 5 + load, 1),
+         (mk['m-win'], mk['m-win'] + int(5.5 * FPS), 1)]
+    a = [(mk['title'], mk['fire'] + 10, 1),
          (mk['fire'] + 10, mk['fire'] + 10 + load, 1),
          (mk['page1'], mk['page1'] + int(5.0 * FPS), 1)]
-    out = [('league1', a, [(LEAGUE_CAPS[0], X, -X)])]
+    out = [('match', m, [(MATCH_CAP, X, -X)]), ('league1', a, [(LEAGUE_CAPS[0], X, -X)])]
     for k, name in ((1, 'day4'), (2, 'day7')):
         p = [(mk[name] + 10, mk[name + '-ft'] + int(1.5 * FPS), 1),     # (from minute 89)
              (mk[name + '-back'] + 5, mk[name + '-back'] + 5 + load, 1),
