@@ -1865,24 +1865,45 @@ add_ty:
 ; dist2: d2 = the distance squared from the joystick's player to the
 ; ball, $FFFF when it is 64 or more either way. Keeps X.
 dist2:
-        ldy ctrl
-        lda o_xl + BALL
-        sec
+        ldy ctrl                ; |dx|, |dy|: the high byte 0, or $FF and
+        lda o_xl + BALL         ; the low byte negated (in tmp, as are the
+        sec                     ; far ones'); 64 or more, or else: far
         sbc o_xl,y
         sta tmp
         lda o_xh + BALL
         sbc o_xh,y
-        jsr d_abs
+        beq @x
+        bpl @big
+        cmp #$FF
+        bne @xbig
+        lda tmp
+        eor #$FF
+        clc
+        adc #1
+        sta tmp
+        bcs @big                ; (256)
+@x:     lda tmp
+        cmp #64
         bcs @big
         sta d_ax
-        ldy ctrl
         lda o_yl + BALL
         sec
         sbc o_yl,y
         sta tmp
         lda o_yh + BALL
         sbc o_yh,y
-        jsr d_abs
+        beq @y
+        bpl @big
+        cmp #$FF
+        bne @xbig
+        lda tmp
+        eor #$FF
+        clc
+        adc #1
+        sta tmp
+        bcs @big
+@y:     lda tmp
+        cmp #64
         bcs @big
         sta d_ay
         ldy d_ax
@@ -1897,28 +1918,14 @@ dist2:
         adc sq_hi,y
         sta d2 + 1
         rts
-@big:   lda #$FF
-        sta d2
-        sta d2 + 1
-        rts
-
-; d_abs: |A:tmp| (high, low) as A, carry set when 64 or more
-d_abs:
-        bpl :+
-        eor #$FF                ; negative: -(hi:lo)
-        pha
-        lda tmp
+@xbig:  lda tmp                 ; (negative and far: the low byte negated)
         eor #$FF
         clc
         adc #1
         sta tmp
-        pla
-        adc #0
-:       bne @big
-        lda tmp
-        cmp #64
-        rts
-@big:   sec
+@big:   lda #$FF
+        sta d2
+        sta d2 + 1
         rts
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs,
