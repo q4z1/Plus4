@@ -30,7 +30,7 @@
         .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read, joy_scan
         .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
-        .exportzp z_y0          ; (play.s's mate_t: only fig_draw's here)
+        .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
         .import _pitch_font, wrow_lo, wrow_hi
         .import img_ox, img_oy, img_lo, img_hi
         .import crow_of, cmap_lo, cmap_hi

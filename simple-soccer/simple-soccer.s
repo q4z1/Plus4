@@ -13,8 +13,9 @@
 
         .import eng_init, eng_begin, eng_end, fig_draw, joy_read
         .import cam_x, cam_y, frames, fig_x, fig_y, fig_img, fig_col
-        .import play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, lift
-        .importzp ctrl, ctrl_b
+        .import play_init, play_frame, play_picture, pose_of, score, game_min, hud, lift
+        .importzp ctrl, ctrl_b, pic_n
+        .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c
         .export team_col, team_flk
         .import title
@@ -132,6 +133,11 @@ step_img: .byte 0, 1, 0, 2
 
 main:
         jsr title               ; (the title first: the length of the match)
+        lda #0                  ; the match's zero page cleared, the title's
+        ldx #<(__MATCHZP_SIZE__ - 1)    ; synth's till now (play.s)
+:       sta <__MATCHZP_RUN__,x
+        dex
+        bpl :-
         jsr eng_init
         jsr play_init
         ldx #0                  ; an order to sort from

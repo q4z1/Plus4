@@ -42,9 +42,9 @@
         .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
-        .importzp z_y0
-mate_t      = z_y0              ; (two of fig_draw's, dead while the match
-                                ; goes: a scratch on the zero page)
+        .importzp z_y0, z_d
+mate_t      = z_y0              ; (two each of fig_draw's, dead while the
+tmp         = z_d               ; match goes: scratch on the zero page)
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
@@ -155,6 +155,42 @@ SHOT_SPEED  = 2208
 SHOT_DZ     = $0140             ; its rise, 8.8: 1.25
 LIFT_DZ     = $0160             ; the aftertouch's lift: 1.375,
 LIFT_HI_DZ  = $0200             ;   pulled back 2
+
+        .segment "MATCHZP": zeropage
+; the title's synth's zero page ($B0 on: music.s), free once the match is
+; on - main clears it after the title: the match's busiest variables
+frame_n:    .res 1              ; frames played
+pp_help:    .res 1              ; play_picture's: bit 7 clear, help
+pic_n:      .res 1              ; frames since the last picture (play_picture)
+form_i:     .res 1              ; team_ai's next of the eleven to place,
+form_n:     .res 1              ; and how many more
+b_th:       .res 1              ; the ball's angle, speed, product's low
+b_spl:      .res 1              ; bytes as aim last worked them out,
+b_sph:      .res 1
+b_px0:      .res 1
+b_py0:      .res 1
+b_d:        .res 8              ; and sin * 16 (x, y), sin * 10 (x, y)
+kickoff:    .res 1              ; 1 till the kick-off or set piece is taken
+taker:      .res 1              ; who takes it, $FF none
+dead_t:     .res 1              ; frames the ball is still dead, 0 in play
+last_team:  .res 1              ; who touched the ball last: the team,
+last_pl:    .res 1              ; the player
+touch_t:    .res 1              ; frames since the ball was touched
+min_t:      .res 1              ; frames into the minute
+flip:       .res 1              ; 1: the sides changed - the cyan team at the
+                                ; top, attacking down
+d6:         .res 2              ; the ball's distance squared to the goal / 16
+sq_h:       .res 1              ; (quarter's)
+throw_t:    .res 1              ; frames left of its throw (THROW_T held)
+pen_kick:   .res 1              ; not 0: the ball last kicked from the
+                                ; penalty spot (touch)
+k_on:       .res 1              ; (k_shot's: 1 a shot at his goal)
+pfire:      .res 1              ; (control's: pf as it was)
+mf_c:       .res 1
+d2:         .res 2              ; dist2's result
+mate:       .res 1              ; pass's
+mate_d:     .res 2
+tr_t:       .res 2              ; (triple's)
 
         .zeropage
 z_ax:       .res 2              ; aim's: the way to the destination
@@ -276,36 +312,16 @@ o_hd:   .res NOBJ               ; 1: the slide is a diving header
 dbg_plan:   .res 3 * 64         ; (a test's plan: see dbg_on)
         .bss
 
-frame_n:    .res 1              ; frames played
-pp_help:    .res 1              ; play_picture's: bit 7 clear, help
-pic_n:      .res 1              ; frames since the last picture (play_picture)
-form_i:     .res 1              ; team_ai's next of the eleven to place,
-form_n:     .res 1              ; and how many more
-b_th:       .res 1              ; the ball's angle, speed, product's low
-b_spl:      .res 1              ; bytes as aim last worked them out,
-b_sph:      .res 1
-b_px0:      .res 1
-b_py0:      .res 1
-b_d:        .res 8              ; and sin * 16 (x, y), sin * 10 (x, y)
-kickoff:    .res 1              ; 1 till the kick-off or set piece is taken
-taker:      .res 1              ; who takes it, $FF none
-dead_t:     .res 1              ; frames the ball is still dead, 0 in play
 goal:       .res 1              ; 1: dead for a goal - the net holds the ball
 rs_kind:    .res 1              ; the restart (R_*),
 rs_team:    .res 1              ; for which team,
 rs_x:       .res 2              ; where
 rs_y:       .res 2
 cpu_t:      .res 1              ; the yellow team's: till they take it
-last_team:  .res 1              ; who touched the ball last: the team,
-last_pl:    .res 1              ; the player
-touch_t:    .res 1              ; frames since the ball was touched
-min_t:      .res 1              ; frames into the minute
 min_frames: .res 1              ; frames to a minute (the title's choice:
                                 ; 100, 167, 233 - 90 in 3, 5, 7 minutes)
 game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
-flip:       .res 1              ; 1: the sides changed - the cyan team at the
-                                ; top, attacking down
 full:       .res 1              ; 1: full time - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
@@ -323,12 +339,9 @@ br_n:       .res 1              ; (br_cone's: the nearest, his team)
 bs_t:       .res 1              ; its set piece: frames since it was ready,
 bs_d:       .res 1              ; the way the taker faced then,
 bs_rot:     .res 1              ; and the way he turns looking (1, $FF)
-d6:         .res 2              ; the ball's distance squared to the goal / 16
-sq_h:       .res 1              ; (quarter's)
 hd_y:       .res 1
 score:      .res 2              ; goals, cyan and yellow
 thrower:    .res 1              ; who takes the throw-in,
-throw_t:    .res 1              ; frames left of its throw (THROW_T held)
 lift:       .res 1              ; how high the ball is drawn over where it is
 fouls:      .res PLAYERS        ; each player's fouls in the match
 o_off:      .res NOBJ           ; 1: sent off - gone from the match
@@ -347,20 +360,11 @@ dbg_bits:   .res 1              ; the stick as the plan has it
 lock_t:     .res 2              ; each team's frames its joystick's player may
                                 ; not dribble, tackled (Sensible Soccer's $74)
 mf_a:       .res 1              ; (may_face's: the way, the middle way)
-pen_kick:   .res 1              ; not 0: the ball last kicked from the
-                                ; penalty spot (touch)
 k_dy:       .res 1              ; (k_shot's: the ball's way to his line,
 k_f:        .res 1              ; the frames it takes)
 k_d2:       .res 2              ; (k_get's: his way to the ball, squared,
 k_i:        .res 1              ; and the player looked at)
-k_on:       .res 1              ; (k_shot's: 1 a shot at his goal)
-pfire:      .res 1              ; (control's: pf as it was)
-mf_c:       .res 1
-d2:         .res 2              ; dist2's result
-mate:       .res 1              ; pass's
-mate_d:     .res 2
 kick_way:   .res 1              ; pass's: the way, 0-255
-tmp:        .res 2
 old_x:      .res 3              ; ball_move's: where it was
 old_y:      .res 3
 old_z:      .res 2
@@ -406,7 +410,6 @@ o_3xf:  .res NOBJ               ; each object's step three times over
 o_3xl:  .res NOBJ               ; (triple): play_others's for a picture
 o_3yf:  .res NOBJ               ; of three frames
 o_3yl:  .res NOBJ
-tr_t:   .res 2                  ; (triple's)
 
         .rodata
 ; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
