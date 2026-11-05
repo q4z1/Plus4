@@ -17,7 +17,7 @@ what:  back    a match to its full time, fire: the title again, the
        ask     LEAGUE with a league going on: the question - kept, then
                a new one
        look    the title's teams as the mode has them (the league: no
-               away team with one player, PLAYER 1 and 2 with two)
+               away team with one player; PLAYER 1 and 2 with two)
        all     all of them (the default)
 
 The match is not played out: its minute is poked to 89. The joystick is
@@ -384,7 +384,11 @@ def look(drive):
             and 'VS' in t[14], 'not the players'
         press(v, DOWN)
         press(v, LEFT)
-        press(v, LEFT)                      # MATCH
+        press(v, LEFT)                      # MATCH, two players: theirs still
+        t = shot('match2')
+        assert 'PLAYER 1' in t[11] and 'PLAYER 2' in t[16] and 'VS' in t[14], 'not the players'
+        press(v, 0x01)
+        press(v, LEFT)                      # one player: HOME and AWAY
         t = shot('match')
         assert 'HOME' in t[11] and 'AWAY' in t[16] and 'PLAYER' not in t[11] + t[16], \
             'not HOME and AWAY'

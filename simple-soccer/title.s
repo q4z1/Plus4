@@ -464,17 +464,18 @@ k_init:
 
 ; look: the teams as the mode has them - in a league of one player no
 ; away team (its flag and frame, its name, "VS" gone, its line not to be
-; chosen: t_last), in a league of two "PLAYER 1" and "PLAYER 2" over the
-; names, else "HOME" and "AWAY"; drawn anew only when that changes
+; chosen: t_last), "PLAYER 1" over his; with two players "PLAYER 1" and
+; "PLAYER 2" over the names, else "HOME" and "AWAY"; drawn anew only
+; when that changes
 look:   ldx #1                  ; (the away team shown,
         ldy #0                  ; HOME and AWAY)
+        lda t_two               ; (two players: theirs)
+        bne @pl
         lda t_train
         cmp #MODE_LEAGUE
         bne @set
-        iny                     ; (the players)
-        lda t_two
-        bne @set
-        dex                     ; (no away team)
+        dex                     ; (a league of one: no away team)
+@pl:    iny                     ; (the players)
 @set:   cpx t_shown
         bne @redo
         cpy t_lab

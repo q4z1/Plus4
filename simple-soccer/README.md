@@ -34,7 +34,8 @@ on YouTube (made by `tests/trailer.py`).
 
 With one player the joystick in either port (or the keyboard) runs the
 home team. With two, the first joystick (and the keyboard) runs the home
-team and the second the away team, each the same way. (The code and the
+team and the second the away team, each the same way - the title says
+"PLAYER 1" and "PLAYER 2" over them then. (The code and the
 rest of this text call them the cyan and the yellow team, the colours
 they had before there was a choice.)
 
