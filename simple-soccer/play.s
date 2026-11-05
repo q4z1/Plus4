@@ -870,6 +870,53 @@ keepers_move:
         jsr player_move
 :       rts
 
+; arrive: player X, if a step has taken him to his destination or past
+; it on either axis, put on it there, that axis's step 0 (as Sensible
+; Soccer stops its players) - in line at its two places
+.macro arrive_in
+        lda o_vxl,x
+        ora o_vxf,x
+        beq :+
+        lda o_xl,x              ; past it: (x - dest) has the step's sign,
+        sec                     ; or is 0
+        sbc o_txl,x
+        lda o_xh,x
+        sbc o_txh,x
+        eor o_vxl,x
+        bmi :+                  ; (not there yet)
+        lda o_txl,x
+        sta o_xl,x
+        lda o_txh,x
+        sta o_xh,x
+        lda #0
+        sta o_xf,x
+        sta o_vxf,x
+        sta o_vxl,x
+        sta o_3xf,x
+        sta o_3xl,x
+:       lda o_vyl,x
+        ora o_vyf,x
+        beq :+
+        lda o_yl,x
+        sec
+        sbc o_tyl,x
+        lda o_yh,x
+        sbc o_tyh,x
+        eor o_vyl,x
+        bmi :+
+        lda o_tyl,x
+        sta o_yl,x
+        lda o_tyh,x
+        sta o_yh,x
+        lda #0
+        sta o_yf,x
+        sta o_vyf,x
+        sta o_vyl,x
+        sta o_3yf,x
+        sta o_3yl,x
+:
+.endmacro
+
 ; play_others: everyone else on his way somewhere pic_n frames on, once a
 ; picture: his step pic_n times, so each picture shows him where he is
 play_others:
@@ -896,9 +943,38 @@ play_others:
         jsr aim
         ldx z_obj
 @step:  ldy pic_n                ; (three frames, as mostly: his step
-        cpy #3                  ; three times, o_3*, in one go - step3)
+        cpy #3                  ; three times, o_3*, in one go)
         bne @sub
-        jsr step3
+        lda o_xf,x
+        clc
+        adc o_3xf,x
+        sta o_xf,x
+        lda o_3xl,x
+        bmi @sx3
+        adc o_xl,x
+        sta o_xl,x
+        bcc @sy3
+        inc o_xh,x
+        bcs @sy3
+@sx3:   adc o_xl,x
+        sta o_xl,x
+        bcs @sy3
+        dec o_xh,x
+@sy3:   lda o_yf,x
+        clc
+        adc o_3yf,x
+        sta o_yf,x
+        lda o_3yl,x
+        bmi @sy3n
+        adc o_yl,x
+        sta o_yl,x
+        bcc @arr
+        inc o_yh,x
+        jmp @arr
+@sy3n:  adc o_yl,x
+        sta o_yl,x
+        bcs @arr
+        dec o_yh,x
         jmp @arr
 @sub:   lda o_xf,x              ; on by his step (as step, the step's
         clc                     ; sign carried into the high byte)
@@ -932,7 +1008,7 @@ play_others:
         dec o_yh,x
 @next1: dey
         bne @sub
-@arr:   jsr arrive              ; (past it: put there)
+@arr:   arrive_in               ; (past it: put there)
         lda o_vxf,x             ; there: the standing picture, passed over
         ora o_vxl,x             ; till he has somewhere to go
         ora o_vyf,x
@@ -944,14 +1020,20 @@ play_others:
 @run:   lda o_sph,x             ; his running picture on: a step every
         bne :+                  ; 16 / (speed / 256) frames - every 4 at full
         lda #1                  ; speed, no feet faster than the ground goes
-:       ldy pic_n               ; by (under 256: as 256)
-        sta z_t8
-        lda #0
+:       sta z_t8                ; by (under 256: as 256)
+        ldy pic_n
+        cpy #3
+        bne @frm
+        asl a                   ; (three frames, as mostly: twice it and
+        clc                     ; once more)
+        adc z_t8
+        jmp @frm3
+@frm:   lda #0
 :       clc
         adc z_t8
         dey
         bne :-
-        sta z_t8                ; (speed / 256 * frames)
+@frm3:  sta z_t8                ; (speed / 256 * frames)
         lda o_run,x
         sec
         sbc z_t8
@@ -994,39 +1076,6 @@ triple:
         sta o_3yl,x
         rts
 
-; step3: object X on by its step three times over (o_3*), at once - as
-; three of play_others's steps. Keeps X.
-step3:  lda o_xf,x
-        clc
-        adc o_3xf,x
-        sta o_xf,x
-        lda o_3xl,x
-        bmi @x3
-        adc o_xl,x
-        sta o_xl,x
-        bcc @y3
-        inc o_xh,x
-        bcs @y3
-@x3:    adc o_xl,x
-        sta o_xl,x
-        bcs @y3
-        dec o_xh,x
-@y3:    lda o_yf,x
-        clc
-        adc o_3yf,x
-        sta o_yf,x
-        lda o_3yl,x
-        bmi @y3n
-        adc o_yl,x
-        sta o_yl,x
-        bcc @done
-        inc o_yh,x
-        rts
-@y3n:   adc o_yl,x
-        sta o_yl,x
-        bcs @done
-        dec o_yh,x
-@done:  rts
 
 
 ; control: the joystick's player - where he runs, dribbling, fire; for
@@ -2296,7 +2345,7 @@ player_move:
         jsr aim
         ldx z_obj
         jsr step
-        jsr arrive
+        arrive_in
         lda o_slide,x           ; (a sliding tackle's way leads far on: he
         beq :+                  ; stops at the walls)
         jsr walls
@@ -2317,51 +2366,6 @@ player_move:
         inc o_step,x
 :       rts
 
-; arrive: player X, if a step has taken him to his destination or past
-; it on either axis, put on it there, that axis's step 0 (as Sensible
-; Soccer stops its players)
-arrive:
-        lda o_vxl,x
-        ora o_vxf,x
-        beq @y
-        lda o_xl,x              ; past it: (x - dest) has the step's sign,
-        sec                     ; or is 0
-        sbc o_txl,x
-        lda o_xh,x
-        sbc o_txh,x
-        eor o_vxl,x
-        bmi @y                  ; (not there yet)
-        lda o_txl,x
-        sta o_xl,x
-        lda o_txh,x
-        sta o_xh,x
-        lda #0
-        sta o_xf,x
-        sta o_vxf,x
-        sta o_vxl,x
-        sta o_3xf,x
-        sta o_3xl,x
-@y:     lda o_vyl,x
-        ora o_vyf,x
-        beq @done
-        lda o_yl,x
-        sec
-        sbc o_tyl,x
-        lda o_yh,x
-        sbc o_tyh,x
-        eor o_vyl,x
-        bmi @done
-        lda o_tyl,x
-        sta o_yl,x
-        lda o_tyh,x
-        sta o_yh,x
-        lda #0
-        sta o_yf,x
-        sta o_vyf,x
-        sta o_vyl,x
-        sta o_3yf,x
-        sta o_3yl,x
-@done:  rts
 
 ; ball_move: the ball a frame - see the top
 ball_move:
