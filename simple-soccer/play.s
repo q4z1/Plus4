@@ -921,21 +921,23 @@ keepers_move:
 ; play_others: everyone else on his way somewhere pic_n frames on, once a
 ; picture: his step pic_n times, so each picture shows him where he is
 play_others:
-        ldx #PLAYERS
+        ldx #PLAYERS - 1        ; (21 .. 12, 10 .. 1: the keepers have their
+        bne @look               ; own way)
 @next:  dex
-        bpl :+
-        rts
-:       stx z_obj
-        txa                     ; (the keepers, the two at the ball: their
-        beq @next               ; own way)
+        beq @done
         cpx #11
+        bne @look
+        dex
+        bne @look
+@done:  stx z_obj               ; (0, as it was left)
+        rts
+@look:  lda o_mov,x             ; (those standing passed over)
         beq @next
-        cpx ctrl
+        cpx ctrl                ; (the two at the ball: their own way)
         beq @next
         cpx ctrl_b
         beq @next
-        lda o_mov,x             ; (those standing passed over)
-        beq @next
+        stx z_obj
         lda o_new,x             ; the way anew only for a new destination:
         ora o_slide,x           ; on a straight run it stays the same (a
         beq @step               ; slide's, slower each frame: always)
@@ -2975,9 +2977,69 @@ angle:
         sbc z_ay + 1
         sta z_ay + 1
 :                               ; halved till both are under 256,
-@half:  lda z_ax + 1            ; then under 32
-        ora z_ay + 1
-        beq @lo
+        lda z_ax + 1            ; then under 32: one of them 256-1023, at
+        ora z_ay + 1            ; once - four halvings (1 the high bytes
+        beq @lo                 ; together) or five (2, 3), shifted and
+        cmp #4                  ; joined (z_th free till the end)
+        bcs @half
+        cmp #2
+        bcs @five
+        lda z_ax + 1
+        asl a
+        asl a
+        asl a
+        asl a
+        sta z_th
+        lda z_ax
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora z_th
+        sta z_ax
+        lda z_ay + 1
+        asl a
+        asl a
+        asl a
+        asl a
+        sta z_th
+        lda z_ay
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        jmp @join
+@five:  lda z_ax + 1
+        asl a
+        asl a
+        asl a
+        sta z_th
+        lda z_ax
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ora z_th
+        sta z_ax
+        lda z_ay + 1
+        asl a
+        asl a
+        asl a
+        sta z_th
+        lda z_ay
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+@join:  ora z_th
+        sta z_ay
+        lda #0
+        sta z_ax + 1
+        sta z_ay + 1
+        jmp @look
+@half:
 :       lsr z_ax + 1
         ror z_ax
         lsr z_ay + 1
