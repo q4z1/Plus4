@@ -176,7 +176,17 @@ def title_font():
             c = 96 + 4 * k + q - 32
             for y in range(8):
                 font[c * 8 + y] = sum(big[qy + y][qx + x] << (7 - x) for x in range(8))
+    # the cup between the name's words, multicolour (title.s CUP_CODE):
+    # four characters at [ \ ] ^, which the text has no use for
+    c = ord('[') - 32
+    font[c * 8:c * 8 + 32] = bytes(CUP_CHARS)
     return font
+
+
+CUP_CHARS = (0x00, 0x0F, 0x3F, 0x4F, 0x4F, 0x2F, 0x1F, 0x0F,
+             0x00, 0xF0, 0xFC, 0xF2, 0xF2, 0xF4, 0xF8, 0xF0,
+             0x07, 0x03, 0x01, 0x01, 0x03, 0x07, 0x0F, 0x0F,
+             0xE0, 0xC0, 0x80, 0x80, 0xC0, 0xE0, 0xF0, 0xF0)
 
 
 # The wave in the stands: these spectators raised a pixel by turns - in

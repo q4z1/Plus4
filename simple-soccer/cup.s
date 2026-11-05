@@ -243,6 +243,8 @@ win_league:
         lda order + 1
         jsr slot_team
         sta t_team + 1
+        lda #0                  ; (a match: both teams shown - title.s look)
+        sta t_train
         jsr win_start
         lda #<t_wonby
         ldx #>t_wonby

@@ -369,9 +369,10 @@ match's frames.
 ## The league
 
 MODE: LEAGUE on the title starts a league of eight teams, each against
-each once: seven matchdays of four matches. The home team chosen is the
-first player's; with PLAYERS 2 the away team is the second player's, in
-the same league - the other six (or seven) the computer picks at random.
+each once: seven matchdays of four matches. The team above is the first
+player's ("PLAYER 1" over it); with PLAYERS 2 the one below is the second
+player's ("PLAYER 2"), in the same league - with one player there is no
+team below. The other six (or seven) the computer picks at random.
 The players meet each other on the last matchday; before that each plays
 the computer's teams, the joystick in either port, as in a match with
 one player. The length chosen is the length of every match of it.

@@ -205,12 +205,8 @@ title:
 @gap:   inx
         cpx #NAME_LEN
         bne @logo
-        ldx #4 * 8 - 1          ; between the words a cup, in the letters'
-:       lda cup_chars,x         ; gold (codes the text has no use for)
-        sta TFONT + CUP_CODE * 8,x
-        dex
-        bpl :-
-        ldx #1
+        ldx #1                  ; between the words a cup, in the letters'
+                                ; gold (its characters: tools/mkdata.py)
 :       txa
         clc
         adc #CUP_CODE
@@ -294,6 +290,7 @@ title_on:
         jsr draw_names
         jsr show_rows
         jsr show_values
+        jsr look                ; (the teams as the mode has them)
         jsr t_hook1             ; (cup.s: the winner's page over it)
         ; the TED: multicolour text, 40 columns, 25 rows, the title's
         ; matrix and characters
@@ -355,7 +352,8 @@ title_on:
         jsr t_hook2             ; (cup.s: the winner's page, its stick -
         bcc :+                  ; C set: nothing for the title)
         jmp @next
-:       lda t_was               ; let go of: held before, not now
+:       jsr look                ; (the teams as the mode has them)
+        lda t_was               ; let go of: held before, not now
         eor #$FF
         and joy
         sta t_new               ; (pushed: now, not before)
@@ -381,7 +379,7 @@ title_on:
         and #J_DOWN
         beq @side
         lda t_row
-        cmp #ROWS - 1
+        cmp t_last              ; (the away team's: not in a league of one)
         beq @side
         inc t_row
         jsr hole
@@ -464,6 +462,68 @@ k_init:
         sta t_train
 :       rts
 
+; look: the teams as the mode has them - in a league of one player no
+; away team (its flag and frame, its name, "VS" gone, its line not to be
+; chosen: t_last), in a league of two "PLAYER 1" and "PLAYER 2" over the
+; names, else "HOME" and "AWAY"; drawn anew only when that changes
+look:   ldx #1                  ; (the away team shown,
+        ldy #0                  ; HOME and AWAY)
+        lda t_train
+        cmp #MODE_LEAGUE
+        bne @set
+        iny                     ; (the players)
+        lda t_two
+        bne @set
+        dex                     ; (no away team)
+@set:   cpx t_shown
+        bne @redo
+        cpy t_lab
+        bne @redo
+        rts
+@redo:  stx t_shown
+        sty t_lab
+        txa
+        clc
+        adc #ROWS - 2
+        sta t_last
+        lda #<lines             ; the texts again (HOME, AWAY, VS, the
+
+        sta t_ptr               ; arrows)
+        lda #>lines
+        sta t_ptr + 1
+        jsr draw_lines
+        lda t_lab
+        beq @away
+        ldx #7                  ; PLAYER 1, PLAYER 2
+:       lda t_player,x
+        sta TCODE + LABEL_ROW * 40 + LABEL_COL - 2,x
+        sta TCODE + (LABEL_ROW + TEXT_DROP) * 40 + LABEL_COL - 2,x
+        dex
+        bpl :-
+        inc TCODE + (LABEL_ROW + TEXT_DROP) * 40 + LABEL_COL + 5
+@away:  lda t_shown
+        bne @show
+        ldx #AWAY_COL + FLAG_W - NAME_COL + 1   ; (from the name's "<" to
+        lda #' '                                ; the frame's right edge)
+:       sta TCODE + (FLAG_ROW + DROP - 1) * 40 + NAME_COL - 1,x
+        sta TCODE + (FLAG_ROW + DROP) * 40 + NAME_COL - 1,x
+        sta TCODE + (FLAG_ROW + DROP + 1) * 40 + NAME_COL - 1,x
+        sta TCODE + (FLAG_ROW + DROP + 2) * 40 + NAME_COL - 1,x
+        sta TCODE + (FLAG_ROW + DROP + 3) * 40 + NAME_COL - 1,x
+        dex
+        bpl :-
+        bmi @both
+@show:  jsr draw_frames         ; (its frame, its flag, its name again)
+        ldx #1
+        jsr prep
+        inx
+        stx t_pend
+@both:  jsr show_values
+        jmp show_rows
+t_player:   .byte "PLAYER 1"
+.assert LABEL_ROW + TEXT_DROP = FLAG_ROW + DROP + 1 && NAME_ROW + TEXT_DROP = FLAG_ROW + DROP + 2, error, "look: the away team's rows"
+.assert FLAG_ROW + DROP - 1 = FLAG_ROW + FLAG_H, error, "look: VS in the away frame's top row"
+
 ; t_hook1, t_hook2: as the title is loaded nothing (none, C clear); after
 ; a match cup.s makes them jumps to its winner's page (cup.s WIN): drawn
 ; once the title is, and the stick its own till fire leaves it
@@ -529,12 +589,8 @@ show_rows:
         dey
         bpl :-
         bmi @next
-@team:  ldy label_at - MENU_N,x  ; "HOME" / "AWAY", "<" and ">" round the name
-        sta TCOL + LABEL_ROW * 40,y
-        sta TCOL + LABEL_ROW * 40 + 1,y
-        sta TCOL + LABEL_ROW * 40 + 2,y
-        sta TCOL + LABEL_ROW * 40 + 3,y
-        ldy field_at - MENU_N,x
+@team:  ldy field_at - MENU_N,x  ; "<" and ">" round the name (its label,
+                                ; HOME, PLAYER 1 ..., white throughout)
         sta TCOL + NAME_ROW * 40 - 1,y
         sta TCOL + NAME_ROW * 40 + FIELD_W,y
 @next:  dex
@@ -917,7 +973,7 @@ code_lo:    .byte 8, 132, 150, 168  ; (18 each: the font has 32-131)
 ; draw_names: both teams' names, in the middle of their fields, in the
 ; shirts they play in
 draw_names:
-        ldx #1
+        ldx t_shown             ; (the away team's not in a league of one)
 @side:  stx t_x
         lda t_team,x
         tax
@@ -1001,8 +1057,7 @@ menu_2: .byte LEN_ROW, LINE_COL, C_TEXT
         .byte "< MAIN SETTINGS", 0
         .byte $FF
 arrows_n:   .byte 3 * 40, 2 * 40
-label_at:   .byte LABEL_COL, TEXT_DROP * 40 + LABEL_COL     ; (the away
-field_at:   .byte NAME_COL, TEXT_DROP * 40 + NAME_COL       ; side's lower)
+field_at:   .byte NAME_COL, TEXT_DROP * 40 + NAME_COL       ; (the away side's lower)
 .assert TEXT_DROP * 40 + NAME_COL + FIELD_W < 256, error, "field_at"
 flag_lo:    .byte <(TCODE + FLAG_ROW * 40 + HOME_COL), <(TCODE + (FLAG_ROW + DROP) * 40 + AWAY_COL)
 flag_hi:    .byte >(TCODE + FLAG_ROW * 40 + HOME_COL), >(TCODE + (FLAG_ROW + DROP) * 40 + AWAY_COL)
@@ -1038,12 +1093,6 @@ frame_chars:
         .byte $C0, 0, 0, 0, 0, 0, 0, 0
 
 ; the cup: top left, top right, bottom left, bottom right
-cup_chars:
-        .byte $00, $0F, $3F, $4F, $4F, $2F, $1F, $0F
-        .byte $00, $F0, $FC, $F2, $F2, $F4, $F8, $F0
-        .byte $07, $03, $01, $01, $03, $07, $0F, $0F
-        .byte $E0, $C0, $80, $80, $C0, $E0, $F0, $F0
-
 name:       .byte "SIMPLE SOCCER"
 NAME_LEN    = * - name
 big_of:     .byte "SIMPLECOR"           ; (mkdata's LOGO_LETTERS)
@@ -1056,10 +1105,10 @@ digit_of:   .byte "357"
 lines:
         .byte SUB_ROW, 5, $61
         .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
-        .byte LABEL_ROW, LABEL_COL, C_TEXT
-        .byte "HOME", 0
-        .byte LABEL_ROW + TEXT_DROP, LABEL_COL, C_TEXT
-        .byte "AWAY", 0
+        .byte LABEL_ROW, LABEL_COL - 2, C_TEXT  ; (8 wide: "PLAYER 1" there
+        .byte "  HOME  ", 0                     ; in a league of two, look)
+        .byte LABEL_ROW + TEXT_DROP, LABEL_COL - 2, C_TEXT
+        .byte "  AWAY  ", 0
         .byte NAME_ROW, NAME_COL - 1, C_TEXT
         .byte "<", 0
         .byte NAME_ROW, NAME_COL + FIELD_W, C_TEXT
@@ -1101,6 +1150,9 @@ t_ccol:     .byte 0
 t_bank:     .byte 0, 0          ; each side's set of codes shown
 t_page:     .byte 0             ; the four lines' page: 0 the first
 t_modes:    .byte 0             ; the last mode there is to choose (k_init)
+t_shown:    .byte 1             ; look's: 1 the away team shown, 0 not
+t_lab:      .byte 0             ;   1 "PLAYER 1" / "2", 0 "HOME" / "AWAY"
+t_last:     .byte ROWS - 1      ;   the last line to choose
 t_2nd:      .byte FLAG_RED, FLAG_RED, FLAG_RED  ; $FF17 while each side's
                                 ; flag is drawn (commit), and below them
 t_nb:       .byte 0             ; (prep's: the set it fills,

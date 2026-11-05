@@ -16,6 +16,8 @@ what:  back    a match to its full time, fire: the title again, the
                (a league saved before its last matchday) theirs, the end
        ask     LEAGUE with a league going on: the question - kept, then
                a new one
+       look    the title's teams as the mode has them (the league: no
+               away team with one player, PLAYER 1 and 2 with two)
        all     all of them (the default)
 
 The match is not played out: its minute is poked to 89. The joystick is
@@ -347,6 +349,49 @@ def ask(drive):
         v.stop()
 
 
+def look(drive):
+    """the title's teams as the mode has them, by the stick: LEAGUE with
+    one player no away team (nor its line to choose), with two PLAYER 1
+    and PLAYER 2, a match HOME and AWAY again"""
+    v = Vice(D64, CACHE, drive=drive, title=True)
+    RIGHT, LEFT = 0x08, 0x04
+    try:
+        wait(v, lambda: at_title(v), 'the title')
+        v.run_for(1)
+
+        def shot(name):
+            v.run_for(0.5)
+            t = title_text(v)
+            print(name + ':\n' + '\n'.join(t[11:19]))
+            v.screenshot(os.path.join(CACHE, f'league-look-{name}.png'))
+            return t
+        press(v, DOWN)
+        press(v, DOWN)                      # MODE
+        press(v, RIGHT)
+        press(v, RIGHT)                     # LEAGUE
+        t = shot('one')
+        assert 'LEAGUE' in t[8] and 'PLAYER 1' in t[11] and 'BRAZIL' not in t[17] \
+            and 'VS' not in t[14] and 'AWAY' not in t[16], 'the away team still there'
+        for _ in range(6):                  # down as far as it goes
+            press(v, DOWN)
+        print('t_row', v.mem(lab['t_row'], 1))
+        assert v.mem(lab['t_row'], 1)[0] == 4, 'the away line to choose'
+        for _ in range(3):
+            press(v, 0x01)                  # up to PLAYERS
+        press(v, RIGHT)                     # 2
+        t = shot('two')
+        assert 'PLAYER 1' in t[11] and 'PLAYER 2' in t[16] and 'BRAZIL' in t[17] \
+            and 'VS' in t[14], 'not the players'
+        press(v, DOWN)
+        press(v, LEFT)
+        press(v, LEFT)                      # MATCH
+        t = shot('match')
+        assert 'HOME' in t[11] and 'AWAY' in t[16] and 'PLAYER' not in t[11] + t[16], \
+            'not HOME and AWAY'
+    finally:
+        v.stop()
+
+
 def main():
     drive = sys.argv[1] if len(sys.argv) > 1 else '1541'
     what = sys.argv[2] if len(sys.argv) > 2 else 'all'
@@ -364,6 +409,8 @@ def main():
         two(drive)
     if what in ('ask', 'all'):
         ask(drive)
+    if what in ('look', 'all'):
+        look(drive)
     print('ok')
 
 
