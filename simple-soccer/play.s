@@ -42,6 +42,9 @@
         .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
+        .importzp z_y0
+mate_t      = z_y0              ; (two of fig_draw's, dead while the match
+                                ; goes: a scratch on the zero page)
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
@@ -356,7 +359,6 @@ mf_c:       .res 1
 d2:         .res 2              ; dist2's result
 mate:       .res 1              ; pass's
 mate_d:     .res 2
-mate_t:     .res 2
 kick_way:   .res 1              ; pass's: the way, 0-255
 tmp:        .res 2
 old_x:      .res 3              ; ball_move's: where it was
@@ -2322,7 +2324,6 @@ arrive:
         lda o_xl,x              ; past it: (x - dest) has the step's sign,
         sec                     ; or is 0
         sbc o_txl,x
-        sta tmp
         lda o_xh,x
         sbc o_txh,x
         eor o_vxl,x
@@ -2651,7 +2652,14 @@ aim:
         lda o_tyh,x
         cmp c_tyh,x
         bne @new
-        jsr @keep               ; (the way changed: remembered)
+        lda z_ax                ; the way to the destination remembered
+        sta c_axl,x             ; (in line: nearly every new way)
+        lda z_ax + 1
+        sta c_axh,x
+        lda z_ay
+        sta c_ayl,x
+        lda z_ay + 1
+        sta c_ayh,x
 @same:  lda o_spl,x             ; the angle and the speed as last time:
         cmp c_spl,x             ; the step as it is
         bne @step
@@ -2659,7 +2667,15 @@ aim:
         cmp c_sph,x
         bne @step
         rts
-@new:   jsr @keep
+@new:
+        lda z_ax                ; the way to the destination remembered
+        sta c_axl,x             ; (in line: nearly every new way)
+        lda z_ax + 1
+        sta c_axh,x
+        lda z_ay
+        sta c_ayl,x
+        lda z_ay + 1
+        sta c_ayh,x
         lda o_txl,x
         sta c_txl,x
         lda o_txh,x
@@ -2774,15 +2790,6 @@ aim:
         sta b_d + 7
         rts
 
-@keep:  lda z_ax                ; the way to the destination remembered
-        sta c_axl,x
-        lda z_ax + 1
-        sta c_axh,x
-        lda z_ay
-        sta c_ayl,x
-        lda z_ay + 1
-        sta c_ayh,x
-        rts
 
 ; fric: carry clear if the ball's step could be had from the last one,
 ; the same way and the speed just its friction (16 or 10) less: sin *
@@ -2947,26 +2954,19 @@ angle:
         asl z_ay
         asl a
         bcc @up
-:       sbc #16                 ; atan_tab[(ax - 16) * 32 + ay]
-        tay
-        lsr a
-        lsr a
-        lsr a
-        clc
-        adc #>atan_tab
-        sta z_ptr + 1
-        tya
-        asl a
-        asl a
-        asl a
+:       sbc #16                 ; atan_tab[(ax - 16) * 32 + ay]: its page
+        asl a                   ; from bit 3 of ax - 16, out into the carry
+        asl a                   ; by the fifth shift (the table on a page
+        asl a                   ; of its own: TABLES)
         asl a
         asl a
         ora z_ay
         tay
-        lda #<atan_tab
-        sta z_ptr
-        lda (z_ptr),y
-        bit z_sw
+        bcs :+
+        lda atan_tab,y
+        bcc :++
+:       lda atan_tab + 256,y
+:       bit z_sw
         bpl :+
         eor #$FF                ; (64 - it)
         clc

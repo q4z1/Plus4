@@ -30,6 +30,7 @@
         .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read, joy_scan
         .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
+        .exportzp z_y0          ; (play.s's mate_t: only fig_draw's here)
         .import _pitch_font, wrow_lo, wrow_hi
         .import img_ox, img_oy, img_lo, img_hi
         .import crow_of, cmap_lo, cmap_hi
@@ -87,6 +88,7 @@ z_col:      .res 1
 z_r:        .res 1
 z_y0:       .res 1              ; a column: the line in its first cell,
 z_nc:       .res 1              ;   its cells,
+.assert z_nc = z_y0 + 1, error, "z_y0, z_nc: play.s's mate_t, two bytes"
 z_c0:       .res 1              ;   their first code,
 z_i:        .res 1              ; and its number in the column
 z_mix:      .res 1              ; bit 7: a cell showed more than grass
