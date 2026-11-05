@@ -17,6 +17,9 @@ a match, or training: a keeper and four a side, to try the moves out.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
+The trailer, every move in training: [Simple Soccer - The Moves](https://www.youtube.com/watch?v=ZKL9SXwIObI)
+on YouTube (made by `tests/trailer.py`).
+
 ## Controls
 
 | Joystick (either port) | Keyboard | |
