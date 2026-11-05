@@ -210,11 +210,13 @@ kick_pl:    .res 1              ; the player who last passed or shot,
 kick_t:     .res 1              ; and the frames since (switch, help)
 pass_q:     .res 1              ; frames a pass let go of too soon waits
 pf:         .res 1              ; his joystick the frame before
+CTX_VAR     = * - ctx           ; (swap: these traded, the rest flipped)
 me:         .res 1              ; the team: 0 cyan, 1 yellow
 t_lo:       .res 1              ; its keeper: 0, 11
 t_hi:       .res 1              ; its last player: 10, 21
 t_end:      .res 1              ; one before its keeper: $FF, 10
 CTX_N       = * - ctx
+.assert CTX_N - CTX_VAR = 4 && t_end - ctx = CTX_N - 1, error, "swap: me .. t_end not the last four"
 ctx_b:      .res CTX_N
 pj_b        = ctx_b + pj - ctx
 ctrl_b      = ctx_b + ctrl - ctx
@@ -507,14 +509,27 @@ each:
 @call:  jmp (each_v)
 
 ; swap: the two teams' controls traded (ctx, ctx_b) - unrolled, as each
-; calls it for every routine twice
+; calls it for every routine twice. The team's own four (me .. t_end) are
+; one of two values each: flipped in place (their ctx_b bytes unused).
 swap:
-        .repeat CTX_N, I
+        .repeat CTX_VAR, I
         lda ctx + I
         ldy ctx_b + I
         sta ctx_b + I
         sty ctx + I
         .endrepeat
+        lda me
+        eor #0 ^ 1
+        sta me
+        lda t_lo
+        eor #0 ^ 11
+        sta t_lo
+        lda t_hi
+        eor #10 ^ 21
+        sta t_hi
+        lda t_end
+        eor #$FF ^ 10
+        sta t_end
         rts
 
 ; calm: the ball dead - no one after it, no aftertouch, no pass on its
