@@ -3,6 +3,7 @@
 
     tests/trailer.py            (from the scenes tests/moves.py recorded)
     tests/trailer.py --boot     (the loading and the title recorded first)
+    tests/trailer.py --league   (the league recorded first)
     tests/trailer.py --crawl    (its opening alone, to look at)
 
 It opens as a film of a galaxy far away does: a line in blue on black,
@@ -13,7 +14,10 @@ formations chosen there (--boot records that, from the disk in Yape:
 ~/.cache/simple-soccer/moves/boot). Then the title once more, TRAINING
 chosen and the kick-off, and moves.py's scenes, each played and (the
 shorter ones) played again at half speed, with its caption below the
-pitch; the title once more at the end. The parts wiped into one
+pitch; then the league - LEAGUE chosen on the title, its first page,
+the end of a match and the matchday's results and table after it, and
+the last matchday's, the league won (--league records that, also from
+the disk in Yape: WORK/league); the title once more at the end. The parts wiped into one
 another with a soft edge, old-school as in those films - across, an
 iris, round like a clock hand; the captions only while no wipe runs.
 Last the credits,
@@ -81,6 +85,24 @@ BOOT_CAPS = [('THE LOADER - A FAST LOADER WITH MUSIC',
              ('TEAM SETTINGS - A FORMATION EACH SIDE',
               '4-4-2 TO 4-3-3 - ATTACK DEFEND OR RANDOM')]
 END = ('SIMPLE SOCCER FOR THE COMMODORE PLUS/4', 'GITHUB.COM/Q4Z1/PLUS4')
+# the league (--league records it, from a copy of the disk in Yape:
+# WORK/league): its eight teams, Germany the player's; the results the
+# disk is given (L_BLOCK) - after three matchdays, and before the last,
+# where Germany beat Brazil, a point ahead, to win it (seed 25 of a
+# search, its home and away goals); the match's score poked at its end
+LEAGUE_TEAMS = [14, 3, 18, 12, 22, 31, 13, 0]   # (title.s teams)
+LEAGUE_RES = [(2, 0), (1, 1), (3, 0), (1, 0), (1, 2), (0, 0), (1, 4), (2, 1),
+              (4, 2), (4, 3), (4, 0), (0, 2), (2, 2), (1, 1), (3, 0), (0, 2),
+              (0, 4), (1, 0), (4, 1), (0, 1), (2, 4), (3, 2), (3, 4), (3, 3),
+              None, (1, 1), (0, 2), (2, 3)]
+LEAGUE_SCORE = ([2, 1], [3, 0])         # France 1:2 Germany, Germany 3:0 Brazil
+LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
+                'EACH AGAINST EACH - ONE OR TWO PLAYERS'),
+               ('AFTER EACH MATCH - THE MATCHDAY',
+                'AND THE TABLE - SAVED ON THE DISK'),
+               ('THE LAST MATCHDAY',
+                'FIRST AGAINST SECOND - FOR THE LEAGUE')]
+L_BLOCK, L_LEN, K_CH = 0xFFC8, 42, 0xFCE7      # (game.inc)
 END_FRAME = 150                 # the title's picture the end holds (MODE: TRAINING)
 
 
@@ -343,6 +365,130 @@ def record_boot():
     assert hi < k < end - FPS, 'the title or its second page not where it should be'
 
 
+def league_block(days):
+    """the league as the disk keeps it (game.inc L_BLOCK): LEAGUE_TEAMS,
+    the matchdays before days played (and on the last, the computer's)"""
+    res = [r if (m < days * 4 or (days == 6 and m > 24)) and r else None
+           for m, r in enumerate(LEAGUE_RES)]
+    lg = [0, 1, 0, 0, 0, 0] + LEAGUE_TEAMS + [255 if r is None else r[0] * 16 + r[1] for r in res]
+    lg[0] = -sum(lg[1:]) & 255
+    assert len(lg) == L_LEN
+    return lg
+
+
+def record_league():
+    """the league from a copy of the disk in Yape (it writes the disk
+    back), from the title on: LEAGUE chosen, the page of a new league;
+    then (the league poked) the end of matchday 4's match and the page
+    after it, and of the last matchday's, the league won - to
+    WORK/league (f0000.ppm ...), where each is in marks.txt"""
+    img = os.path.join(WORK, 'league.d64')
+    subprocess.run(['cp', moves.D64, img], check=True)
+    moves.clear_shots()
+    y = Yape(img, series=7500, title=True,
+             env=('YAPE_WAV=' + moves.WAV, 'SDL_AUDIODRIVER=dummy'))
+    lab = moves.labels()
+    marks = {}
+    # Germany against Brazil on the title from the start: its choices
+    # (K_CH) and that they are set (K_CHOK), before the title reads them
+    y.poke(K_CH - 2, [0x5A, 0xA5, 0, 0, 0, 14, 3, 0, 0])
+
+    def mark(name):
+        marks[name] = len(pictures())
+        print('  %-8s %d' % (name, marks[name]))
+
+    def wait(test, what, secs=120):
+        t = time.time()
+        while not test():
+            if time.time() - t > secs:
+                raise RuntimeError('waited in vain: ' + what)
+            time.sleep(0.3)
+
+    def stick(how, wait=0.45):
+        y.poke(lab['dbg_joy'], [moves.bits(how)])
+        time.sleep(0.15)
+        y.poke(lab['dbg_joy'], [0])
+        time.sleep(wait)
+
+    def on_page():
+        row = y.mem(0x0C00 + 23 * 40, 40) + y.mem(0x0C00 + 24 * 40, 40)
+        return bytes(c & 0x3F for c in row).find(bytes(c & 0x3F for c in b'TITLE')) >= 0
+
+    def in_match():
+        return y.mem(0xFFFE, 2)[1] != 0 and y.mem(0xFF07, 1)[0] & 0x10 and y.mem(0xFF06, 1)[0] & 0x10
+
+    def match(name, score):
+        stick('fire', 0.2)                  # the next match: at once
+        wait(in_match, 'the match')
+        time.sleep(1.0)
+        y.poke(lab['score'], score)
+        y.poke(lab['game_min'], [89])
+        mark(name)
+        while y.mem(lab['full'], 1)[0] != 1:  # (the kick-off: the stick)
+            stick('up+fire', 0.1)
+            y.poke(lab['score'], score)
+        mark(name + '-ft')
+        time.sleep(3.0)
+        stick('fire', 0.2)                  # back: the page
+        mark(name + '-back')
+        wait(on_page, 'the page')
+        mark(name + '-page')
+        time.sleep(7.0)
+    try:
+        t0 = time.time()
+        wait(lambda: y.mem(0xfffe, 2) == [lab['synth'], 0] and y.mem(0xff06, 1)[0] == 0x1b,
+             'the title', 180)
+        print('title after %d s' % (time.time() - t0))
+        host('pkill', '-USR2', '-x', 'yapesdl')  # the pictures from here
+        time.sleep(1.0)
+        mark('title')
+        time.sleep(2.0)
+        stick('down')
+        stick('down', 0.8)
+        stick('right', 0.6)                 # TRAINING
+        stick('right', 1.2)                 # LEAGUE
+        mark('fire')
+        stick('fire', 0.2)
+        wait(on_page, 'the first page')
+        mark('page1')
+        time.sleep(5.0)
+        y.poke(L_BLOCK, league_block(3))    # three matchdays played
+        match('day4', LEAGUE_SCORE[0])
+        y.poke(L_BLOCK, league_block(6))    # six
+        match('day7', LEAGUE_SCORE[1])
+    finally:
+        y.stop()
+    d = os.path.join(WORK, 'league')
+    subprocess.run(['rm', '-rf', d])
+    os.makedirs(d)
+    for f in pictures():
+        os.rename(f, os.path.join(d, 'f%04d.ppm' % int(f.rsplit('.', 1)[1])))
+    if os.path.exists(moves.WAV):
+        os.remove(moves.WAV)
+    with open(os.path.join(d, 'marks.txt'), 'w') as f:
+        for k, v in marks.items():
+            f.write('%s %d\n' % (k, v))
+    print('%d pictures' % len(frames_of('league')))
+
+
+def league_parts(gain):
+    """the league's three parts: (out, pieces, captions) - the loading
+    between shown a moment only"""
+    mk = dict(l.split() for l in open(os.path.join(WORK, 'league', 'marks.txt')))
+    mk = {k: int(v) for k, v in mk.items()}
+    load = int(1.2 * FPS)
+    a = [(mk['fire'] - int(4.5 * FPS), mk['fire'] + 10, 1),
+         (mk['fire'] + 10, mk['fire'] + 10 + load, 1),
+         (mk['page1'], mk['page1'] + int(5.0 * FPS), 1)]
+    out = [('league1', a, [(LEAGUE_CAPS[0], X, -X)])]
+    for k, name in ((1, 'day4'), (2, 'day7')):
+        p = [(mk[name] + 10, mk[name + '-ft'] + int(1.5 * FPS), 1),     # (from minute 89)
+             (mk[name + '-back'] + 5, mk[name + '-back'] + 5 + load, 1),
+             (mk[name + '-page'], mk[name + '-page'] + int(6.5 * FPS), 1)]
+        out.append(('league%d' % (k + 1), p, [(LEAGUE_CAPS[k], X, -X)]))
+    return [(o,) + part('league', o, p, gain, mute=True, caps=c) + (1,) for o, p, c in out]
+
+
 def pictures():
     """the pictures Yape has written so far"""
     return [f for f in glob.glob(SHOT + '.*') if f.rsplit('.', 1)[1].isdigit()]
@@ -522,6 +668,8 @@ def main():
     os.makedirs(T, exist_ok=True)
     if '--boot' in sys.argv:
         record_boot()
+    if '--league' in sys.argv:
+        record_league()
     cr = os.path.join(T, 'crawl.mkv')
     print('the opening')
     crawl(cr)
@@ -558,6 +706,7 @@ def main():
         print('  %-10s %4.1f s%s' % (name, p[2] / FPS, '' if not replay else
                                      ', replay %.1f - %.1f' % replay))
         parts.append((name,) + p + (BED,))
+    parts += league_parts(gain)
     parts.append(('end',) + part('title', 'end', [(END_FRAME, END_FRAME + 1, 8 * FPS)], gain, mute=True,
                                  caps=[(END, X, None)]) + (1,))
 
