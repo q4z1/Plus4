@@ -871,6 +871,42 @@ keepers_move:
         jsr player_move
 :       rts
 
+; step_in: object X on by its step. In line at its two places
+; (player_move, ball_move).
+.macro step_in
+        lda o_xf,x              ; (the step's sign carried into the high
+        clc                     ; byte: up one, or down one unless a carry)
+        adc o_vxf,x
+        sta o_xf,x
+        lda o_vxl,x
+        bmi :+                  ; (x: on, or back)
+        adc o_xl,x
+        sta o_xl,x
+        bcc :++
+        inc o_xh,x
+        bcs :++
+:       adc o_xl,x
+        sta o_xl,x
+        bcs :+
+        dec o_xh,x
+:       lda o_yf,x              ; (y likewise)
+        clc
+        adc o_vyf,x
+        sta o_yf,x
+        lda o_vyl,x
+        bmi :+
+        adc o_yl,x
+        sta o_yl,x
+        bcc :++
+        inc o_yh,x
+        bcs :++
+:       adc o_yl,x
+        sta o_yl,x
+        bcs :+
+        dec o_yh,x
+:
+.endmacro
+
 ; arrive: player X, if a step has taken him to his destination or past
 ; it on either axis, put on it there, that axis's step 0 (as Sensible
 ; Soccer stops its players) - in line at its two places
@@ -2347,7 +2383,7 @@ abs16:
 player_move:
         jsr aim
         ldx z_obj
-        jsr step
+        step_in
         arrive_in
         lda o_slide,x           ; (a sliding tackle's way leads far on: he
         beq :+                  ; stops at the walls)
@@ -2392,7 +2428,7 @@ ball_move:
         sta old_z + 1
         lda o_spl,x
         ora o_sph,x
-        beq @height
+        jeq @height
         jsr aim
         ldx #BALL
         ; friction: 16 on the ground, 10 in the air
@@ -2412,7 +2448,8 @@ ball_move:
         lda #0
         sta o_spl,x
         sta o_sph,x
-:       jsr step
+:
+        step_in
         ; turning: a picture on every 16 pixels it rolls (a frame goes
         ; speed / 512 of them) - no more than one a picture till a speed
         ; of 3584, no picture skipped
@@ -2577,40 +2614,6 @@ ball_back:
         lda old_z + 1
         sta o_zl,x
         rts
-
-; step: object X on by its step
-step:
-        lda o_xf,x              ; (the step's sign carried into the high
-        clc                     ; byte: up one, or down one unless a carry)
-        adc o_vxf,x
-        sta o_xf,x
-        lda o_vxl,x
-        bmi @xl
-        adc o_xl,x
-        sta o_xl,x
-        bcc @y
-        inc o_xh,x
-        bcs @y
-@xl:    adc o_xl,x
-        sta o_xl,x
-        bcs @y
-        dec o_xh,x
-@y:     lda o_yf,x
-        clc
-        adc o_vyf,x
-        sta o_yf,x
-        lda o_vyl,x
-        bmi @yl
-        adc o_yl,x
-        sta o_yl,x
-        bcc :+
-        inc o_yh,x
-:       rts
-@yl:    adc o_yl,x
-        sta o_yl,x
-        bcs :+
-        dec o_yh,x
-:       rts
 
 ; smul_in: z_p (24 bits, signed) = A (signed) * smul_l/h; the step is its
 ; upper two bytes. Two products of bytes from tables of squares / 4 (a * b
