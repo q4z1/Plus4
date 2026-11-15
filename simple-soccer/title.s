@@ -1330,13 +1330,18 @@ change:
         bpl @other
         lda #TEAMS - 1
         sta t_team,x
-@other: txa
-        eor #1
-        tay
-        lda t_team,x
+@other: txa                     ; (on the other side's: past it - in a
+        eor #1                  ; league of one, where it is not shown,
+        tay                     ; the other side's on instead, cup.s
+        lda t_team,x            ; draws the league's others anew)
         cmp t_team,y
-        beq @step
-        jsr kits
+        bne @kits
+        lda t_shown
+        bne @step
+        tya
+        tax
+        bpl @step
+@kits:  jsr kits
         sec
         rts
 

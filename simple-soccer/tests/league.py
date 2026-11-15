@@ -382,11 +382,34 @@ def look(drive):
             press(v, DOWN)
         print('t_row', v.mem(lab['t_row'], 1))
         assert v.mem(lab['t_row'], 1)[0] == 4, 'the away line to choose'
+        tm = K_CH + 3                       # t_team: the hidden away team
+        away = v.mem(tm + 1, 1)[0]          # (Brazil) to be chosen as well
+        while v.mem(tm, 1)[0] != away:
+            was = v.mem(tm, 1)[0]
+            press(v, RIGHT)
+            now = v.mem(tm, 1)[0]
+            assert now == (was + 1) % 34 or now == away, 'a team passed over'
+            assert now != was, 'stuck'
+        t = shot('brazil')
+        h, a = v.mem(tm, 2)
+        print('teams', h, a)
+        assert 'BRAZIL' in t[12] and a != h, 'not BRAZIL at home'
+        for _ in range(2):
+            press(v, 0x01)                  # up to MODE
+        press(v, LEFT)
+        press(v, LEFT)                      # MATCH: another away team
+        t = shot('brazil-match')
+        assert 'BRAZIL' in t[12] and 'BRAZIL' not in t[17] and 'VS' in t[14], \
+            'the away team as the home team'
+        press(v, RIGHT)
+        press(v, RIGHT)                     # LEAGUE again
+        for _ in range(2):
+            press(v, DOWN)
         for _ in range(3):
             press(v, 0x01)                  # up to PLAYERS
         press(v, RIGHT)                     # 2
         t = shot('two')
-        assert 'PLAYER 1' in t[11] and 'PLAYER 2' in t[16] and 'BRAZIL' in t[17] \
+        assert 'PLAYER 1' in t[11] and 'PLAYER 2' in t[16] and 'CAMEROON' in t[17] \
             and 'VS' in t[14], 'not the players'
         press(v, DOWN)
         press(v, LEFT)
