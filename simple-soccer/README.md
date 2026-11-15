@@ -90,8 +90,8 @@ beside its own (`data/flags.txt`, read by `tools/mkflags.py`). A flag is
 screen, drawn pixel for pixel after each flag's official construction
 sheet: stripes and crosses to their measures, the emblems - stars, suns,
 the Union Jack, Canada's leaf, Korea's taegeuk and trigrams, the arms of
-Spain, Portugal, Mexico and Croatia - at their own size, as far as pixels
-twice as wide as high go. A cell has four colours - the title's
+Portugal, Mexico and Croatia - at their own size, as far as pixels twice
+as wide as high go (Spain's stripes only: its arms will not go small). A cell has four colours - the title's
 background, a dark green that is the flags' dark green (the frame keeps
 it from the background), white and a second shared colour, and one of its
 own - and every flag keeps to that, so each comes out to the pixel. The
