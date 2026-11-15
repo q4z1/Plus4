@@ -18,7 +18,7 @@
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c
         .export team_col, team_flk, start, played
-        .import pause_chk
+        .import pause_chk, resume, squares
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -165,7 +165,12 @@ main:
 :       sta <__MATCHZP_RUN__,x
         dex
         bpl :-
+        jsr resume              ; (pause.s: a match saved, taken up: C set)
+        php
+        jsr squares             ; (their places may have held the save)
         jsr eng_init
+        plp
+        bcs @on
         jsr play_init
         ldx #0                  ; an order to sort from (none in it yet)
         stx vis_n
@@ -174,7 +179,7 @@ main:
         inx
         cpx #FIGS
         bne :-
-        lda frames
+@on:    lda frames
         sta played
 loop:
         jsr joy_read

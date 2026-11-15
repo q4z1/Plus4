@@ -37,6 +37,8 @@
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
         .export lift, o_off, card_pl, card_c, anew, whistle
+        .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
+        .import quit_a
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two, train, sk, sk_duel, jog_lo, jog_hi
@@ -6069,14 +6071,9 @@ new_match:
         bne :+
 @on:    inc dead_t              ; (dead on)
         rts
-:       lda K_MAGIC
-        cmp #K_MAGIC_0
-        bne :+
-        lda K_MAGIC + 1
-        cmp #K_MAGIC_1
-        bne :+
-        jmp K_GO
-anew:   lda #0                  ; (pause.s too: left without the disk)
+:       lda K_REQ               ; (pause.s quit_a: K_GO, or without the
+        jmp quit_a              ; disk anew)
+anew:   lda #0                  ; (pause.s: a match anew)
         sta full
         sta half
         sta game_min

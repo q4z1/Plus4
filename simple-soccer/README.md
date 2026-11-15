@@ -36,8 +36,13 @@ on YouTube (made by `tests/trailer.py`).
 
 The pause is on the keys only: in the match the joystick is the play's.
 The match stops, the sound with it, and a page shows the score and the
-minute. QUIT goes back to the title - a league's match to the league's
-page, not played: it is still to play.
+minute. QUIT asks "SAVE THE MATCH?" (RUN/STOP or P: back into it). NO
+goes back to the title - a league's match to the league's page, not
+played: it is still to play. YES saves the match on the disk first (the
+file "match": one at a time, a newer save takes its place), then the
+title offers CONTINUE: it goes on with the match as it was - a league's
+match counts in the league once it is played out. A league going on
+waits meanwhile; CONTINUE takes the saved match first.
 
 With one player the joystick in either port (or the keyboard) runs the
 home team. With two, the first joystick (and the keyboard) runs the home

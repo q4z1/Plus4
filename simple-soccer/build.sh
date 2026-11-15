@@ -79,8 +79,9 @@ print("title: up to $%04X, the flags from $%04X" % (end + synth, flags))
 PY
 # the title again, as a file of its own: cup.s loads it after a match (the
 # match's pictures are over it); and the league as the disk keeps it, none
-# yet (game.inc L_BLOCK: L_LEN bytes - their sum 0, L_ON 0)
-python3 - build/simple-soccer.prg build/simple-soccer.map build/disk/title.prg build/disk/league.prg <<'PY'
+# yet (game.inc L_BLOCK: L_LEN bytes - their sum 0, L_ON 0); and a match
+# saved, none yet ("match")
+python3 - build/simple-soccer.prg build/simple-soccer.map build/disk/title.prg build/disk/league.prg build/disk/match.prg <<'PY'
 import re, sys
 prg = open(sys.argv[1], 'rb').read()
 m = open(sys.argv[2]).read()
@@ -91,8 +92,11 @@ start = 0xC000
 body = prg[2 + start - 0x1001:]
 assert len(body) == end + 1 + synth - start, (len(body), end, synth)
 open(sys.argv[3], 'wb').write(bytes([0x00, 0xC0]) + body)
-L_LEN = 42                                  # game.inc (cup.s asserts it)
+L_LEN = 43                                  # game.inc (cup.s asserts it)
 open(sys.argv[4], 'wb').write(bytes([0x00, 0x06]) + bytes(L_LEN))
+# a match saved (game.inc SAVE_AT - SAVE_END): none yet, but its whole
+# length - the fast loader saves into the file as it is
+open(sys.argv[5], 'wb').write(bytes([0x00, 0xB3]) + bytes(0xC000 - 0xB300))
 print("title: %d bytes, cup: the league's page" % len(body))
 PY
 
@@ -117,6 +121,7 @@ python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-
     flags@${GAME_INTERLEAVE:-36}=build/disk/flags.prg game@${GAME_INTERLEAVE:-36}=build/disk/game.prg \
     cup@${MUSIC_INTERLEAVE:-20}=build/disk/cup.prg pages@${MUSIC_INTERLEAVE:-20}=build/disk/pages.prg \
     title@${MUSIC_INTERLEAVE:-20}=build/disk/title.prg \
-    league@${MUSIC_INTERLEAVE:-20}=build/disk/league.prg
+    league@${MUSIC_INTERLEAVE:-20}=build/disk/league.prg \
+    match@${MUSIC_INTERLEAVE:-20}=build/disk/match.prg
 echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg), game packed $(stat -c%s build/disk/game.prg) bytes"
 

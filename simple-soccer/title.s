@@ -131,9 +131,11 @@ title:
         sta t_row
         jsr k_init              ; (the choices as last time)
         lda K_REQ               ; a league's match (cup.s): kicked off at
-        cmp #K_PLAYED           ; once, as cup.s has chosen it
-        bne :+
-        jmp chosen
+        cmp #K_PLAYED           ; once, as cup.s has chosen it - a saved
+        beq :+                  ; one too (K_RESUME: pause.s)
+        cmp #K_RESUME
+        bne :++
+:       jmp chosen
 :       jsr skip                ; (a test: none)
         bcc :+
         rts
@@ -418,7 +420,12 @@ title_on:
         cmp #MODE_LEAGUE        ; (cup.s) - a new one or the one going on
         bcc :+
         sbc #MODE_LEAGUE - K_NEW    ; (carry set)
-        sta K_REQ
+        cmp #K_ON               ; (CONTINUE: a saved match first)
+        bne @req
+        ldx L_SAVED
+        beq @req
+        lda #K_RESUME
+@req:   sta K_REQ
         jmp K_GO
 :       lda #K_TITLE            ; a match, training: back here after
         sta K_REQ
@@ -468,7 +475,8 @@ k_init:
         cmp #K_MAGIC_1
         bne @none
         inx                     ; (a new league)
-        lda L_ON
+        lda L_ON                ; (CONTINUE: a league going on, or a match
+        ora L_SAVED             ; saved)
         cmp #1
         bne @set
         inx                     ; (and the one going on)

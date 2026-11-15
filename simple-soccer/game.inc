@@ -88,6 +88,18 @@ K_PLAYED    = 3                 ;   a league's match: the title kicks off
                                 ;   at once, its result to the page after
 K_QUIT      = 4                 ;   a match left from its pause (pause.s):
                                 ;   the title, no winner's page
+K_SAVE      = 5                 ;   so, and saved first: SAVE_AT to the file
+                                ;   "match", L_SAVED set
+K_RESUME    = 6                 ;   the match saved: the file back to
+                                ;   SAVE_AT, the title kicks off at once,
+                                ;   the game's start takes it up (pause.s)
+
+; a match saved (pause.s pack): SAVE_AT - SAVE_END as the file "match"
+; has it - the squares' tables' places (PAGES, SQUARES: worked out anew at
+; each start), the TABLES between them as they are. At SAVE_AT: "SM",
+; K_REQ, K_CH; then the match's memory (pause.s sv_tab)
+SAVE_AT     = $B300
+SAVE_END    = $C000
 
 K_CODE      = $FF40             ; resident.s: k_go, the way to cup.s
 L_BLOCK     = $FFC8             ; the league, as the disk keeps it ("league")
@@ -100,7 +112,8 @@ L_TEAM      = L_BLOCK + 6       ; its eight teams, the players' first
 L_TEAMS     = 8
 L_RES       = L_TEAM + L_TEAMS  ; each match's result, goals home * 16 +
 L_MATCHES   = 28                ; away; $FF not played (cup.s: the order)
-L_LEN       = L_RES + L_MATCHES - L_BLOCK
+L_SAVED     = L_RES + L_MATCHES ; 1: a match saved on the disk ("match")
+L_LEN       = L_SAVED + 1 - L_BLOCK
 L_END       = L_BLOCK + L_LEN
 
 CUP         = $E200             ; cup.s: the way back, the league's page

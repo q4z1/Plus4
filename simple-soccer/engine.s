@@ -265,6 +265,9 @@ eng_init:
         ldx #2
 :       lda #1
         sta b_next,x
+        lsr a                   ; (nothing given back, no figures listed:
+        sta fl_n,x              ; a saved match's are old, pause.s)
+        sta b_nlist,x
         lda #$FF
         sta b_col,x
         sta tc_col,x

@@ -18,9 +18,11 @@ what:  back    a match to its full time, fire: the title again, the
                a new one
        look    the title's teams as the mode has them (the league: no
                away team with one player; PLAYER 1 and 2 with two)
-       quit    a match left from its pause (pause.s): RUN/STOP, QUIT -
-               the title, no winner's page; then a league's match so:
+       quit    a match left from its pause (pause.s): RUN/STOP, QUIT, not
+               saved - the title, no winner's page; then a league's match so:
                its page, the league as it was
+       savegame a match saved from its pause (QUIT, YES): the title, a
+               match saved (L_SAVED); CONTINUE - the match as it was
        all     all of them (the default)
 
 The match is not played out: its minute is poked to 89. The joystick is
@@ -224,6 +226,97 @@ def pause_quit(v, name):
     v.screenshot(os.path.join(CACHE, f'league-{name}-pause.png'))
     press(v, DOWN)
     press(v)                                # QUIT
+    v.run_for(0.5)
+    press(v, DOWN)
+    press(v)                                # SAVE THE MATCH? NO
+
+
+def savegame(v):
+    if on_page(v):                          # (after quit: the league's page)
+        press(v, DOWN)                      # BACK TO THE TITLE
+        press(v)
+    wait(v, lambda: at_title(v), 'the title', 180)
+    v.run_for(1)
+    v.poke(K_CH, [1, 0, 0, 5, 9, 2, 3])     # a match: Canada - Croatia
+    press(v)
+    wait(v, lambda: in_match(v), 'the match', 60)
+    v.run_for(1)
+    v.poke(lab['score'], [2, 1])
+    v.poke(lab['game_min'], [37])
+    v.run_for(0.5)
+    v.poke(lab['dbg_key'], [0x80])          # RUN/STOP
+    wait(v, lambda: paused(v), 'the pause', 30)
+    v.poke(lab['dbg_key'], [0])
+    v.run_for(0.5)
+    press(v, DOWN)
+    press(v)                                # QUIT
+    v.run_for(0.5)
+    v.screenshot(os.path.join(CACHE, 'league-save-ask.png'))
+    q = bytes(v.mem(0xEC00 + 9 * 40 + 12, 15))
+    assert q == bytes([19, 1, 22, 5, 32, 20, 8, 5, 32, 13, 1, 20, 3, 8, 63]), 'not the question: %r' % q
+    press(v)                                # YES
+    wait(v, lambda: at_title(v), 'the title after saving', 240)
+    v.run_for(1)
+    lg = ram(v, L_BLOCK, 43)
+    print('saved: L_SAVED', lg[42], 'sum ok', sum(lg) & 255 == 0)
+    assert lg[42] == 1 and sum(lg) & 255 == 0, 'not saved'
+    v.screenshot(os.path.join(CACHE, 'league-save-title.png'))
+    v.poke(K_CH + 2, [3])                   # CONTINUE
+    press(v)
+    wait(v, lambda: in_match(v), 'the match again', 240)
+    v.run_for(1)
+    sc, mi = v.mem(lab['score'], 2), v.mem(lab['game_min'], 1)[0]
+    lg = ram(v, L_BLOCK, 43)
+    print('resumed: score', sc, 'minute', mi, 'L_SAVED', lg[42])
+    v.screenshot(os.path.join(CACHE, 'league-save-resumed.png'))
+    assert sc == [2, 1] and 37 <= mi <= 38 and lg[42] == 0, 'not the match saved'
+    print('savegame: saved and taken up again')
+    # a league's match saved, taken up (CONTINUE: the match first), played
+    # out: its result in the league
+    v.poke(lab['dbg_key'], [0x80])          # (this one left first)
+    wait(v, lambda: paused(v), 'the pause', 30)
+    v.poke(lab['dbg_key'], [0])
+    v.run_for(0.5)
+    press(v, DOWN)
+    press(v)                                # QUIT
+    v.run_for(0.5)
+    press(v, DOWN)
+    press(v)                                # NO
+    wait(v, lambda: at_title(v), 'the title', 240)
+    v.run_for(1)
+    going = ram(v, L_BLOCK + 1, 1)[0] == 1
+    v.poke(K_CH, [0, 0, 3 if going else 2, 14, 3, 0, 0])   # LEAGUE: Germany
+    press(v)
+    wait(v, lambda: on_page(v), 'the page', 180)
+    v.run_for(2)
+    before = ram(v, L_BLOCK, 43)
+    press(v)                                # PLAY THE NEXT MATCH
+    wait(v, lambda: in_match(v), 'the league match', 60)
+    v.run_for(1)
+    v.poke(lab['dbg_key'], [0x80])
+    wait(v, lambda: paused(v), 'the pause', 30)
+    v.poke(lab['dbg_key'], [0])
+    v.run_for(0.5)
+    press(v, DOWN)
+    press(v)                                # QUIT
+    v.run_for(0.5)
+    press(v)                                # YES
+    wait(v, lambda: at_title(v), 'the title after saving', 240)
+    v.run_for(1)
+    assert ram(v, L_BLOCK + 42, 1)[0] == 1, 'the league\'s match not saved'
+    v.poke(K_CH + 2, [3])                   # CONTINUE: the match
+    press(v)
+    wait(v, lambda: in_match(v), 'the league match again', 240)
+    full_time(v, [4, 0])
+    press(v)
+    wait(v, lambda: on_page(v), 'the page after it', 240)
+    v.run_for(2)
+    page(v, 'save-league')
+    after = ram(v, L_BLOCK, 43)
+    print('league before', before, '\nleague after ', after)
+    m = before.index(255, 14)                # (the first match still to play)
+    assert after[m] in (0x40, 0x04) and after[42] == 0, 'its result not in the league'
+    print('savegame: a league\'s match saved, taken up, its result in the league')
 
 
 def quit_(v):
@@ -492,6 +585,8 @@ def main():
             league(v)
         if what in ('quit', 'all'):
             quit_(v)
+        if what in ('savegame', 'all'):
+            savegame(v)
     finally:
         v.stop()
     if what in ('saved', 'all'):

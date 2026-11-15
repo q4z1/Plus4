@@ -22,7 +22,9 @@
 ; league's winner) - and with the stick: the next match, or back to the
 ; title. A match is chosen in K_CH as the title's choices are, with
 ; K_REQ K_PLAYED: the title kicks off at once (title.s). K_QUIT (a match
-; left from its pause, pause.s): the title, no winner's page.
+; left from its pause, pause.s): the title, no winner's page. K_SAVE: so,
+; the match saved first ("match": m_save); K_RESUME: it back (m_load), the
+; title kicks off at once, the game takes it up.
 ;
 ; The league (L_BLOCK, game.inc): eight teams, each against each once,
 ; seven matchdays of four matches (sched_a, sched_b: Berger's circle,
@@ -469,7 +471,15 @@ cup_go: lda #0
         beq @page
         cmp #K_PLAYED
         beq @played
-        cmp #K_QUIT             ; (left from its pause: the title only)
+        cmp #K_RESUME           ; (a saved match taken up: the title kicks
+        bne :+                  ; off at once, pause.s resume)
+        jsr m_load
+        jmp restart
+:       cmp #K_SAVE             ; (left from its pause, saved first: the
+        bne :+                  ; title)
+        jsr m_save
+        jmp :++
+:       cmp #K_QUIT             ; (left from its pause: the title only)
         beq :+
         jsr win_match           ; (K_TITLE: after a match - its winner)
 :       lda #K_TITLE
@@ -1855,8 +1865,7 @@ frame:  lda TED_LINE
 ; ---- the disk -----------------------------------------------------------------------
 
 ; save: the league to the disk ("SAVING ...", then what came of it)
-save:   jsr cksum
-        ldy #ROW_DISK
+save:   ldy #ROW_DISK
         lda #C_DIM
         jsr row
         lda #13
@@ -1864,6 +1873,26 @@ save:   jsr cksum
         lda #<t_saving
         ldx #>t_saving
         jsr text
+        jsr store
+        bcs @failed
+        lda #<t_saved
+        ldx #>t_saved
+        bne :+
+@failed:
+        lda #<t_failed
+        ldx #>t_failed
+:       pha
+        ldy #ROW_DISK
+        lda #C_DIM
+        jsr row
+        lda #5
+        jsr col
+        pla
+        jmp text
+
+; store: the league saved, C set if it failed (no word of it on the
+; screen: save, m_save, m_load)
+store:  jsr cksum
         ldx #L_LEN - 1          ; (a copy low: for the KERNAL, and to
 :       lda L_BLOCK,x           ; compare it with what is read back)
         sta save_buf,x
@@ -1871,6 +1900,8 @@ save:   jsr cksum
         bpl :-
         lda K_FAST
         beq @kernal
+        lda #<save_buf
+        ldx #>save_buf
         jsr fsave
         bcs @failed
         lda #<n_league          ; read back
@@ -1896,22 +1927,110 @@ save:   jsr cksum
         sta CHECK,x
         dex
         bpl :-
-        jsr k_save
-        bcs @failed
-@saved: lda #<t_saved
-        ldx #>t_saved
-        bne :+
+        jmp k_save              ; (C: as it went)
+@saved: clc
+        rts
 @failed:
-        lda #<t_failed
-        ldx #>t_failed
-:       pha
-        ldy #ROW_DISK
-        lda #C_DIM
-        jsr row
-        lda #5
-        jsr col
-        pla
-        jmp text
+        sec
+        rts
+
+; m_save: (K_SAVE) the match pause.s left at SAVE_AT saved as "match" -
+; by the fast loader into the file as it is, or the KERNAL's way - and,
+; that done, L_SAVED set in the league saved (the title's CONTINUE)
+m_save: ldx #1                  ; ("match")
+        jsr names
+        lda K_FAST
+        beq @k
+        lda #<SAVE_AT
+        ldx #>SAVE_AT
+        jsr fsave
+        jmp :+
+@k:     jsr k_save
+:       php
+        ldx #0                  ; ("league" again)
+        jsr names
+        plp
+        bcs @out
+        lda #1
+        sta L_SAVED
+        jsr store
+@out:   rts
+
+; m_load: (K_RESUME) "match" back to SAVE_AT, its choices to K_CH, for the
+; game's start to take it up (pause.s resume) - L_SAVED cleared, the
+; league saved; else (not a match's save) the title
+m_load: ldx #1
+        jsr names
+        lda #<SAVE_AT
+        ldx #>SAVE_AT
+        ldy #<n_league
+        jsr dload
+        ldx #0
+        jsr names
+        lda #0
+        sta L_SAVED
+        jsr store
+        lda #K_TITLE
+        ldx SAVE_AT + 1         ; (a save: K_CHOK's two bytes there, pause.s
+        cpx #K_MAGIC_0          ; sv_tab)
+        bne @set
+        ldx SAVE_AT + 2
+        cpx #K_MAGIC_1
+        bne @set
+        ldx #K_CH_N - 1
+:       lda SAVE_AT + 3,x
+        sta K_CH,x
+        dex
+        bpl :-
+        lda #K_RESUME
+@set:   sta K_REQ
+        rts
+
+; names: X 0 the league's file, 1 the match's - its name for the fast
+; loader (fs_name) and the KERNAL (n_league, the scratch's), what the
+; KERNAL saves (k_save)
+names:  ldy #16
+:       lda fs_leag,y
+        cpx #0
+        beq :+
+        lda fs_match,y
+:       sta fs_name,y
+        dey
+        bpl :--
+        ldy #6
+:       lda nk_leag,y
+        cpx #0
+        beq :+
+        lda nk_match,y
+:       sta n_league,y
+        dey
+        bpl :--
+        lda nk_len,x
+        sta ks_nlen
+        clc
+        adc #3
+        sta ks_slen
+        lda ks_lo,x
+        sta ks_from
+        lda ks_hi,x
+        sta ks_fromh
+        lda ke_lo,x
+        sta ks_to
+        lda ke_hi,x
+        sta ks_toh
+        rts
+
+fs_leag:    .byte $4C, $45, $41, $47, $55, $45, $A0, $A0
+            .byte $A0, $A0, $A0, $A0, $A0, $A0, $A0, $A0, 1
+fs_match:   .byte $4D, $41, $54, $43, $48, $A0, $A0, $A0
+            .byte $A0, $A0, $A0, $A0, $A0, $A0, $A0, $A0, 1
+nk_leag:    .byte "LEAGUE", 0
+nk_match:   .byte "MATCH", 0, 0
+nk_len:     .byte 6, 5
+ks_lo:      .byte <CHECK, <SAVE_AT
+ks_hi:      .byte >CHECK, >SAVE_AT
+ke_lo:      .byte <(CHECK + L_LEN), <SAVE_END
+ke_hi:      .byte >(CHECK + L_LEN), >SAVE_END
 
 ; The fast loader's saving, the Plus/4's half (trainschedule's scores.s):
 ; the request - the name as in the directory, then 1, save - then for each
@@ -1923,10 +2042,8 @@ FREE    = $08                   ; both lines left high, tape motor off
 CLKLO   = $0A                   ; CLK pulled
 DATLO   = $09                   ; DATA pulled
 
-fsave:  lda #<save_buf
-        sta @src+1
-        lda #>save_buf
-        sta @src+2
+fsave:  sta @src+1               ; (from A/X, as fs_name has it)
+        stx @src+2
         lda #DATLO              ; asking
         sta PORT
 :       bit PORT                ; till the drive lets go of CLK
@@ -2075,7 +2192,7 @@ sched_b:    .byte 0, 3, 6, 5,  0, 1, 7, 4,  5, 6, 2, 3,  0, 1, 3, 7
 ; the fast loader's request to save "league" (the name as the directory
 ; has it: PETSCII, padded), then 1: save
 fs_name:    .byte $4C, $45, $41, $47, $55, $45, $A0, $A0
-            .byte $A0, $A0, $A0, $A0, $A0, $A0, $A0, $A0, 1
+            .byte $A0, $A0, $A0, $A0, $A0, $A0, $A0, $A0, 1     ; (names)
 
 ; resident.s's RES as the boot left it: put back before the game starts
 res_copy:   .incbin "build/resident.bin", 0, $200
@@ -2193,14 +2310,15 @@ k_load: ldy #$FF                ; (its length)
 ; read - that also waits till it has really written the file. C set if it
 ; failed.
 k_save: lda K_DEV
-        sta @d1 + 1
-        sta @d2 + 1
-        sta @d3 + 1
+        sta kd1 + 1
+        sta kd2 + 1
+        sta kd3 + 1
         sta $FF3E               ; the ROM in
         lda #15
-@d1:    ldx #8
+kd1:    ldx #8
         ldy #15
         jsr SETLFS
+ks_slen = * + 1                 ; (names: the scratch's length,
         lda #n_scratch_end - n_scratch
         ldx #<n_scratch
         ldy #>n_scratch
@@ -2209,51 +2327,56 @@ k_save: lda K_DEV
         lda #15
         jsr CLOSE
         lda #0
-@d2:    ldx #8
+kd2:    ldx #8
         ldy #0
         jsr SETLFS
+ks_nlen = * + 1                 ; the name's, what is saved)
         lda #6
         ldx #<n_league
         ldy #>n_league
         jsr SETNAM
+ks_from = * + 1
         lda #<CHECK
         sta c_tmp
+ks_fromh = * + 1
         lda #>CHECK
         sta c_tmp + 1
         lda #<c_tmp
+ks_to = * + 1
         ldx #<(CHECK + L_LEN)
+ks_toh = * + 1
         ldy #>(CHECK + L_LEN)
         jsr SAVE
-        bcs @fail
+        bcs kfail
         lda #15
-@d3:    ldx #8
+kd3:    ldx #8
         ldy #15
         jsr SETLFS
         lda #0
         jsr SETNAM
         jsr OPEN
-        bcs @fail
+        bcs kfail
         ldx #15
         jsr CHKIN
         jsr CHRIN
-        sta @st
+        sta kst
         jsr CHRIN
-        sta @st + 1
+        sta kst + 1
         jsr CLRCHN
         lda #15
         jsr CLOSE
-        lda @st
+        lda kst
         cmp #'0'
-        bne @fail
-        lda @st + 1
+        bne kfail
+        lda kst + 1
         cmp #'0'
-        bne @fail
+        bne kfail
         clc
-        bcc @out
-@fail:  sec
-@out:   sta $FF3F               ; the ROM out (C kept)
+        bcc kout
+kfail:  sec
+kout:   sta $FF3F               ; the ROM out (C kept)
         rts
-@st:    .res 2
+kst:    .res 2
 
 ; the files' names (PETSCII capitals: as ASCII's)
 n_flags:    .byte "FLAGS", 0
@@ -2262,5 +2385,5 @@ n_pages:    .byte "PAGES", 0
 n_scratch:  .byte "S0:"
 n_league:   .byte "LEAGUE", 0
 n_scratch_end = * - 1
-.assert L_LEN = 42, error, "L_LEN: build.sh makes the file league that long"
+.assert L_LEN = 43, error, "L_LEN: build.sh makes the file league that long"
 .assert L_END <= $FFF6, error, "the league: into what the KERNAL's RAMTAS writes"
