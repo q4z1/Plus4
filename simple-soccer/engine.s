@@ -27,7 +27,7 @@
         .include "game.inc"
         .include "data.inc"
 
-        .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read, joy_scan
+        .export eng_init, eng_begin, eng_end, eng_wait, fig_draw, joy_read, joy_scan, krow
         .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
         .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
@@ -167,21 +167,28 @@ fig_col:    .res 1              ; its cells' colour
 ; the matrix of its top left cell (signed: it may be off the picture), its
 ; cells, where they start in the picture's pages - their places from
 ; there (40 * row + column) and the codes they showed before. Picture p's
-; figures from p * 85.
-l_lo:       .res 256
-l_hi:       .res 256
-l_n:        .res 256
-l_ci:       .res 256
+; figures from p * LST_N (a picture has 30 at most: the players, the
+; ball's shadow, the HUD's five, a card)
+LST_N       = 40
 codes:      .res 3 * 256
 offs:       .res 3 * 256
+l_lo:       .res 3 * LST_N
+l_hi:       .res 3 * LST_N
+l_n:        .res 3 * LST_N
+l_ci:       .res 3 * LST_N
+        .res $0C00 - $0400 - 6 * 256 - 12 * LST_N
+; code * 8, low and high bytes: eng_init works them out (here, not in
+; MAIN: room there; the title's music has these pages while it plays)
+chr_lo:     .res 256
+chr_hi:     .res 256
 
         .segment "HIBSS"
 xlat0:      .res 256
 xlat1:      .res 256
 xlat2:      .res 256
-fl0:        .res 256            ; each picture's codes given back (evict)
-fl1:        .res 256
-fl2:        .res 256
+fl0:        .res POOL           ; each picture's codes given back (evict:
+fl1:        .res POOL           ; ground codes, under POOL)
+fl2:        .res POOL
 used:       .res 256            ; evict's: the codes a matrix shows
 
         .code
@@ -240,6 +247,21 @@ eng_init:
         sta FNT2,x
         dex
         bpl :-
+        ldx #0                  ; chr_lo, chr_hi: code * 8
+:       txa
+        asl a
+        asl a
+        asl a
+        sta chr_lo,x
+        txa
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta chr_hi,x
+        inx
+        bne :-
         ldx #2
 :       lda #1
         sta b_next,x
@@ -431,6 +453,9 @@ eng_begin:
         lda fl_hi,x
         sta al_fl + 2
         sta ev_push + 2
+        lda fl_lo,x
+        sta al_fl + 1
+        sta ev_push + 1
         lda codes_hi,x          ; (its pages of the cells' places, codes)
         sta pc_code + 2
         sta pt_code + 2
@@ -1198,10 +1223,11 @@ md_loop:
         rts
 
 xlat_hi: .byte >xlat0, >xlat1, >xlat2
+fl_lo:   .byte <fl0, <fl1, <fl2
 fl_hi:   .byte >fl0, >fl1, >fl2
 fnt_hi:  .byte >FNT0, >FNT1, >FNT2
 mat_hi:  .byte >MAT0, >MAT1, >MAT2
-lst_base: .byte 0, 85, 170
+lst_base: .byte 0, LST_N, 2 * LST_N
 codes_hi: .byte >codes, >(codes + 256), >(codes + 512)
 offs_hi:  .byte >offs, >(offs + 256), >(offs + 512)
 
@@ -1984,17 +2010,6 @@ char_at:
         sta z_fnt + 1
         rts
 
-        .pushseg
-        .segment "PAGES"        ; (on pages of their own: no index crosses)
-chr_lo:                         ; code * 8
-        .repeat 256, I
-        .byte <(I * 8)
-        .endrepeat
-chr_hi:
-        .repeat 256, I
-        .byte >(I * 8)
-        .endrepeat
-        .popseg
 
 ; ---- input ----------------------------------------------------------------
 

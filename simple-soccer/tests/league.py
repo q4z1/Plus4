@@ -18,6 +18,9 @@ what:  back    a match to its full time, fire: the title again, the
                a new one
        look    the title's teams as the mode has them (the league: no
                away team with one player; PLAYER 1 and 2 with two)
+       quit    a match left from its pause (pause.s): RUN/STOP, QUIT -
+               the title, no winner's page; then a league's match so:
+               its page, the league as it was
        all     all of them (the default)
 
 The match is not played out: its minute is poked to 89. The joystick is
@@ -203,6 +206,53 @@ def league(v):
     v.run_for(1)
     print('choices', ram(v, K_CH, 7))
     v.screenshot(os.path.join(CACHE, 'league-title3.png'))
+
+
+def paused(v):
+    """the pause's page (pause.s): its "PAUSE" at row 9"""
+    return v.mem(0xFF14, 1)[0] == 0xE8 and bytes(v.mem(0xEC00 + 9 * 40 + 17, 5)) == bytes([16, 1, 21, 19, 5])
+
+
+def pause_quit(v, name):
+    """the match on: RUN/STOP (pause.s dbg_key) - the pause - then QUIT"""
+    wait(v, lambda: in_match(v), 'the match', 60)
+    v.run_for(1)
+    v.poke(lab['dbg_key'], [0x80])
+    wait(v, lambda: paused(v), 'the pause', 30)
+    v.poke(lab['dbg_key'], [0])
+    v.run_for(0.5)
+    v.screenshot(os.path.join(CACHE, f'league-{name}-pause.png'))
+    press(v, DOWN)
+    press(v)                                # QUIT
+
+
+def quit_(v):
+    wait(v, lambda: at_title(v), 'the title')
+    v.run_for(1)
+    v.poke(K_CH, [1, 0, 0, 5, 9, 2, 3])     # a match: Canada - Croatia
+    press(v)
+    pause_quit(v, 'quit')
+    wait(v, lambda: at_title(v), 'the title after quitting', 180)
+    v.run_for(1)
+    t = title_text(v)
+    v.screenshot(os.path.join(CACHE, 'league-quit-title.png'))
+    assert 'MATCH LENGTH' in t[6] and 'KICK OFF' in t[20], 'not the title (a winner\'s page?)'
+    print('quit: the title, no winner\'s page')
+    going = ram(v, L_BLOCK + 1, 1)[0] == 1  # (one going on: CONTINUE)
+    v.poke(K_CH, [0, 0, 3 if going else 2, 14, 3, 0, 0])   # LEAGUE: Germany
+    press(v)
+    wait(v, lambda: on_page(v), 'the page', 180)
+    v.run_for(2)
+    before = ram(v, L_BLOCK, 42)
+    press(v)                                # PLAY THE NEXT MATCH
+    pause_quit(v, 'quit-league')
+    wait(v, lambda: on_page(v), 'the page after quitting', 180)
+    v.run_for(2)
+    page(v, 'quit-league')
+    after = ram(v, L_BLOCK, 42)
+    print('league before', before, '\nleague after ', after)
+    assert after == before, 'the league changed'
+    print('quit: the league\'s page, the match still to play')
 
 
 SECTORS = [0] + [21] * 17 + [19] * 7 + [18] * 6 + [17] * 5
@@ -440,6 +490,8 @@ def main():
             back(v)
         if what in ('league', 'all'):
             league(v)
+        if what in ('quit', 'all'):
+            quit_(v)
     finally:
         v.stop()
     if what in ('saved', 'all'):

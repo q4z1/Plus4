@@ -31,6 +31,13 @@ on YouTube (made by `tests/trailer.py`).
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 | fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
+| | RUN/STOP or P | pause |
+| in the pause: up, down, fire let go | cursor keys, space (RUN/STOP, P: on) | CONTINUE, or QUIT the match |
+
+The pause is on the keys only: in the match the joystick is the play's.
+The match stops, the sound with it, and a page shows the score and the
+minute. QUIT goes back to the title - a league's match to the league's
+page, not played: it is still to play.
 
 With one player the joystick in either port (or the keyboard) runs the
 home team. With two, the first joystick (and the keyboard) runs the home

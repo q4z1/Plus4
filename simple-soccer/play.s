@@ -36,7 +36,7 @@
         .include "data.inc"
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
-        .export lift, o_off, card_pl, card_c
+        .export lift, o_off, card_pl, card_c, anew, whistle
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two, train, sk, sk_duel, jog_lo, jog_hi
@@ -6076,7 +6076,7 @@ new_match:
         cmp #K_MAGIC_1
         bne :+
         jmp K_GO
-:       lda #0
+anew:   lda #0                  ; (pause.s too: left without the disk)
         sta full
         sta half
         sta game_min

@@ -76,7 +76,7 @@ def main():
                 col, row = v.mem(lab['b_col'] + b, 1)[0], v.mem(lab['b_row'] + b, 1)[0]
                 # the cells the figures took: a figure at a time, from
                 # picture b's base (eng_end sets b_nlist from z_lst)
-                base = (0, 85, 170)[b]
+                base = v.mem(lab['lst_base'] + b, 1)[0]
                 n = v.mem(lab['z_lst'], 1)[0] - base
                 figs = set()
                 if n:

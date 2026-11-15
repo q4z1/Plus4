@@ -86,6 +86,8 @@ K_NEW       = 1                 ;   a new league
 K_ON        = 2                 ;   the league's page (go on with it)
 K_PLAYED    = 3                 ;   a league's match: the title kicks off
                                 ;   at once, its result to the page after
+K_QUIT      = 4                 ;   a match left from its pause (pause.s):
+                                ;   the title, no winner's page
 
 K_CODE      = $FF40             ; resident.s: k_go, the way to cup.s
 L_BLOCK     = $FFC8             ; the league, as the disk keeps it ("league")

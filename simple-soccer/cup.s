@@ -21,7 +21,8 @@
 ; The page: the matchday's results, the table, the next match (or the
 ; league's winner) - and with the stick: the next match, or back to the
 ; title. A match is chosen in K_CH as the title's choices are, with
-; K_REQ K_PLAYED: the title kicks off at once (title.s).
+; K_REQ K_PLAYED: the title kicks off at once (title.s). K_QUIT (a match
+; left from its pause, pause.s): the title, no winner's page.
 ;
 ; The league (L_BLOCK, game.inc): eight teams, each against each once,
 ; seven matchdays of four matches (sched_a, sched_b: Berger's circle,
@@ -468,7 +469,11 @@ cup_go: lda #0
         beq @page
         cmp #K_PLAYED
         beq @played
+        cmp #K_QUIT             ; (left from its pause: the title only)
+        beq :+
         jsr win_match           ; (K_TITLE: after a match - its winner)
+:       lda #K_TITLE
+        sta K_REQ
         jmp restart
 @new:   lda L_ON                ; one going on: kept, unless the stick
         cmp #1                  ; says it is to go (ask)

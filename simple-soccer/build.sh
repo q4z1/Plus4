@@ -56,13 +56,13 @@ with open(sys.argv[2], 'w') as f:
     for n, l, add in names:
         f.write('%-11s = $%04X\n' % (n, lbl[l] + add))
 PY
-for f in simple-soccer engine play sound title music cup; do
+for f in simple-soccer engine play pause sound title music cup; do
     $B/cl65 -t plus4 -g --asm-include-dir build/gen $DEFS -c -o build/$f.o $f.s
 done
 $B/cl65 -t plus4 -g -c -o build/data.o build/gen/data.s
 mkdir -p build/disk
 $B/cl65 -t plus4 -C simple-soccer.cfg -m build/simple-soccer.map -Ln build/simple-soccer.lbl \
-    -o build/simple-soccer.prg build/simple-soccer.o build/engine.o build/play.o build/sound.o build/title.o build/music.o build/cup.o build/data.o
+    -o build/simple-soccer.prg build/simple-soccer.o build/engine.o build/play.o build/pause.o build/sound.o build/title.o build/music.o build/cup.o build/data.o
 echo "build/simple-soccer.prg: $(stat -c%s build/simple-soccer.prg) bytes"
 # the title and the music's interrupt, loaded after it, under the flags the
 # boot has put at FLAGS (tools/mkflags.py: build/gen/flags.inc)
@@ -71,6 +71,7 @@ import re, sys
 m = open(sys.argv[1]).read()
 end = int(re.search(r"^TITLE\s+\S+\s+(\S+)", m, re.M).group(1), 16)
 synth = int(re.search(r"^SYNTH\s+\S+\s+\S+\s+(\S+)", m, re.M).group(1), 16)
+synth += int(re.search(r"^PAUSEUI\s+\S+\s+\S+\s+(\S+)", m, re.M).group(1), 16)
 flags = int(re.search(r"^FLAGS\s+= \$(\S+)", open(sys.argv[2]).read(), re.M).group(1), 16)
 if end + 1 + synth > flags:
     sys.exit("the title runs into the flags at $%04X: up to $%04X" % (flags, end + synth))
@@ -85,6 +86,7 @@ prg = open(sys.argv[1], 'rb').read()
 m = open(sys.argv[2]).read()
 end = int(re.search(r"^TITLE\s+\S+\s+(\S+)", m, re.M).group(1), 16)
 synth = int(re.search(r"^SYNTH\s+\S+\s+\S+\s+(\S+)", m, re.M).group(1), 16)
+synth += int(re.search(r"^PAUSEUI\s+\S+\s+\S+\s+(\S+)", m, re.M).group(1), 16)   # (pause.s's page)
 start = 0xC000
 body = prg[2 + start - 0x1001:]
 assert len(body) == end + 1 + synth - start, (len(body), end, synth)

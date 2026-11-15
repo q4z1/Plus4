@@ -17,10 +17,13 @@
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c
-        .export team_col, team_flk, start
+        .export team_col, team_flk, start, played
+        .import pause_chk
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
+        .import __PAUSEUI_LOAD__, __PAUSEUI_RUN__, __PAUSEUI_SIZE__
+.assert __PAUSEUI_SIZE__ > $100 && __PAUSEUI_SIZE__ < $200, lderror, "pause.s: PAUSEUI not a page and some (main copies so)"
 
 MAX_X       = (MAP_W - SCR_W) * 8 + 7
 MAX_Y       = (MAP_H - VIS_H) * 8 + 7
@@ -147,6 +150,16 @@ step_img: .byte 0, 1, 0, 2
 
 main:
         jsr title               ; (the title first: the length of the match)
+        ldx #0                  ; the pause's page from the title's place
+:       lda __PAUSEUI_LOAD__,x  ; (pause.s: a page and some)
+        sta __PAUSEUI_RUN__,x
+        inx
+        bne :-
+        ldx #<(__PAUSEUI_SIZE__ - $100)
+:       lda __PAUSEUI_LOAD__ + $FF,x
+        sta __PAUSEUI_RUN__ + $FF,x
+        dex
+        bne :-
         lda #0                  ; the match's zero page cleared, the title's
         ldx #<(__MATCHZP_SIZE__ - 1)    ; synth's till now (play.s)
 :       sta <__MATCHZP_RUN__,x
@@ -165,6 +178,7 @@ main:
         sta played
 loop:
         jsr joy_read
+        jsr pause_chk           ; (pause.s: fire held, P, RUN/STOP)
         inc tick
         ; the match a frame for each frame shown since the last turn, then
         ; what goes once a picture for those frames
