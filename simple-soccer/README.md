@@ -211,9 +211,9 @@ pass to, it kicks the ball after 150 frames. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot). The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
-meanwhile to look for someone (a throw-in, a corner) or to the goal (a
-free kick); then a kick-off and a throw-in passed, a corner half the
-time crossed, a free kick 15 in 16 shot once he faces the goal, a goal
+meanwhile to look for someone (a throw-in), along the goal line (a
+corner, as on the C64) or to the goal (a free kick); then a kick-off and
+a throw-in passed, a corner crossed in front of the goal, a free kick 15 in 16 shot once he faces the goal, a goal
 kick and the keeper's kicked long - a pass only to the team-mate
 nearest the ball that way, else he turns on. He turns only
 the ways Sensible Soccer lets him: into the pitch and towards the other
@@ -224,9 +224,15 @@ kick. The penalty areas and spots are as its rules have them, the spots
 
 A throw-in is thrown: the taker stands behind the touch line facing the
 pitch, the ball held up behind his head, and throws it with his arms
-going forward - the ball leaving his hands from up there and dropping
-in a short curve. Its two pictures, each way, are drawn for this game,
-not the C64's.
+going forward - the ball leaving his hands from up there, 12 pixels up,
+as on the C64: a pass rising, held fire a long throw, as hard as a shot.
+Its two pictures, each way, are drawn for this game, not the C64's.
+
+As on the C64, a throw-in or a corner kicked the way the taker faces
+goes a little in from the line: up or down a touch line 250 in 1000
+across towards the middle, along the goal line 150 in 1000 in from it,
+and a corner slanting in 350 in 1000 off the goal line (19 degrees,
+not 45).
 
 The player a pass goes to runs to meet it, and the joystick is his once
 he has it. The first touch is Sensible Soccer's: the one running to the

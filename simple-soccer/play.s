@@ -161,8 +161,32 @@ LIFT_DZ     = $0160             ; the aftertouch's lift: 1.375,
 LIFT_HI_DZ  = $0200             ;   pulled back 2
 
         .segment "MATCHZP": zeropage
-; the title's synth's zero page ($B0 on: music.s), free once the match is
-; on - main clears it after the title: the match's busiest variables
+; the title's synth's zero page ($B0 on: music.s) and the 16 bytes below
+; it, free once the match is on - main clears it after the title: the
+; match's busiest variables
+rs_kind:    .res 1              ; the restart (R_*), for which team (rs_x,
+rs_team:    .res 1              ; rs_y: where)
+r_t:        .res 1              ; the rules': attackers, the team's last
+r_s:        .res 1              ; (the side: 0 top, 1 bottom)
+thrower:    .res 1              ; who takes the throw-in
+cpu_t:      .res 1              ; the yellow team's: till they take it
+br_ev:      .res 1              ; brain's: 1 a pass, 2 a shot for control,
+br_t:       .res 1              ; frames till it may kick again,
+br_r:       .res 1              ; the frame's die,
+br_6c:      .res 1              ; looks left to find a team-mate to pass to,
+br_6e:      .res 1              ; its last kick's kind (0 shot, 1 flat, 2
+                                ; high; br_70, br_d: in the BSS)
+br_g:       .res 1              ; the way from the ball to the goal (256),
+br_w:       .res 1              ; a way (0-7)
+br_n:       .res 1              ; (br_cone's: the nearest, his team)
+bs_t:       .res 1              ; its set piece: frames since it was ready,
+bs_rot:     .res 1              ; and the way he turns looking (1, $FF)
+hd_y:       .res 1              ; (dist_y, pair_d2: with hd_x)
+mf_a:       .res 1              ; (may_face's: the way, the middle way)
+k_dy:       .res 1              ; (k_shot's: the ball's way to his line,
+k_f:        .res 1              ; the frames it takes)
+k_i:        .res 1              ; (k_get's: the player looked at; k_d2)
+kick_way:   .res 1              ; pass's: the way, 0-255
 frame_n:    .res 1              ; frames played
 pp_help:    .res 1              ; play_picture's: bit 7 clear, help
 pic_n:      .res 1              ; frames since the last picture (play_picture)
@@ -321,15 +345,13 @@ glue_d:     .res 2              ; his last way,
 glue_f:     .res 2              ; the frame of his last touch (dribble)
 o_3yl:      .res NOBJ           ; (o_3*: below)
         .bss
-o_3xl:      .res NOBJ
-o_3yf:      .res NOBJ
+o_3xf:      .res NOBJ           ; each object's step three times over
+o_3xl:      .res NOBJ           ; (triple): play_others's for a picture of
+o_3yf:      .res NOBJ           ; three frames (o_3yl in the LOWBSS)
 
 goal:       .res 1              ; 1: dead for a goal - the net holds the ball
-rs_kind:    .res 1              ; the restart (R_*),
-rs_team:    .res 1              ; for which team,
 rs_x:       .res 2              ; where
 rs_y:       .res 2
-cpu_t:      .res 1              ; the yellow team's: till they take it
 min_frames: .res 1              ; frames to a minute (the title's choice:
                                 ; 100, 167, 233 - 90 in 3, 5, 7 minutes)
 game_min:   .res 1              ; the match's minute, 0-90
@@ -338,29 +360,15 @@ full:       .res 1              ; 1: full time - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
 cp_d:       .res 2              ; (can_slide's: his way squared)
-br_ev:      .res 1              ; brain's: 1 a pass, 2 a shot for control,
-br_t:       .res 1              ; frames till it may kick again,
-br_r:       .res 1              ; the frame's die,
-br_6c:      .res 1              ; looks left to find a team-mate to pass to,
-br_6e:      .res 1              ; its last kick's kind (0 shot, 1 flat, 2 high)
-br_70:      .res 1              ; and the side it bends to (1, $FF, 0 none),
-br_g:       .res 1              ; the way from the ball to the goal (256)
-br_d:       .res 2              ; his distance squared to the ball,
-br_w:       .res 1              ; a way (0-7),
-br_n:       .res 1              ; (br_cone's: the nearest, his team)
-bs_t:       .res 1              ; its set piece: frames since it was ready,
-bs_d:       .res 1              ; the way the taker faced then,
-bs_rot:     .res 1              ; and the way he turns looking (1, $FF)
-hd_y:       .res 1
+br_70:      .res 1              ; brain's (br_*: MATCHZP): the side its kick
+                                ; bends to (1, $FF, 0 none), his distance
+br_d:       .res 2              ; squared to the ball
 score:      .res 2              ; goals, cyan and yellow
-thrower:    .res 1              ; who takes the throw-in,
 lift:       .res 1              ; how high the ball is drawn over where it is
 fouls:      .res PLAYERS        ; each player's fouls in the match
 o_off:      .res NOBJ           ; 1: sent off - gone from the match
 card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
-r_t:        .res 1              ; the rules': attackers, the team's last
-r_s:        .res 1              ; (the side: 0 top, 1 bottom)
 ; a test's plan for the joystick, by the match's frames: (frame low, high,
 ; J_ bits) each, $FFFF the end; dbg_on set to 2 starts it - the frames
 ; counted from then, and the match's own counters from 0 too, so that it
@@ -371,12 +379,7 @@ dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
 lock_t:     .res 2              ; each team's frames its joystick's player may
                                 ; not dribble, tackled (Sensible Soccer's $74)
-mf_a:       .res 1              ; (may_face's: the way, the middle way)
-k_dy:       .res 1              ; (k_shot's: the ball's way to his line,
-k_f:        .res 1              ; the frames it takes)
-k_d2:       .res 2              ; (k_get's: his way to the ball, squared,
-k_i:        .res 1              ; and the player looked at)
-kick_way:   .res 1              ; pass's: the way, 0-255
+k_d2:       .res 2              ; (k_get's: his way to the ball, squared)
 old_x:      .res 3              ; ball_move's: where it was
 old_y:      .res 3
 old_z:      .res 2
@@ -418,11 +421,6 @@ tac_y0l:    .res 44
 tac_y0h:    .res 44
 
 
-        .segment "DATA"         ; (in MAIN: the BSS is full - o_3xl, o_3yf
-o_3xf:  .res NOBJ               ; in it, o_3yl in the LOWBSS): each
-                                ; object's step three times over (triple):
-                                ; play_others's for a picture of three
-                                ; frames
 
         .rodata
 ; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
@@ -1680,7 +1678,10 @@ shot:
         sta o_dzf + BALL
         lda #>SHOT_DZ
         sta o_dzl + BALL
-        jsr sfx_kick
+        jsr at_throw            ; (a long throw-in: from his head)
+        beq :+
+        sta o_zl + BALL
+:       jsr sfx_kick
         lda #0
         sta at_n
         lda #$FF
@@ -2126,7 +2127,11 @@ shot_speed:
         sta o_sph + BALL
         rts
 
-; ball_ahead: the ball's destination 1000 pixels from it, way Y
+; ball_ahead: the ball's destination 1000 pixels from it, way Y - a
+; corner's and a throw-in's turned in a little, as the C64 turns them: up
+; or down (along a touch line) 250 across towards the middle; a corner
+; along the goal line 150 in from it, slanting 350 in from it, not 1000.
+; Keeps X.
 ball_ahead:
         lda o_xl + BALL
         clc
@@ -2141,6 +2146,60 @@ ball_ahead:
         sta o_tyl + BALL
         lda o_yh + BALL
         adc vec_yh,y
+        sta o_tyh + BALL
+        lda kickoff             ; (a set piece taken)
+        beq @no
+        lda rs_kind
+        cmp #R_THROW
+        beq :+
+        cmp #R_CORNER
+        bne @no
+:       tya
+        and #3
+        bne @y
+        jsr ball_rx             ; up or down: across, towards the middle
+        lda #<250
+        ldy #>250
+        bcc :+
+        lda #<(-250)
+        ldy #>(-250)
+:       clc
+        adc o_txl + BALL
+        sta o_txl + BALL
+        tya
+        adc o_txh + BALL
+        sta o_txh + BALL
+@no:    rts
+@y:     lda rs_kind             ; (a corner's: the way odd, slanting)
+        cmp #R_CORNER
+        bne @no
+        tya
+        lsr a
+        lda #<150
+        sta tmp
+        lda #>150
+        bcc :+
+        lda #<350
+        sta tmp
+        lda #>350
+:       sta tmp + 1
+        lda o_yl + BALL         ; (in: down from the top line, up from
+        cmp #<369               ; the bottom one)
+        lda o_yh + BALL
+        sbc #>369
+        bcc :+
+        lda #0
+        sbc tmp                 ; (carry set)
+        sta tmp
+        lda #0
+        sbc tmp + 1
+        sta tmp + 1
+:       lda o_yl + BALL
+        clc
+        adc tmp
+        sta o_tyl + BALL
+        lda o_yh + BALL
+        adc tmp + 1
         sta o_tyh + BALL
         rts
 
@@ -2273,14 +2332,30 @@ kick_to:
         sta o_spl + BALL
         lda pass_hi,y
         sta o_sph + BALL
-kicked: ; (on the ground)
+kicked: ; (on the ground - a throw-in's from his head: at_throw)
         lda #0
-        sta o_zl + BALL
         sta o_zf + BALL
-        sta o_dzl + BALL
         sta o_dzf + BALL
+        tay
+        jsr at_throw
+        sta o_zl + BALL
+        sty o_dzl + BALL
         lda #$FF
-        jsr sfx_kick
+        jmp sfx_kick
+
+; at_throw: a throw-in being taken: A = 12, the ball's height as it leaves
+; his hands, Y = 1, a pass's rise (8.8), as the C64 throws it; else A = 0
+; (Z set), Y kept
+at_throw:
+        lda kickoff
+        beq @no
+        lda rs_kind
+        cmp #R_THROW
+        bne @no
+        lda #12
+        ldy #1
+        rts
+@no:    lda #0
         rts
 
 ; the aftertouch: the bend for each way of the shot and side, a step
@@ -4523,12 +4598,12 @@ throwing:
         ldy #THROW_HOLD
 @hold:  sty lift
         rts
-@thrown:
-        ldy throw_t
+@thrown:                        ; (thrown: the ball itself flies, from
+        ldy throw_t             ; his head - at_throw)
         beq @none
         dey
         sty throw_t
-        lda throw_arc,y
+        lda #0
         sta lift
         rts
 @none:  lda #0
@@ -4536,7 +4611,6 @@ throwing:
         sta lift
         rts
 
-throw_arc:  .byte 0, 5, 9, 13, 16, 18, 20, 21, 21, 20   ; (from the last)
 
 ; await: the set piece ready, for taker to take: a player's team's with
 ; his joystick (fire held on from before does not kick), the yellow
@@ -4557,10 +4631,7 @@ await:
 @yellow:
         lda taker
         sta ctrl_b
-        tax
-        lda o_dir,x             ; (brain_set's: the way he faces, its
-        sta bs_d                ; clock)
-        lda #0
+        lda #0                  ; (brain_set's clock)
         sta bs_t
         lda #1
         sta bs_rot
@@ -6319,10 +6390,11 @@ br_after:
 
 ; brain_set: the computer's set piece, as Sensible Soccer's (c14b08 -
 ; c14e48): ready, it waits 50 frames and a few more (up to 63, its die
-; anew each frame) - a throw-in or a corner's taker turning about
-; meanwhile to look for someone, a free kick's to the goal - then: a
-; kick-off and a throw-in are passed; a corner half the time crossed -
-; facing his way first, or in and up or down - else passed; a free kick
+; anew each frame) - a throw-in's taker turning about meanwhile to look
+; for someone, a corner's facing along the goal line, a free kick's to
+; the goal - then: a kick-off and a throw-in are passed; a
+; corner crossed along the goal line, in front of the goal, as on the C64
+; (ball_ahead turns it in); a free kick
 ; 15 in 16 shot if he faces the goal (else he turns to it), 1 in 16
 ; passed; a goal kick and the keeper's kicked long. A pass only to a
 ; team-mate nearest that way (br_cone), else he turns on - after 150
@@ -6349,12 +6421,14 @@ brain_set:
         cmp bs_t
         bcc @go
         beq @go
-        ldy rs_kind             ; meanwhile: turning about, or to the goal
-        cpy #R_THROW
+        ldy rs_kind             ; meanwhile: turning about, along the
+        cpy #R_THROW            ; goal line (a corner), or to the goal
         beq bs_turn
         cpy #R_CORNER
-        beq bs_turn
-        cpy #R_FREE
+        bne :+
+        jsr bs_along
+        jmp br_stick
+:       cpy #R_FREE
         bne @none
         jsr goal_dir
         jmp br_stick
@@ -6369,25 +6443,17 @@ brain_set:
         beq bs_pass             ; a throw-in: passed
         cpy #R_CORNER
         bne @free
-        lda br_r                ; a corner: half the time crossed
-        lsr a
-        bcc bs_pass
-        lda o_dir,x
-        cmp bs_d
-        beq bs_shot
-        jsr ball_rx             ; (in and up or down: 1, 3 on the left,
-        lda o_dir,x             ; 5, 7 on the right)
-        bcs :+
-        cmp #1
-        beq bs_shot
-        cmp #3
-        beq bs_shot
-        bne bs_pass
-:       cmp #5
-        beq bs_shot
-        cmp #7
-        beq bs_shot
-        bne bs_pass
+        jsr bs_along            ; a corner: crossed along the goal line,
+        cmp o_dir,x             ; in front of the goal, as on the C64
+        bne :+
+        lda br_t
+        bne @none
+        lda #1                  ; (lifted, not bent)
+        jsr br_kick
+        lda #0
+        sta br_70
+        rts
+:       jmp br_stick
 @free:  cpy #R_FREE
         bne bs_shot             ; a goal kick, the keeper's: long
         lda br_r                ; a free kick: 15 in 16 shot facing the
@@ -6397,6 +6463,15 @@ brain_set:
         cmp o_dir,x
         beq bs_shot
         jmp br_stick
+
+; bs_along: A = the way along the goal line towards the goal - right in
+; a corner on the left, left on the right. Keeps X.
+bs_along:
+        jsr ball_rx
+        lda #2
+        bcc :+
+        lda #6
+:       rts
 
 ; goal_dir: A = the way (0-7) from the ball to the goal (br_g). Keeps X.
 goal_dir:
