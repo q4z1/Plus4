@@ -100,6 +100,8 @@ LEAGUE_SCORE = ([2, 1], [3, 0])         # France 1:2 Germany, Germany 3:0 Brazil
 MATCH_SCORE = [2, 1]                    # the match before the league: Germany 2:1 Brazil
 MATCH_CAP = ('FULL TIME - THE WINNER',
              'THEN FIRE AND BACK TO THE TITLE')
+PAUSE_CAP = ('RUN/STOP - THE PAUSE',
+             'QUIT AND SAVE - CONTINUE IT LATER')
 LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
                 'EACH AGAINST EACH - ONE OR TWO PLAYERS'),
                ('AFTER EACH MATCH - THE MATCHDAY',
@@ -108,7 +110,7 @@ LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
                 'FIRST AGAINST SECOND - FOR THE LEAGUE'),
                ('THE WINNER',
                 'A PAGE OF ITS OWN - AFTER EVERY MATCH TOO')]
-L_BLOCK, L_LEN, K_CH = 0xFFC8, 42, 0xFCE7      # (game.inc)
+L_BLOCK, L_LEN, K_CH = 0xFFC8, 43, 0xFCE7      # (game.inc)
 END_FRAME = 150                 # the title's picture the end holds (MODE: TRAINING)
 
 
@@ -347,16 +349,7 @@ def record_boot():
     for f in shots:
         os.rename(f, os.path.join(d, 'f%04d.ppm' % int(f.rsplit('.', 1)[1])))
     os.rename(moves.WAV, os.path.join(d, 'sound.raw'))
-    # the title: the first picture with the title's border all along it
-    every = frames_of('boot')
-    border = Image.open(os.path.join(WORK, 'title', 'f000.ppm')).getpixel((4, 4))
-    lo, hi = 0, len(every) - 1
-    is_title = lambda k: Image.open(every[k]).getpixel((4, 4)) == border  # noqa: E731
-    assert is_title(hi) and not is_title(lo), 'no title at the end of the recording'
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        lo, hi = (mid, hi) if not is_title(mid) else (lo, mid)
-    open(os.path.join(d, 'title.txt'), 'w').write('%d\n' % hi)
+    title_at(d)
     # the second page: the first picture after the stick went right on
     # TEAM SETTINGS that differs from the one before it in its four lines
     menu = (64, 84, 320, 124)
@@ -376,10 +369,29 @@ def league_block(days):
     the matchdays before days played (and on the last, the computer's)"""
     res = [r if (m < days * 4 or (days == 6 and m > 24)) and r else None
            for m, r in enumerate(LEAGUE_RES)]
-    lg = [0, 1, 0, 0, 0, 0] + LEAGUE_TEAMS + [255 if r is None else r[0] * 16 + r[1] for r in res]
+    lg = [0, 1, 0, 0, 0, 0] + LEAGUE_TEAMS + [255 if r is None else r[0] * 16 + r[1] for r in res] + [0]
     lg[0] = -sum(lg[1:]) & 255
     assert len(lg) == L_LEN
     return lg
+
+
+def title_at(d):
+    """WORK/boot/title.txt: the first picture of the title - its border
+    and its menu's four lines (the loading screen has the same border and
+    ground, nothing where the menu is; BASIC's screen another border)"""
+    every = frames_of('boot')
+    menu = (64, 84, 320, 124)
+    border = Image.open(os.path.join(WORK, 'title', 'f000.ppm')).getpixel((4, 4))
+    lo, hi = 0, len(every) - 1
+
+    def is_title(k):
+        im = Image.open(every[k])
+        return im.getpixel((4, 4)) == border and len(im.crop(menu).getcolors(1 << 16)) > 1
+    assert is_title(hi) and not is_title(lo), 'no title at the end of the recording'
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        lo, hi = (mid, hi) if not is_title(mid) else (lo, mid)
+    open(os.path.join(d, 'title.txt'), 'w').write('%d\n' % hi)
 
 
 def record_league():
@@ -418,8 +430,12 @@ def record_league():
         time.sleep(wait)
 
     def on_page():
-        row = y.mem(0x0C00 + 23 * 40, 40) + y.mem(0x0C00 + 24 * 40, 40)
-        return bytes(c & 0x3F for c in row).find(bytes(c & 0x3F for c in b'TITLE')) >= 0
+        # (the page in the title's letters - cup.s's at $E000: "D" to "_"
+        # from 0, " " to "C" from 64 - or the ROM's: either way TITLE)
+        row = [c & 0x7F for c in y.mem(0x0C00 + 23 * 40, 40) + y.mem(0x0C00 + 24 * 40, 40)]
+        page = ''.join(chr(c + 68) if c < 28 else chr(c - 32) if 64 <= c < 100 else '?' for c in row)
+        rom = ''.join(chr(c + 64) if 1 <= c <= 26 else chr(c) if 32 <= c < 64 else ' ' for c in row)
+        return 'TITLE' in page or 'TITLE' in rom
 
     def in_match():
         return y.mem(0xFFFE, 2)[1] != 0 and y.mem(0xFF07, 1)[0] & 0x10 and y.mem(0xFF06, 1)[0] & 0x10
@@ -454,6 +470,18 @@ def record_league():
         y.poke(lab['score'], MATCH_SCORE)
         y.poke(lab['game_min'], [89])
         mark('m')
+        time.sleep(1.5)
+        y.poke(lab['dbg_key'], [0x80])      # RUN/STOP: the pause's page
+        wait(lambda: bytes(y.mem(0xEC00 + 9 * 40 + 17, 5)) == bytes([16, 1, 21, 19, 5]),
+             'the pause')               # ("PAUSE" on its page, pause.s)
+        y.poke(lab['dbg_key'], [0])
+        mark('pause')
+        time.sleep(3.5)
+        y.poke(lab['dbg_key'], [0x80])      # and on with the match
+        time.sleep(0.3)
+        y.poke(lab['dbg_key'], [0])
+        wait(in_match, 'the match again')
+        mark('p-end')
         while y.mem(lab['full'], 1)[0] != 1:
             stick('up+fire', 0.1)
             y.poke(lab['score'], MATCH_SCORE)
@@ -509,13 +537,15 @@ def league_parts(gain):
     mk = dict(l.split() for l in open(os.path.join(WORK, 'league', 'marks.txt')))
     mk = {k: int(v) for k, v in mk.items()}
     load = int(1.2 * FPS)
-    m = [(mk['m'] + 10, mk['m-ft'] + int(1.5 * FPS), 1),
+    pz = [(mk['m'] + 10, mk['pause'] + int(3.0 * FPS), 1)]
+    m = [(mk['p-end'] + 10, mk['m-ft'] + int(1.5 * FPS), 1),
          (mk['m-back'] + 5, mk['m-back'] + 5 + load, 1),
          (mk['m-win'], mk['m-win'] + int(5.5 * FPS), 1)]
     a = [(mk['title'], mk['fire'] + 10, 1),
          (mk['fire'] + 10, mk['fire'] + 10 + load, 1),
          (mk['page1'], mk['page1'] + int(5.0 * FPS), 1)]
-    out = [('match', m, [(MATCH_CAP, X, -X)]), ('league1', a, [(LEAGUE_CAPS[0], X, -X)])]
+    out = [('pause', pz, [(PAUSE_CAP, X, -X)]), ('match', m, [(MATCH_CAP, X, -X)]),
+           ('league1', a, [(LEAGUE_CAPS[0], X, -X)])]
     for k, name in ((1, 'day4'), (2, 'day7')):
         p = [(mk[name] + 10, mk[name + '-ft'] + int(1.5 * FPS), 1),     # (from minute 89)
              (mk[name + '-back'] + 5, mk[name + '-back'] + 5 + load, 1),

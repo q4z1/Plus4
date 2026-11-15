@@ -319,7 +319,7 @@ SCENES = [
     ('throw', ('THROW-IN', 'FIRE TAPPED: THROWN TO A TEAM-MATE'), 130, sc_throw,
      [(0, 'none'), (60, 'up+right'), (62, 'up+right+fire'), (65, 'up+right'), (68, 'none'),
       (130, 'up'), (220, 'none')]),
-    ('cpucorner', ('A CORNER FOR THE COMPUTER', 'IT LOOKS ABOUT - THEN CROSSES OR PASSES'), 230,
+    ('cpucorner', ('A CORNER FOR THE COMPUTER', 'ALONG THE GOAL LINE - CROSSED IN AS ON THE C64'), 230,
      sc_cpucorner, [(0, 'none')]),
 ]
 FIRST = 4
@@ -417,8 +417,8 @@ def keep(name):
     return d
 
 
-PARK = 0x0FE0                   # a loop the game waits in (free: LOWBSS
-FLAG = 0x0FF0                   # ends at $0FD4, SKIP is at $0FF8)
+PARK = 0x0BE0                   # a loop the game waits in (free: the 32
+FLAG = 0x0BF8                   # bytes of LISTS before chr_lo, engine.s)
 
 
 def park(y):
