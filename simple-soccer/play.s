@@ -3553,9 +3553,11 @@ place_formation:
 
 ; keep_off: player X's new place (z_px, z_py) out of the way of the
 ; other team's set piece, while it is dead or waits: out of a goal
-; kick's box, else WALL_D from where it is taken (as set_wall puts those
-; already there), on its side - so the teams stand ready before it is
-; taken, as their formations have it. Keeps X.
+; kick's or the keeper's box, else WALL_D from where it is taken (as
+; set_wall puts those already there), on its side - so the teams stand
+; ready before it is taken, as their formations have it; and out of his
+; own team's box at its goal kick or keeper's ball, as on the C64 (its
+; keeper alone in it). Keeps X.
 keep_off:
         lda dead_t
         ora kickoff
@@ -3566,10 +3568,12 @@ keep_off:
         beq @done
         jsr team_y              ; (his team's own: as they are - but a
         cpy rs_team             ; corner's, three into the box: @own)
-        beq @own
+        jeq @own
         jsr rs_side
         lda rs_kind
         cmp #R_GOALKICK
+        beq @box
+        cmp #R_KEEPER
         beq @box
         lda #WALL_D             ; within WALL_D of it both ways: WALL_D
         sta z_t8                ; off it on the side
@@ -3627,7 +3631,14 @@ keep_off:
         lda box_oh,y
         sta z_py + 1
         rts
-@own:   cmp #R_CORNER           ; its corner: 8, 9, 10 to the near post,
+@own:   cmp #R_GOALKICK         ; its goal kick, its keeper's ball: out
+        beq @obox               ; of the box too, as on the C64
+        cmp #R_KEEPER
+        bne @corner
+@obox:  jsr rs_side
+        jmp @box
+@corner:
+        cmp #R_CORNER           ; its corner: 8, 9, 10 to the near post,
         bne @done               ; the far one, the spot (corner_*: 256 +
         txa                     ; x, y the top's, then the bottom's)
         cpx #11
@@ -4410,8 +4421,8 @@ in_box:
 
 ; set_wall: a set piece's players placed, the taker behind the ball
 ; already (restart; hold, the keeper's): the other team's off the ball -
-; a goal kick's out of its box, a penalty's all out of the box - till it
-; is taken (team_ai, control, keep_off)
+; out of the box at a goal kick and the keeper's ball, a penalty's all
+; out of it - till it is taken (team_ai, control, keep_off)
 set_wall:
         lda rs_kind
         bne :+
@@ -4425,12 +4436,15 @@ set_wall:
 
 ; rs_side: r_s = the side of the set piece (rs_*) the other team keeps
 ; off towards: the goal its team attacks (0 the top) - a goal kick's,
-; a corner's the other (its box; off the line into the pitch). Keeps X.
+; the keeper's ball's, a corner's the other (its box; off the line into
+; the pitch). Keeps X.
 rs_side:
         lda rs_team
         eor flip
         ldy rs_kind
         cpy #R_GOALKICK
+        beq :+
+        cpy #R_KEEPER
         beq :+
         cpy #R_CORNER
         bne :++
@@ -4453,6 +4467,8 @@ wall_one:
         beq @next
         lda rs_kind
         cmp #R_GOALKICK
+        beq @box
+        cmp #R_KEEPER
         beq @box
         jsr wall_near
         bcs @next

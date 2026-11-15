@@ -200,9 +200,11 @@ other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
 after a goal - then it is put down with the taker behind it. Meanwhile
 both teams go to their places in their formations for where it is taken,
-the other team's kept out of its way: out of the box at a goal kick,
-else 40 pixels from the ball, on the side of their own goal (at a
-corner, into the pitch). At a corner three of the corner's team go into
+the other team's kept out of its way: out of the box at a goal kick or
+when the keeper has the ball, else 40 pixels from the ball, on the side
+of their own goal (at a corner, into the pitch). At its own goal kick
+or keeper's ball a team leaves the box to its keeper too, as on the C64,
+whatever its formation. At a corner three of the corner's team go into
 the box - to the near post, the far post and the penalty spot. Whoever is
 still in the way when the ball is put down is put out of it, and the
 other team's joystick's player stands where he is till the ball moves -
