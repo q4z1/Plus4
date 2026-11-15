@@ -14,7 +14,11 @@ kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
 other, with 35 national teams from all over the world to choose from -
 a match, training (a keeper and four a side, to try the moves out), or a
-league of eight teams for one player or two, kept on the disk.
+league of eight teams for one player or two, kept on the disk. A match
+can be paused (RUN/STOP), left, and saved on the disk to go on with
+later. How the ball is kept, thrown in and crossed from a corner is
+measured on the C64's Arlasoft Soccer: it is the game this one should
+feel like.
 
 ![The title](screenshots/title.png) ![The kick-off](screenshots/kickoff.png)
 
@@ -420,8 +424,9 @@ other (Sensible Soccer's levels of the teams). On the page the stick
 chooses between the next match and the title, fire on its letting go.
 
 The league is saved on the disk after every change (the file `league`,
-42 bytes): with the fast loader into the file as it is and read back, on
-any other drive the KERNAL's way. The disk keeps one league; as long as
+43 bytes - the last one says whether a match is saved, below): with the
+fast loader into the file as it is and read back, on any other drive the
+KERNAL's way. The disk keeps one league; as long as
 it goes on the title offers MODE: CONTINUE. LEAGUE chosen while one goes
 on first shows its page and asks: KEEP THIS LEAGUE (the choice the stick
 is on: back to the title, CONTINUE chosen) or START A NEW LEAGUE, which
@@ -449,6 +454,30 @@ the game again from its beginning - the winner's page set up for the
 title to show first (two hooks in it, turned to code `cup` leaves at
 $E340, free while the title runs). `tests/league.py` goes through it in
 VICE, with a 1541 or a 1551.
+
+## Pause, quit, save
+
+RUN/STOP (or P) holds the match: its picture, the sound, the clock stop,
+and a page in the ROM's characters takes the screen (`pause.s`) - the
+score and the minute, CONTINUE and QUIT, chosen as on the title. Back in
+the match the pictures are built anew, as at its start. QUIT asks SAVE
+THE MATCH?; either way the match is left the way a finished one is, but
+without the winner's page - and a league's match not saved is still to
+play.
+
+![The pause](screenshots/pause.png)
+
+Saving keeps the match as it stands: its variables, its zero page, the
+formations - some 2 KB - go where the game keeps the tables it multiplies
+with (they are worked out anew at every start instead of loaded), and
+`cup.s` writes that as the file `match` (3.3 KB, 14 blocks set aside for
+it on the disk, so the fast loader can write into it as it is), then marks the
+league's file. The title then offers MODE: CONTINUE, which shows no
+teams: fire loads the match back, and the game, starting, takes it up
+where it stood instead of kicking off. One match is kept at a time.
+`tests/league.py savegame` saves one, takes it up and checks the score
+and the minute; and a league's match saved, taken up and played out
+counts in the league.
 
 ## The title's music
 
