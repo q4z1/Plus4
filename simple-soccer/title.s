@@ -12,7 +12,7 @@
 ;
 ; The screen is multicolour text: the text's colours are all hires ones
 ; (hues 0-7, bit 3 clear - the name's too), the flags' cells multicolour,
-; with the background (a navy blue), white and red shared and one colour
+; with the background (a dark green), white and red shared and one colour
 ; of each cell's own. The flags come from the disk (tools/mkflags.py, at
 ; FLAGS, with the title's font): their cells' patterns, all of them once,
 ; which the two flags shown have copied into the codes the font leaves
@@ -38,6 +38,7 @@
         .import mus_start, mus_frame, mus_stop
         .export title, teams, TEAMS_N
         .export t_hook1, t_hook2, draw_menu, draw_lines, lines   ; (cup.s: the winner)
+        .export hue_of, T_LOGO_ROW = LOGO_ROW, T_LOGO_COL = LOGO_COL ; (cup.s: its page)
         .exportzp t_ptr, t_s, t_d
         .export T_LEN_ROW = LEN_ROW, T_MODE_ROW = MODE_ROW, T_FIRE_ROW = FIRE_ROW
         .export T_NAME_ROW = NAME_ROW, T_NAME_COL = NAME_COL, T_FIELD_W = FIELD_W
@@ -49,8 +50,8 @@ TCOL        = MAT2              ; the title's colours,
 TCODE       = MAT2 + $400       ; codes,
 TFONT       = FNT2              ; characters
 
-C_BG        = $16               ; dark blue (the flags' navy too)
-C_BORDER    = $06
+C_BG        = PAGE_BG           ; dark green (the flags' too)
+C_BORDER    = PAGE_BORDER
 C_TEXT      = $71               ; white
 C_VALUE     = $77               ; yellow
 C_DIM       = $51               ; grey: a line not chosen
@@ -1098,8 +1099,8 @@ name:       .byte "SIMPLE SOCCER"
 NAME_LEN    = * - name
 big_of:     .byte "SIMPLECOR"           ; (mkdata's LOGO_LETTERS)
 ; a colour each letter, warm to cool round the hues a multicolour screen
-; leaves to text (0-7)
-hue_of:     .byte 7, 7, 2, 2, 4, 4, 0, 6, 6, 3, 3, 5, 5
+; leaves to text (0-7) - the gap's the cup's gold (cup.s: its page)
+hue_of:     .byte 7, 7, 2, 2, 4, 4, 7, 6, 6, 3, 3, 5, 5
 digit_of:   .byte "357"
 
 ; the lines: row, column, colour, text, 0 - $FF the end

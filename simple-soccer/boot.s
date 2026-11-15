@@ -39,6 +39,7 @@
         .include "bootmus.inc"  ; (the music's: build.sh)
         .include "flags.inc"    ; (FLAGS: tools/mkflags.py)
         .include "resident.inc" ; (resident.s's labels: build.sh)
+        .include "logo.inc"     ; (the name's sizes: tools/mkdata.py)
 
 SETLFS  = $FFBA
 SETNAM  = $FFBD
@@ -79,16 +80,17 @@ CODES   = MATRIX + $400
 ROMFONT = $D000         ; the ROM's capitals and graphics
 CHARS   = $E800         ; the characters (the ROM's copied)
 SPIN    = $EC00         ; the ball's pictures, 72 bytes each
-SPIN_CODE = $60         ; its nine characters' first code (graphics the
+SPIN_CODE = $70         ; its nine characters' first code (graphics the
                         ; text does not use)
 SPIN_T  = 4             ; frames each picture shows
 SPIN_ROW = 11
 SPIN_COL = 18
 DOTS    = MATRIX + 16 * 40 + 22     ; "LOADING"'s three dots' colours
+LOGO_ROW = 1            ; the name as the title has it, where it has it
+LOGO_COL = 7            ; (title.s LOGO_ROW, LOGO_COL; its characters from
+                        ; LOGO_CODE on, graphics the text does not use)
 
 WHITE   = $71
-YELLOW  = $77
-GREY    = $41
 
         .org GAME - 2
         .word GAME
@@ -99,8 +101,9 @@ eol:    .word 0
         ; $100D
         jsr RESTOR              ; the KERNAL's own vectors (a fast loader
                                 ; left resident points LOAD elsewhere)
-        lda #0
+        lda #PAGE_BORDER
         sta BORDER
+        lda #PAGE_BG
         sta BG
         lda TED06               ; the screen off while it is made
         and #$EF
@@ -140,6 +143,26 @@ eol:    .word 0
         inx
         bne :-
         .assert SPIN_FRAMES * 72 <= $300, error, "the ball's pictures: over $300"
+        .assert LOGO_CODE + LOGO_N <= SPIN_CODE, error, "the name's characters: into the ball's"
+        ldx #0                  ; the name: its characters (tools/mkdata.py,
+:       lda logo_chars,x        ; the title's), its two rows
+        sta CHARS + LOGO_CODE * 8,x
+        lda logo_chars + LOGO_N * 4,x
+        sta CHARS + LOGO_CODE * 8 + LOGO_N * 4,x
+        inx
+        cpx #LOGO_N * 4
+        bne :-
+        ldx #LOGO_W - 1
+:       lda logo_codes,x
+        sta CODES + LOGO_ROW * 40 + LOGO_COL,x
+        lda logo_codes + LOGO_W,x
+        sta CODES + (LOGO_ROW + 1) * 40 + LOGO_COL,x
+        lda logo_cols,x
+        sta MATRIX + LOGO_ROW * 40 + LOGO_COL,x
+        lda logo_cols + LOGO_W,x
+        sta MATRIX + (LOGO_ROW + 1) * 40 + LOGO_COL,x
+        dex
+        bpl :-
         sei                     ; the ball's first picture (from under the
         sta RAMON               ; ROM - no interrupt meanwhile: the
         jsr spin                ; KERNAL's would go through $FFFE in the
@@ -353,18 +376,15 @@ print:  sta TP
         .charmap $41 + I, $01 + I
 .endrepeat
 texts:
-        .word CODES + 8 * 40 + 13
-        .byte YELLOW, "SIMPLE SOCCER", 0
         .word CODES + 16 * 40 + 15
         .byte WHITE, "LOADING...", 0
-        .word CODES + 22 * 40 + 8
-        .byte GREY, "BY Q4Z1 2026 (& CLAUDE)", 0
         .word 0
 .repeat 26, I
         .charmap $41 + I, $41 + I
 .endrepeat
 
         .include "spinner.inc"          ; (tools/mkspinner.py)
+        .include "logodata.inc"         ; (tools/mkdata.py)
 
 ; ---- which drive -----------------------------------------------------------
 
@@ -637,7 +657,7 @@ load:   sta l_name
         tax
         pla
 @done:  pha
-        lda #$00
+        lda #PAGE_BORDER
         sta BORDER
         pla
         rts

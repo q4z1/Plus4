@@ -19,6 +19,11 @@ TED_LINE    = $FF1D
 TED_RAM     = $FF3F             ; a write: RAM instead of the ROM
 KEY_ROW     = $FD30
 
+; the pages' colours - the loading screens, the title, the league's: a dark
+; green (tools/mkflags.py's BG too: the flags' dark green is the background)
+PAGE_BG     = $05               ; (luminance 0: the TED's darkest)
+PAGE_BORDER = $05
+
 ; ---- the screen -----------------------------------------------------------
 
 SCR_W       = 40                ; built: 40 x 25 cells, of which the TED

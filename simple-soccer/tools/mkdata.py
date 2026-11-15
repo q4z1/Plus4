@@ -183,6 +183,45 @@ def title_font():
     return font
 
 
+# The name at the top of the title (title.s's logo: name, hue_of, CUP_TOP,
+# CUP_FOOT) - the boot's loading screen shows it too, in the same place
+LOGO_NAME = 'SIMPLE SOCCER'
+LOGO_HUES = (7, 7, 2, 2, 4, 4, 7, 6, 6, 3, 3, 5, 5)
+LOGO_CUP = (0x77, 0x57)                 # gold, lighter above as the letters
+LOGO_CODE = 0x40                        # the boot's: its letters' first code
+
+
+def boot_logo(out, data):
+    """build/gen/logo.inc (its sizes) and logodata.inc (the bytes) for the
+    boot: the name's characters (the title's: four a letter, then the
+    cup's), the codes and colours of its two rows - as title.s draws it"""
+    font = title_font()
+    chars = bytearray()
+    for k in range(len(LOGO_LETTERS)):
+        c = 96 + 4 * k - 32
+        chars += font[c * 8:c * 8 + 32]
+    c = ord('[') - 32
+    chars += font[c * 8:c * 8 + 32]
+    cup = LOGO_CODE + 4 * len(LOGO_LETTERS)
+    codes, cols = [[], []], [[], []]
+    for x, ch in enumerate(LOGO_NAME):
+        first = cup if ch == ' ' else LOGO_CODE + 4 * LOGO_LETTERS.index(ch)
+        top = LOGO_CUP[0] if ch == ' ' else LOGO_HUES[x] | 0x70
+        foot = LOGO_CUP[1] if ch == ' ' else top & 0x57
+        for row in range(2):
+            codes[row] += [first + 2 * row, first + 2 * row + 1]
+            cols[row] += [(top, foot)[row]] * 2
+    out.write('; made by tools/mkdata.py - do not edit\n\n')
+    out.write('LOGO_CODE   = $%02X             ; its characters\' first code\n' % LOGO_CODE)
+    out.write('LOGO_N      = %d              ; characters\n' % (len(chars) // 8))
+    out.write('LOGO_W      = %d              ; columns\n' % len(codes[0]))
+    data.write('; made by tools/mkdata.py - do not edit\n\n')
+    for name, rows in (('logo_chars', [chars]), ('logo_codes', codes), ('logo_cols', cols)):
+        data.write(name + ':\n')
+        for r in rows:
+            hexrows(data, bytes(r))
+
+
 CUP_CHARS = (0x00, 0x0F, 0x3F, 0x4F, 0x4F, 0x2F, 0x1F, 0x0F,
              0x00, 0xF0, 0xFC, 0xF2, 0xF2, 0xF4, 0xF8, 0xF0,
              0x07, 0x03, 0x01, 0x01, 0x03, 0x07, 0x0F, 0x0F,
@@ -707,6 +746,9 @@ def main():
         out.write('sin_tab:\n')
         hexrows(out, bytes((int(round(32767 * math.sin(2 * math.pi * i / 256))) >> 8) & 255
                            for i in range(256)))
+    with open(os.path.join(GEN, 'logo.inc'), 'w') as out, \
+            open(os.path.join(GEN, 'logodata.inc'), 'w') as data:
+        boot_logo(out, data)
     with open(os.path.join(GEN, 'data.inc'), 'w') as out:
         out.write('; made by tools/mkdata.py from data/ - do not edit\n\n')
         out.write('MAP_W       = %d\nMAP_H       = %d            ; rows shown (wrow_*)\n\n'

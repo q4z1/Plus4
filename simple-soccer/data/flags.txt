@@ -21,8 +21,8 @@
 #
 #   cells C L                  how the cells come out (below)
 #
-# Colours: navy, white and red every cell has (navy the title's own blue);
-# one more each cell: black, yellow, gold, green, dark (green), blue,
+# Colours: dark (green), white and red every cell has (dark the title's own
+# green); one more each cell: navy, black, yellow, gold, green, blue,
 # sky, maroon. Where a cell would need two colours of its own, the lesser comes out as
 # its own one - or, with "cells C L", a cell with any C in it takes C and
 # the other comes out L: Brazil's green and yellow cannot share a cell, so

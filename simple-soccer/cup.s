@@ -44,11 +44,11 @@
         .include "resident.inc" ; (RES_LOAD, RES_NM, RES_DST: build.sh)
 
         .import score, start, teams, TEAMS_N, joy_read, joy
-        .import t_hook1, t_hook2, draw_menu, draw_lines, lines
+        .import t_hook1, t_hook2, draw_menu, draw_lines, lines, hue_of
         .importzp t_ptr, t_s, t_d
         .importzp T_LEN_ROW, T_MODE_ROW, T_FIRE_ROW, T_NAME_ROW, T_NAME_COL, T_FIELD_W
         .importzp T_LABEL_ROW, T_LABEL_COL, T_DROP, T_VS_ROW, T_MORE_ROW
-        .importzp T_PORTS_ROW, T_CREDIT_ROW, T_SUB_ROW
+        .importzp T_PORTS_ROW, T_CREDIT_ROW, T_SUB_ROW, T_LOGO_ROW, T_LOGO_COL
         .import __WIN_LOAD__, __WIN_RUN__, __WIN_SIZE__
         .import __CUPLOW_LOAD__, __CUPLOW_RUN__, __CUPLOW_SIZE__
 
@@ -62,6 +62,14 @@ REC_LEVEL   = NAME_W + 2        ; its level (1 the best) last
 RANDOM_FORM = 8                 ; title.s: the formation RANDOM
 COLR        = $0800             ; the screen (as k_go has made it)
 CODES       = $0C00
+PFONT       = $E000             ; the page's characters: the title's font
+                                ; (the flags' file's end) as it lies there -
+                                ; "D" on at 0, the name's big letters at 28 -
+                                ; and " " to "C" copied after it, at 64 (WIN
+                                ; over 100 on, unused, when the page goes)
+P_LOW       = 'D'               ; (title.s code - this = ours; below it: 64 on)
+.assert (FLAGS_FONT & 7) = 0 && FLAGS_END = PFONT + $200, error, "cup.s: the flags' font is not at PFONT"
+.assert (PFONT - (FLAGS_FONT - $100)) / 8 = P_LOW, error, "cup.s: the page's codes"
 CHECK       = $0600             ; the file read back; KERNAL's saving from
                                 ; here (the ROM in: not from L_BLOCK)
 CHANCES     = 6                 ; the computer's matches
@@ -79,12 +87,11 @@ c_txt       = $D3               ; text's
 c_tmp       = $D5
 wl_p        = c_ptr             ; (win_*: the list's end so far)
 
-; the page's rows
-ROW_HEAD    = 0
-ROW_DAY     = 2
-ROW_RES     = 4                 ; the matchday's four
-ROW_TAB     = 9                 ; the table's head, its eight below
-ROW_NEXT    = 19
+; the page's rows (the name at the top, as on the title)
+ROW_DAY     = 4                 ; "LEAGUE - MATCHDAY ..."
+ROW_RES     = 5                 ; the matchday's four
+ROW_TAB     = 10                ; the table's head, its eight below
+ROW_NEXT    = 20
 ROW_DISK    = 21
 ROW_MENU    = 23                ; the choices, two rows
 
@@ -975,22 +982,52 @@ to_title:
 
 ; page: the league on the screen - the matchday's results, the table, the
 ; next match or the winner
-page:   ldx #0                  ; blank
-        lda #' ' & $3F
-:       sta CODES,x
+page:   lda #$0B                ; blank while it is made
+        sta TED_SCROLLY
+        ldx #0                  ; the title's " " to "?" after its font, the
+:       lda FLAGS_FONT,x        ; screen blank
+        sta PFONT + 64 * 8,x
+        lda #64
+        sta CODES,x
         sta CODES + $100,x
         sta CODES + $200,x
         sta CODES + $300,x
         inx
         bne :-
-        ldy #ROW_HEAD
-        lda #C_HEAD
-        jsr row
-        lda #10
-        jsr col
-        lda #<t_head
-        ldx #>t_head
-        jsr text
+        ldx #(P_LOW - '@') * 8 - 1      ; (and "@" to "C")
+:       lda FLAGS_FONT + $100,x
+        sta PFONT + 96 * 8,x
+        dex
+        bpl :-
+        ; the name as the title has it, twice the size, a colour each
+        ; letter (lighter above)
+        ldx #P_NAME_N - 1
+        ldy #(P_NAME_N - 1) * 2
+@logo:  lda p_name,x
+        sta CODES + T_LOGO_ROW * 40 + T_LOGO_COL,y
+        clc
+        adc #1
+        sta CODES + T_LOGO_ROW * 40 + T_LOGO_COL + 1,y
+        adc #1
+        sta CODES + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL,y
+        adc #1
+        sta CODES + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL + 1,y
+        lda hue_of,x
+        ora #$70
+        sta COLR + T_LOGO_ROW * 40 + T_LOGO_COL,y
+        sta COLR + T_LOGO_ROW * 40 + T_LOGO_COL + 1,y
+        and #$57
+        sta COLR + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL,y
+        sta COLR + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL + 1,y
+        dey
+        dey
+        dex
+        bpl @logo
+        lsr $FF12               ; the characters from the RAM ($04: k_go's),
+        lda #>PFONT             ; at PFONT; on again
+        sta TED_CHBASE
+        lda #$1B
+        sta TED_SCROLLY
         ; the matchday: the last one played, else the next
         lda K_REQ
         cmp #K_PLAYED
@@ -1005,9 +1042,9 @@ page:   ldx #0                  ; blank
         lda #6                  ; (over: the last)
 @day:   sta day
         ldy #ROW_DAY
-        lda #C_TEXT
+        lda #C_HEAD
         jsr row
-        lda #12
+        lda #8
         jsr col
         lda #<t_day
         ldx #>t_day
@@ -1303,8 +1340,13 @@ col:    sta c_x
 ; Keeps X and Y.
 put:    sty c_y
         ldy c_x
-        and #$3F                ; (the ROM's screen codes: the capitals,
-        sta (c_ptr),y           ; the digits, the signs)
+        and #$7F                ; (the page's codes: PFONT)
+        cmp #P_LOW
+        bcc :+
+        sbc #P_LOW
+        bcs @to                 ; (always)
+:       adc #64 - ' '
+@to:    sta (c_ptr),y
         lda c_ptr + 1
         pha
         sec
@@ -1523,7 +1565,7 @@ dload:  sta dl_lo
 @red:   lda #$32
         sta TED_BORDER
         jmp @again
-@ok:    lda #0
+@ok:    lda #PAGE_BORDER
         sta TED_BORDER
         rts
 
@@ -1708,8 +1750,15 @@ rnd:    lsr seed + 1
 
 ; ---- what it says, the league's order ------------------------------------------
 
-t_head:     .byte "SIMPLE SOCCER LEAGUE", 0
-t_day:      .byte "MATCHDAY ", 0
+t_day:      .byte "LEAGUE - MATCHDAY ", 0
+; the name's characters (title.s name, as the title draws it): the top
+; left of each - the big letters SIMPLECOR from title.s code 96, the cup's
+; at "["
+P_BIG       = 96 - P_LOW
+p_name:     .byte P_BIG, P_BIG + 4, P_BIG + 8, P_BIG + 12, P_BIG + 16, P_BIG + 20
+            .byte '[' - P_LOW
+            .byte P_BIG, P_BIG + 28, P_BIG + 24, P_BIG + 24, P_BIG + 20, P_BIG + 32
+P_NAME_N    = * - p_name
 t_of:       .byte " OF 7", 0
 t_vs:       .byte " - ", 0
 t_tab:      .byte "   TEAM           P  W  D  L GOALS PTS", 0

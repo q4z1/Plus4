@@ -8,14 +8,14 @@ mkflags.py - the teams' flags for the title (data/flags.txt), as the file
 A flag is 6 x 3 multicolour cells, 24 x 24 multicolour pixels (each two
 hires pixels wide: 48 x 24, 2 to 1) - a third of the width 2 cells, of
 the height one, so stripes in thirds lie on the cells' edges. A cell has
-four colours: the title's background ($FF15, a navy blue - the flags'
-navy and dark blue), white ($FF16) and red ($FF17), which every cell
-shares, and one of its own: the most a cell needs of any other. Where a
-cell would need two others, the lesser takes the cell's own (black the
-navy) - an edge between two of them runs along the cells, a step, but no
-pixel comes out in a colour that is not there.
-The title draws a frame round each flag, so its navy does not run into
-the background.
+four colours: the title's background ($FF15, a dark green - the flags'
+dark green), white ($FF16) and red ($FF17), which every cell shares, and
+one of its own: the most a cell needs of any other (navy one of them).
+Where a cell would need two others, the lesser takes the cell's own (black
+the nearest it has) - an edge between two of them runs along the cells, a
+step, but no pixel comes out in a colour that is not there.
+The title draws a frame round each flag, so its dark green does not run
+into the background.
 
 The cells' patterns are shared by all the flags: each different one once,
 256 at most (an error, not a blur, if there are more). The title copies
@@ -55,14 +55,14 @@ END = 0xE200                            # the file ends below (the loading
                                         # screen's music there), as far up
                                         # as it goes: the title below it
 MOST = CELLS_W * CELLS_H                # patterns a flag may have
-BG, WHITE, RED = 0x16, 0x71, 0x32       # the title's, $FF16, $FF17
-SHARED = {'navy': 0, 'white': 1, 'red': 2}
+BG, WHITE, RED = 0x05, 0x71, 0x32       # the title's, $FF16, $FF17
+SHADE = 'dark'                          # the flags' colour that is the background
 OWN = {                                 # the TED's colours (luminance, hue)
     'black': 0x00, 'yellow': 0x67, 'gold': 0x67, 'green': 0x35,
-    'dark': 0x15, 'blue': 0x36, 'sky': 0x53, 'maroon': 0x12,
+    'dark': BG, 'navy': 0x16, 'blue': 0x36, 'sky': 0x53, 'maroon': 0x12,
     'red': RED,                         # (a cell's own where a flag's second
 }                                       # shared colour is another: Ghana)
-COLOURS = dict(OWN, navy=BG, white=WHITE, red=RED)
+COLOURS = dict(OWN, white=WHITE, red=RED)
 LETTERS = {'N': 'navy', 'W': 'white', 'R': 'red', 'K': 'black', 'Y': 'yellow',
            'O': 'gold', 'G': 'green', 'D': 'dark', 'B': 'blue', 'S': 'sky', 'M': 'maroon'}
 
@@ -280,7 +280,7 @@ def cells(img, rule=None, second='red'):
     show comes out L. second: the flag's second shared colour ($FF17 while
     it is drawn), red unless another loses fewer pixels (best_second)"""
     out, lost = [], 0
-    shared = ('navy', 'white', second)
+    shared = (SHADE, 'white', second)
     for cy in range(CELLS_H):
         for cx in range(CELLS_W):
             px = [img[cy * 8 + y][cx * 4 + x] for y in range(8) for x in range(4)]
@@ -288,14 +288,15 @@ def cells(img, rule=None, second='red'):
             own = max(sorted(set(others)), key=others.count) if others else 'black'
             if rule and rule[0] in others:
                 own = rule[0]
-            have = ['navy', 'white', second, own]
+            have = [SHADE, 'white', second, own]
             pat = []
             for y in range(8):
                 b = 0
                 for x in range(4):
                     p = img[cy * 8 + y][cx * 4 + x]
                     if p not in have:
-                        p = 'navy' if p == 'black' else rule[1] if rule else own
+                        p = (min(have, key=lambda c: dist(c, p)) if p == 'black'
+                             else rule[1] if rule else own)
                         lost += 1
                     b = b << 2 | (3 if p == own else have.index(p))
                 pat.append(b)
@@ -308,7 +309,7 @@ def best_second(img):
     pixels in another colour - red, unless another does better (Brazil's
     green and yellow, Ghana's gold, green and red: each cell has room for
     one colour of its own besides)"""
-    return min(['red'] + [c for c in OWN if c != 'red'], key=lambda c: (cells(img, None, c)[1], c != 'red'))
+    return min(['red'] + [c for c in OWN if c not in ('red', SHADE)], key=lambda c: (cells(img, None, c)[1], c != 'red'))
 
 
 def main():

@@ -49,14 +49,20 @@ def ram(v, addr, n):
 
 
 def screen(v, base=0x0C00):
-    """the text screen (the ROM's screen codes) as lines"""
+    """the text screen as lines: the ROM's screen codes, or cup.s's page's
+    (its characters at $E000: "D" to "_" from 0, " " to "C" from 64, the
+    name's big letters between)"""
     codes = v.mem(base, 1000)
+    page = v.mem(0xFF13, 1)[0] & 0xFC == 0xE0
     lines = []
     for r in range(25):
         s = ''
         for c in codes[r * 40:r * 40 + 40]:
             c &= 0x7F
-            s += chr(c + 64) if 1 <= c <= 26 else (chr(c) if 32 <= c < 64 else ' ' if c == 0 else '?')
+            if page:
+                s += chr(c + 68) if c < 28 else chr(c - 32) if 64 <= c < 100 else '?'
+            else:
+                s += chr(c + 64) if 1 <= c <= 26 else (chr(c) if 32 <= c < 64 else ' ' if c == 0 else '?')
         lines.append(s.rstrip())
     return lines
 
@@ -239,7 +245,7 @@ def saved(drive):
         wait(v, lambda: on_page(v), 'the page', 180)
         v.run_for(2)
         lines = page(v, 'continue')
-        assert 'NEXT: BELGIUM - GERMANY' in lines[19], 'not the league saved'
+        assert 'NEXT: BELGIUM - GERMANY' in lines[20], 'not the league saved'
     finally:
         v.stop()
 
@@ -286,7 +292,7 @@ def two(drive):
         assert ch[1] == 0 and ch[3] == 14 and ch[5] == 1, 'the first player\'s match'
         ch, lines = play(v, [1, 1], 'two-2')
         assert ch[1] == 0 and ch[3] == 18 and ch[5] == 2, 'the second player\'s match'
-        assert 'MATCHDAY 1' in lines[2]
+        assert 'MATCHDAY 1' in lines[4]
     finally:
         v.stop()
     for m in range(24):                 # matchdays 1-6 played, all 1:0
@@ -300,7 +306,7 @@ def two(drive):
         page(v, 'two-last')
         ch, lines = play(v, [0, 4], 'two-over')
         assert ch[1] == 1 and ch[3:5] == [14, 18], 'the players\' match'
-        assert 'WON BY' in lines[19], 'not over'
+        assert 'WON BY' in lines[20], 'not over'
         print('league', ram(v, L_BLOCK, 42))
         assert ram(v, L_BLOCK + 1, 1) == [0], 'still on'
         press(v)                        # (the title only)
@@ -325,7 +331,7 @@ def ask(drive):
         wait(v, lambda: on_page(v), 'the question', 180)
         v.run_for(2)
         lines = page(v, 'ask')
-        assert 'WOULD TAKE' in lines[19] and 'KEEP THIS LEAGUE' in lines[23], 'no question'
+        assert 'WOULD TAKE' in lines[20] and 'KEEP THIS LEAGUE' in lines[23], 'no question'
         press(v)                            # keep it
         wait(v, lambda: at_title(v), 'the title', 180)
         v.run_for(1)
@@ -338,7 +344,7 @@ def ask(drive):
         v.run_for(1)
         press(v, DOWN)
         press(v)
-        wait(v, lambda: on_page(v) and 'MATCHDAY 1' in screen(v)[2] and
+        wait(v, lambda: on_page(v) and 'MATCHDAY 1' in screen(v)[4] and
              any('SAVED' in l for l in screen(v)), 'the new league', 180)
         v.run_for(1)
         page(v, 'ask-new')

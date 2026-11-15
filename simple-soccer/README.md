@@ -55,8 +55,8 @@ files in `data/`.
 
 The game comes on a disk, `simple-soccer.d64`: `LOAD"*",8,1` and `RUN`
 (or `LOAD"SIMPLE SOCCER",8`). The first program, the boot (`boot.s`),
-puts up its loading screen at once - the name, a football turning, and
-"LOADING" with its dots running - and keeps it going while it loads the
+puts up its loading screen at once - the name as the title shows it, in
+the same place, a football turning, and "LOADING" with its dots running - and keeps it going while it loads the
 flags and the game, and while the game unpacks itself (it is packed by
 exomizer: 21 KB on the disk, 49 KB in memory). On a 1541 (any of them),
 1570 or 1571 it loads with the fast loader taken over from trainschedule
@@ -88,9 +88,10 @@ away one lower down on the right, "VS" between them and each team's name
 beside its own (`data/flags.txt`, drawn by `tools/mkflags.py`). A flag is
 6 x 3 multicolour cells, 48 x 24 pixels, 2 to 1: a third of its width is
 two cells, a third of its height one, so stripes in thirds lie on the
-cells' edges. A cell has four colours - the title's background, a navy
-blue that is the flags' navy (the frame keeps it from the background),
-white and a second shared colour, and one of its own - so most flags come
+cells' edges. A cell has four colours - the title's background, a dark
+green that is the flags' dark green (the frame keeps it from the
+background), white and a second shared colour, and one of its own (navy
+one of them) - so most flags come
 out to the pixel: the stripes, the Union Jack and the stars of Australia
 and New Zealand, the USA's canton, Korea's circle, Canada's leaf (the
 small emblems drawn pixel for pixel). The second shared colour is red,
@@ -378,8 +379,9 @@ The players meet each other on the last matchday; before that each plays
 the computer's teams, the joystick in either port, as in a match with
 one player. The length chosen is the length of every match of it.
 
-After each match of a player comes the league's page: the matchday's
-results, the table (points, then goal difference, then goals), and the
+After each match of a player comes the league's page - the name at the
+top as on the title, in the title's letters (the font the flags' file
+brings, used where it lies): the matchday's results, the table (points, then goal difference, then goals), and the
 next match - or, the league over, who won it. The computer's matches of
 a matchday are worked out once the players have played theirs: six
 chances a side, each going in more often the better the team is than the

@@ -60,9 +60,11 @@ klow:   sta ROMON
         jsr IOINIT
         jsr RAMTAS
         jsr RESTOR
-        lda #0                  ; (IOINIT's colours: the screen black;
+        lda #PAGE_BG            ; (IOINIT's colours: the pages' green;
         sta TED_BG              ; its raster interrupt off, should the
-        sta TED_BORDER          ; KERNAL let them in)
+        lda #PAGE_BORDER        ; KERNAL let them in)
+        sta TED_BORDER
+        lda #0
         sta TED_IRQEN
 kagain: lda #3
         ldx #<n_cup
@@ -96,8 +98,11 @@ k_go:   sei
         lda #0
         sta TED_IRQEN
         sta $FF11               ; (the sound off)
+        lda #PAGE_BG
         sta TED_BG
+        lda #PAGE_BORDER
         sta TED_BORDER
+        lda #0
         tax                     ; a blank screen at $0800 (colours) and
         lda #' '                ; $0C00 (codes), the ROM's characters -
 :       sta $0C00,x             ; as the KERNAL's: kstub's IOINIT keeps it
