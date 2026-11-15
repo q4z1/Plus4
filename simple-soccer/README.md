@@ -85,25 +85,29 @@ jump.
 
 The title shows the two teams' flags framed, the home one on the left, the
 away one lower down on the right, "VS" between them and each team's name
-beside its own (`data/flags.txt`, drawn by `tools/mkflags.py`). A flag is
-6 x 3 multicolour cells, 48 x 24 pixels, 2 to 1: a third of its width is
-two cells, a third of its height one, so stripes in thirds lie on the
-cells' edges. A cell has four colours - the title's background, a dark
-green that is the flags' dark green (the frame keeps it from the
-background), white and a second shared colour, and one of its own (navy
-one of them) - so most flags come
-out to the pixel: the stripes, the Union Jack and the stars of Australia
-and New Zealand, the USA's canton, Korea's circle, Canada's leaf (the
-small emblems drawn pixel for pixel). The second shared colour is red,
-unless another lets more of the flag come out: Brazil's is yellow (its
-green each cell's own), Ghana's and Mexico's gold. The two flags share no
-line of the picture, so the title sets that colour for each while it is
-drawn (in the border at the end of a line, where the TED shows no stray
-pixel for it). No colour shows that is not in the flag.
+beside its own (`data/flags.txt`, read by `tools/mkflags.py`). A flag is
+6 x 3 multicolour cells, 24 x 24 multicolour pixels, 48 x 24 on the
+screen, drawn pixel for pixel after each flag's official construction
+sheet: stripes and crosses to their measures, the emblems - stars, suns,
+the Union Jack, Canada's leaf, Korea's taegeuk and trigrams, the arms of
+Spain, Portugal, Mexico and Croatia - at their own size, as far as pixels
+twice as wide as high go. A cell has four colours - the title's
+background, a dark green that is the flags' dark green (the frame keeps
+it from the background), white and a second shared colour, and one of its
+own - and every flag keeps to that, so each comes out to the pixel. The
+second shared colour is red, unless another lets more of the flag come
+out: Sweden's, Senegal's, Brazil's and Uruguay's is yellow, Colombia's
+navy, Ghana's black (its star). Brazil's and Portugal's greens are the
+dark green: their green, yellow, blue, white (and Portugal's red) would
+not go into the cells otherwise. The two flags share no line of the
+picture, so the title sets that colour for each while it is drawn (in
+the border at the end of a line, where the TED shows no stray pixel for
+it). No colour shows that is not in the flag.
 
-The patterns of all the flags' cells are on the disk once each (150 of
-them); the title copies those of the two flags shown into the character
-codes its own font leaves free. Each side has two sets of codes: a flag
+The patterns of all the flags' cells are on the disk once each (162 of
+them, each only with the rows that are not the one above again - some 5
+bytes rather than 8); the title copies those of the two flags shown into
+the character codes its own font leaves free. Each side has two sets of codes: a flag
 chosen is made ready in the set not on the screen, and only its 18
 cells change over, below the picture's last line - a flag is never seen
 half drawn, and the screen is multicolour throughout (the name's

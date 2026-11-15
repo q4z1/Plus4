@@ -112,6 +112,9 @@ SPLIT_BELOW = LINE_0 + (FLAG_ROW + DROP + FLAG_H) * 8   ; and below)
 LOC         = $E200             ; (prep's: a pattern's code, 256 bytes,
 CBUF        = $E300             ; the cells' codes and colours made ready)
 CCOL        = $E320
+P_LO        = $E500             ; (pstarts': where each pattern starts in
+P_HI        = $E600             ; FLAGS - free while the title runs: the
+                                ; boot's music has gone, cup.s is done)
 FRAME_CODE  = 0                 ; the frames' 8 characters' first code
 
         .zeropage
@@ -282,6 +285,7 @@ title_on:
         jsr draw_menu
         jsr draw_frames
         jsr kits
+        jsr pstarts             ; (the flags' patterns: where each starts)
         ldx #0
         jsr prep
         jsr commit
@@ -919,8 +923,9 @@ split:
         rts
 
 ; new_code: the next free code of the set being made ready (t_k2: side *
-; 2 + set) for pattern X, its pattern copied there from FLAGS; the code
-; in A. Keeps X.
+; 2 + set) for pattern X, its pattern drawn there from FLAGS; the code in
+; A. Keeps X. A pattern there is a mask - bit 7 row 0, a bit set for each
+; row that is not the one above again (row 0's always) - and those rows.
 new_code:
         stx t_f
         ldy t_k2
@@ -929,22 +934,7 @@ new_code:
         clc                     ; (the set's codes)
         adc code_lo,y
         sta t_code
-        ldy #0                  ; the pattern, FLAGS + X * 8, to TFONT +
-        sty t_s + 1             ; code * 8
-        txa
-        asl a
-        rol t_s + 1
-        asl a
-        rol t_s + 1
-        asl a
-        rol t_s + 1
-        clc
-        adc #<FLAGS
-        sta t_s
-        lda t_s + 1
-        adc #>FLAGS
-        sta t_s + 1
-        lda #0
+        lda #0                  ; to TFONT + code * 8
         sta t_d + 1
         lda t_code
         asl a
@@ -958,14 +948,63 @@ new_code:
         clc
         adc #>TFONT
         sta t_d + 1
-        ldy #7
-@copy:  lda (t_s),y
-        sta (t_d),y
-        dey
-        bpl @copy
+        lda P_LO,x              ; from where it starts (pstarts)
+        sta t_s
+        lda P_HI,x
+        sta t_s + 1
+        ldx #0                  ; its rows
+        ldy #0
+        lda (t_s,x)
+        sta t_m
+@row:   asl t_m
+        bcc @same               ; (the one above again)
+        inc t_s
+        bne :+
+        inc t_s + 1
+:       lda (t_s,x)
+@same:  sta (t_d),y
+        iny
+        cpy #8
+        bne @row
         ldx t_f
         lda t_code
         rts
+
+; pstarts: where each pattern starts in FLAGS, to P_LO and P_HI (for
+; new_code - they differ in length: a byte for the mask, one for each bit
+; set in it)
+pstarts:
+        lda FLAGS_SIG           ; (no flags: a test)
+        cmp #'F'
+        bne @none
+        lda #<FLAGS
+        sta t_s
+        lda #>FLAGS
+        sta t_s + 1
+        ldx #0
+@one:   lda t_s
+        sta P_LO,x
+        lda t_s + 1
+        sta P_HI,x
+        ldy #0
+        lda (t_s),y
+        ldy #1
+@bit:   beq @len                ; (no bit left)
+        asl a
+        bcc @bit
+        iny
+        bcs @bit
+@len:   tya
+        clc
+        adc t_s
+        sta t_s
+        bcc :+
+        inc t_s + 1
+:       inx
+        cpx #<FLAGS_N
+        bne @one
+@none:  rts
+.assert FLAGS_N <= 256, error, "pstarts: 256 patterns at most"
 
 ; the four sets of 37 codes the flags have (tools/mkflags.py: MOST): the
 ; home team's 8-31 and 96-108, 109-127 and 164-181; the away team's
@@ -1145,6 +1184,7 @@ t_new:      .byte 0             ; what is pushed that was not
 t_tick:     .byte 0
 t_x:        .byte 0             ; (draw_team's, draw_names')
 t_f:        .byte 0
+t_m:        .byte 0             ; (new_code's: a pattern's mask)
 t_c:        .byte 0
 t_i:        .byte 0
 t_n:        .byte 0

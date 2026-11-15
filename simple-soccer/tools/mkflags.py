@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
 mkflags.py - the teams' flags for the title (data/flags.txt), as the file
-"flags" on the disk: build/disk/flags.prg, which the boot loads to $D480.
+"flags" on the disk: build/disk/flags.prg, which the boot loads to FLAGS
+(build/gen/flags.inc).
 
     mkflags.py [--png preview.png]
 
 A flag is 6 x 3 multicolour cells, 24 x 24 multicolour pixels (each two
-hires pixels wide: 48 x 24, 2 to 1) - a third of the width 2 cells, of
-the height one, so stripes in thirds lie on the cells' edges. A cell has
-four colours: the title's background ($FF15, a dark green - the flags'
-dark green), white ($FF16) and red ($FF17), which every cell shares, and
-one of its own: the most a cell needs of any other (navy one of them).
-Where a cell would need two others, the lesser takes the cell's own (black
-the nearest it has) - an edge between two of them runs along the cells, a
-step, but no pixel comes out in a colour that is not there.
+hires pixels wide: 48 x 24, 2 to 1), drawn pixel for pixel in
+data/flags.txt. A cell has four colours: the title's background ($FF15, a
+dark green - the flags' dark green), white ($FF16) and the flag's second
+shared colour ($FF17: red, unless another leaves fewer pixels wrong),
+which every cell shares, and one of its own - of the others it needs, the
+one that leaves the least wrong. data/flags.txt keeps to that; where a
+flag does not, the pixels it would show in another colour (the nearest
+the cell has) are counted and named.
 The title draws a frame round each flag, so its dark green does not run
 into the background.
 
@@ -26,7 +27,10 @@ next flag made ready in the one not shown).
 The file, one part after the other, ending at $E200 (the loading screen's
 music there) - its address and its parts' in build/gen/flags.inc, for the
 boot and the title, which lies below it:
-  the patterns, 8 bytes each
+  the patterns (FLAGS_N), each a mask - bit 7 row 0, a bit set for each
+    row that is not the one above it again (row 0's always) - and those
+    rows: most patterns repeat rows, so they take some 5 bytes, not 8
+    (the title finds where each starts once: title.s pstarts)
   each team (title.s's order): its 18 cells' patterns, a row of 6 at a
     time, as their numbers, then their own colours, two cells a byte (the
     first in the low four bits), as places in the palette
@@ -36,7 +40,6 @@ boot and the title, which lies below it:
   the title's font (tools/mkdata.py's title_font: only the title needs it,
     so it is here rather than in the game's file)
 """
-import math
 import os
 import re
 import struct
@@ -86,182 +89,21 @@ def teams():
 
 
 def read():
-    """the flags (name: shapes) and the sprites (name: rows)"""
-    flags, sprites = {}, {}
-    lines = open(os.path.join(ROOT, 'data', 'flags.txt')).read().split('\n')
+    """the flags: name, 24 rows of 24 colours' letters (a multicolour pixel
+    each)"""
+    flags = {}
+    lines = [l.rstrip() for l in open(os.path.join(ROOT, 'data', 'flags.txt'))]
+    lines = [l for l in lines if l and not l.startswith('#')]
     i = 0
     while i < len(lines):
-        line = lines[i].rstrip()
-        i += 1
-        if not line or line.startswith('#'):
-            continue
-        if line.startswith('sprite '):
-            name = line.split()[1]
-            rows = []
-            while lines[i].strip() != 'end':
-                rows.append(lines[i].strip())
-                i += 1
-            i += 1
-            assert len(set(map(len, rows))) == 1, 'sprite %s: rows of different lengths' % name
-            assert len(rows[0]) % 2 == 0, 'sprite %s: an odd width' % name
-            # drawn in square pixels: two to a multicolour pixel, the one
-            # that is not see-through
-            sprites[name] = [''.join(r[i] if r[i] != '.' else r[i + 1]
-                                     for i in range(0, len(r), 2)) for r in rows]
-            continue
-        m = re.match(r'(.+?)\s{2,}(.*)', line)
-        flags[m.group(1).strip()] = [s.split() for s in m.group(2).split(';')]
-    return flags, sprites
-
-
-# ---- painting ---------------------------------------------------------------
-
-def paint(shapes, sprites):
-    """the flag, a colour's name for each multicolour pixel: shapes at 4 x 4
-    samples a pixel (the colour most of them have), then the sprites
-    pixel for pixel"""
-    S = 4
-    img = [[None] * (W * S) for _ in range(H * S)]
-    for sh in shapes:
-        kind, args = sh[0], sh[1:]
-        if kind == 'sprite':
-            continue
-        cols = None
-        if kind in ('hstripes', 'vstripes'):
-            cols = []
-            for a in args:
-                c, n = (a.split('*') + ['1'])[:2]
-                cols += [c] * int(n)
-        for sy in range(H * S):
-            for sx in range(W * S):
-                x = (sx + 0.5) / (W * S)        # 0-1 across and down
-                y = (sy + 0.5) / (H * S)
-                c = shape_at(kind, args, x, y, x * HW, y * HH, cols)
-                if c is not None:
-                    assert c in COLOURS, c
-                    img[sy][sx] = c
-    out = []
-    for y in range(H):
-        row = []
-        for x in range(W):
-            count = {}
-            for sy in range(y * S, y * S + S):
-                for sx in range(x * S, x * S + S):
-                    c = img[sy][sx]
-                    count[c] = count.get(c, 0) + 1
-            row.append(max(count, key=lambda k: count[k]))
-        out.append(row)
-    for sh in shapes:
-        if sh[0] != 'sprite':
-            continue
-        rows = sprites[sh[1]]
-        # its middle at x, y (0-1 of the flag), in whole pixels
-        x0 = round(float(sh[2]) * W - len(rows[0]) / 2)
-        y0 = round(float(sh[3]) * H - len(rows) / 2)
-        for j, r in enumerate(rows):
-            for i, ch in enumerate(r):
-                if ch != '.':
-                    out[y0 + j][x0 + i] = LETTERS[ch]
-    return out
-
-
-def shape_at(kind, args, x, y, px, py, cols):
-    """the colour shape (kind, args) has at x, y (0-1 of the flag; px, py
-    the same in hires pixels, HW x HH), None where it is not"""
-    if kind == 'field':
-        return args[0]
-    if kind == 'hstripes':
-        return cols[min(int(y * len(cols)), len(cols) - 1)]
-    if kind == 'vstripes':
-        return cols[min(int(x * len(cols)), len(cols) - 1)]
-    if kind == 'rect':
-        x0, y0, x1, y1 = map(float, args[1:5])
-        return args[0] if x0 <= x < x1 and y0 <= y < y1 else None
-    if kind == 'cross':
-        w = float(args[1]) * HH
-        cx = float(args[2]) if len(args) > 2 else 0.5
-        cy = float(args[3]) if len(args) > 3 else 0.5
-        if abs(px - cx * HW) < w / 2 or abs(py - cy * HH) < w / 2:
-            return args[0]
-        return None
-    if kind == 'saltire':
-        w = float(args[1]) * HH
-        x0, y0, x1, y1 = map(float, args[2:6]) if len(args) > 2 else (0, 0, 1, 1)
-        if not (x0 <= x < x1 and y0 <= y < y1):
-            return None
-        bx0, by0, bx1, by1 = x0 * HW, y0 * HH, x1 * HW, y1 * HH
-        for (ax, ay, ex, ey) in ((bx0, by0, bx1, by1), (bx0, by1, bx1, by0)):
-            dx, dy = ex - ax, ey - ay
-            if abs(dy * (px - ax) - dx * (py - ay)) / math.hypot(dx, dy) < w / 2:
-                return args[0]
-        return None
-    if kind == 'ujack':
-        # a Union Jack in the box: a white saltire, a thin red one off its
-        # middle (the way the flag has it), a white cross, a red cross
-        x0, y0, x1, y1 = map(float, args[0:4])
-        if not (x0 <= x < x1 and y0 <= y < y1):
-            return None
-        bw, bh = (x1 - x0) * HW, (y1 - y0) * HH
-        u, v = px - x0 * HW, py - y0 * HH               # in the box
-        c = None
-        for sign in (1, -1):
-            # the diagonals: from the top left, and from the bottom left
-            if sign == 1:
-                d = (bh * u - bw * v) / math.hypot(bw, bh)
-            else:
-                d = (bh * u - bw * (bh - v)) / math.hypot(bw, bh)
-            if abs(d) < bh * 0.1:
-                c = 'white'
-                # the red one's half: below the diagonal on the left,
-                # above it on the right (counterchanged)
-                side = d * sign * (1 if u < bw / 2 else -1)
-                if -bh * 0.06 < side < 0:
-                    c = 'red'
-        if abs(u - bw / 2) < bh * 0.17 or abs(v - bh / 2) < bh * 0.17:
-            c = 'white'
-        if abs(u - bw / 2) < bh * 0.09 or abs(v - bh / 2) < bh * 0.09:
-            c = 'red'
-        return c
-    if kind in ('disc', 'halfdisc', 'ring'):
-        cx, cy, r = map(float, args[1:4])
-        d = math.hypot(px - cx * HW, py - cy * HH)
-        if kind == 'ring':
-            return args[0] if r * HH - float(args[4]) * HH < d < r * HH else None
-        if d < r * HH and (kind == 'disc' or py >= cy * HH):
-            return args[0]
-        return None
-    if kind == 'star':
-        cx, cy, r = map(float, args[1:4])
-        return args[0] if in_star(px - cx * HW, py - cy * HH, r * HH) else None
-    if kind == 'diamond':
-        cx, cy, w, h = map(float, args[1:5])
-        return args[0] if abs(px - cx * HW) / (w * HW / 2) + abs(py - cy * HH) / (h * HH / 2) < 1 else None
-    if kind == 'band':
-        # a straight band from x0 y0 to x1 y1, w thick (of the height)
-        x0, y0, x1, y1, w = map(float, args[1:6])
-        ax, ay, ex, ey = x0 * HW, y0 * HH, x1 * HW, y1 * HH
-        dx, dy = ex - ax, ey - ay
-        t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
-        if 0 <= t <= 1 and abs(dy * (px - ax) - dx * (py - ay)) / math.hypot(dx, dy) < w * HH / 2:
-            return args[0]
-        return None
-    raise SystemExit('what is %r?' % kind)
-
-
-def in_star(dx, dy, r):
-    """inside a five-pointed star of radius r, a point up"""
-    d = math.hypot(dx, dy)
-    if d > r:
-        return False
-    sector = 2 * math.pi / 5
-    ang = math.atan2(dx, -dy) % sector
-    ang = min(ang, sector - ang)            # 0 at a point, 36 degrees a notch
-    a = math.radians(36)
-    p1 = (r, 0.0)
-    p2 = (r * 0.382 * math.cos(a), r * 0.382 * math.sin(a))
-    q = (d * math.cos(ang), d * math.sin(ang))
-    cross = (p2[0] - p1[0]) * (q[1] - p1[1]) - (p2[1] - p1[1]) * (q[0] - p1[0])
-    return cross >= 0
+        name, rows = lines[i].strip(), lines[i + 1:i + 1 + H]
+        i += 1 + H
+        assert len(rows) == H and all(len(r) == W for r in rows), '%s: not %d x %d' % (name, W, H)
+        for r in rows:
+            for ch in r:
+                assert ch in LETTERS, '%s: what is %r?' % (name, ch)
+        flags[name] = [[LETTERS[ch] for ch in r] for r in rows]
+    return flags
 
 
 # ---- cells --------------------------------------------------------------------
@@ -273,21 +115,23 @@ def dist(a, b):
     return 4 * (luma(ra) - luma(rb)) ** 2 + sum((p - q) ** 2 for p, q in zip(ra, rb))
 
 
-def cells(img, rule=None, second='red'):
+def cells(img, second='red'):
     """each cell: (its pattern: 8 bytes, its own colour); and how many
-    pixels came out in another colour. rule (the flag's "cells C L"): a
-    cell with any C in it takes C for its own, and what else it cannot
-    show comes out L. second: the flag's second shared colour ($FF17 while
-    it is drawn), red unless another loses fewer pixels (best_second)"""
+    pixels came out in another colour. second: the flag's second shared
+    colour ($FF17 while it is drawn), red unless another loses fewer pixels
+    (best_second). A cell's own colour is the one of the others that
+    leaves the least wrong; a pixel it cannot show takes the nearest it has"""
     out, lost = [], 0
     shared = (SHADE, 'white', second)
     for cy in range(CELLS_H):
         for cx in range(CELLS_W):
             px = [img[cy * 8 + y][cx * 4 + x] for y in range(8) for x in range(4)]
-            others = [p for p in px if p not in shared]
-            own = max(sorted(set(others)), key=others.count) if others else 'black'
-            if rule and rule[0] in others:
-                own = rule[0]
+            others = sorted(set(p for p in px if p not in shared))
+
+            def wrong(own):
+                have = shared + (own,)
+                return sum(min(dist(c, p) for c in have) for p in px)
+            own = min(others, key=wrong) if others else 'black'
             have = [SHADE, 'white', second, own]
             pat = []
             for y in range(8):
@@ -295,8 +139,7 @@ def cells(img, rule=None, second='red'):
                 for x in range(4):
                     p = img[cy * 8 + y][cx * 4 + x]
                     if p not in have:
-                        p = (min(have, key=lambda c: dist(c, p)) if p == 'black'
-                             else rule[1] if rule else own)
+                        p = min(have, key=lambda c: dist(c, p))
                         lost += 1
                     b = b << 2 | (3 if p == own else have.index(p))
                 pat.append(b)
@@ -309,23 +152,21 @@ def best_second(img):
     pixels in another colour - red, unless another does better (Brazil's
     green and yellow, Ghana's gold, green and red: each cell has room for
     one colour of its own besides)"""
-    return min(['red'] + [c for c in OWN if c not in ('red', SHADE)], key=lambda c: (cells(img, None, c)[1], c != 'red'))
+    return min(['red'] + [c for c in OWN if c not in ('red', SHADE)], key=lambda c: (cells(img, c)[1], c != 'red'))
 
 
 def main():
     names = teams()
-    defs, sprites = read()
+    defs = read()
     missing = [n for n in names if n not in defs]
     if missing:
         raise SystemExit('no flag for %s' % ', '.join(missing))
     all_cells, second = {}, {}
     for n in names:
-        rule = [sh[1:] for sh in defs[n] if sh[0] == 'cells']
-        img = paint([sh for sh in defs[n] if sh[0] != 'cells'], sprites)
+        img = defs[n]
         second[n] = best_second(img)
-        all_cells[n], lost = cells(img, rule[0] if rule and second[n] == 'red' else None,
-                                   second[n])
-        if lost and not rule:
+        all_cells[n], lost = cells(img, second[n])
+        if lost:
             print('  %-13s %d pixels in another colour' % (n, lost))
         if second[n] != 'red':
             print('  %-13s %s for red' % (n, second[n]))
@@ -346,9 +187,12 @@ def main():
     # the file: the patterns, the teams, the palette ("F" its 16th byte),
     # the second colours, the title's font - one after the other
     data = bytearray()
-    for p in pats:
-        data += p
+    for p in pats:                              # each: its mask, its rows
+        rows = [r for i, r in enumerate(p) if i == 0 or r != p[i - 1]]
+        data.append(sum(0x80 >> i for i in range(8) if i == 0 or p[i] != p[i - 1]))
+        data += bytes(rows)
     at = {'FLAGS_TEAMS': len(data)}
+    pat_bytes = len(data)
     for n in names:
         cs = all_cells[n]
         data += bytes(pats.index(pat) for pat, _ in cs)
@@ -369,12 +213,13 @@ def main():
         struct.pack('<H', load) + bytes(data))
     with open(os.path.join(ROOT, 'build', 'gen', 'flags.inc'), 'w') as f:
         f.write('; the flags\' file (tools/mkflags.py) - do not edit\n')
-        f.write('FLAGS       = $%04X             ; the patterns, 8 bytes each\n' % load)
+        f.write('FLAGS       = $%04X             ; the patterns: a mask, its rows\n' % load)
+        f.write('FLAGS_N     = %d               ; (patterns)\n' % len(pats))
         for k, v in at.items():
             f.write('%-11s = $%04X\n' % (k, v))
         f.write('FLAGS_END   = $%04X\n' % (load + len(data)))
-    print('flags: %d teams, %d patterns, %d colours of their own, %d bytes'
-          % (len(names), len(pats), len(palette), len(data)))
+    print('flags: %d teams, %d patterns (%d bytes), %d colours of their own, %d bytes'
+          % (len(names), len(pats), pat_bytes, len(palette), len(data)))
     if len(sys.argv) > 2 and sys.argv[1] == '--png':
         preview(sys.argv[2], names, all_cells, second)
 
