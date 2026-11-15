@@ -10,6 +10,9 @@
 #                   bootmus.cfg), which the title goes on with
 #   flags           the title's flags (tools/mkflags.py, data/flags.txt)
 #   game            the game, packed by exomizer: it unpacks itself
+#   cup, pages      the way back from a match, the league's page (cup.s:
+#                   the loading screen, then the rest)
+#   title, league   the title again (cup.s loads it), the league saved
 set -e
 cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
@@ -110,7 +113,8 @@ $B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAM
 python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-15} \
     "simple soccer=build/disk/boot.prg" music@${MUSIC_INTERLEAVE:-20}=build/disk/music.prg \
     flags@${GAME_INTERLEAVE:-36}=build/disk/flags.prg game@${GAME_INTERLEAVE:-36}=build/disk/game.prg \
-    cup@${MUSIC_INTERLEAVE:-20}=build/disk/cup.prg title@${MUSIC_INTERLEAVE:-20}=build/disk/title.prg \
+    cup@${MUSIC_INTERLEAVE:-20}=build/disk/cup.prg pages@${MUSIC_INTERLEAVE:-20}=build/disk/pages.prg \
+    title@${MUSIC_INTERLEAVE:-20}=build/disk/title.prg \
     league@${MUSIC_INTERLEAVE:-20}=build/disk/league.prg
 echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg), game packed $(stat -c%s build/disk/game.prg) bytes"
 

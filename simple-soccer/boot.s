@@ -545,20 +545,11 @@ irq_tick:
         lda IRQFLAG
         sta IRQFLAG
 tick:   inc frame               ; (the music calls this once a frame)
-        lda frame               ; the dots after "LOADING": a wave through
-        lsr                     ; them, a step every 4 frames, each dot 4
-        lsr                     ; steps behind the one before
-        ldx #2
-@dot:   and #15
-        tay
-        lda dot_lum,y
-        sta DOTS,x
-        tya
-        clc
-        adc #4
-        dex
-        bpl @dot
-        dec spin_t
+        lda frame               ; the dots after "LOADING" (dots.inc), a
+        and #3                  ; step every 4 frames
+        bne :+
+        jsr dots
+:       dec spin_t
         beq :+
         rts
 :       lda #SPIN_T
@@ -589,8 +580,10 @@ spin_hi:
         .repeat SPIN_FRAMES, I
         .byte >(SPIN + I * 72)
         .endrepeat
-; the dots' colours: white, its luminance rising and falling
-dot_lum:    .byte $21, $21, $21, $21, $21, $21, $21, $21, $31, $41, $51, $61, $71, $61, $51, $31
+DOT_P       = dot_p             ; (dots.inc's variables: tail2's)
+DOT_C       = dot_c
+DOT_H       = dot_h
+        .include "dots.inc"
 
 tail_end:
         .assert tail_end <= $04FC, error, "the boot's tail: into the KERNAL's $04FC"
@@ -678,6 +671,9 @@ l_addr: .word 0
 frame:  .byte 0
 spin_t: .byte SPIN_T
 spin_k: .byte 0
+dot_p:  .byte 0
+dot_c:  .byte 0
+dot_h:  .byte 0
 tail2_end:
         .assert tail2_end <= $06EC, error, "the boot's second tail: over a page"
 

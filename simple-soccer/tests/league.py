@@ -365,6 +365,14 @@ def look(drive):
         wait(v, lambda: at_title(v), 'the title')
         v.run_for(1)
 
+        def name(i):
+            """a team's name (title.s teams: 16 bytes each, the name first)"""
+            return bytes(c & 0x7F for c in v.mem(lab['teams'] + 16 * i, 13)).decode('ascii').strip()
+        tm = K_CH + 3                       # t_team (the first at random:
+        away = ram(v, tm + 1, 1)[0]         # title.s k_init)
+        an = name(away)
+        print('teams', ram(v, tm, 2), name(ram(v, tm, 1)[0]), '-', an)
+
         def shot(name):
             v.run_for(0.5)
             t = title_text(v)
@@ -376,30 +384,28 @@ def look(drive):
         press(v, RIGHT)
         press(v, RIGHT)                     # LEAGUE
         t = shot('one')
-        assert 'LEAGUE' in t[8] and 'PLAYER 1' in t[11] and 'BRAZIL' not in t[17] \
+        assert 'LEAGUE' in t[8] and 'PLAYER 1' in t[11] and an not in t[17] \
             and 'VS' not in t[14] and 'AWAY' not in t[16], 'the away team still there'
         for _ in range(6):                  # down as far as it goes
             press(v, DOWN)
         print('t_row', v.mem(lab['t_row'], 1))
         assert v.mem(lab['t_row'], 1)[0] == 4, 'the away line to choose'
-        tm = K_CH + 3                       # t_team: the hidden away team
-        away = v.mem(tm + 1, 1)[0]          # (Brazil) to be chosen as well
         while v.mem(tm, 1)[0] != away:
             was = v.mem(tm, 1)[0]
             press(v, RIGHT)
             now = v.mem(tm, 1)[0]
-            assert now == (was + 1) % 34 or now == away, 'a team passed over'
+            assert now == was + 1 or now == 0 or now == away, 'a team passed over'
             assert now != was, 'stuck'
         t = shot('brazil')
         h, a = v.mem(tm, 2)
         print('teams', h, a)
-        assert 'BRAZIL' in t[12] and a != h, 'not BRAZIL at home'
+        assert an in t[12] and a != h, f'not {an} at home'
         for _ in range(2):
             press(v, 0x01)                  # up to MODE
         press(v, LEFT)
         press(v, LEFT)                      # MATCH: another away team
         t = shot('brazil-match')
-        assert 'BRAZIL' in t[12] and 'BRAZIL' not in t[17] and 'VS' in t[14], \
+        assert an in t[12] and an not in t[17] and 'VS' in t[14], \
             'the away team as the home team'
         press(v, RIGHT)
         press(v, RIGHT)                     # LEAGUE again
@@ -409,7 +415,7 @@ def look(drive):
             press(v, 0x01)                  # up to PLAYERS
         press(v, RIGHT)                     # 2
         t = shot('two')
-        assert 'PLAYER 1' in t[11] and 'PLAYER 2' in t[16] and 'CAMEROON' in t[17] \
+        assert 'PLAYER 1' in t[11] and 'PLAYER 2' in t[16] and name(ram(v, tm + 1, 1)[0]) in t[17] \
             and 'VS' in t[14], 'not the players'
         press(v, DOWN)
         press(v, LEFT)

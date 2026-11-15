@@ -425,8 +425,9 @@ title_on:
         jmp chosen
 
 ; k_init: the choices kept from the match before (K_CH), the first time
-; the first of each - 3 minutes, one player, a match - and Argentina
-; against Brazil (the cyan and yellow there were before); the modes there
+; the first of each - 3 minutes, one player, a match - and two teams at
+; random (the beam and the timer: when the disk got the title going),
+; never the same; the modes there
 ; are to choose: the league only from the disk, going on with one only
 ; if there is one (L_ON)
 k_init:
@@ -441,7 +442,21 @@ k_init:
         sta K_CH,x
         dex
         bpl :-
-        lda #K_MAGIC_0
+        ldx #1
+@rnd:   lda $FF1E
+        eor TED_LINE
+        eor $FF02
+        and #63
+        cmp #TEAMS
+        bcs @rnd
+        sta t_team,x
+        dex
+        bpl @rnd
+        cmp t_team + 1          ; (A: the home team's)
+        bne :+
+        inx                     ; (X 0: the home team again)
+        beq @rnd
+:       lda #K_MAGIC_0
         sta K_CHOK
         lda #K_MAGIC_1
         sta K_CHOK + 1
@@ -1139,7 +1154,7 @@ NAME_LEN    = * - name
 big_of:     .byte "SIMPLECOR"           ; (mkdata's LOGO_LETTERS)
 ; a colour each letter, warm to cool round the hues a multicolour screen
 ; leaves to text (0-7) - the gap's the cup's gold (cup.s: its page)
-hue_of:     .byte 7, 7, 2, 2, 4, 4, 7, 6, 6, 3, 3, 5, 5
+hue_of:     .byte LOGO_HUES    ; (game.inc)
 digit_of:   .byte "357"
 
 ; the lines: row, column, colour, text, 0 - $FF the end
@@ -1164,7 +1179,7 @@ lines:
         .byte "PRESS FIRE TO KICK OFF", 0
         .byte PORTS_ROW, PORTS_COL, C_DIM       ; (its text: show_values)
         .byte "                            ", 0
-        .byte CREDIT_ROW, 8, $41
+        .byte CREDIT_ROW, 8, $52        ; (the name's red, below)
         .byte "BY Q4Z1 2026 (& CLAUDE)", 0
         .byte $FF
 

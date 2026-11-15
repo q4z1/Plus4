@@ -56,7 +56,7 @@ files in `data/`.
 The game comes on a disk, `simple-soccer.d64`: `LOAD"*",8,1` and `RUN`
 (or `LOAD"SIMPLE SOCCER",8`). The first program, the boot (`boot.s`),
 puts up its loading screen at once - the name as the title shows it, in
-the same place, a football turning, and "LOADING" with its dots running - and keeps it going while it loads the
+the same place, a football turning, and "LOADING" with its dots swelling and fading in the name's colours - and keeps it going while it loads the
 flags and the game, and while the game unpacks itself (it is packed by
 exomizer: 21 KB on the disk, 49 KB in memory). On a 1541 (any of them),
 1570 or 1571 it loads with the fast loader taken over from trainschedule
@@ -323,8 +323,8 @@ the keeper's catch, the referee's whistle - a trill - at a kick-off,
 three blasts at half and full time, and the crowd roaring at a goal.
 
 A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
-minutes), one player or two, a match or training, and the home and the away team to choose -
-the stick up and down to a line, left and right on it - fire to kick
+minutes), one player or two, a match or training, and the home and the away team to choose
+(the first time two at random) - the stick up and down to a line, left and right on it - fire to kick
 off. TEAM SETTINGS (right on it) turns to a second page of those four
 lines: each team's formation, or RANDOM; MAIN SETTINGS (left on it)
 turns back. Each of the 35 teams has its shirt and a second one: the TED gives a
@@ -407,15 +407,17 @@ with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was - and fire again the title, with the choices as they were. A
 league over has its own: THE LEAGUE IS WON BY, the first and second in
 the flags' places. The title is no longer in memory then - the match's pictures are
-where it was - so it comes from the disk again, with its flags (some 10 KB,
-"LOADING" on the screen meanwhile). The way there outlasts the match in
+where it was - so it comes from the disk again, with its flags (some 13 KB,
+the boot's loading screen meanwhile: the ball and the dots at once, the
+name as soon as the flags, its characters, are in). The way there outlasts the match in
 memory the game never touches (`resident.s`): the fast loader's Plus/4
 half at $0200 - the KERNAL's page 2 and 3, of no use to the game - and a
 little code at $FF40, under the ROM. On a drive without the fast loader
 the KERNAL is woken up again as the machine's reset does it (IOINIT,
 RAMTAS, RESTOR - not BASIC, not the screen), from code at $0600 below the
-ROM. Either way the file `cup` (`cup.s`) comes first: it loads the flags
-and the title, puts the league's page up, saves the league, and starts
+ROM. Either way the file `cup` (`cup.s`, 1.3 KB) comes first: the
+loading screen, which loads the flags, the rest of `cup.s` (the file
+`pages`) and the title; that puts the league's page up, saves the league, and starts
 the game again from its beginning - the winner's page set up for the
 title to show first (two hooks in it, turned to code `cup` leaves at
 $E340, free while the title runs). `tests/league.py` goes through it in

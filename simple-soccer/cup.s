@@ -2,10 +2,11 @@
 ; its matches
 ;
 ; The match has the whole of the memory; after it, the title (title.s)
-; and its flags come back from the disk. k_go (resident.s) loads this to
-; CUP ($E500, up to picture 2's place) and starts it, the ROM out, no interrupt,
+; and its flags come back from the disk. k_go (resident.s) loads the
+; file "cup" to CUP ($E200) and starts it, the ROM out, no interrupt,
 ; "LOADING ..." on the screen - the ROM's characters, the colours at $0800
-; and the codes at $0C00. It loads the flags and the title, and then
+; and the codes at $0C00. That is the loading screen (below): it loads
+; the flags, the rest of this (the file "pages") and the title, and then
 ; (K_REQ):
 ;
 ;   K_TITLE   starts the game again: its title, the choices as they were
@@ -44,13 +45,15 @@
         .include "resident.inc" ; (RES_LOAD, RES_NM, RES_DST: build.sh)
 
         .import score, start, teams, TEAMS_N, joy_read, joy
-        .import t_hook1, t_hook2, draw_menu, draw_lines, lines, hue_of
+        .import t_hook1, t_hook2, draw_menu, draw_lines, lines
         .importzp t_ptr, t_s, t_d
         .importzp T_LEN_ROW, T_MODE_ROW, T_FIRE_ROW, T_NAME_ROW, T_NAME_COL, T_FIELD_W
         .importzp T_LABEL_ROW, T_LABEL_COL, T_DROP, T_VS_ROW, T_MORE_ROW
         .importzp T_PORTS_ROW, T_CREDIT_ROW, T_SUB_ROW, T_LOGO_ROW, T_LOGO_COL
         .import __WIN_LOAD__, __WIN_RUN__, __WIN_SIZE__
         .import __CUPLOW_LOAD__, __CUPLOW_RUN__, __CUPLOW_SIZE__
+        .import __LDLOW_LOAD__, __LDLOW_RUN__, __LDLOW_SIZE__
+        .import __CUPBSS_RUN__, __CUPBSS_SIZE__, __LDRUN_RUN__, __CUP_RUN__, CUP_MAIN
 
         .repeat 256, I          ; (text as it is, ASCII: put makes screen
         .charmap I, I           ; codes of it)
@@ -98,7 +101,26 @@ ROW_MENU    = 23                ; the choices, two rows
         .segment "CUPHDR"
         .addr CUP               ; (the file's load address)
 
-        .segment "CUP"
+; ---- the loading screen, while the rest comes back -------------------------
+;
+; Two files. k_go (resident.s) loads the small one, "cup", to CUP and
+; starts it: the loading screen - the boot's (boot.s): the name, a
+; football turning, "LOADING" and its dots - which then loads the flags
+; (the name's characters: the title's font, so the name comes with them),
+; the rest of this, "pages" (the league's page, the winner's: CUP_MAIN
+; on), and the title; then goes on there (cup_go). "LOADING" is the ROM's
+; letters at k_go's place: the screen only gains the rest.
+;
+; "cup" lies where only the start and the loading are: CUPPRE (the
+; start) where the loading screen's characters go (codes 64 to 81, the
+; page's 64 on), LDRUN up to WIN's place's end - the page's characters
+; and the winner's page (WIN) go over both later - and above that the
+; low parts' load images (CUPLOW, LDLOW), which "pages" loads over once
+; they are copied. The ball and the dots turn on the raster interrupt:
+; through $FFFE with the ROM out, through the KERNAL's $0314 while it
+; loads (its page 3 then the KERNAL's: kstub's reset).
+
+        .segment "CUPPRE"
 
 cup:    ldx #$FF
         txs
@@ -110,19 +132,335 @@ cup:    ldx #$FF
         eor $FF02
         ora #1
         sta seed
+        lda #0
+        sta seed + 1
         ldx #<__CUPLOW_SIZE__   ; the files' names and the KERNAL's way
 :       lda __CUPLOW_LOAD__ - 1,x   ; low (CUPLOW)
         sta __CUPLOW_RUN__ - 1,x
         dex
         bne :-
-        lda #<FLAGS             ; the flags and the title back
+        ldx #0                  ; and the loading screen's low part
+:       lda __LDLOW_LOAD__,x
+        sta __LDLOW_RUN__,x
+        inx
+        bne :-
+        ldx #<__LDLOW_SIZE__
+:       lda __LDLOW_LOAD__ + $FF,x
+        sta __LDLOW_RUN__ + $FF,x
+        dex
+        bne :-
+        jmp ld_go
+        .include "spinpack.inc" ; (tools/mkspinner.py: the ball's first
+                                ; picture - ld_go copies it up, just over
+                                ; itself, before ld_rom writes here)
+.assert spin_first <= LD_FONT + (LD_BALL - 64) * 8, error, "cup.s: spin_first above where ld_go copies it (downwards)"
+.assert logo >= PFONT + 100 * 8, error, "cup.s: logo under the page's characters"
+.assert cup = CUP, error, "cup.s: CUP (game.inc) is not CUP_AT (simple-soccer.cfg)"
+.assert __LDRUN_RUN__ >= LD_END, error, "cup.s: LDRUN under the loading screen's characters"
+.assert __WIN_RUN__ + __WIN_SIZE__ <= __CUP_RUN__, error, "cup.s: CUP_MAIN in WIN's place"
+.assert __CUPLOW_SIZE__ < $100, error, "CUPLOW: copied as up to 255 bytes"
+.assert __LDLOW_SIZE__ > $100 && __LDLOW_SIZE__ < $200, error, "LDLOW: copied as 257 to 511 bytes"
+.assert __CUPBSS_SIZE__ > 0 && __CUPBSS_SIZE__ < $100, error, "CUPBSS: cleared as up to 255 bytes"
+
+; the loading screen's characters: over the start, at the page's 64 on
+LD_FONT     = PFONT + 64 * 8
+LD_BLANK    = 64                ; (as the page's " ")
+LD_DOT      = 65
+LD_LETTERS  = 66                ; "LOADING", the ROM's
+LD_BALL     = 73                ; the ball's nine
+LD_END      = LD_FONT + (LD_BALL + 9 - 64) * 8
+LOAD_AT     = 16 * 40 + 15      ; "LOADING..." (k_go's, the boot's)
+DOTS        = COLR + LOAD_AT + 7
+SPIN_ROW    = 11                ; the ball (the boot's)
+SPIN_COL    = 18
+LD_VBL      = 204               ; the interrupt: below the text
+KIRQEND     = $FCBE             ; the KERNAL's interrupt's end: Y, X, A
+KIRQ        = $0314             ; (its way on, while the ROM is in)
+
+        .segment "LDLOW"        ; (run low: the ROM in; and room)
+
+; ld_rom: "LOADING" from the ROM's characters to LD_LETTERS on
+ld_rom: sta $FF3E
+        ldx #7 * 8 - 1
+:       txa
+        lsr a
+        lsr a
+        lsr a
+        tay
+        txa
+        and #7
+        ora ld_off,y
+        tay
+        lda $D000,y
+        sta LD_FONT + (LD_LETTERS - 64) * 8,x
+        dex
+        bpl :-
+        sta $FF3F
+        rts
+ld_off: .byte 12 * 8, 15 * 8, 1 * 8, 4 * 8, 9 * 8, 14 * 8, 7 * 8
+
+; ld_irq_rom: the interrupt while the KERNAL loads (through its $0314):
+; the RAM in for a moment
+ld_irq_rom:
+        sta $FF3F
+        jsr ld_tick
+        sta $FF3E
+        jmp KIRQEND
+
+; the interrupt: every 4 frames the dots a step and the ball a picture
+ld_irq: pha
+        txa
+        pha
+        tya
+        pha
+        jsr ld_tick
+        pla
+        tay
+        pla
+        tax
+        pla
+        rti
+ld_tick:
+        lda TED_IRQ
+        sta TED_IRQ
+        inc ld_f
+        lda ld_f
+        and #3
+        bne @out
+        jsr dots
+        ldx ld_k
+        inx
+        cpx #SPIN_FRAMES
+        bcc :+
+        ldx #0
+:       stx ld_k
+        lda ld_vlo,x
+        sta @from + 1
+        lda ld_vhi,x
+        sta @from + 2
+        ldx #SPIN_VARY - 1
+@from:  lda $FFFF,x
+        ldy spin_at,x
+        sta LD_FONT + (LD_BALL - 64) * 8,y
+        dex
+        bpl @from
+@out:   rts
+
+ld_glyph:   .byte 0, 0, 0, 0, 0, 0, 0, 0
+            .byte 0, 0, 0, 0, 0, $18, $18, 0        ; (the ROM's ".")
+        .include "spinvary.inc" ; (tools/mkspinner.py: the pictures)
+
+        .segment "LDRUN"
+
+; ld_go: the screen, the interrupt; the flags and the name, the rest of
+; this, the title; then what K_REQ says
+ld_go:  ldx #71                 ; the ball's first picture (from just
+:       lda spin_first,x        ; below: downwards)
+        sta LD_FONT + (LD_BALL - 64) * 8,x
+        dex
+        bpl :-
+        jsr ld_rom
+        ldx #15                 ; the blank and the dot
+:       lda ld_glyph,x
+        sta LD_FONT,x
+        dex
+        bpl :-
+        lda #$0B                ; blank (the border's green, as the
+        sta TED_SCROLLY         ; background) while the codes change
+        ldx #250
+        lda #LD_BLANK
+:       sta CODES - 1,x
+        sta CODES + 249,x
+        sta CODES + 499,x
+        sta CODES + 749,x
+        dex
+        bne :-
+        ldx #6                  ; "LOADING" (its colours: k_go's)
+:       txa
+        clc
+        adc #LD_LETTERS
+        sta CODES + LOAD_AT,x
+        dex
+        bpl :-
+        lda #LD_DOT
+        sta CODES + LOAD_AT + 7
+        sta CODES + LOAD_AT + 8
+        sta CODES + LOAD_AT + 9
+        ldx #8                  ; the ball, white
+:       txa
+        clc
+        adc #LD_BALL
+        ldy ld_cell,x
+        sta CODES + SPIN_ROW * 40 + SPIN_COL,y
+        lda #$71
+        sta COLR + SPIN_ROW * 40 + SPIN_COL,y
+        dex
+        bpl :-
+        jsr dots
+        lda TED_BMBASE          ; the characters from the RAM, at PFONT
+        and #$FB
+        sta TED_BMBASE
+        lda #>PFONT
+        sta TED_CHBASE
+        lda #$1B                ; on again
+        sta TED_SCROLLY
+        lda $FFFE               ; the interrupt (its vector as it was
+        sta ld_vec              ; kept)
+        lda $FFFF
+        sta ld_vec + 1
+        lda #<ld_irq
+        sta $FFFE
+        lda #>ld_irq
+        sta $FFFF
+        lda K_FAST              ; (the KERNAL's way: through its $0314
+        bne :+                  ; too - the fast loader's page 3 else)
+        lda #<ld_irq_rom
+        sta KIRQ
+        lda #>ld_irq_rom
+        sta KIRQ + 1
+:       lda #LD_VBL
+        sta TED_RCMP
+        lda #$02                ; the raster's, line < 256
+        sta TED_IRQEN
+        lda TED_IRQ
+        sta TED_IRQ
+        cli
+        lda #<FLAGS             ; the flags, the name; the rest, the title
         ldx #>FLAGS
         ldy #<n_flags
+        jsr dload
+        jsr logo
+        lda #<CUP_MAIN
+        ldx #>CUP_MAIN
+        ldy #<n_pages
         jsr dload
         lda #<TITLE_AT
         ldx #>TITLE_AT
         ldy #<n_title
         jsr dload
+        sei                     ; the interrupt off again, its vector back
+        lda #0
+        sta TED_IRQEN
+        lda TED_IRQ
+        sta TED_IRQ
+        lda ld_vec
+        sta $FFFE
+        lda ld_vec + 1
+        sta $FFFF
+        jmp cup_go
+
+; dload: to A/X the file named at Y (in CUPLOW, low for the KERNAL: its
+; name 0-terminated); till it works, the border red
+dload:  sta dl_lo
+        stx dl_hi
+        sty dl_name
+        lda #>__CUPLOW_RUN__
+        sta dl_name + 1
+@again: lda K_FAST
+        beq @kernal
+        lda dl_name
+        sta RES_NM
+        lda dl_name + 1
+        sta RES_NM + 1
+        lda dl_lo
+        sta RES_DST
+        lda dl_hi
+        sta RES_DST + 1
+        jsr RES_LOAD
+        bcc @ok
+        bcs @red
+@kernal:
+        jsr k_load
+        bcc @ok
+@red:   lda #$32
+        sta TED_BORDER
+        jmp @again
+@ok:    lda #PAGE_BORDER
+        sta TED_BORDER
+        rts
+
+DOT_C       = ld_dc             ; (dots.inc's variables)
+DOT_P       = ld_dp
+DOT_H       = ld_dh
+        .include "dots.inc"     ; (the boot's too)
+
+ld_cell:    .byte 0, 1, 2, 40, 41, 42, 80, 81, 82   ; the ball's, a row at a time
+        .include "spinat.inc"   ; (tools/mkspinner.py: where the
+                                ; pictures' bytes go)
+ld_vlo:
+        .repeat SPIN_FRAMES, I
+        .byte <(spin_vary + I * SPIN_VARY)
+        .endrepeat
+ld_vhi:
+        .repeat SPIN_FRAMES, I
+        .byte >(spin_vary + I * SPIN_VARY)
+        .endrepeat
+
+; (logo: the page's too - over WIN's place, which is only copied there
+; after the last page; past the page's characters)
+; logo: the name as the title has it, twice the size, a colour each letter
+; (lighter above) - its characters at PFONT (the flags' file)
+logo:   ldx #P_NAME_N - 1
+        ldy #(P_NAME_N - 1) * 2
+@logo:  lda p_name,x
+        sta CODES + T_LOGO_ROW * 40 + T_LOGO_COL,y
+        clc
+        adc #1
+        sta CODES + T_LOGO_ROW * 40 + T_LOGO_COL + 1,y
+        adc #1
+        sta CODES + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL,y
+        adc #1
+        sta CODES + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL + 1,y
+        lda p_hue,x
+        ora #$70
+        sta COLR + T_LOGO_ROW * 40 + T_LOGO_COL,y
+        sta COLR + T_LOGO_ROW * 40 + T_LOGO_COL + 1,y
+        and #$57
+        sta COLR + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL,y
+        sta COLR + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL + 1,y
+        dey
+        dey
+        dex
+        bpl @logo
+        rts
+
+; the name's characters (title.s name, as the title draws it): the top
+; left of each - the big letters SIMPLECOR from title.s code 96, the cup's
+; at "["
+P_BIG       = 96 - P_LOW
+p_name:     .byte P_BIG, P_BIG + 4, P_BIG + 8, P_BIG + 12, P_BIG + 16, P_BIG + 20
+            .byte '[' - P_LOW
+            .byte P_BIG, P_BIG + 28, P_BIG + 24, P_BIG + 24, P_BIG + 20, P_BIG + 32
+P_NAME_N    = * - p_name
+p_hue:      .byte LOGO_HUES     ; (title.s hue_of: the title not loaded yet
+                                ; while the loading screen shows the name)
+.assert * - p_hue = P_NAME_N, error, "p_hue: a hue each letter"
+
+; the loading's variables (not cleared: set before they are read; low,
+; out of the way of LDLOW, CUPBSS)
+        .segment "LDBSS"
+seed:   .res 2                  ; (rnd's: on from the start)
+dl_name: .res 2
+dl_lo:  .res 1
+dl_hi:  .res 1
+ld_vec: .res 2
+ld_f:   .res 1
+ld_k:   .res 1
+ld_dc:  .res 1
+ld_dp:  .res 1
+ld_dh:  .res 1
+
+        .segment "CUPPGHDR"
+        .addr CUP_MAIN          ; ("pages"' load address)
+
+        .segment "CUP"
+
+; cup_go: (the loading done) the variables cleared, then what K_REQ says
+cup_go: lda #0
+        ldx #<__CUPBSS_SIZE__
+:       sta __CUPBSS_RUN__ - 1,x
+        dex
+        bne :-
         lda K_REQ
         cmp #K_NEW
         beq @new
@@ -541,11 +879,6 @@ t40_hi:
         .repeat 25, I
         .byte >(I * 40)
         .endrepeat
-w_buf:  .res 32
-w_n:    .res 1
-w_x:    .res 1
-w_y:    .res 1
-w_y2:   .res 1
 
 ; ---- WIN: the winner's page in the title, at $E340 ------------------------------
 
@@ -999,30 +1332,7 @@ page:   lda #$0B                ; blank while it is made
         sta PFONT + 96 * 8,x
         dex
         bpl :-
-        ; the name as the title has it, twice the size, a colour each
-        ; letter (lighter above)
-        ldx #P_NAME_N - 1
-        ldy #(P_NAME_N - 1) * 2
-@logo:  lda p_name,x
-        sta CODES + T_LOGO_ROW * 40 + T_LOGO_COL,y
-        clc
-        adc #1
-        sta CODES + T_LOGO_ROW * 40 + T_LOGO_COL + 1,y
-        adc #1
-        sta CODES + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL,y
-        adc #1
-        sta CODES + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL + 1,y
-        lda hue_of,x
-        ora #$70
-        sta COLR + T_LOGO_ROW * 40 + T_LOGO_COL,y
-        sta COLR + T_LOGO_ROW * 40 + T_LOGO_COL + 1,y
-        and #$57
-        sta COLR + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL,y
-        sta COLR + (T_LOGO_ROW + 1) * 40 + T_LOGO_COL + 1,y
-        dey
-        dey
-        dex
-        bpl @logo
+        jsr logo
         lsr $FF12               ; the characters from the RAM ($04: k_go's),
         lda #>PFONT             ; at PFONT; on again
         sta TED_CHBASE
@@ -1539,36 +1849,6 @@ frame:  lda TED_LINE
 
 ; ---- the disk -----------------------------------------------------------------------
 
-; dload: to A/X the file named at Y (in CUPLOW, low for the KERNAL: its
-; name 0-terminated); till it works, the border red
-dload:  sta dl_lo
-        stx dl_hi
-        sty dl_name
-        lda #>__CUPLOW_RUN__
-        sta dl_name + 1
-@again: lda K_FAST
-        beq @kernal
-        lda dl_name
-        sta RES_NM
-        lda dl_name + 1
-        sta RES_NM + 1
-        lda dl_lo
-        sta RES_DST
-        lda dl_hi
-        sta RES_DST + 1
-        jsr RES_LOAD
-        bcc @ok
-        bcs @red
-@kernal:
-        jsr k_load
-        bcc @ok
-@red:   lda #$32
-        sta TED_BORDER
-        jmp @again
-@ok:    lda #PAGE_BORDER
-        sta TED_BORDER
-        rts
-
 ; save: the league to the disk ("SAVING ...", then what came of it)
 save:   jsr cksum
         ldy #ROW_DISK
@@ -1751,14 +2031,6 @@ rnd:    lsr seed + 1
 ; ---- what it says, the league's order ------------------------------------------
 
 t_day:      .byte "LEAGUE - MATCHDAY ", 0
-; the name's characters (title.s name, as the title draws it): the top
-; left of each - the big letters SIMPLECOR from title.s code 96, the cup's
-; at "["
-P_BIG       = 96 - P_LOW
-p_name:     .byte P_BIG, P_BIG + 4, P_BIG + 8, P_BIG + 12, P_BIG + 16, P_BIG + 20
-            .byte '[' - P_LOW
-            .byte P_BIG, P_BIG + 28, P_BIG + 24, P_BIG + 24, P_BIG + 20, P_BIG + 32
-P_NAME_N    = * - p_name
 t_of:       .byte " OF 7", 0
 t_vs:       .byte " - ", 0
 t_tab:      .byte "   TEAM           P  W  D  L GOALS PTS", 0
@@ -1803,8 +2075,8 @@ fs_name:    .byte $4C, $45, $41, $47, $55, $45, $A0, $A0
 ; resident.s's RES as the boot left it: put back before the game starts
 res_copy:   .incbin "build/resident.bin", 0, $200
 
-; its variables
-seed:   .word 0
+; its variables: low, not in the file (cleared by cup_go: over LDLOW)
+        .segment "CUPBSS"
 last_m: .res 1                  ; the match just played (record)
 day:    .res 1                  ; the page's matchday
 r_row:  .res 1
@@ -1826,7 +2098,7 @@ c_tmp3: .res 1
 m_n:    .res 1
 m_sel:  .res 1
 m_was:  .res 1
-m_off:  .byte 0                 ; menu's texts: 0 the page's, 2 ask's
+m_off:  .res 1                  ; menu's texts: 0 the page's, 2 ask's
 m_x:    .res 1
 sim_x:  .res 1
 sim_y:  .res 1
@@ -1838,9 +2110,6 @@ sim_l:  .res 1
 sim_p:  .res 1
 sim_n:  .res 1
 lv_y:   .res 1
-dl_name: .res 2
-dl_lo:  .res 1
-dl_hi:  .res 1
 fbits:  .res 1
 fpairs: .res 1
 fcount: .res 1
@@ -1854,6 +2123,12 @@ tb_a:   .res L_TEAMS
 tb_pts: .res L_TEAMS
 tb_gd:  .res L_TEAMS
 order:  .res L_TEAMS
+w_buf:  .res 32                 ; (win_*)
+w_n:    .res 1
+w_x:    .res 1
+w_y:    .res 1
+w_y2:   .res 1
+        .segment "CUP"
 
 ; the choices as title.s has them (K_CH)
 t_sel       = K_CH
@@ -1978,6 +2253,7 @@ k_save: lda K_DEV
 ; the files' names (PETSCII capitals: as ASCII's)
 n_flags:    .byte "FLAGS", 0
 n_title:    .byte "TITLE", 0
+n_pages:    .byte "PAGES", 0
 n_scratch:  .byte "S0:"
 n_league:   .byte "LEAGUE", 0
 n_scratch_end = * - 1

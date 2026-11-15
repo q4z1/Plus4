@@ -93,7 +93,8 @@ klow_end:
 
 ; k_go: from the end of a match (play.s) or the title's league (title.s),
 ; the interrupt off: the screen "LOADING ...", the sound off, cup.s
-; loaded and started
+; loaded and started (its file "cup": the loading screen, which loads the
+; rest)
 k_go:   sei
         lda #0
         sta TED_IRQEN

@@ -2,7 +2,11 @@
 """
 mkspinner.py - the football that turns while the boot loads (boot.s):
 build/gen/spinner.inc, FRAMES pictures of 24 x 24 hires pixels, each as
-its nine characters, a row of three at a time (8 bytes each).
+its nine characters, a row of three at a time (8 bytes each); and
+build/gen/spinpack.inc, spinat.inc and spinvary.inc, the same packed for
+the league's loading screen (cup.s): the first picture, where the bytes
+that change from picture to picture go - and those bytes, picture by
+picture.
 
     mkspinner.py [--png preview.png]
 
@@ -20,6 +24,9 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', 'build', 'gen', 'spinner.inc')
+PACKED = os.path.join(HERE, '..', 'build', 'gen', 'spinpack.inc')
+VARY = os.path.join(HERE, '..', 'build', 'gen', 'spinvary.inc')
+AT = os.path.join(HERE, '..', 'build', 'gen', 'spinat.inc')
 FRAMES = 8
 SIZE = 24
 TILT = math.radians(55)         # the axis leant back towards the viewer
@@ -92,7 +99,31 @@ def main():
             b = chars(fr)
             for i in range(0, len(b), 8):
                 f.write('        .byte ' + ', '.join('$%02X' % x for x in b[i:i + 8]) + '\n')
-    print('spinner: %d frames' % FRAMES)
+    # the same packed, for the league's loading screen (cup.s, short of
+    # room): the first picture whole, then of each picture only the bytes
+    # that are not the same in all of them, and where they go
+    pics = [chars(fr) for fr in frames]
+    vary = [i for i in range(72) if len(set(p[i] for p in pics)) > 1]
+    with open(PACKED, 'w') as f:
+        f.write('; made by tools/mkspinner.py - do not edit\n')
+        f.write('SPIN_FRAMES = %d\n' % FRAMES)
+        f.write('SPIN_VARY   = %d             ; bytes that change\n' % len(vary))
+        f.write('spin_first:\n')
+        for i in range(0, 72, 8):
+            f.write('        .byte ' + ', '.join('$%02X' % x for x in pics[0][i:i + 8]) + '\n')
+    with open(AT, 'w') as f:
+        f.write('; made by tools/mkspinner.py - do not edit\n')
+        f.write('spin_at:\n')
+        for i in range(0, len(vary), 12):
+            f.write('        .byte ' + ', '.join('%d' % x for x in vary[i:i + 12]) + '\n')
+    with open(VARY, 'w') as f:
+        f.write('; made by tools/mkspinner.py - do not edit\n')
+        f.write('spin_vary:\n')
+        for p in pics:
+            v = [p[i] for i in vary]
+            for i in range(0, len(v), 12):
+                f.write('        .byte ' + ', '.join('$%02X' % x for x in v[i:i + 12]) + '\n')
+    print('spinner: %d frames, %d bytes of 72 change' % (FRAMES, len(vary)))
     if len(sys.argv) > 2 and sys.argv[1] == '--png':
         S = 6
         W = FRAMES * (SIZE + 2) * S

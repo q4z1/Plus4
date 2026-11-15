@@ -24,6 +24,10 @@ KEY_ROW     = $FD30
 PAGE_BG     = $05               ; (luminance 0: the TED's darkest)
 PAGE_BORDER = $05
 
+; the name's colours, a letter each - S I M P L E, the cup, S O C C E R -
+; on the title (title.s hue_of) and the league's pages (cup.s)
+.define LOGO_HUES 7, 7, 2, 2, 4, 4, 7, 6, 6, 3, 3, 5, 5
+
 ; ---- the screen -----------------------------------------------------------
 
 SCR_W       = 40                ; built: 40 x 25 cells, of which the TED
@@ -97,4 +101,5 @@ L_MATCHES   = 28                ; away; $FF not played (cup.s: the order)
 L_LEN       = L_RES + L_MATCHES - L_BLOCK
 L_END       = L_BLOCK + L_LEN
 
-CUP         = $E500             ; cup.s: the way back, the league's page
+CUP         = $E200             ; cup.s: the way back, the league's page
+                                ; (and its loading screen: simple-soccer.cfg)
