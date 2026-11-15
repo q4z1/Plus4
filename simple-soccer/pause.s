@@ -291,6 +291,8 @@ SV_HEAD = K_CH + K_CH_N - K_REQ
         .endrepeat
 .endmacro
 w_tab:  word TOP, 17, "PAUSE"
+        word SCORE_ROW, 18, "-"
+        .byte (SCORE_ROW - TOP) * 40 + 26, 1, $27     ; (')
         word ROW_ON, 16, "CONTINUE"
         word ROW_QUIT, 16, "QUIT"
         .byte $FF
@@ -309,8 +311,8 @@ W_SAVE  = * - w_tab
 page:   stx Z_D
         lda #PAGE_BG
         sta TED_BG
-        lda #PAGE_BORDER
         sta TED_BORDER
+.assert PAGE_BG = PAGE_BORDER, error, "pause.s: the page's border its ground's colour" 
         ldx #0
 :       lda #' '
         sta SCR,x
@@ -341,20 +343,16 @@ page:   stx Z_D
         iny
         bne @word
 @words: lda Z_D                 ; the score and the minute: the pause's
-        bne @ns
+        bne @ns                 ; ("-", "'": its words)
         lda score
         ldx #15
         jsr num
-        lda #'-'
-        sta SCR + SCORE_ROW * 40 + 18
         lda score + 1
         ldx #20
         jsr num
         lda game_min
         ldx #24
         jsr num
-        lda #$27                ; (')
-        sta SCR + SCORE_ROW * 40 + 26
 @ns:    lda #$1B                ; text, 25 rows, on - k_go's: 40 columns,
         sta TED_SCROLLY         ; 128 characters, hires, the ROM's
         lda TED_CTRL2           ; characters at $D000

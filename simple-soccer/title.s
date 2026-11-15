@@ -495,22 +495,32 @@ k_init:
 ; chosen: t_last), "PLAYER 1" over his; with two players "PLAYER 1" and
 ; "PLAYER 2" over the names, else "HOME" and "AWAY"; drawn anew only
 ; when that changes
-look:   ldx #1                  ; (the away team shown,
-        ldy #0                  ; HOME and AWAY)
-        lda t_two               ; (two players: theirs)
-        bne @pl
-        lda t_train
+look:   ldy #0                  ; (HOME and AWAY)
+        lda t_train             ; (CONTINUE: no teams - the match is the
+        ldx #$FE                ; league's next or the one saved; nor
+        cmp #MODE_ON            ; their settings: t_last the mode's line)
+        beq @set
+        ldx #1                  ; (the away team shown)
+        ldy t_two               ; (two players: theirs, Y 1)
+        bne @set
         cmp #MODE_LEAGUE
         bne @set
-        dex                     ; (a league of one: no away team)
-@pl:    iny                     ; (the players)
+        dex                     ; (a league of one: no away team, PLAYER 1
+        iny                     ; over his)
 @set:   cpx t_shown
         bne @redo
         cpy t_lab
         bne @redo
         rts
-@redo:  stx t_shown
+@redo:  lda t_shown              ; (from none: the home team's flag again,
+        stx t_shown             ; TEAM SETTINGS)
         sty t_lab
+        bpl :+
+        ldx #0
+        jsr prep
+        jsr commit
+        jsr draw_menu
+:
         txa
         clc
         adc #ROWS - 2
@@ -531,7 +541,15 @@ look:   ldx #1                  ; (the away team shown,
         bpl :-
         inc TCODE + (LABEL_ROW + TEXT_DROP) * 40 + LABEL_COL + 5
 @away:  lda t_shown
-        bne @show
+        bpl :+
+        ldx #10 * 20            ; (none: TEAM SETTINGS's row and both
+        lda #' '                ; teams' blank, to the away name's)
+@none:  sta TCODE + MORE_ROW * 40 - 1,x
+        sta TCODE + MORE_ROW * 40 + 10 * 20 - 1,x
+        dex
+        bne @none
+        beq @both
+:       bne @show
         ldx #AWAY_COL + FLAG_W - NAME_COL + 1   ; (from the name's "<" to
         lda #' '                                ; the frame's right edge)
 :       sta TCODE + (FLAG_ROW + DROP - 1) * 40 + NAME_COL - 1,x
@@ -552,6 +570,7 @@ look:   ldx #1                  ; (the away team shown,
 t_player:   .byte "PLAYER 1"
 .assert LABEL_ROW + TEXT_DROP = FLAG_ROW + DROP + 1 && NAME_ROW + TEXT_DROP = FLAG_ROW + DROP + 2, error, "look: the away team's rows"
 .assert FLAG_ROW + DROP - 1 = FLAG_ROW + FLAG_H, error, "look: VS in the away frame's top row"
+.assert MORE_ROW + 10 > FLAG_ROW + DROP + 3 && MORE_ROW = FLAG_ROW - 2, error, "look: the rows CONTINUE blanks"
 
 ; t_hook1, t_hook2: as the title is loaded nothing (none, C clear); after
 ; a match cup.s makes them jumps to its winner's page (cup.s WIN): drawn

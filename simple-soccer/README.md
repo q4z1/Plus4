@@ -42,7 +42,9 @@ played: it is still to play. YES saves the match on the disk first (the
 file "match": one at a time, a newer save takes its place), then the
 title offers CONTINUE: it goes on with the match as it was - a league's
 match counts in the league once it is played out. A league going on
-waits meanwhile; CONTINUE takes the saved match first.
+waits meanwhile; CONTINUE takes the saved match first. With CONTINUE
+chosen the title shows no teams and no TEAM SETTINGS: the match is the
+saved one or the league's next, not the title's to choose.
 
 With one player the joystick in either port (or the keyboard) runs the
 home team. With two, the first joystick (and the keyboard) runs the home
