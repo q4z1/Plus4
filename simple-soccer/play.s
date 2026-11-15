@@ -117,7 +117,10 @@ SLIDE_Z     = 8                 ; this low
 FALL_T      = 50                ; frames one knocked over by it lies (c10f0c)
 FALL_DECEL  = 96                ; and slides on slower each frame (c14150)
 FOUL_D2     = 800               ; a foul only this near the ball (squared)
-LOCK_T      = 12                ; frames the other team cannot dribble it
+LOCK_T      = 24                ; frames the other team cannot dribble it
+                                ; (the C64's 12 of its 25 a second)
+GLUE_T      = 16                ; and a dribbler past his glue (dribble)
+GLUE_GAP    = 16                ; no dribble touch this long: his turns anew
 BR_WAIT     = 15                ; the computer: frames between its kicks (c15486)
 BR_KICKED   = 13                ; and from its team's last (c1547a: $56 < 13)
 CPU_SLIDE_D2 = 200              ; the yellow runner slides in this near it
@@ -313,7 +316,13 @@ c_tyh:  .res NOBJ
 c_th:   .res NOBJ
 o_hd:   .res NOBJ               ; 1: the slide is a diving header
 dbg_plan:   .res 3 * 64         ; (a test's plan: see dbg_on)
+glue_n:     .res 2              ; each team's dribbler's turns with it,
+glue_d:     .res 2              ; his last way,
+glue_f:     .res 2              ; the frame of his last touch (dribble)
+o_3yl:      .res NOBJ           ; (o_3*: below)
         .bss
+o_3xl:      .res NOBJ
+o_3yf:      .res NOBJ
 
 goal:       .res 1              ; 1: dead for a goal - the net holds the ball
 rs_kind:    .res 1              ; the restart (R_*),
@@ -391,8 +400,9 @@ kp_sh:      .res 2
 kp_dn:      .res 2              ; and his guesses at a shot's pace: the
 kp_dv:      .res 2              ; first kp_dn of 16 his own, the rest kp_dv
                                 ; (title.s keeps: Sensible Soccer's)
-sk_duel:    .res PLAYERS        ; how good he is at the ball: his team's
-                                ; level 1-8, a star one more (title.s runs)
+sk_duel:    .res PLAYERS        ; how good he is at the ball: 15 less his
+                                ; team's level (1 the best, 8), a star one
+                                ; more - 7 to 15 (title.s runs)
 tac_ys:     .res 44             ; (tac_*: below)
 
 ; the formations the teams play (data/tactics.txt; title.s chosen copies
@@ -408,11 +418,11 @@ tac_y0l:    .res 44
 tac_y0h:    .res 44
 
 
-        .segment "DATA"         ; (in MAIN: the BSS is full)
-o_3xf:  .res NOBJ               ; each object's step three times over
-o_3xl:  .res NOBJ               ; (triple): play_others's for a picture
-o_3yf:  .res NOBJ               ; of three frames
-o_3yl:  .res NOBJ
+        .segment "DATA"         ; (in MAIN: the BSS is full - o_3xl, o_3yf
+o_3xf:  .res NOBJ               ; in it, o_3yl in the LOWBSS): each
+                                ; object's step three times over (triple):
+                                ; play_others's for a picture of three
+                                ; frames
 
         .rodata
 ; the line-ups for a kick-off, as Arlasoft Soccer has them: 4-4-2, keeper,
@@ -1371,29 +1381,6 @@ odds:
         cmp tmp
         rts
 
-; contest: carry clear if the helper X, at the ball, gets it - at once if
-; the other team's joystick's player has it not at his feet, else as
-; duel's (odds); the loser's team not to touch it for LOCK_T frames. In
-; switch: ctrl_b is the other team's. Keeps X.
-contest:
-        stx z_obj
-        ldx ctrl_b
-        bmi @got
-        jsr at_feet
-        ldx z_obj
-        bcs @got
-        ldy ctrl_b
-        jsr odds
-        lda me                  ; (lost: his team's lock)
-        bcs :+
-        eor #1                  ; (won: the other's)
-:       tay
-        lda #LOCK_T
-        sta lock_t,y
-        rts
-@got:   clc
-        rts
-
 ; may_face: carry clear if a set piece's taker may face way A, as
 ; Sensible Soccer lets him (a bit for each way, c0f8ea): into the pitch
 ; or towards the other goal - up to 90 degrees off for a kick-off, a
@@ -1930,8 +1917,49 @@ dist2:
         rts
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs,
-; faster than he runs by DRIB_KICK
+; faster than he runs by DRIB_KICK - unless he is past his glue, as on the
+; C64 (Arlasoft Soccer): his team counts his turns with the ball since it
+; got it (no touch for GLUE_GAP frames: anew); from glue_of's on (by
+; sk_duel: 4 - 21), a turn with the other team's joystick's player at the
+; ball too has his team not touch it for GLUE_T frames - the other's then
 dribble:
+        ldy me
+        lda frame_n
+        sec
+        sbc glue_f,y
+        cmp #GLUE_GAP + 1
+        lda frame_n
+        sta glue_f,y
+        lda o_dir,x
+        bcc @on
+        sta glue_d,y            ; (anew)
+        lda #0
+        sta glue_n,y
+        beq @kick
+@on:    cmp glue_d,y
+        beq @kick
+        sta glue_d,y            ; (a turn)
+        lda glue_n,y
+        clc
+        adc #1
+        sta glue_n,y
+        ldy sk_duel,x
+        cmp glue_of - 7,y
+        bcc @kick
+        txa                     ; (the other team's at it: near_ball)
+        pha
+        clc
+        ldx ctrl_b
+        bmi :+
+        jsr near_ball
+:       pla
+        tax
+        bcc @kick
+        ldy me
+        lda #GLUE_T
+        sta lock_t,y
+        rts
+@kick:
         lda me
         sta last_team
         jsr touch
@@ -1981,6 +2009,10 @@ dribble:
         sta o_dzl + BALL
         sta o_dzf + BALL
 :       rts
+
+        .segment "RODATA"
+glue_of:    .byte 4, 5, 6, 8, 11, 14, 17, 21, 21  ; (by sk_duel, 7-15)
+        .segment "CODE"
 
 ; trap: the first touch, as Sensible Soccer's (c14314, c118ea): the
 ; helper running to the ball, at it (at_ball), has the joystick now and
@@ -3607,14 +3639,15 @@ switch:
         lda o_slide,x
         beq :+
         rts
-:       ldx helper              ; the helper at the ball: his - against
-        bmi :+                  ; the other team's player with it at his
-        ldy me                  ; feet, the better more often (contest);
-        lda lock_t,y            ; not just after losing it so
+:       ldx helper              ; the helper at the ball: his - unless
+        bmi :+                  ; the other team holds it (on the C64
+        ldy me                  ; only the joystick's players fight for
+        lda lock_t,y            ; it: duel); not just after losing it so
         bne :+
         jsr at_ball
         bcc :+
-        jsr contest
+        lda me
+        jsr held
         bcs :+
         stx ctrl
         lda #$FF
@@ -3772,9 +3805,13 @@ help:
         lda recv
         cmp helper
         beq @run
-@own:   lda me                  ; (his team's: no one)
-        eor #1
-        jsr held
+@own:   lda #$FF                ; (his team's: no one; nor anyone's, a
+        ldy two                 ; joystick's team - only its joystick's
+        bne @held               ; player goes for it then, as on the C64)
+        ldy me
+        beq @held
+        lda #0                  ; (the computer's: its own)
+@held:  jsr held
         bcc @in
 :       lda #$FF
         sta helper

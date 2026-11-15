@@ -168,9 +168,11 @@ within 14 pixels of him (but not at his feet), your player within 56
 pixels of it, and not facing his way or within 45 degrees of it - so
 its fouls come as yours do.
 
-As in Sensible Soccer and on the C64, the cyan player nearest a ball his
-team has not got - not yours, not the keeper - runs to it on his own, as
-a pass's receiver does to meet it. The joystick stays with the player
+As in Sensible Soccer and on the C64, the cyan player nearest a ball no
+one has - not yours, not the keeper - runs to it on his own, as a pass's
+receiver does to meet it; a ball the other team has is left to the
+player you run, as on the C64 (the computer's runner still goes for it,
+to slide in). The joystick stays with the player
 who has the ball at his feet, goes to the one running to it once he
 gets to it, and else to the player nearest it - not the one on his way to it, not
 the one who has just passed or shot. Your player's shirt flickers a
@@ -257,15 +259,18 @@ Nothing else sets one player apart from another, as nothing does in
 Sensible Soccer: everyone shoots as hard (2208, rising 1.25, c11756),
 heads only diving and touches the ball as surely - but for one thing
 taken from the C64's Arlasoft Soccer, so a team keeps the ball it has
-won: when the two players on the joysticks are at the ball at once,
-low, one of them gets it - the better more often, his team's level
-(1-8, a star one more) against the other's: even 16 in 32, each level
-between them one in 32 more, at most 23. The ball stops dead at his
-feet, and the other team cannot dribble it for 12 frames. The same roll
-decides when the other team's player running to the ball gets to it
-while the joystick's player has it at his feet, and when a sliding
-tackle reaches it there: lost, the tackle misses the ball, and if it
-knocks him over, that is a foul. The title
+won. Only the two players on the joysticks fight for a ball at a
+player's feet: when they are at it at once, low, one of them gets it -
+the better more often, by his team's level (a level better, or a star,
+one step up): even 16 in 32, each step between them one in 32 more, at
+most 23. The ball stops dead at his feet, and the other team cannot
+dribble it for 24 frames. And it sticks to a dribbler only for so many
+turns with it since he got it - 4 for the weakest (level 8, no star),
+21 for the best: past them, each turn he makes with the other team's
+player at the ball too lets it go to that one, his own team not
+touching it for 16 frames. The same roll decides when a sliding tackle
+reaches the ball at a player's feet: lost, the tackle misses the ball,
+and if it knocks him over, that is a foul. The title
 works out the paces, the keepers and these levels once both teams are
 chosen, a player's team's by its level too.
 

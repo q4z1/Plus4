@@ -1553,9 +1553,10 @@ runs:
         lda #11
 :       tax
         ldy #0
-@one:   lda (t_ptr),y           ; (at the ball: the level, a star one
-        asl a                   ; more - play.s duel)
-        lda t_c
+@one:   lda (t_ptr),y           ; (at the ball: 15 less the level, a
+        asl a                   ; star one more, 7-15 - play.s duel; the
+        lda t_c                 ; level 1 the best)
+        eor #$0F
         adc #0
         sta sk_duel,x
         lda (t_ptr),y           ; a star 64 more
