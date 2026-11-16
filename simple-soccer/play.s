@@ -699,6 +699,8 @@ stand:
         sta o_sph,x
         sta o_mov,x
         sta o_step,x            ; (the standing picture)
+; still: object X's steps 0 (A = 0). Keeps A, X, Y.
+still:
         sta o_vxf,x
         sta o_vxl,x
         sta o_vyf,x
@@ -747,6 +749,7 @@ play_frame:
         sta pj_b
         lda joy_a
 :       sta pj
+        jsr off_chk
         jsr duel
         jsr control             ; (as each: the cyan team's, the yellow
         jsr swap                ; team's swapped in)
@@ -1191,20 +1194,7 @@ control:
         tay
         lda #1
         sta o_mov,x
-        lda o_xl,x              ; 1000 pixels the way the stick points
-        clc
-        adc vec_xl,y
-        sta o_txl,x
-        lda o_xh,x
-        adc vec_xh,y
-        sta o_txh,x
-        lda o_yl,x
-        clc
-        adc vec_yl,y
-        sta o_tyl,x
-        lda o_yh,x
-        adc vec_yh,y
-        sta o_tyh,x
+        jsr aim_way             ; 1000 pixels the way the stick points
         jsr inside
         jsr dist2               ; slower with the ball close
         ldy #SP_RUN
@@ -1446,16 +1436,8 @@ meet:
         ldy me
         lda recv_t,y
         beq @stand
-        lda o_xl + BALL
-        sta o_txl,x
-        lda o_xh + BALL
-        sta o_txh,x
-        lda o_yl + BALL
-        sta o_tyl,x
-        lda o_yh + BALL
-        sta o_tyh,x
         ldy #SP_RUN
-        jsr speed
+        jsr to_ball
         lda #1
         sta o_mov,x
         rts
@@ -1660,15 +1642,7 @@ dive_head:
 ; shot: the ball the way the joystick's player faces, hard (his shooting)
 ; and rising; the aftertouch on
 shot:
-        ldy me
-        lda #0
-        sta kick_t,y
-        lda me
-        sta last_team
-        jsr touch
-        lda ctrl
-        sta last_pl
-        sta kick_pl
+        jsr kick_by
         ldx ctrl
         ldy me                  ; (the team's)
         lda o_dir,x
@@ -2090,6 +2064,18 @@ rnd:
         sta z_rnd
         rts
 
+; to_ball: player X on his way to the ball, at speed Y (speed)
+to_ball:
+        lda o_xl + BALL
+        sta o_txl,x
+        lda o_xh + BALL
+        sta o_txh,x
+        lda o_yl + BALL
+        sta o_tyl,x
+        lda o_yh + BALL
+        sta o_tyh,x
+        jmp speed
+
 ; speed: player X's speed Y (SP_*): SPEED_RUN, SPEED_BALL, or running
 ; to the ball 896 + twice his pace (Sensible Soccer's c107d4: his team's
 ; and his own on top). Keeps X, Y.
@@ -2129,26 +2115,32 @@ shot_speed:
         sta o_sph + BALL
         rts
 
+; kick_by: the joystick's player (ctrl) kicks the ball - his team's and
+; his touch, and his kick
+kick_by:
+        ldy me
+        lda #0
+        sta kick_t,y
+        lda me
+        sta last_team
+        jsr touch
+        lda ctrl
+        sta last_pl
+        sta kick_pl
+        rts
+
 ; ball_ahead: the ball's destination 1000 pixels from it, way Y - a
 ; corner's and a throw-in's turned in a little, as the C64 turns them: up
 ; or down (along a touch line) 250 across towards the middle; a corner
 ; along the goal line 150 in from it, slanting 350 in from it, not 1000.
 ; Keeps X.
 ball_ahead:
-        lda o_xl + BALL
-        clc
-        adc vec_xl,y
-        sta o_txl + BALL
-        lda o_xh + BALL
-        adc vec_xh,y
-        sta o_txh + BALL
-        lda o_yl + BALL
-        clc
-        adc vec_yl,y
-        sta o_tyl + BALL
-        lda o_yh + BALL
-        adc vec_yh,y
-        sta o_tyh + BALL
+        txa
+        pha
+        ldx #BALL
+        jsr aim_way
+        pla
+        tax
         lda kickoff             ; (a set piece taken)
         beq @no
         lda rs_kind
@@ -2210,15 +2202,7 @@ ball_ahead:
 ; far: the one the way he faces if there is one near enough, else the
 ; nearest to that side; or, no one, straight on
 pass:
-        ldy me
-        lda #0
-        sta kick_t,y
-        lda me
-        sta last_team
-        jsr touch
-        lda ctrl
-        sta last_pl
-        sta kick_pl
+        jsr kick_by
         lda #$FF
         sta mate
         sta mate_d
@@ -2265,6 +2249,7 @@ pass:
         ldy me
         lda #RECV_T
         sta recv_t,y
+        jsr off_mark
         jmp kick_to
 :       ldx ctrl                ; no one: straight on
         ldy o_dir,x
@@ -2432,13 +2417,7 @@ mate_dist:
         adc #0
         beq @far
         tay
-@y:     lda sq8_lo,y
-        clc
-        adc mate_t
-        sta tmp
-        lda sq8_hi,y
-        adc mate_t + 1
-        sta tmp + 1
+@y:     jsr sq_add
         bcs @far
         rts
 @far:   lda #$FF
@@ -2887,14 +2866,7 @@ aim:
         lda #$FF                ; there: no step
         sta c_th,x
         lda #0
-        sta o_vxf,x
-        sta o_vxl,x
-        sta o_vyf,x
-        sta o_vyl,x
-        sta o_3xf,x
-        sta o_3xl,x
-        sta o_3yf,x
-        sta o_3yl,x
+        jsr still
         sta c_spl,x             ; (a speed of 0 noted: anew next time)
         sta c_sph,x
         rts
@@ -3794,13 +3766,7 @@ switch:
         adc #0
         beq @next
         tay
-@dy:    lda sq8_lo,y
-        clc
-        adc mate_t
-        sta tmp
-        lda sq8_hi,y
-        adc mate_t + 1
-        sta tmp + 1
+@dy:    jsr sq_add
         bcs @next
         lda tmp
         cmp mate_d
@@ -3931,16 +3897,8 @@ help:
         lda #1
         sta o_mov,x
         sta o_new,x             ; (the way to it worked out anew)
-        lda o_xl + BALL
-        sta o_txl,x
-        lda o_xh + BALL
-        sta o_txh,x
-        lda o_yl + BALL
-        sta o_tyl,x
-        lda o_yh + BALL
-        sta o_tyh,x
         ldy #SP_CHASE
-        jsr speed
+        jsr to_ball
 @out:   rts
 @none:  lda #$FF
         sta helper
@@ -4050,16 +4008,7 @@ rules:
         tya
         eor #1
         sta rs_team
-        lda #R_KICKOFF
-        sta rs_kind
-        lda #<304
-        sta rs_x
-        lda #>304
-        sta rs_x + 1
-        lda #<369
-        sta rs_y
-        lda #>369
-        sta rs_y + 1
+        jsr kick_spot
         lda #DEAD_GOAL
         bne @dead2
 @wide:  ldy #0                  ; the side it went out: x 0 left, 1 right
@@ -4179,6 +4128,7 @@ restart:
         jsr send_off
 :       lda #$FF
         sta card_pl
+        sta off_pl              ; (no one offside)
         lda #0
         sta goal
         ldx #PLAYERS - 1        ; everyone up again (a foul's lying)
@@ -4319,6 +4269,7 @@ foul:
         lda #0
         sta o_hd,x
         jsr stand
+free_at:                        ; (offside: a free kick where X is, for last_team)
         lda last_team
         sta rs_team
         eor flip
@@ -4350,6 +4301,113 @@ foul:
         sta dead_t
         jsr sfx_whistle
         jmp calm
+
+;
+; Offside, as the laws have it (Sensible Soccer and the C64 have none): a
+; pass to a team-mate in the other team's half, nearer its goal line than
+; the ball and than the other team's last but one at the moment it is
+; played - not from a throw-in, a goal kick or a corner - and he the next
+; to touch the ball: the whistle, a free kick for the other team where he
+; is. Anyone else touching it first, or the ball dead, and it is over.
+off_pl      = $ED               ; the receiver offside, $FF none (above the
+off_by      = $EE               ; match's zero page: the save keeps it), the passer
+
+; off_mark: the pass to player X (team me) - offside? Keeps X. (Its
+; pieces: kick_way the side the team attacks - 0 up, $FF down - z_off
+; the line, tmp the nearest two of the others to their line, mate_t
+; counting; positions y / 4, up the more the nearer the goal attacked)
+off_mark:
+        lda #$FF
+        sta off_pl
+        lda kickoff             ; (a throw-in, goal kick, corner: never -
+        beq :+                  ; a kick-off: no one is ahead)
+        lda rs_kind
+        cmp #R_KEEPER
+        bcc @rts
+:       lda me
+        eor flip
+        beq :+
+        lda #$FF
+:       sta kick_way
+        ldy #BALL               ; the line: the ball, the half's,
+        jsr off_y
+        sta z_off
+        lda #369 / 4
+        eor kick_way
+        jsr @less
+        lda #$FF                ; and the other team's last but one
+        sta tmp
+        sta tmp + 1
+        lda #11
+        sta mate_t
+        ldy #21
+        lda me
+        beq @opp
+        ldy #10
+@opp:   lda o_off,y
+        bne @next
+        jsr off_y
+        cmp tmp
+        bcs :+
+        ldx tmp                 ; (the nearest so far now the second)
+        stx tmp + 1
+        sta tmp
+        bcc @next
+:       cmp tmp + 1
+        bcs @next
+        sta tmp + 1
+@next:  dey
+        dec mate_t
+        bne @opp
+        lda tmp + 1
+        jsr @less
+        ldx recv                ; he beyond it: offside
+        txa
+        tay
+        jsr off_y
+        cmp z_off
+        bcs @rts
+        stx off_pl
+        lda ctrl
+        sta off_by
+@rts:   rts
+@less:  cmp z_off               ; (the line: the nearer)
+        bcs :+
+        sta z_off
+:       rts
+
+; off_y: A = object Y's y / 4, upside down (kick_way $FF) for a team
+; attacking down. Keeps X, Y (not mate_t + 1).
+off_y:
+        lda o_yh,y
+        lsr a
+        sta mate_t + 1
+        lda o_yl,y
+        ror a
+        lsr mate_t + 1
+        ror a
+        eor kick_way
+        rts
+
+; off_chk: a frame of play - the receiver offside the next to touch the
+; ball: the whistle; anyone else (but the passer): over
+off_chk:
+        ldx off_pl
+        bmi @rts
+        lda last_pl
+        cmp off_by
+        beq @rts
+        ldy #$FF                ; over, either way
+        sty off_pl
+        cpx last_pl
+        bne @rts
+        iny                     ; the free kick the other team's
+        cpx #11
+        bcs :+
+        iny
+:       sty last_team
+        jmp free_at
+@rts:   rts
 
 ; send_off: player X off the pitch for good - not drawn, not in the
 ; team's play, never near the ball (mate_dist); the joystick, a run to
@@ -5373,26 +5431,10 @@ parry:
         sta tmp + 1
         lda o_spl + BALL
         ldy #2
-        jsr shr16
-        sta tmp
-        lda o_spl + BALL
-        sec
-        sbc tmp
-        sta o_spl + BALL
-        lda o_sph + BALL
-        sbc tmp + 1
-        sta o_sph + BALL
+        jsr ball_less
         ldy #4                  ; (s/4 / 16)
         lda tmp
-        jsr shr16
-        sta tmp
-        lda o_spl + BALL
-        sec
-        sbc tmp
-        sta o_spl + BALL
-        lda o_sph + BALL
-        sbc tmp + 1
-        sta o_sph + BALL
+        jsr ball_less
         lda o_sph,x             ; his: s/2 - s/32
         sta tmp + 1
         lda o_spl,x
@@ -5416,6 +5458,32 @@ parry:
 
 ; shr16: A (low) and tmp + 1 (high) shifted right Y times; A the low
 ; byte, tmp + 1 the high one. Keeps X.
+; ball_less: the ball's speed less (tmp + 1, A) shifted right Y times.
+; Keeps X.
+ball_less:
+        jsr shr16
+        sta tmp
+        lda o_spl + BALL
+        sec
+        sbc tmp
+        sta o_spl + BALL
+        lda o_sph + BALL
+        sbc tmp + 1
+        sta o_sph + BALL
+        rts
+
+; sq_add: tmp = mate_t + Y squared (sq8), A its high byte, carry set if
+; it overflows. Keeps X, Y.
+sq_add:
+        lda sq8_lo,y
+        clc
+        adc mate_t
+        sta tmp
+        lda sq8_hi,y
+        adc mate_t + 1
+        sta tmp + 1
+        rts
+
 shr16:
 :       lsr tmp + 1
         ror a
@@ -5622,6 +5690,12 @@ slide:
         lda #>SPEED_SLIDE
         sta o_sph,x
         ldy o_dir,x
+        jsr aim_way
+        lda #$FF
+        rts
+
+; aim_way: object X's destination 1000 pixels from it, way Y. Keeps X, Y.
+aim_way:
         lda o_xl,x
         clc
         adc vec_xl,y
@@ -5636,7 +5710,6 @@ slide:
         lda o_yh,x
         adc vec_yh,y
         sta o_tyh,x
-        lda #$FF
         rts
 
 ; slides: the sliding tackles on a frame (the joystick's players, the
@@ -5908,13 +5981,7 @@ pair_d2:
         jsr abs16
         bne @far
         tay
-        lda sq8_lo,y
-        clc
-        adc mate_t
-        sta tmp
-        lda sq8_hi,y
-        adc mate_t + 1
-        sta tmp + 1
+        jsr sq_add
         bcc @out
 @far:   lda #$FF
         sta tmp
@@ -6044,10 +6111,15 @@ clock:
 whistle:
         sta dead_t
         jsr sfx_halftime
-        lda #R_KICKOFF
-        sta rs_kind
         lda #0
         sta goal
+        jsr kick_spot
+        jmp calm
+
+; kick_spot: a kick-off next, from the middle
+kick_spot:
+        lda #R_KICKOFF
+        sta rs_kind
         lda #<304
         sta rs_x
         lda #>304
@@ -6056,7 +6128,7 @@ whistle:
         sta rs_y
         lda #>369
         sta rs_y + 1
-        jmp calm
+        rts
 
 ; new_match: after full time, the ball kept dead till fire, which goes
 ; back to the title (resident.s: the title and the league's page from the
@@ -6658,13 +6730,7 @@ br_cone:
         adc #0
         jeq @next
         tay
-@dy:    lda sq8_lo,y
-        clc
-        adc mate_t
-        sta tmp
-        lda sq8_hi,y
-        adc mate_t + 1
-        sta tmp + 1
+@dy:    jsr sq_add
         jcs @next
         cmp #$FF                ; (from $FF00 on: as far off)
         jeq @next

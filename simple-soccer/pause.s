@@ -272,14 +272,15 @@ squares:
         .assert bytes < 256 || bytes .mod 256 = 0, lderror, "pause.s: a block neither under 256 nor whole pages"
 .endmacro
 sv_tab: block K_REQ, SAVE_AT, K_CH + K_CH_N - K_REQ
-        block $0002, SAVE_AT + SV_HEAD, $EC - 1
-        block __HIBSS2_RUN__, SAVE_AT + SV_HEAD + $EC - 1, __HIBSS2_SIZE__
+        block $0002, SAVE_AT + SV_HEAD, ZP_KEPT - 2
+        block __HIBSS2_RUN__, SAVE_AT + SV_HEAD + ZP_KEPT - 2, __HIBSS2_SIZE__
         block __BSS_RUN__, $B800, $0400
         block __LOWBSS_RUN__, $BC00, $0200      ; (to the test's word)
         block $FC00, $BE00, K_VARS - $FC00
 SV_N    = (* - sv_tab) / 6
+ZP_KEPT = $EF                   ; (the match's zero page to $EC, play.s's off_pl and off_by)
 SV_HEAD = K_CH + K_CH_N - K_REQ
-.assert SAVE_AT + SV_HEAD + $EC - 1 + __HIBSS2_SIZE__ <= $B500, lderror, "pause.s: the save's first part into TABLES"
+.assert SAVE_AT + SV_HEAD + ZP_KEPT - 2 + __HIBSS2_SIZE__ <= $B500, lderror, "pause.s: the save's first part into TABLES"
 .assert sq8_lo = SAVE_AT && qs_lo = $B800, lderror, "pause.s: the squares not where the save is"
 
 ; the pages' words: each its place from row TOP (row * 40 + column), its
