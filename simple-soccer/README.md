@@ -139,9 +139,10 @@ second, as Sensible Soccer moves things: a player or the ball always
 heads for a point at a speed, the ball rolls and flies with its friction,
 gravity and bounce, a dribbled ball is kicked on just ahead of the player
 whenever it is at his feet (going up, beside his right foot, where he
-does not hide it - so a turn up and to the right keeps it, other turns
-lose it more often than not, as in Sensible Soccer: the ball does not
-stick to his feet), and a pass goes to a team-mate, harder the
+does not hide it) - as the C64's Arlasoft Soccer kicks it, at his own
+pace and, every other touch, a push more by how good he is (130 for the
+weakest, down to 32 for the best), a little more with the ball behind
+him: it stays close, and he keeps it through his turns - and a pass goes to a team-mate, harder the
 further he is: the nearest within 22.5 degrees of the way you face -
 unless one up to 67.5 degrees off it is under seven tenths as far; only
 with no one in either does it run on by itself. Fire let go before the ball has
@@ -322,6 +323,17 @@ his fourth a second yellow and so a red one. The card is shown by him
 while the ball is dead; with a red he is off when play goes on - not
 drawn, never in reach of the ball, no one's to pass to, the joystick
 gone to a team-mate - and his team plays on with ten.
+
+Two rules neither original has. Offside: a pass to a team-mate in the
+other team's half, nearer its goal line than the ball and than the
+other team's last but one as it goes - not from a kick-off, a throw-in,
+a goal kick or a corner - and he the next to touch it: the whistle, and
+a free kick for the other team where he is. And the double touch: a set
+piece's taker - kick-off, throw-in, goal kick, corner, free kick,
+penalty, the keeper's kick out - may not touch the ball again before
+anyone else has. For 8 frames after his kick no one dribbles it, so it
+leaves his feet; if he is the next to get to it after all, the whistle,
+and a free kick for the other team where he is.
 
 A ball in the air goes over the players' heads unless one of them goes
 for it - and a header is a diving header, as Sensible Soccer has no

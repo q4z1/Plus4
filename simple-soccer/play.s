@@ -48,8 +48,9 @@
         .importzp z_y0, z_d
 mate_t      = z_y0              ; (two each of fig_draw's, dead while the
 tmp         = z_d               ; match goes: scratch on the zero page)
-off_pl      = $ED               ; the receiver offside, $FF none (above the
-off_by      = $EE               ; match's zero page: the save keeps it), the passer
+off_pl      = $ED               ; the receiver offside, $FF none, $FE a set
+off_by      = $EE               ; piece's taker in off_by (above the match's
+                                ; zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
@@ -121,6 +122,7 @@ FALL_DECEL  = 96                ; and slides on slower each frame (c14150)
 FOUL_D2     = 800               ; a foul only this near the ball (squared)
 LOCK_T      = 24                ; frames the other team cannot dribble it
                                 ; (the C64's 12 of its 25 a second)
+DBL_T       = 8                 ; - and no one after a set piece's kick
 GLUE_T      = 16                ; and a dribbler past his glue (dribble)
 GLUE_GAP    = 16                ; no dribble touch this long: his turns anew
 BR_WAIT     = 15                ; the computer: frames between its kicks (c15486)
@@ -4021,50 +4023,39 @@ rules:
         sbc #>304
         bcc :+
         iny
-:       lda last_team
-        cmp r_t
-        beq @gkick
-        lda #R_CORNER           ; the defenders': a corner
-        sta rs_kind
-        lda r_t
-        sta rs_team
-        lda corner_xl,y
-        sta rs_x
-        lda corner_xh,y
-        sta rs_x + 1
-        ldy r_s
-        lda corner_yl,y
-        sta rs_y
-        lda corner_yh,y
-        sta rs_y + 1
-        jmp @dead
-@gkick: lda #R_GOALKICK         ; the attackers': a goal kick
-        sta rs_kind
-        lda r_t
+:       lda last_team           ; (the other team's either way)
         eor #1
         sta rs_team
-        lda gkick_xl,y
+        lda #R_CORNER           ; the defenders': a corner
+        sta rs_kind
+        lda last_team
+        cmp r_t
+        bne :+
+        dec rs_kind             ; the attackers': a goal kick (its
+        iny                     ; places after the corners')
+        iny
+:       lda rs_xl,y
         sta rs_x
-        lda gkick_xh,y
+        lda rs_xh,y
         sta rs_x + 1
-        ldy r_s
-        lda gkick_yl,y
+        tya
+        and #2
+        ora r_s
+        tay
+        lda rs_yl,y
         sta rs_y
-        lda gkick_yh,y
+        lda rs_yh,y
         sta rs_y + 1
 @dead:  lda #DEAD_OUT
 @dead2: sta dead_t
         jsr net                 ; (a goal: in the net already in this frame)
         jmp calm
 
-corner_xl:  .byte <54, <553     ; left, right
-corner_xh:  .byte >54, >553
-corner_yl:  .byte <54, <684     ; top, bottom
-corner_yh:  .byte >54, >684
-gkick_xl:   .byte <244, <364
-gkick_xh:   .byte >244, >364
-gkick_yl:   .byte <74, <664
-gkick_yh:   .byte >74, >664
+rs_xl:      .byte <54, <553, <244, <364     ; corners left, right,
+rs_xh:      .byte >54, >553, >244, >364     ; goal kicks left, right
+rs_yl:      .byte <54, <684, <74, <664      ; top, bottom - corners',
+rs_yh:      .byte >54, >684, >74, >664      ; goal kicks'
+.assert R_GOALKICK = R_CORNER - 1, error, "the goal kick: dec rs_kind"
 
 ; net: the dead ball after a goal held by the net - it stops where the
 ; net is drawn (NET_T, NET_B behind the line), the side netting keeps it
@@ -4312,14 +4303,19 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
 ; played - not from a throw-in, a goal kick or a corner - and he the next
 ; to touch the ball: the whistle, a free kick for the other team where he
 ; is. Anyone else touching it first, or the ball dead, and it is over.
+; The same for a set piece's taker touching it again before anyone else
+; has (double touch: touch marks him).
 
 ; off_mark: the pass to player X (team me) - offside? Keeps X. (Its
 ; pieces: kick_way the side the team attacks - 0 up, $FF down - z_off
 ; the line, tmp the nearest two of the others to their line, mate_t
 ; counting; positions y / 4, up the more the nearer the goal attacked)
 off_mark:
+        lda off_pl              ; (a set piece's taker marked: kept)
+        bmi :+
         lda #$FF
         sta off_pl
+:
         lda kickoff             ; (a throw-in, goal kick, corner: never -
         beq :+                  ; a kick-off: no one is ahead)
         lda rs_kind
@@ -4780,9 +4776,8 @@ cpu_take:
 :
         lda #1
         sta last_team
-        jsr touch
-        lda taker
-        sta last_pl
+        ldx taker
+        jsr touch_x
         jmp cpu_pen             ; a penalty: shot at a corner
 @done:  rts
 
@@ -5595,7 +5590,8 @@ hold:
 ; player faces, fast and slower each frame; reaching the ball low, it
 ; knocks it on that way.
 
-; touch: the ball just touched (touch_t from 0). Keeps A, X, Y.
+; touch: the ball just touched by X (touch_t from 0; a set piece's
+; taker twice: double touch, below). Keeps A, X, Y.
 ; touch_me: by player X of the joystick's team (me), a pass met: the
 ; ball his; touch_x: by player X (last_pl). Keep X, Y.
 touch_me:
@@ -5612,12 +5608,30 @@ touch:
         sta touch_t
         sta pen_kick
         lda kickoff             ; (the penalty taken: pen_kick)
-        beq :+
+        beq @dbl
         lda rs_kind
         cmp #R_PENALTY
         bne :+
         sta pen_kick
-:       pla
+:       lda off_pl              ; a set piece's kick: its taker not to
+        cmp #$FF                ; touch it again before anyone else -
+        bne @dbl                ; off_pl $FE, off_by him (not after the
+        dec off_pl              ; kick), and no one's dribble for DBL_T
+        stx off_by              ; frames: the ball away from his feet
+        lda #DBL_T
+        sta lock_t
+        sta lock_t + 1
+        bne @done
+@dbl:   lda off_pl              ; (marked: the taker again - off_chk's
+        cmp #$FE                ; whistle, as for offside; anyone else
+        bne @done               ; first: over)
+        cpx off_by
+        bne :+
+        stx off_pl
+        sta off_by              ; ($FE: no one's)
+        bcs @done
+:       inc off_pl
+@done:  pla
         plp
         rts
 
@@ -6365,10 +6379,11 @@ br_try:
         lda #4
         sta br_6c
 ; br_side (c15010): a step aside - his way turned one way or the other,
-; the ball at his feet
+; the ball at his feet (a dribble's: DRIB_NEAR - with NEAR he went on
+; straight with it most pictures, out over the line)
 br_side:
         lda br_d
-        cmp #NEAR + 1
+        cmp #DRIB_NEAR + 1
         bcs br_dir
         lda #1
         bit br_r
@@ -6381,7 +6396,7 @@ br_side:
 ; br_goal (c15042): on to the goal, the ball at his feet
 br_goal:
         lda br_d
-        cmp #NEAR + 1
+        cmp #DRIB_NEAR + 1
         bcs br_dir
         jsr goal_dir
         jmp br_stick
