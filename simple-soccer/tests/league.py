@@ -110,8 +110,10 @@ def at_title(v):
 
 
 def in_match(v):
+    """the match's pictures (from $C000) shown, multicolour - not the
+    loading screens (at $0800, multicolour too: the ball)"""
     return v.mem(0xFFFE, 2)[1] != 0 and v.mem(0xFF06, 1)[0] & 0x10 and \
-        v.mem(0xFF07, 1)[0] & 0x10
+        v.mem(0xFF07, 1)[0] & 0x10 and v.mem(0xFF14, 1)[0] >= 0xC0
 
 
 def press(v, bits=FIRE, hold=0.02):

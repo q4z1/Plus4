@@ -437,8 +437,10 @@ def record_league():
         rom = ''.join(chr(c + 64) if 1 <= c <= 26 else chr(c) if 32 <= c < 64 else ' ' for c in row)
         return 'TITLE' in page or 'TITLE' in rom
 
-    def in_match():
-        return y.mem(0xFFFE, 2)[1] != 0 and y.mem(0xFF07, 1)[0] & 0x10 and y.mem(0xFF06, 1)[0] & 0x10
+    def in_match():                     # (not cup.s's loading screen: its
+        return y.mem(0xFFFE, 2)[1] != 0 and y.mem(0xFF07, 1)[0] & 0x10 and \
+            y.mem(0xFF06, 1)[0] & 0x10 and \
+            y.mem(0x0C00 + 16 * 40 + 15, 7) != list(range(66, 73))   # ball multicolour too)
 
     def match(name, score):
         stick('fire', 0.2)                  # the next match: at once

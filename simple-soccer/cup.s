@@ -137,6 +137,9 @@ cup:    ldx #$FF
         sta seed
         lda #0
         sta seed + 1
+        lda #$10                ; multicolour (only the ball's cells, on
+        ora TED_CTRL2           ; the loading screen: k_go's - or
+        sta TED_CTRL2           ; IOINIT's - hires text so far)
         ldx #<__CUPLOW_SIZE__   ; the files' names and the KERNAL's way
 :       lda __CUPLOW_LOAD__ - 1,x   ; low (CUPLOW)
         sta __CUPLOW_RUN__ - 1,x
@@ -278,6 +281,8 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         sta CODES + 749,x
         dex
         bne :-
+        stx TED_COL1            ; the ball's pentagons black (blank: no
+                                ; snow)
         ldx #6                  ; "LOADING" (its colours: k_go's)
 :       txa
         clc
@@ -289,13 +294,13 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         sta CODES + LOAD_AT + 7
         sta CODES + LOAD_AT + 8
         sta CODES + LOAD_AT + 9
-        ldx #8                  ; the ball, white
-:       txa
+        ldx #8                  ; the ball, white, multicolour (the
+:       txa                     ; only cells so)
         clc
         adc #LD_BALL
         ldy ld_cell,x
         sta CODES + SPIN_ROW * 40 + SPIN_COL,y
-        lda #$71
+        lda #$79
         sta COLR + SPIN_ROW * 40 + SPIN_COL,y
         dex
         bpl :-

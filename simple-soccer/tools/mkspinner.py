@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 mkspinner.py - the football that turns while the boot loads (boot.s):
-build/gen/spinner.inc, FRAMES pictures of 24 x 24 hires pixels, each as
-its nine characters, a row of three at a time (8 bytes each); and
+build/gen/spinner.inc, FRAMES pictures of 12 x 24 multicolour pixels
+(as wide as 24 hires ones), each as its nine characters, a row of three at
+a time (8 bytes each); and
 build/gen/spinpack.inc, spinat.inc and spinvary.inc, the same packed for
 the league's loading screen (cup.s): the first picture, where the bytes
 that change from picture to picture go - and those bytes, picture by
@@ -11,7 +12,9 @@ picture.
     mkspinner.py [--png preview.png]
 
 The ball is a sphere seen from the front, white, with the twelve black
-pentagons of a football round the corners of an icosahedron. It turns
+pentagons of a football round the corners of an icosahedron, black right
+up to its outline. Its pixels: %00 the background (outside it), %01 the
+first shared colour (the pentagons: black), %11 the cell's (white). It turns
 about one of them, tilted towards the viewer: a fifth of a turn brings it
 back to how it was, so FRAMES pictures over 72 degrees go round and round
 without a jump.
@@ -31,8 +34,7 @@ FRAMES = 8
 SIZE = 24
 TILT = math.radians(55)         # the axis leant back towards the viewer
 PATCH = math.cos(math.radians(17))      # a pentagon's reach from its corner
-RIM = 0.78                      # (and none this near the edge: the ball's
-                                # outline stays round on the black)
+BG, BLACK, WHITE = 0, 1, 3      # the multicolour pixels
 
 
 def vertices():
@@ -56,11 +58,12 @@ def frame(theta):
     R = SIZE / 2 - 0.5
     for y in range(SIZE):
         row = []
-        for x in range(SIZE):
+        for mx in range(SIZE // 2):
+            x = 2 * mx + 0.5            # (the middle of its two hires ones)
             dx, dy = (x - c) / R, (y - c) / R
             d2 = dx * dx + dy * dy
             if d2 > 1:
-                row.append(0)
+                row.append(BG)
                 continue
             # the point on the sphere's front, in the view: x right, y up,
             # z towards the viewer; then into the ball's own frame - back
@@ -71,7 +74,7 @@ def frame(theta):
             ca, sa = math.cos(-theta), math.sin(-theta)
             px, py = px * ca - py * sa, px * sa + py * ca
             near = max(px * vx + py * vy + pz * vz for vx, vy, vz in vs)
-            row.append(0 if near > PATCH and d2 < RIM else 1)
+            row.append(BLACK if near > PATCH else WHITE)
         rows.append(row)
     return rows
 
@@ -79,11 +82,11 @@ def frame(theta):
 def chars(rows):
     out = []
     for cy in range(0, SIZE, 8):
-        for cx in range(0, SIZE, 8):
+        for cx in range(0, SIZE // 2, 4):
             for y in range(8):
                 b = 0
-                for x in range(8):
-                    b = b << 1 | rows[cy + y][cx + x]
+                for x in range(4):
+                    b = b << 2 | rows[cy + y][cx + x]
                 out.append(b)
     return out
 
@@ -132,10 +135,11 @@ def main():
         for k, fr in enumerate(frames):
             for y in range(SIZE):
                 for x in range(SIZE):
-                    if fr[y][x]:
-                        for a in range(S):
-                            for b in range(S):
-                                pix[y * S + a][(k * (SIZE + 2) + x) * S + b] = (255, 255, 255)
+                    v = fr[y][x // 2]
+                    rgb = (0, 80, 0) if v == BG else (0, 0, 0) if v == BLACK else (255, 255, 255)
+                    for a in range(S):
+                        for b in range(S):
+                            pix[y * S + a][(k * (SIZE + 2) + x) * S + b] = rgb
         raw = b''.join(b'\0' + bytes(v for p in row for v in p) for row in pix)
 
         def chunk(t, c):

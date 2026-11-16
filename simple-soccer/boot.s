@@ -27,7 +27,8 @@
 ; the TED reads from the RAM even while the KERNAL loads with the ROM in;
 ; the characters a copy of the ROM's (capitals and graphics) at $D000, in
 ; the RAM, the ball's nine among them, rewritten from the pictures at
-; SPIN (tools/mkspinner.py) every SPIN_T frames. The characters are copied
+; SPIN (tools/mkspinner.py) every SPIN_T frames - multicolour, white with
+; black pentagons ($FF16), the only cells with the colour's bit 3. The characters are copied
 ; to $E800, out of the flags' way: the title's screen later.
 ;
 ; GAMESTART (from build.sh): where the packed game starts, as its own
@@ -64,6 +65,7 @@ BMBASE  = $FF12
 CHBASE  = $FF13
 VMBASE  = $FF14
 BG      = $FF15
+COL1    = $FF16         ; multicolour %01: the ball's pentagons
 BORDER  = $FF19
 RASTER  = $FF1D
 ROMON   = $FF3E
@@ -91,6 +93,7 @@ LOGO_COL = 7            ; (title.s LOGO_ROW, LOGO_COL; its characters from
                         ; LOGO_CODE on, graphics the text does not use)
 
 WHITE   = $71
+BALL    = $79           ; white, multicolour (the ball's cells)
 
         .org GAME - 2
         .word GAME
@@ -174,15 +177,19 @@ eol:    .word 0
         adc #SPIN_CODE
         ldy spin_cell,x
         sta CODES + SPIN_ROW * 40 + SPIN_COL,y
+        lda #BALL
+        sta MATRIX + SPIN_ROW * 40 + SPIN_COL,y
         dex
         bpl :-
         lda #<texts
         ldy #>texts
         jsr print
-        lda TED07               ; text, 40 columns, 128 characters, hires
-        and #$40                ; (PAL or NTSC kept)
-        ora #$08
+        lda TED07               ; text, 40 columns, 128 characters,
+        and #$40                ; multicolour (only the ball's cells; PAL
+        ora #$18                ; or NTSC kept)
         sta TED07
+        lda #$00                ; its pentagons black (the screen still
+        sta COL1                ; off: no snow)
         lda BMBASE              ; the characters from the RAM
         and #$FB
         sta BMBASE
