@@ -513,8 +513,9 @@ play_init:
         lda #9                  ; the cyan team kicks off (line_up: rs_team
         sta ctrl                ; 0, as the program starts)
         sta taker
-        lda #$FF                ; no card
-        sta card_pl
+        lda #$FF                ; no card, no one offside (off_pl: above the
+        sta card_pl             ; match's zero page, as the title left it -
+        sta off_pl              ; its 0 the keeper offside: a penalty)
         lda #1
         sta kickoff
         jmp sfx_whistle
@@ -2615,8 +2616,7 @@ ball_move:
         lda #0
         sta o_zl,x
         sta o_zf,x
-        lda #0                  ; dz = -dz
-        sec
+        sec                     ; dz = -dz
         sbc o_dzf,x
         sta o_dzf,x
         lda #0
