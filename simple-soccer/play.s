@@ -5651,9 +5651,11 @@ slides:
 :       ldx helper_b
         bpl @one
         rts
-@one:   lda o_slide,x
-        bne :+
-        rts
+@one:   lda dead_t              ; (a foul whistled in this frame, by the
+        bne @rts                ; cyan team's: its victim, the yellow
+        lda o_slide,x           ; team's joystick's, stays down - not up
+        bne :+                  ; again at once, his turn after it)
+@rts:   rts
 :       dec o_slide,x
         bne :+
         jmp stand               ; (over: up again)
