@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""A trailer of the moves in training: build/simple-soccer-trailer.mp4.
+"""A trailer: build/simple-soccer-trailer.mp4.
 
-    tests/trailer.py            (from the scenes tests/moves.py recorded)
+    tests/trailer.py            (from what was recorded before)
     tests/trailer.py --boot     (the loading and the title recorded first)
-    tests/trailer.py --league   (the league recorded first)
+    tests/trailer.py --league   (the match and the league recorded first)
     tests/trailer.py --crawl    (its opening alone, to look at)
 
 It opens as a film of a galaxy far away does: a line in blue on black,
@@ -11,31 +11,28 @@ the name going off into the stars, a text crawling up into the distance.
 Then the end of the loading - the football turning - going on into the
 title, as the disk does it, and the title's second page with the
 formations chosen there (--boot records that, from the disk in Yape:
-~/.cache/simple-soccer/moves/boot). Then the title once more, TRAINING
-chosen and the kick-off, and moves.py's scenes, each played and (the
-shorter ones) played again at half speed, with its caption below the
-pitch; then the league - LEAGUE chosen on the title, its first page,
-the end of a match and the matchday's results and table after it, and
-the last matchday's, the league won, and its winner's page (--league
-records that, also from
-the disk in Yape: WORK/league); the title once more at the end. The parts wiped into one
-another with a soft edge, old-school as in those films - across, an
-iris, round like a clock hand; the captions only while no wipe runs.
-Last the credits,
-crawling off into the stars as the opening's text does.
+~/.cache/simple-soccer/moves/boot). Then a little of a match and a goal
+played for in it, the joystick moved by tests/autogoal.py's pilot as
+the match goes - nothing poked; then the league: LEAGUE chosen on the
+title, its first page, the end of the last matchday's match, the
+matchday's results and table after it, the league won and its winner's
+page (--league records the match and the league, also from the disk in
+Yape: WORK/league); the title once more at the end. The parts wiped
+into one another with a soft edge, old-school as in those films -
+across, an iris, round like a clock hand; the captions only while no
+wipe runs. Last the credits, crawling off into the stars as the
+opening's text does.
 
-The scenes are the pictures and the sound moves.py keeps in
-~/.cache/simple-soccer/moves/<name>; each part is made from them at the
-machine's size (<name>.seq in trailer/ there), its captions in the
-title's lettering put into its pictures. The parts are wiped into one
-another picture by picture, at the machine's size (body.mkv), then
-enlarged three times with sharp pixels (the wipes' edges too) behind
-the opening. Nothing is held in memory for long: one ffmpeg graph with
-every caption laid over the video held their pictures by the gigabyte.
-Under it all the title's song (tools/mkmusic.py --wav), one track from
-the first second to the last, lower while the game's own sound plays.
+Each part is made from the recorded pictures at the machine's size
+(<name>.seq in trailer/ there), its captions in the title's lettering
+put into its pictures. The parts are wiped into one another picture by
+picture, at the machine's size (body.mkv), then enlarged three times
+with sharp pixels (the wipes' edges too) behind the opening. Nothing is
+held in memory for long: one ffmpeg graph with every caption laid over
+the video held their pictures by the gigabyte. Under it all the title's
+song (tools/mkmusic.py --wav), one track from the first second to the
+last (the game's own sound has gaps where the monitor stopped Yape).
 """
-import array
 import glob
 import math
 import os
@@ -43,12 +40,12 @@ import random
 import subprocess
 import sys
 import time
-import wave
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import moves  # noqa: E402
+import autogoal  # noqa: E402
 from yape import Yape, SHOT, host  # noqa: E402
-from moves import WORK, SCENES, FIRST, WAIT, TITLE, HERE, YELLOW_CAP, WHITE_CAP  # noqa: E402
+from moves import WORK, HERE, YELLOW_CAP, WHITE_CAP  # noqa: E402
 from PIL import Image, ImageChops, ImageDraw, ImageFilter  # noqa: E402
 
 OUT = os.path.join(HERE, 'build', 'simple-soccer-trailer.mp4')
@@ -59,10 +56,7 @@ FPS = 50
 RATE = 48000
 X = 0.6                         # seconds from one part to the next
 CRAWL_X = 1.0                   # the crawl's fade into the title
-SCENE_MIN = 8.0                 # seconds a scene is on, at least (the captions read)
-TAIL = 30                       # frames after a scene's move, at least
 SONG = 0.30                     # the song's level: as loud as the Plus/4's own
-BED = 0.50                      # under the game's sound (1: alone)
 # how one part goes into the next: old-school wipes as in those films
 # (and as MEGA65 Smaragd Dash's trailer has them, in its order), into
 # the end round like a clock hand - their edge soft, EDGE pixels at the
@@ -73,11 +67,7 @@ WIPES = ['left', 'radial', 'open', 'right', 'down', 'radial',
 END_WIPE = 'radial'
 EDGE = 4
 
-# the scenes' replays, frames from the scene's first (what moves.py's
-# piece() starts with) - where the default (the move's last frames) does
-# not show the moment
-REPLAY = {}
-BOOT_LOAD = 8.0                 # seconds of the loading screen shown
+BOOT_LOAD = 5.0                 # seconds of the loading screen shown
 BOOT_TITLE = 7.0                # of the title after it, before its second page is chosen
 BOOT_CAPS = [('THE LOADER - A FAST LOADER WITH MUSIC',
               'THE TITLE SONG PLAYS ALL THROUGH THE LOADING'),
@@ -96,22 +86,24 @@ LEAGUE_RES = [(2, 0), (1, 1), (3, 0), (1, 0), (1, 2), (0, 0), (1, 4), (2, 1),
               (4, 2), (4, 3), (4, 0), (0, 2), (2, 2), (1, 1), (3, 0), (0, 2),
               (0, 4), (1, 0), (4, 1), (0, 1), (2, 4), (3, 2), (3, 4), (3, 3),
               None, (1, 1), (0, 2), (2, 3)]
-LEAGUE_SCORE = ([2, 1], [3, 0])         # France 1:2 Germany, Germany 3:0 Brazil
-MATCH_SCORE = [2, 1]                    # the match before the league: Germany 2:1 Brazil
-MATCH_CAP = ('FULL TIME - THE WINNER',
-             'THEN FIRE AND BACK TO THE TITLE')
-PAUSE_CAP = ('RUN/STOP - THE PAUSE',
-             'QUIT AND SAVE - CONTINUE IT LATER')
+LEAGUE_SCORE = [3, 0]                   # the last matchday: Germany 3:0 Brazil
+# the match before the league: seconds of it before its goal, and after
+GOAL_BEFORE, GOAL_AFTER = 12.0, 3.5
+GOAL_MIN = 7.0                  # at least so much open play before it (no set piece)
+GOAL_CAPS = [('THE MATCH - ELEVEN A SIDE',
+              'PLAYED AS THE AMIGA PLAYS - DRAWN AS THE C64'),
+             ('GOAL',
+              'FIRE HELD - THE SHOT THE WAY HE FACES')]
 LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
                 'EACH AGAINST EACH - ONE OR TWO PLAYERS'),
-               ('AFTER EACH MATCH - THE MATCHDAY',
-                'AND THE TABLE - SAVED ON THE DISK'),
-               ('THE LAST MATCHDAY',
-                'FIRST AGAINST SECOND - FOR THE LEAGUE'),
+               ('THE LAST MATCHDAY - AND THE TABLE',
+                'SAVED ON THE DISK AFTER EACH MATCH'),
                ('THE WINNER',
                 'A PAGE OF ITS OWN - AFTER EVERY MATCH TOO')]
 L_BLOCK, L_LEN, K_CH = 0xFFC8, 43, 0xFCE7      # (game.inc)
-END_FRAME = 150                 # the title's picture the end holds (MODE: TRAINING)
+LEAGUE_SERIES = 60000           # pictures Yape may write (the old ones pruned)
+END_AT = 2.5                    # the title's picture the end holds: seconds into it
+END_S = 6.0                     # held so long
 
 
 # ---- the lettering --------------------------------------------------------------
@@ -152,21 +144,14 @@ def caption_img(lines):
     return img
 
 
-def label_img(text):
-    m = text_mask([text], 1, gap=0)
-    img = Image.new('RGBA', m.size, (0, 0, 0, 0))
-    img.paste(YELLOW_CAP + (255,), (0, 0), m)
-    return img
-
-
 # ---- the opening ----------------------------------------------------------------
 
-CRAWL = ['EPISODE 264', 'THE MOVES', '',
+CRAWL = ['EPISODE 264', 'THE KICK-OFF', '',
          'THE COMMODORE PLUS/4 HAS', 'WAITED A LONG TIME FOR A', 'GAME OF FOOTBALL.', '',
          'NOW SIMPLE SOCCER TAKES', 'THE PITCH: PLAYED AS THE', 'AMIGA CLASSIC IS PLAYED',
          'AND DRAWN AS THE C64 DRAWS', 'IT - ALL IN 6502 ASSEMBLY.', '',
-         'ON THE TRAINING GROUND A', 'KEEPER AND FOUR A SIDE', 'SHOW EVERY MOVE THE',
-         'JOYSTICK CAN MAKE....']
+         'ELEVEN A SIDE PLAY FOR', 'THE GOALS - AND EIGHT', 'NATIONS FIGHT FOR THE',
+         'LEAGUE....']
 # the closing crawl, as the opening's
 CREDITS = ['SIMPLE SOCCER', 'THE CREDITS', '',
            'BY Q4Z1 2026 (& CLAUDE)', '',
@@ -211,9 +196,15 @@ def homography(pairs):
     return solve(m, v)
 
 
+def title_picture():
+    """the title's picture, END_AT seconds into it, as --boot recorded it"""
+    t0 = int(open(os.path.join(WORK, 'boot', 'title.txt')).read())
+    return t0 + int(END_AT * FPS)
+
+
 def logo_image():
-    """the title's name, as the title draws it (its first picture)"""
-    im = Image.open(os.path.join(WORK, 'title', 'f000.ppm')).convert('RGB')
+    """the title's name, as the title draws it"""
+    im = Image.open(frames_of('boot')[title_picture()]).convert('RGB')
     bg = im.getpixel((W // 2, 46))
     box = None
     for y in range(44, 70):            # (below the box's top line)
@@ -349,7 +340,8 @@ def record_boot():
     for f in shots:
         os.rename(f, os.path.join(d, 'f%04d.ppm' % int(f.rsplit('.', 1)[1])))
     os.rename(moves.WAV, os.path.join(d, 'sound.raw'))
-    title_at(d)
+    hi = title_at(d)
+    every = frames_of('boot')
     # the second page: the first picture after the stick went right on
     # TEAM SETTINGS that differs from the one before it in its four lines
     menu = (64, 84, 320, 124)
@@ -378,10 +370,12 @@ def league_block(days):
 def title_at(d):
     """WORK/boot/title.txt: the first picture of the title - its border
     and its menu's four lines (the loading screen has the same border and
-    ground, nothing where the menu is; BASIC's screen another border)"""
+    ground, nothing where the menu is; BASIC's screen another border).
+    The recording ends on the title's second page: its border the
+    title's. Returns that picture's number"""
     every = frames_of('boot')
     menu = (64, 84, 320, 124)
-    border = Image.open(os.path.join(WORK, 'title', 'f000.ppm')).getpixel((4, 4))
+    border = Image.open(every[-1]).getpixel((4, 4))
     lo, hi = 0, len(every) - 1
 
     def is_title(k):
@@ -392,28 +386,31 @@ def title_at(d):
         mid = (lo + hi) // 2
         lo, hi = (mid, hi) if not is_title(mid) else (lo, mid)
     open(os.path.join(d, 'title.txt'), 'w').write('%d\n' % hi)
+    return hi
 
 
 def record_league():
-    """the league from a copy of the disk in Yape (it writes the disk
-    back), from the title on: LEAGUE chosen, the page of a new league;
-    then (the league poked) the end of matchday 4's match and the page
-    after it, and of the last matchday's, the league won, its winner's
-    page - and first a match, its end and its winner's page, back to the
-    title - to WORK/league (f0000.ppm ...), where each is in marks.txt"""
+    """the match and the league from a copy of the disk in Yape (it writes
+    the disk back), from the title on: first a match, the cyan joystick
+    played by autogoal's pilot till it has scored, then on to its end
+    and back to the title; LEAGUE chosen, the page of a new league; then
+    (the league poked: six matchdays played) the end of the last
+    matchday's match, the page after it, the league won and its winner's
+    page - to WORK/league (f0000.ppm ...), where each is in marks.txt"""
     img = os.path.join(WORK, 'league.d64')
     subprocess.run(['cp', moves.D64, img], check=True)
     moves.clear_shots()
-    y = Yape(img, series=9000, title=True,
+    y = Yape(img, series=LEAGUE_SERIES, title=True,
              env=('YAPE_WAV=' + moves.WAV, 'SDL_AUDIODRIVER=dummy'))
     lab = moves.labels()
     marks = {}
-    # Germany against Brazil on the title from the start: its choices
-    # (K_CH) and that they are set (K_CHOK), before the title reads them
-    y.poke(K_CH - 2, [0x5A, 0xA5, 0, 0, 0, 14, 3, 0, 0])
+    # Germany against China on the title from the start (a weak side: the
+    # pilot scores against it soon): its choices (K_CH) and that they are
+    # set (K_CHOK), before the title reads them
+    y.poke(K_CH - 2, [0x5A, 0xA5, 0, 0, 0, 14, 7, 0, 0])
 
     def mark(name):
-        marks[name] = len(pictures())
+        marks[name] = next_picture()
         print('  %-8s %d' % (name, marks[name]))
 
     def wait(test, what, secs=120):
@@ -466,35 +463,23 @@ def record_league():
         print('title after %d s' % (time.time() - t0))
         host('pkill', '-USR2', '-x', 'yapesdl')  # the pictures from here
         time.sleep(1.0)
-        stick('fire', 0.2)                  # a match first: kicked off,
-        wait(in_match, 'the match')         # to its last minute
-        time.sleep(1.0)
-        y.poke(lab['score'], MATCH_SCORE)
-        y.poke(lab['game_min'], [89])
-        mark('m')
-        time.sleep(1.5)
-        y.poke(lab['dbg_key'], [0x80])      # RUN/STOP: the pause's page
-        wait(lambda: bytes(y.mem(0xEC00 + 9 * 40 + 17, 5)) == bytes([16, 1, 21, 19, 5]),
-             'the pause')               # ("PAUSE" on its page, pause.s)
-        y.poke(lab['dbg_key'], [0])
-        mark('pause')
-        time.sleep(3.5)
-        y.poke(lab['dbg_key'], [0x80])      # and on with the match
-        time.sleep(0.3)
-        y.poke(lab['dbg_key'], [0])
-        wait(in_match, 'the match again')
-        mark('p-end')
+        stick('fire', 0.2)                  # a match first: kicked off and
+        wait(in_match, 'the match')         # played till the cyan team scores
+        mark('kick')
+        def at_goal(since):             # (the open play's first picture too)
+            mark('goal')
+            marks['open'] = marks['goal'] - since + 25
+        if not autogoal.yape_goal(y, at_goal, log=print, tick=prune, open_secs=GOAL_MIN, clean=True):
+            raise RuntimeError('no goal played')
+        time.sleep(GOAL_AFTER + 1.0)
+        y.poke(lab['game_min'], [89])       # then on to its end
         while y.mem(lab['full'], 1)[0] != 1:
             stick('up+fire', 0.1)
-            y.poke(lab['score'], MATCH_SCORE)
-        mark('m-ft')
-        time.sleep(3.0)
+        time.sleep(2.0)
         stick('fire', 0.2)                  # its winner's page
-        mark('m-back')
         wait(lambda: y.mem(0xfffe, 2) == [lab['synth'], 0] and y.mem(0xff06, 1)[0] & 0x10,
              'the winner\'s page')
-        mark('m-win')
-        time.sleep(6.0)
+        time.sleep(1.0)
         stick('fire', 0.2)                  # the title
         time.sleep(0.8)
         mark('title')
@@ -508,10 +493,8 @@ def record_league():
         wait(on_page, 'the first page')
         mark('page1')
         time.sleep(5.0)
-        y.poke(L_BLOCK, league_block(3))    # three matchdays played
-        match('day4', LEAGUE_SCORE[0])
-        y.poke(L_BLOCK, league_block(6))    # six
-        match('day7', LEAGUE_SCORE[1])
+        y.poke(L_BLOCK, league_block(6))    # six matchdays played
+        match('day7', LEAGUE_SCORE)
         stick('fire', 0.2)                  # back to the title: the winner's page first
         mark('champ-back')
         wait(lambda: y.mem(0xfffe, 2) == [lab['synth'], 0] and y.mem(0xff06, 1)[0] & 0x10,
@@ -533,35 +516,50 @@ def record_league():
     print('%d pictures' % len(frames_of('league')))
 
 
-def league_parts(gain):
-    """the league's three parts: (out, pieces, captions) - the loading
-    between shown a moment only"""
+def league_parts():
+    """the match's goal and the league's three parts: (name, pictures,
+    sound, how many) each - the loading between shown a moment only"""
     mk = dict(l.split() for l in open(os.path.join(WORK, 'league', 'marks.txt')))
     mk = {k: int(v) for k, v in mk.items()}
     load = int(1.2 * FPS)
-    pz = [(mk['m'] + 10, mk['pause'] + int(3.0 * FPS), 1)]
-    m = [(mk['p-end'] + 10, mk['m-ft'] + int(1.5 * FPS), 1),
-         (mk['m-back'] + 5, mk['m-back'] + 5 + load, 1),
-         (mk['m-win'], mk['m-win'] + int(5.5 * FPS), 1)]
+    g = mk['goal']
+    g0 = max(mk['kick'] + 10, mk.get('open', 0), g - int(GOAL_BEFORE * FPS))
+    gt = (g - g0) / FPS
+    goal = [(g0, g + int(GOAL_AFTER * FPS), 1)]
     a = [(mk['title'], mk['fire'] + 10, 1),
          (mk['fire'] + 10, mk['fire'] + 10 + load, 1),
          (mk['page1'], mk['page1'] + int(5.0 * FPS), 1)]
-    out = [('pause', pz, [(PAUSE_CAP, X, -X)]), ('match', m, [(MATCH_CAP, X, -X)]),
-           ('league1', a, [(LEAGUE_CAPS[0], X, -X)])]
-    for k, name in ((1, 'day4'), (2, 'day7')):
-        p = [(mk[name] + 10, mk[name + '-ft'] + int(1.5 * FPS), 1),     # (from minute 89)
-             (mk[name + '-back'] + 5, mk[name + '-back'] + 5 + load, 1),
-             (mk[name + '-page'], mk[name + '-page'] + int(6.5 * FPS), 1)]
-        out.append(('league%d' % (k + 1), p, [(LEAGUE_CAPS[k], X, -X)]))
-    p = [(mk['champ-back'] + 5, mk['champ-back'] + 5 + load, 1),
+    d = [(mk['day7'] + 10, mk['day7-ft'] + int(1.5 * FPS), 1),     # (from minute 89)
+         (mk['day7-back'] + 5, mk['day7-back'] + 5 + load, 1),
+         (mk['day7-page'], mk['day7-page'] + int(6.5 * FPS), 1)]
+    w = [(mk['champ-back'] + 5, mk['champ-back'] + 5 + load, 1),
          (mk['champ'], mk['champ'] + int(6.0 * FPS), 1)]
-    out.append(('league4', p, [(LEAGUE_CAPS[3], X, -X)]))
-    return [(o,) + part('league', o, p, gain, mute=True, caps=c) + (1,) for o, p, c in out]
+    out = [('goal', goal, [(GOAL_CAPS[0], X, gt - 0.2), (GOAL_CAPS[1], gt, -X)]),
+           ('league1', a, [(LEAGUE_CAPS[0], X, -X)]),
+           ('league2', d, [(LEAGUE_CAPS[1], X, -X)]),
+           ('league3', w, [(LEAGUE_CAPS[2], X, -X)])]
+    return [(o,) + part('league', o, p, caps=c) for o, p, c in out]
 
 
 def pictures():
     """the pictures Yape has written so far"""
     return [f for f in glob.glob(SHOT + '.*') if f.rsplit('.', 1)[1].isdigit()]
+
+
+def next_picture():
+    """the number of the picture Yape writes next (some may be gone:
+    prune)"""
+    return max((int(f.rsplit('.', 1)[1]) + 1 for f in pictures()), default=0)
+
+
+def prune():
+    """the match's pictures more than GOAL_BEFORE (and a little) back
+    removed while the pilot plays: they are not shown, and it may play
+    for minutes (a third of a megabyte each)"""
+    keep = next_picture() - int((GOAL_BEFORE + 3) * FPS)
+    for f in pictures():
+        if int(f.rsplit('.', 1)[1]) < keep:
+            os.remove(f)
 
 
 # ---- the wipes -----------------------------------------------------------------
@@ -606,35 +604,17 @@ def wiped(kind, a, b, p):
 
 def body_video(parts, path):
     """the parts one after another, each wiped into the next, at the
-    machine's size: path (.mkv, lossless, with the parts' sound,
-    cross-faded) - frame by frame, so nothing much is held"""
+    machine's size: path (.mkv, lossless) - frame by frame, so nothing
+    much is held"""
     xf = int(X * FPS)
-    spf = RATE // FPS
-    pcm = array.array('h')
-    for i, (_, d, snd, n, _) in enumerate(parts):
-        if i == 0:
-            pcm.extend(snd)
-            continue
-        o = xf * spf                    # (the sound: one fades into the other)
-        tail = pcm[len(pcm) - o:]
-        del pcm[len(pcm) - o:]
-        pcm.extend(array.array('h', (int(x * (1 - k / o) + y * k / o)
-                                     for k, (x, y) in enumerate(zip(tail, snd[:o])))))
-        pcm.extend(snd[o:])
-    wav = os.path.join(T, 'body.wav')
-    with wave.open(wav, 'wb') as f:
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(RATE)
-        f.writeframes(pcm.tobytes())
     ff = subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24',
-                           '-s', '%dx%d' % (W, H), '-r', str(FPS), '-i', '-', '-i', wav,
-                           '-c:v', 'ffv1', '-pix_fmt', 'bgr0', '-c:a', 'pcm_s16le', path],
+                           '-s', '%dx%d' % (W, H), '-r', str(FPS), '-i', '-',
+                           '-c:v', 'ffv1', '-pix_fmt', 'bgr0', path],
                           stdin=subprocess.PIPE)
 
     def pic(d, k):
         return Image.open(os.path.join(d, '%04d.ppm' % k)).convert('RGB')
-    for i, (_, d, _, n, _) in enumerate(parts):
+    for i, (_, d, n) in enumerate(parts):
         first = xf if i else 0
         last = n - xf if i < len(parts) - 1 else n
         for k in range(first, last):
@@ -647,91 +627,50 @@ def body_video(parts, path):
     ff.stdin.close()
     if ff.wait():
         raise RuntimeError('ffmpeg: the body')
-    os.remove(wav)
 
 
 # ---- the parts ------------------------------------------------------------------
 
-def frames_of(name):
+def numbered(name):
+    """the recorded pictures by their number (f<n>.ppm; some may be gone)"""
     d = os.path.join(WORK, name)
-    return sorted(os.path.join(d, f) for f in os.listdir(d) if f.startswith('f') and f.endswith('.ppm'))
+    return {int(f[1:-4]): os.path.join(d, f) for f in os.listdir(d)
+            if f.startswith('f') and f.endswith('.ppm')}
 
 
-def sound_of(name):
-    raw = os.path.join(WORK, name, 'sound.raw')
-    return array.array('h', open(raw, 'rb').read()) if os.path.exists(raw) else array.array('h')
+def frames_of(name):
+    """the recorded pictures, in their order"""
+    n = numbered(name)
+    return [n[k] for k in sorted(n)]
 
 
-def part(name, out, pieces, gain, mute=False, caps=(), replay=None):
-    """a part from a scene's pictures: pieces (first, end, times each is
-    shown) one after the other; the sound with them where each is shown
-    once (none where slowed or held, nor at all when mute). Its captions
-    (lines, from, to seconds into the part; to None: its end, below 0:
-    so long before it) put into the pictures below the pitch, and REPLAY
-    above it, blinking, while
-    the replay (from, to) runs - at the machine's size, enlarged with
+def part(name, out, pieces, caps=()):
+    """a part from recorded pictures: pieces (first, end, times each is
+    shown) one after the other. Its captions (lines, from, to seconds
+    into the part; to None: its end, below 0: so long before it) put into
+    the pictures below the pitch - at the machine's size, enlarged with
     the rest (nothing laid over the video later: that held every
     caption's pictures in memory). Its pictures in <out>.seq; returns
-    that, its sound and how many pictures"""
-    every = frames_of(name)
-    snd = sound_of(name)
-    per = len(snd) / max(1, len(every))
+    that and how many pictures"""
+    every = numbered(name)
     d = os.path.join(T, out + '.seq')
     subprocess.run(['rm', '-rf', d])
     os.makedirs(d)
-    shown = [k for a, b, times in pieces for k in range(a, min(b, len(every))) for _ in range(times)]
+    shown = [k for a, b, times in pieces for k in range(a, b) if k in every for _ in range(times)]
     end = len(shown) / FPS
     caps = [(caption_img(lines), a, end if b is None else end + b if b < 0 else b)
             for lines, a, b in caps]
-    label = label_img('REPLAY')
     for n, k in enumerate(shown):
         t = n / FPS
-        marks = [(c, (0, 248)) for c, a, b in caps if a <= t < b]
-        if replay and replay[0] + 0.2 <= t < min(replay[1], end - X) - 0.1 and (t - replay[0] - 0.2) % 1 < 0.7:
-            marks.append((label, (40, 22)))
+        marks = [c for c, a, b in caps if a <= t < b]
         if marks:
             im = Image.open(every[k]).convert('RGB')
-            for m, at in marks:
-                im.paste(m, at, m)
+            for m in marks:
+                im.paste(m, (0, 248), m)
             im.save(os.path.join(d, '%04d.ppm' % n))
         else:
             os.symlink(every[k], os.path.join(d, '%04d.ppm' % n))
-    # (the TED's sound is all above 0: its middle taken out - held or
-    # slowed, that middle: silence - and as loud as gain says)
-    mid = sum(snd) // len(snd) if snd else 0
-    pcm = array.array('h')
-    spf = RATE // FPS
-    for a, b, times in pieces:
-        b = min(b, len(every))
-        if times == 1 and not mute:
-            s = snd[int(a * per):int(b * per)]
-            s = s[:(b - a) * spf]
-            s.extend([mid] * ((b - a) * spf - len(s)))
-        else:
-            s = array.array('h', [mid]) * ((b - a) * times * spf)
-        pcm.extend(s)
-    pcm = array.array('h', (max(-32767, min(32767, int((v - mid) * gain))) for v in pcm))
-    return d, pcm, len(shown)
-
-
-def plan_scene(name, length):
-    """a scene's pieces: the move played and some frames after it, and
-    the moment played again at half speed - the part SCENE_MIN long; and
-    where in it (seconds) the replay is"""
-    first = WAIT.get(name, FIRST)
-    have = len(frames_of(name)) - first
-    want = int(SCENE_MIN * FPS)
-    live = length + TAIL
-    if name in REPLAY:
-        ra, rb = REPLAY[name]
-    else:
-        r = max(0, min(length, (want - live) // 2))
-        ra, rb = length - r, length
-    if rb <= ra:
-        return [(first, first + min(have, max(live, want)), 1)], None
-    live = min(have, max(live, want - 2 * (rb - ra)))
-    pieces = [(first, first + live, 1), (first + ra, first + rb, 2)]
-    return pieces, (live / FPS, (live + 2 * (rb - ra)) / FPS)
+    return d, len(shown)
 
 
 def main():
@@ -752,41 +691,24 @@ def main():
                         '-pix_fmt', 'yuv420p', out], check=True)
         print(out)
         return
-    # the game's sound as loud as moves.py has it, the same for each scene
-    names = [s[0] for s in SCENES]
-    rng = max(1, max(max(s) - min(s) for s in (sound_of(n) for n in names) if s))
-    gain = 0.45 * 65535 / rng
-    # the parts: (name, its pictures, its sound, how many, the song under
-    # it); the captions on while no wipe runs
+    # the parts: (name, its pictures, how many); the captions on while no
+    # wipe runs
     parts = []
     t0 = int(open(os.path.join(WORK, 'boot', 'title.txt')).read())
     p2, end = map(int, open(os.path.join(WORK, 'boot', 'settings.txt')).read().split())
     a = t0 - int(BOOT_LOAD * FPS)
-    # (its sound not Yape's: the monitor, asked whether the title was on
-    # yet, left gaps in it - the song runs on under it instead, the same)
-    parts.append(('boot',) + part('boot', 'boot', [(a, end, 1)], gain, mute=True,
+    parts.append(('boot',) + part('boot', 'boot', [(a, end, 1)],
                                   caps=[(BOOT_CAPS[0], 0, BOOT_LOAD), (BOOT_CAPS[1], BOOT_LOAD, (p2 - a) / FPS),
-                                        (BOOT_CAPS[2], (p2 - a) / FPS, -X)])
-                 + (1,))
-    parts.append(('title',) + part('title', 'title', [(0, len(frames_of('title')), 1)], gain, mute=True,
-                                   caps=[(TITLE, X, -X)]) + (1,))
-    for name, caption, length, _, _ in SCENES:
-        pieces, replay = plan_scene(name, length)
-        p = part(name, name, pieces, gain, caps=[(caption, X, -X)], replay=replay)
-        print('  %-10s %4.1f s%s' % (name, p[2] / FPS, '' if not replay else
-                                     ', replay %.1f - %.1f' % replay))
-        parts.append((name,) + p + (BED,))
-    parts += league_parts(gain)
-    parts.append(('end',) + part('title', 'end', [(END_FRAME, END_FRAME + 1, 8 * FPS)], gain, mute=True,
-                                 caps=[(END, X, None)]) + (1,))
+                                        (BOOT_CAPS[2], (p2 - a) / FPS, -X)]))
+    parts += league_parts()
+    tp = title_picture()
+    parts.append(('end',) + part('boot', 'end', [(tp, tp + 1, int(END_S * FPS))], caps=[(END, X, None)]))
+    for p in parts:
+        print('  %-8s %4.1f s' % (p[0], p[2] / FPS))
 
     # first the parts wiped into one another, at the machine's size
     # (body.mkv), then that enlarged behind the opening
-    starts, t = [], 0.0
-    for p in parts:
-        starts.append(t)
-        t += p[3] / FPS - X
-    body = t + X
+    body = sum(p[2] for p in parts) / FPS - X * (len(parts) - 1)
     off = CRAWL_S - CRAWL_X
     total = off + body - CRAWL_X + closing
     bf = os.path.join(T, 'body.mkv')
@@ -794,29 +716,19 @@ def main():
     for p in parts:
         subprocess.run(['rm', '-rf', p[1]])
 
-    # then the opening, the body enlarged, the closing, and the sound: the game's from
-    # the scenes, the song one track from the first second to the last,
-    # never cut nor laid over itself - alone but in the scenes, lower
-    # under them, from one level to the next in a wipe's time
+    # then the opening, the body enlarged, the closing, and the song: one
+    # track from the first second to the last, never cut nor laid over
+    # itself (the game's own sound has gaps where the monitor stopped Yape)
     song = os.path.join(T, 'song.wav')
     subprocess.run([sys.executable, os.path.join(HERE, 'tools', 'mkmusic.py'), '--wav', song,
                     '%d' % math.ceil(total + 1)], check=True, stdout=subprocess.DEVNULL)
-    lv = [(0.0, 1.0)]
-    for i, p in enumerate(parts):
-        lv.append((off + starts[i] + (CRAWL_X if i == 0 else X), p[4]))
-    vol = '1'
-    for (ta, va), (tb, vb) in zip(lv, lv[1:]):
-        if va != vb:
-            vol = '(%s)+(%s)*clip((t-%.2f)/%.2f,0,1)' % (vol, vb - va, tb - CRAWL_X, CRAWL_X)
     fc = ('[0:v]format=yuv444p,fps=%d,settb=AVTB[crawl];' % FPS +
           '[1:v]scale=%d:%d:flags=neighbor,format=yuv444p,fps=%d,settb=AVTB[body];' % (W * Z, H * Z, FPS) +
           '[2:v]format=yuv444p,fps=%d,settb=AVTB[closing];' % FPS +
           '[crawl][body]xfade=transition=fade:duration=%s:offset=%.3f[cb];' % (CRAWL_X, off) +
           '[cb][closing]xfade=transition=fade:duration=%s:offset=%.3f,' % (CRAWL_X, off + body - CRAWL_X) +
           'fade=t=out:st=%.2f:d=1.5,format=yuv420p[outv];' % (total - 1.5) +
-          '[1:a]aresample=%d,highpass=f=15,adelay=%d:all=1[game];' % (RATE, int(off * 1000)) +
-          "[3:a]aresample=%d,volume=%s,volume='%s':eval=frame,lowpass=f=9000[bed];" % (RATE, SONG, vol) +
-          '[bed][game]amix=inputs=2:normalize=0:duration=first,atrim=duration=%.3f,' % total +
+          '[3:a]aresample=%d,volume=%s,lowpass=f=9000,atrim=duration=%.3f,' % (RATE, SONG, total) +
           'asetpts=N/SR/TB,afade=t=in:d=0.3,afade=t=out:st=%.2f:d=2.5[outa]' % (total - 2.5))
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-filter_complex_threads', '2',
                     '-i', cr, '-i', bf, '-i', ce, '-i', song, '-filter_complex', fc,
