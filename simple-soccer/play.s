@@ -48,6 +48,8 @@
         .importzp z_y0, z_d
 mate_t      = z_y0              ; (two each of fig_draw's, dead while the
 tmp         = z_d               ; match goes: scratch on the zero page)
+off_pl      = $ED               ; the receiver offside, $FF none (above the
+off_by      = $EE               ; match's zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
@@ -56,8 +58,6 @@ NOBJ        = PLAYERS + 1
 
 SPEED_RUN   = 1024              ; the joystick's player running (c1372c),
 SPEED_BALL  = 896               ; and with the ball close (c13828): anyone's
-DRIB_KICK   = 1024 - SPEED_BALL ; a dribble's kick faster than he runs:
-                                ; 1024, Sensible Soccer's every touch
 SPEED_JOG   = 1024              ; going to his place
 LINE_L      = 49                ; the touch lines and goal lines
 LINE_R      = 558
@@ -149,6 +149,10 @@ DIVE_X      = 6                 ; diving, he gets to it this far across
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
 SLACK       = 2                 ; a place this near the last one is the same
 NEAR        = 32                ; distance squared: the ball at his feet
+DRIB_NEAR   = 50                ; - for a dribble's touch: the C64 asks
+                                ; for 32 at its 25 Hz step, measured in
+                                ; its pictures it touches it at 51, not
+                                ; at 66
 CLOSE       = 72                ; near enough to kick it
 PASS_Q      = 12                ; frames a pass let go of too soon waits for
                                 ; the ball to come
@@ -1207,15 +1211,20 @@ control:
         ldy #SP_BALL
         jsr speed
         lda d2                  ; at his feet, low: dribbled on
-        cmp #NEAR + 1
+        cmp #DRIB_NEAR + 1
         bcs @far
         lda o_zl + BALL
         cmp #13
         bcs @far
         lda frame_n             ; (a touch every second frame, the teams
         eor me                  ; in turn, as Sensible Soccer's: face to
-        lsr a                   ; face, either may get it)
-        bcs @far
+        lsr a                   ; face, either may get it - but a turn at
+        bcc :+                  ; once: the C64 turns him only on his
+        ldy me                  ; team's frames)
+        lda o_dir,x
+        cmp glue_d,y
+        beq @far
+:
         lda kickoff             ; (not the other team's set piece, nor
         bne @far                ; just tackled: lock_t)
         ldy me
@@ -1330,8 +1339,7 @@ duel:
         tya
         eor #1
         sta last_team
-        stx last_pl
-        jsr touch
+        jsr touch_x
         ldx #BALL
         jmp stand
 @no:    rts
@@ -1643,7 +1651,6 @@ dive_head:
 ; and rising; the aftertouch on
 shot:
         jsr kick_by
-        ldx ctrl
         ldy me                  ; (the team's)
         lda o_dir,x
         sta at_dir,y
@@ -1894,8 +1901,10 @@ dist2:
         rts
 
 ; dribble: the ball kicked on ahead, the way the joystick's player runs,
-; faster than he runs by DRIB_KICK - unless he is past his glue, as on the
-; C64 (Arlasoft Soccer): his team counts his turns with the ball since it
+; as fast as he runs, on every other touch a little faster by his skill
+; (drib_of: the better, the closer it stays) and with it behind him half
+; a pixel a frame more - unless he is past his glue, as on the C64
+; (Arlasoft Soccer): his team counts his turns with the ball since it
 ; got it (no touch for GLUE_GAP frames: anew); from glue_of's on (by
 ; sk_duel: 4 - 21), a turn with the other team's joystick's player at the
 ; ball too has his team not touch it for GLUE_T frames - the other's then
@@ -1937,41 +1946,41 @@ dribble:
         sta lock_t,y
         rts
 @kick:
-        lda me
-        sta last_team
-        jsr touch
-        lda ctrl
-        sta last_pl
-        lda #$FF                ; (a pass met)
-        sta recv
-        lda o_spl,x             ; (DRIB_KICK faster than he runs)
-        clc
-        adc #<DRIB_KICK
+        jsr touch_me
+        ldy sk_duel,x           ; as fast as he runs; every other touch
+        lda frame_n             ; (the C64's L48F7, frame bit 1) faster
+        and #2                  ; by drib_of, by his skill
+        beq :+
+        lda drib_of - 7,y
+:       clc
+        adc o_spl,x
         sta o_spl + BALL
         lda o_sph,x
-        adc #>DRIB_KICK
+        adc #0
         sta o_sph + BALL
+        jsr ball_way            ; and half a pixel a frame more with it
+        sec                     ; behind him - 90 degrees or more off
+        sbc o_dir,x             ; the way he faces (L4924's): ahead of
+        sec                     ; him at once
+        sbc #2
+        and #7
+        cmp #5
+        bcs :+
+        inc o_sph + BALL
+:
         ldy o_dir,x             ; up: the ball a pixel further out beside
         bne @ahead              ; him while it is within 4 of his x (to
         lda o_xl + BALL         ; the right if level), as Sensible Soccer
         sec                     ; has it - else it would be hidden behind
         sbc o_xl,x              ; him; so it is at his right foot, and a
-        sta tmp                 ; turn up and right keeps it
-        lda o_xh + BALL
-        sbc o_xh,x
-        bmi @left
-        bne @ahead
-        lda tmp
-        cmp #5
+        bmi @left               ; turn up and right keeps it (at his
+        cmp #5                  ; feet: x within 7, the low byte enough)
         bcs @ahead
         inc o_xl + BALL
         bne @ahead
         inc o_xh + BALL
         bne @ahead
-@left:  cmp #$FF
-        bne @ahead
-        lda tmp
-        cmp #<(-4)
+@left:  cmp #<(-4)
         bcc @ahead
         lda o_xl + BALL
         bne :+
@@ -1989,6 +1998,7 @@ dribble:
 
         .segment "RODATA"
 glue_of:    .byte 4, 5, 6, 8, 11, 14, 17, 21, 21  ; (by sk_duel, 7-15)
+drib_of:    .byte 130, 116, 102, 88, 74, 60, 46, 32, 32  ; ($3E80)
         .segment "CODE"
 
 ; trap: the first touch, as Sensible Soccer's (c14314, c118ea): the
@@ -1996,12 +2006,7 @@ glue_of:    .byte 4, 5, 6, 8, 11, 14, 17, 21, 21  ; (by sk_duel, 7-15)
 ; stops; the ball lies dead a pixel before him, the way he faces, on the
 ; ground. Keeps X (ctrl).
 trap:
-        lda me
-        sta last_team
-        stx last_pl
-        jsr touch
-        lda #$FF                ; (a pass met)
-        sta recv
+        jsr touch_me
         jsr stand
         ldy o_dir,x
         lda vec_xh,y
@@ -2116,18 +2121,16 @@ shot_speed:
         rts
 
 ; kick_by: the joystick's player (ctrl) kicks the ball - his team's and
-; his touch, and his kick
+; his touch, and his kick. X = ctrl after.
 kick_by:
-        ldy me
-        lda #0
-        sta kick_t,y
         lda me
         sta last_team
-        jsr touch
-        lda ctrl
-        sta last_pl
-        sta kick_pl
-        rts
+        tay
+        lda #0
+        sta kick_t,y
+        ldx ctrl                ; (X: his)
+        stx kick_pl
+        jmp touch_x
 
 ; ball_ahead: the ball's destination 1000 pixels from it, way Y - a
 ; corner's and a throw-in's turned in a little, as the C64 turns them: up
@@ -4309,8 +4312,6 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
 ; played - not from a throw-in, a goal kick or a corner - and he the next
 ; to touch the ball: the whistle, a free kick for the other team where he
 ; is. Anyone else touching it first, or the ball dead, and it is over.
-off_pl      = $ED               ; the receiver offside, $FF none (above the
-off_by      = $EE               ; match's zero page: the save keeps it), the passer
 
 ; off_mark: the pass to player X (team me) - offside? Keeps X. (Its
 ; pieces: kick_way the side the team attacks - 0 up, $FF down - z_off
@@ -5401,13 +5402,12 @@ catch:
 ; it bounces off him out to the side he dives and away from his goal, a
 ; quarter and a 64th slower, and he goes on half as fast. Keeps X.
 parry:
-        stx last_pl
         ldy #0
         cpx #11
         bcc :+
         iny
 :       sty last_team
-        jsr touch
+        jsr touch_x
         ldy o_dvd,x
         lda par_dx,y
         clc
@@ -5549,7 +5549,6 @@ within:
 hold:
         jsr sfx_catch
         stx taker
-        stx last_pl
         lda #0                  ; (caught: up with it)
         sta o_dive,x
         lda #R_KEEPER
@@ -5563,7 +5562,7 @@ hold:
         lda #4
 :       sty rs_team
         sty last_team
-        jsr touch
+        jsr touch_x
         sta o_dir,x
         jsr stand
         ldx #BALL
@@ -5597,6 +5596,15 @@ hold:
 ; knocks it on that way.
 
 ; touch: the ball just touched (touch_t from 0). Keeps A, X, Y.
+; touch_me: by player X of the joystick's team (me), a pass met: the
+; ball his; touch_x: by player X (last_pl). Keep X, Y.
+touch_me:
+        lda #$FF                ; (a pass met)
+        sta recv
+        lda me
+        sta last_team
+touch_x:
+        stx last_pl
 touch:
         php
         pha
@@ -5810,8 +5818,7 @@ slides:
         tay
         lda #LOCK_T
         sta lock_t,y
-        stx last_pl
-        jsr touch
+        jsr touch_x
         ldy o_dir,x
         jsr nudge               ; (a way nearer the stick's)
         jsr ball_ahead
@@ -6323,7 +6330,7 @@ br_close:
         lda d6 + 1
         sbc #>(180000 / 16 + 1)
         jcs br_long
-:       jsr br_cone
+        jsr br_cone
         bcs br_try
         beq br_pass
         bne br_try
