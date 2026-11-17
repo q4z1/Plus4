@@ -5,13 +5,17 @@ mkdata.py - the game's data, from the text files in data/, as assembly
 Writes build/gen/data.s (the tables) and build/gen/data.inc (their sizes
 and the colours, for the code):
 
-  pitch_map    the ground's rows, 79 character codes each (data/pitch.txt)
+  pitch_map    the ground's rows, 79 character codes each (data/pitch.txt),
+               and its colour rows (cmap*) - overlapped where a row
+               ends as another begins
   wrow_*       the ground as it is shown (data/rows.txt): each of its
                rows' place in pitch_map
   pitch_font   its characters, 8 bytes each, multicolour
   img_*        the figures (data/sprites.txt), cut to what they cover and
                shifted to each of the four pixels in a character, ready
-               to go into the characters under them
+               to go into the characters under them: each one's head
+               (its columns, their bits to keep; one for all alike)
+  pix_*        and its pixels, in one pool (fig_pix)
   atan_tab     the angle of a move from its steps: 0 along x .. 64 along
                y, by the larger of |dx|, |dy| (16-31: the smaller ones
                doubled up to it, the ratio the same) and the smaller -
@@ -673,6 +677,30 @@ def tactics():
     return forms
 
 
+def overlapped(rows):
+    """one string with each of rows in it, shorter than all of them one
+    after the other where one row ends as another begins (greedy: the
+    longest such overlap first) - and each row's place in it"""
+    parts = []
+    for r in dict.fromkeys(rows):
+        if not any(r != o and r in o for o in rows):
+            parts.append(r)
+
+    def over(a, b):
+        for k in range(min(len(a), len(b)) - 1, 0, -1):
+            if a[-k:] == b[:k]:
+                return k
+        return 0
+    while len(parts) > 1:
+        k, i, j = max((over(a, b), i, j) for i, a in enumerate(parts)
+                      for j, b in enumerate(parts) if i != j)
+        if k == 0:
+            break
+        parts = [p for n, p in enumerate(parts) if n not in (i, j)] + [parts[i] + parts[j][k:]]
+    packed = b''.join(parts)
+    return packed, [packed.index(r) for r in rows]
+
+
 def hexrows(out, data, per=16):
     for i in range(0, len(data), per):
         out.write('        .byte ' + ', '.join('$%02X' % b for b in data[i:i + per]) + '\n')
@@ -685,13 +713,16 @@ def main():
     with open(os.path.join(GEN, 'data.s'), 'w') as out:
         out.write('; made by tools/mkdata.py from data/ - do not edit\n\n')
         out.write('        .export _pitch_map, _pitch_font\n\n        .rodata\n')
-        out.write('_pitch_map:\n')
-        for r in rows:
-            hexrows(out, r, 40)
+        # the ground's rows and the colour rows (tint) as one string, each
+        # row in it somewhere (engine.s reads a row from its start on)
+        tint = colours()
+        packed, at = overlapped([bytes(r) for r in rows] + [bytes(c) for _, c in tint])
+        out.write('_pitch_map:             ; the rows, overlapped\n')
+        hexrows(out, packed, 40)
         shown = shown_rows()
         out.write('\n        .export wrow_lo, wrow_hi\n        .rodata\n')
-        out.write('wrow_lo: .lobytes ' + ', '.join('_pitch_map + %d' % (r * w) for r in shown) + '\n')
-        out.write('wrow_hi: .hibytes ' + ', '.join('_pitch_map + %d' % (r * w) for r in shown) + '\n')
+        out.write('wrow_lo: .lobytes ' + ', '.join('_pitch_map + %d' % at[r] for r in shown) + '\n')
+        out.write('wrow_hi: .hibytes ' + ', '.join('_pitch_map + %d' % at[r] for r in shown) + '\n')
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
         out.write('\n        .export la_codes, la_step, la_norm, la_up\n        .rodata\n')
@@ -704,7 +735,6 @@ def main():
         out.write('la_up:                  ; a pixel up\n')
         hexrows(out, bytes(b for c, _ in WAVE
                            for b in list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]]), 8)
-        tint = colours()
         out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
         out.write('crow_of:                ; each row shown: its colours\' number, $FF white\n')
         idx = {y: i for i, (y, _) in enumerate(tint)}
@@ -712,8 +742,7 @@ def main():
         out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
         out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')
         for i, (y, cols) in enumerate(tint):
-            out.write('cmap%d:                  ; ground row %d\n' % (i, y))
-            hexrows(out, bytes(cols), 40)
+            out.write('cmap%d = _pitch_map + %d   ; ground row %d\n' % (i, at[len(rows) + i], y))
         spr = sprites()
         figs = [figure(digit_pic(b[5]) if isinstance(b, str) else
                        black_socks(small_shadow(spr[b])) if b in RUN_FRAMES else
@@ -724,13 +753,31 @@ def main():
         out.write('\n        .export img_ox, img_oy, img_lo, img_hi\n        .rodata\n')
         out.write('img_ox: .byte ' + ', '.join(str(f[0]) for f in figs) + '\n')
         out.write('img_oy: .byte ' + ', '.join(str(f[1]) for f in figs) + '\n')
-        names = ['img%d_%d' % (i, s) for i in range(len(figs)) for s in range(4)]
+        # each record's head (its columns and their bits to keep: one for
+        # all the records with the same) apart from its pixels, which go
+        # into one pool, column after column, record after record - the
+        # FIG_PAD empty lines between two records' columns both's too
+        heads, names, pool, pix_at = {}, [], [0] * PAD, []
+        for f in figs:
+            for rec in f[2]:
+                n, i = rec[0], 2
+                for _ in range(n):
+                    i += 4 + rec[i + 1]
+                assert rec[1] == i + PAD and rec[i:i + PAD] == [0] * PAD
+                head = tuple([n] + rec[2:i])
+                names.append('fh%d' % heads.setdefault(head, len(heads)))
+                pix_at.append(len(pool))
+                pool += rec[i + PAD:]
         out.write('img_lo: .lobytes ' + ', '.join(names) + '\n')
         out.write('img_hi: .hibytes ' + ', '.join(names) + '\n')
-        for i, f in enumerate(figs):
-            for sh, rec in enumerate(f[2]):
-                out.write('img%d_%d:\n' % (i, sh))
-                hexrows(out, rec)
+        out.write('\n        .export pix_lo, pix_hi\n')
+        out.write('pix_lo: .lobytes ' + ', '.join('fig_pix + %d' % a for a in pix_at) + '\n')
+        out.write('pix_hi: .hibytes ' + ', '.join('fig_pix + %d' % a for a in pix_at) + '\n')
+        for head, k in heads.items():
+            out.write('fh%d:\n' % k)
+            hexrows(out, bytes(head))
+        out.write('fig_pix:\n')
+        hexrows(out, bytes(pool))
         out.write('\n        .export lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh\n        .segment "TITLE"\n')
         forms = tactics()
         assert all(t[0] >> 8 < 4 and t[2] >> 8 < 4 for form in forms for t in form)

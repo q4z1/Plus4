@@ -41,6 +41,16 @@ def held_from_start(v, lab, d):
     v.poke(lab['dbg_joy'], [bits])
 
 
+def three_frames(v, lab):
+    """Every turn of the main loop three frames of the match, however long
+    its picture took (the same match whatever the build's speed): its
+    lda frames / sec / sbc played made lda #3 - found after loop."""
+    fr, pl = lab['frames'], lab['played']
+    want = bytes([0xAD, fr & 255, fr >> 8, 0x38, 0xED, pl & 255, pl >> 8])
+    at = lab['loop'] + bytes(v.mem(lab['loop'], 32)).index(want)
+    v.poke(at, [0xA9, 3, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA])
+
+
 def run_pictures(v, lab, n):
     """Let the game run n pictures of 50 a second (its frames counter)."""
     while n > 0:

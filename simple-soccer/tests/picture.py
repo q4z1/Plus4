@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vice import Vice  # noqa: E402
-from shot import PRG, WORK, labels  # noqa: E402
+from shot import PRG, WORK, labels, three_frames  # noqa: E402
 from pace import plan, encode, game_rnd  # noqa: E402
 
 SCR_W, VIS_H = 40, 23
@@ -50,12 +50,16 @@ def run(out, seed, turns, every):
         v.cmd('break %04x' % lab['main'])
         v.cmd('x')
         v.cmd('del')
+        v.cmd('break %04x' % lab['chosen'])     # the same teams each time
+        v.cmd('x')                              # (the title, which main
+        v.cmd('del')                            # calls, draws them by the
+        v.poke(0xFCE0 + 7 + 3, [0, 1])          # beam: game.inc K_CH's t_team)
         rnd = game_rnd()
         v.poke(rnd + 7, [0x49, 0x00, 0xEA])
         v.poke(lab['z_rnd'], [1])
         v.poke(lab['dbg_plan'], encode(plan(seed)))
         v.poke(lab['dbg_on'], [2])
-        v.poke(lab['loop'] + 6, [0xA9, 3, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA])
+        three_frames(v, lab)
         v.cmd('break %04x' % lab['eng_end'])
         for t in range(turns):
             v.cmd('x')

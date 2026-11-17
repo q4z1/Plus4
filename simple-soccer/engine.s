@@ -32,7 +32,7 @@
         .export fig_x, fig_y, fig_img, fig_col
         .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
         .import _pitch_font, wrow_lo, wrow_hi
-        .import img_ox, img_oy, img_lo, img_hi
+        .import img_ox, img_oy, img_lo, img_hi, pix_lo, pix_hi
         .import crow_of, cmap_lo, cmap_hi
         .import la_codes, la_step, la_norm, la_up
         .import snd_init, snd_tick
@@ -1478,11 +1478,11 @@ fd_yok:   lda z_ty
         lsr a
         lsr a
         sta z_cy
-        ; the record for the shift: the number of columns, where their
-        ; pixels start, then per column its first line, its lines, its
-        ; cells in the cell's colour, the bits to keep (z_dat + 2 on);
-        ; then the pixels, column after column, FIG_PAD empty lines
-        ; before each and after the last
+        ; the record for the shift: its head - the number of columns,
+        ; then per column its first line, its lines, its cells in the
+        ; cell's colour, the bits to keep (z_dat + 1 on) - and its
+        ; pixels, column after column, FIG_PAD empty lines before each
+        ; and after the last (tools/mkdata.py's pool)
         lda fig_img
         asl a
         asl a
@@ -1495,6 +1495,10 @@ fd_yok:   lda z_ty
         sta z_dat
         lda img_hi,x
         sta z_dat + 1
+        lda pix_lo,x            ; the first column's pixels
+        sta z_px
+        lda pix_hi,x
+        sta z_px + 1
         ldy #0
         lda (z_dat),y
         sta z_ncol
@@ -1508,14 +1512,6 @@ fd_yok:   lda z_ty
         sbc #2
         cmp #VIS_H - 3
 :       ror z_nf
-        iny
-        lda (z_dat),y           ; the first column's pixels
-        clc
-        adc z_dat
-        sta z_px
-        lda z_dat + 1
-        adc #0
-        sta z_px + 1
         ; the figure's base: its top left cell, row cy, column cx, on the
         ; matrix or off it (both signed) - each of its cells is a Y from
         ; there, 40 * its row + its column
@@ -1545,7 +1541,7 @@ fd_yok:   lda z_ty
         lda #0
         sta z_c
 
-fd_col: ldy #3
+fd_col: ldy #2
         lda (z_dat),y
         sta z_h                 ; its lines
         bit z_nf                ; (all of the figure on the picture: no
@@ -1629,7 +1625,7 @@ fd_fast:                        ; the same for all of the figure on the
         sec
         sbc z_x0
         sta fp_cc
-        ldy #4
+        ldy #3
         lda (z_dat),y
         cmp #$FF
         beq fd_kc0              ; (from 255: none)
@@ -1675,7 +1671,7 @@ fd_gen:
         clc
         adc z_k1
         sta fp_end
-        ldy #4                  ; kc0 (255: none, kc1 not looked at)
+        ldy #3                  ; kc0 (255: none, kc1 not looked at)
         lda (z_dat),y
         cmp #$FF
         beq fd_kc0
@@ -1883,8 +1879,8 @@ fm_done:
         lda z_px + 1
         sbc #0
         sta z_d + 1
-        lda #6                  ; the bits to keep, after the column's four
-        sec                     ; bytes (z_dat + 6), less A
+        lda #5                  ; the bits to keep, after the column's four
+        sec                     ; bytes (z_dat + 5), less A
         sbc z_t
         sta z_t2                ; (signed)
         clc

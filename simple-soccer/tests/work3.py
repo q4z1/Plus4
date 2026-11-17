@@ -21,7 +21,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vice import Vice  # noqa: E402
-from shot import PRG, WORK, labels  # noqa: E402
+from shot import PRG, WORK, labels, three_frames  # noqa: E402
 from pace import plan, encode, game_rnd  # noqa: E402
 
 
@@ -34,16 +34,16 @@ def main():
         v.cmd('break %04x' % lab['main'])
         v.cmd('x')
         v.cmd('del')
+        v.cmd('break %04x' % lab['chosen'])     # the same teams each time
+        v.cmd('x')                              # (the title, which main
+        v.cmd('del')                            # calls, draws them by the
+        v.poke(0xFCE0 + 7 + 3, [0, 1])          # beam: game.inc K_CH's t_team)
         rnd = game_rnd()
         v.poke(rnd + 7, [0x49, 0x00, 0xEA])
         v.poke(lab['z_rnd'], [1])
         v.poke(lab['dbg_plan'], encode(plan(seed)))
         v.poke(lab['dbg_on'], [2])
-        at = lab['loop'] + 6            # (jsr joy_read, inc tick)
-        fr, pl = lab['frames'], lab['played']
-        want = [0xAD, fr & 255, fr >> 8, 0x38, 0xED, pl & 255, pl >> 8]
-        assert list(v.mem(at, 7)) == want, 'the loop has changed: %s' % list(v.mem(at, 7))
-        v.poke(at, [0xA9, 3, 0xEA, 0xEA, 0xEA, 0xEA, 0xEA])
+        three_frames(v, lab)
         v.cmd('break %04x' % lab['loop'])
         v.cmd('break %04x' % lab['place'])
         v.cmd('break %04x' % lab['eng_end'])
