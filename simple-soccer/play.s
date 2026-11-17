@@ -6501,15 +6501,16 @@ br_after:
 ; c14e48): ready, it waits 50 frames and a few more (up to 63, its die
 ; anew each frame) - a throw-in's taker turning about meanwhile to look
 ; for someone, a corner's facing along the goal line, a free kick's to
-; the goal - then: a kick-off and a throw-in are passed; a
+; the goal - then: a kick-off is passed, a throw-in thrown long 1 in 16
+; (a frame) if he faces one of the ways its place throws long (thr_ok),
+; as a set piece kicked hard (bs_shot), else passed; a
 ; corner crossed along the goal line, in front of the goal, as on the C64
 ; (ball_ahead turns it in); a free kick
 ; 15 in 16 shot if he faces the goal (else he turns to it), 1 in 16
 ; passed; a goal kick and the keeper's kicked long. A pass only to a
 ; team-mate nearest that way (br_cone), else he turns on - after 150
 ; frames kicked (Sensible Soccer's kick-off; here any set piece's, that
-; none waits for ever). The penalty: cpu_take's. (Not here, for room: a
-; long throw 1 in 16.) Keeps X.
+; none waits for ever). The penalty: cpu_take's. Keeps X.
 brain_set:
         lda rs_kind
         cmp #R_PENALTY
@@ -6532,7 +6533,7 @@ brain_set:
         beq @go
         ldy rs_kind             ; meanwhile: turning about, along the
         cpy #R_THROW            ; goal line (a corner), or to the goal
-        beq bs_turn
+        jeq bs_turn
         cpy #R_CORNER
         bne :+
         jsr bs_along
@@ -6549,7 +6550,14 @@ brain_set:
         cpy #R_KICKOFF
         beq bs_pass             ; a kick-off: passed
         cpy #R_THROW
-        beq bs_pass             ; a throw-in: passed
+        bne @corner
+        lda br_r                ; a throw-in: 1 in 16 long, if he faces
+        and #$0F                ; that way (c14d1c)
+        bne bs_pass
+        jsr thr_ok
+        bcc bs_pass
+        jmp bs_shot
+@corner:
         cpy #R_CORNER
         bne @free
         jsr bs_along            ; a corner: crossed along the goal line,
@@ -6654,6 +6662,47 @@ bs_shot:
 @shot:  lda #0
         jmp br_kick
 @no:    rts
+
+; thr_ok (c14c3a, c128d2, c154a2): carry set if the taker X of a
+; throw-in faces one of the two ways its place throws long - by the touch
+; line, three bands along it (y from 262, from 476), for a team attacking
+; up: on the left touch line right and down-right in the band nearest the
+; goal attacked, up-right and right in the middle, up and up-right in its
+; own; on the right the same the other way round; attacking down all
+; upside down. Keeps X.
+thr_ok:
+        ldy #0
+        lda o_yl + BALL
+        cmp #<262
+        lda o_yh + BALL
+        sbc #>262
+        bcc @side
+        iny
+        lda o_yl + BALL
+        cmp #<476
+        lda o_yh + BALL
+        sbc #>476
+        bcc @side
+        iny
+@side:  jsr ball_rx             ; (carry set: the right touch line)
+        bcc :+
+        iny
+        iny
+        iny
+:       lda me                  ; (attacking down)
+        eor flip
+        beq :+
+        tya
+        clc
+        adc #6
+        tay
+:       lda thr_ways,y
+        ldy o_dir,x
+        iny
+:       lsr a                   ; (bit o_dir into the carry)
+        dey
+        bne :-
+        rts
 
 ; br_stick: pj = the stick way A (0-7). Keeps X.
 br_stick:
@@ -7012,6 +7061,12 @@ ball_way:
         rts
 
 ; each way's joystick bits
+; thr_ways: the ways a throw-in goes long from (thr_ok), a bit each (0
+; up, 2 right): attacking up, the left touch line's bands from the top,
+; then the right's; attacking down the same (Sensible Soccer's c154a2,
+; for the other team its nibbles swapped)
+thr_ways:   .byte $0C, $06, $03, $60, $C0, $81
+            .byte $18, $0C, $06, $30, $60, $C0
 dir_bits:   .byte J_UP, J_UP | J_RIGHT, J_RIGHT, J_DOWN | J_RIGHT
             .byte J_DOWN, J_DOWN | J_LEFT, J_LEFT, J_UP | J_LEFT
 

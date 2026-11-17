@@ -235,8 +235,10 @@ the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot). The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
 meanwhile to look for someone (a throw-in), along the goal line (a
-corner, as on the C64) or to the goal (a free kick); then a kick-off and
-a throw-in passed, a corner crossed in front of the goal, a free kick 15 in 16 shot once he faces the goal, a goal
+corner, as on the C64) or to the goal (a free kick); then a kick-off
+passed; a throw-in passed, or thrown long (1 in 16 a frame) when he
+faces one of the two ways its place along the touch line throws long -
+towards the box near the goal attacked, forwards further back; a corner crossed in front of the goal, a free kick 15 in 16 shot once he faces the goal, a goal
 kick and the keeper's kicked long - a pass only to the team-mate
 nearest the ball that way, else he turns on. He turns only
 the ways Sensible Soccer lets him: into the pitch and towards the other
