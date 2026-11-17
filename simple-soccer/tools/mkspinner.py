@@ -4,10 +4,12 @@ mkspinner.py - the football that turns while the boot loads (boot.s):
 build/gen/spinner.inc, FRAMES pictures of 12 x 24 multicolour pixels
 (as wide as 24 hires ones), each as its nine characters, a row of three at
 a time (8 bytes each); and
-build/gen/spinpack.inc, spinat.inc and spinvary.inc, the same packed for
-the league's loading screen (cup.s): the first picture, where the bytes
-that change from picture to picture go - and those bytes, picture by
-picture.
+build/gen/spinpack.inc, spinat.inc, spinvary.inc and spinvar2.inc, the
+same packed for the league's loading screen (cup.s): the first picture,
+where the bytes that change from picture to picture go - and those bytes,
+picture by picture (spin_v0, spin_v1, ...): the first SPIN_LOW pictures in
+spinvary.inc, the others in spinvar2.inc (cup.s puts them in two places,
+for room).
 
     mkspinner.py [--png preview.png]
 
@@ -15,9 +17,11 @@ The ball is a sphere seen from the front, white, with the twelve black
 pentagons of a football round the corners of an icosahedron, black right
 up to its outline. Its pixels: %00 the background (outside it), %01 the
 first shared colour (the pentagons: black), %11 the cell's (white). It turns
-about one of them, tilted towards the viewer: a fifth of a turn brings it
-back to how it was, so FRAMES pictures over 72 degrees go round and round
-without a jump.
+about the middle of a hexagon (three pentagons round it), the axis upright
+and leant a little towards the viewer: no pentagon lies on it, so every
+one goes round (about a pentagon, the one on the axis only turned on its
+spot); a third of a turn brings it back to how it was, so FRAMES pictures
+over 120 degrees go round and round without a jump.
 """
 import math
 import os
@@ -30,16 +34,19 @@ OUT = os.path.join(HERE, '..', 'build', 'gen', 'spinner.inc')
 PACKED = os.path.join(HERE, '..', 'build', 'gen', 'spinpack.inc')
 VARY = os.path.join(HERE, '..', 'build', 'gen', 'spinvary.inc')
 AT = os.path.join(HERE, '..', 'build', 'gen', 'spinat.inc')
-FRAMES = 8
+VARY2 = os.path.join(HERE, '..', 'build', 'gen', 'spinvar2.inc')
+FRAMES = 10
+LOW = 5                         # pictures in spinvary.inc (cup.s: LDLOW's room)
 SIZE = 24
-TILT = math.radians(55)         # the axis leant back towards the viewer
+TILT = math.radians(70)         # the axis leant back towards the viewer
 PATCH = math.cos(math.radians(17))      # a pentagon's reach from its corner
 BG, BLACK, WHITE = 0, 1, 3      # the multicolour pixels
 
 
 def vertices():
-    """an icosahedron about the z axis: a corner top and bottom, two rings
-    of five between"""
+    """an icosahedron with a face's middle on the z axis: first about z, a
+    corner top and bottom, two rings of five between; then turned so the
+    face of the top corner and the first two of the upper ring is on top"""
     out = [(0, 0, 1), (0, 0, -1)]
     z = 1 / math.sqrt(5)
     r = 2 / math.sqrt(5)
@@ -48,7 +55,21 @@ def vertices():
         out.append((r * math.cos(a), r * math.sin(a), z))
         a = math.radians(72 * k + 36)
         out.append((r * math.cos(a), r * math.sin(a), -z))
-    return out
+    n = [sum(out[i][j] for i in (0, 2, 4)) for j in range(3)]
+    ln = math.sqrt(sum(a * a for a in n))
+    n = [a / ln for a in n]
+    # about the axis n x z (in the x-y plane) by the angle between n and z
+    ln = math.hypot(n[0], n[1])
+    kx, ky = n[1] / ln, -n[0] / ln
+    c, s = n[2], ln
+    turned = []
+    for x, y, z in out:
+        d = kx * x + ky * y
+        cx, cy, cz = ky * z, -kx * z, kx * y - ky * x       # k x v
+        turned.append((x * c + cx * s + kx * d * (1 - c),
+                       y * c + cy * s + ky * d * (1 - c),
+                       z * c + cz * s))
+    return turned
 
 
 def frame(theta):
@@ -92,7 +113,7 @@ def chars(rows):
 
 
 def main():
-    frames = [frame(math.radians(72 * k / FRAMES)) for k in range(FRAMES)]
+    frames = [frame(math.radians(120 * k / FRAMES)) for k in range(FRAMES)]
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'w') as f:
         f.write('; made by tools/mkspinner.py - do not edit\n')
@@ -111,6 +132,7 @@ def main():
         f.write('; made by tools/mkspinner.py - do not edit\n')
         f.write('SPIN_FRAMES = %d\n' % FRAMES)
         f.write('SPIN_VARY   = %d             ; bytes that change\n' % len(vary))
+        f.write('SPIN_LOW    = %d              ; pictures in spinvary.inc\n' % LOW)
         f.write('spin_first:\n')
         for i in range(0, 72, 8):
             f.write('        .byte ' + ', '.join('$%02X' % x for x in pics[0][i:i + 8]) + '\n')
@@ -119,13 +141,14 @@ def main():
         f.write('spin_at:\n')
         for i in range(0, len(vary), 12):
             f.write('        .byte ' + ', '.join('%d' % x for x in vary[i:i + 12]) + '\n')
-    with open(VARY, 'w') as f:
-        f.write('; made by tools/mkspinner.py - do not edit\n')
-        f.write('spin_vary:\n')
-        for p in pics:
-            v = [p[i] for i in vary]
-            for i in range(0, len(v), 12):
-                f.write('        .byte ' + ', '.join('$%02X' % x for x in v[i:i + 12]) + '\n')
+    for name, ks in ((VARY, range(LOW)), (VARY2, range(LOW, FRAMES))):
+        with open(name, 'w') as f:
+            f.write('; made by tools/mkspinner.py - do not edit\n')
+            for k in ks:
+                f.write('spin_v%d:\n' % k)
+                v = [pics[k][i] for i in vary]
+                for i in range(0, len(v), 12):
+                    f.write('        .byte ' + ', '.join('$%02X' % x for x in v[i:i + 12]) + '\n')
     print('spinner: %d frames, %d bytes of 72 change' % (FRAMES, len(vary)))
     if len(sys.argv) > 2 and sys.argv[1] == '--png':
         S = 6

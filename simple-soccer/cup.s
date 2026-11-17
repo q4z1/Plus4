@@ -116,9 +116,10 @@ ROW_MENU    = 23                ; the choices, two rows
 ;
 ; "cup" lies where only the start and the loading are: CUPPRE (the
 ; start) where the loading screen's characters go (codes 64 to 81, the
-; page's 64 on), LDRUN up to WIN's place's end - the page's characters
-; and the winner's page (WIN) go over both later - and above that the
-; low parts' load images (CUPLOW, LDLOW), which "pages" loads over once
+; page's 64 on), LDRUN past WIN's place's end, up to CUP_MAIN (with half
+; the ball's pictures) - the page's characters and the winner's page (WIN)
+; go over both later - and above that the low parts' load images (CUPLOW,
+; LDLOW), which "pages" loads over once
 ; they are copied. The ball and the dots turn on the raster interrupt:
 ; through $FFFE with the ROM out, through the KERNAL's $0314 while it
 ; loads (its page 3 then the KERNAL's: kstub's reset).
@@ -254,7 +255,8 @@ ld_tick:
 
 ld_glyph:   .byte 0, 0, 0, 0, 0, 0, 0, 0
             .byte 0, 0, 0, 0, 0, $18, $18, 0        ; (the ROM's ".")
-        .include "spinvary.inc" ; (tools/mkspinner.py: the pictures)
+        .include "spinvary.inc" ; (tools/mkspinner.py: the first
+                                ; SPIN_LOW pictures)
 
         .segment "LDRUN"
 
@@ -395,13 +397,16 @@ DOT_H       = ld_dh
 ld_cell:    .byte 0, 1, 2, 40, 41, 42, 80, 81, 82   ; the ball's, a row at a time
         .include "spinat.inc"   ; (tools/mkspinner.py: where the
                                 ; pictures' bytes go)
+        .include "spinvar2.inc" ; (tools/mkspinner.py: the pictures from
+                                ; SPIN_LOW on - LDLOW has room for the
+                                ; others; here read with the RAM in)
 ld_vlo:
         .repeat SPIN_FRAMES, I
-        .byte <(spin_vary + I * SPIN_VARY)
+        .byte <.ident(.sprintf("spin_v%d", I))
         .endrepeat
 ld_vhi:
         .repeat SPIN_FRAMES, I
-        .byte >(spin_vary + I * SPIN_VARY)
+        .byte >.ident(.sprintf("spin_v%d", I))
         .endrepeat
 
 ; (logo: the page's too - over WIN's place, which is only copied there

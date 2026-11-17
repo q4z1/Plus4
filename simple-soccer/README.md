@@ -97,8 +97,10 @@ file will not load (no disk, a bad one); it tries again by itself.
 
 The ball is worked out by `tools/mkspinner.py`: a sphere with the twelve
 black pentagons of a football round the corners of an icosahedron,
-turning about one of them, eight pictures of 24 x 24 pixels; a fifth of
-a turn brings a football back to how it was, so they go round without a
+turning about the middle of a white hexagon, ten pictures of 24 x 24
+pixels. No pentagon lies on the axis, so every one of them moves (about a
+pentagon, the one on the axis would only turn on its spot); a third of a
+turn brings a football back to how it was, so they go round without a
 jump.
 
 The title shows the two teams' flags framed, the home one on the left, the
