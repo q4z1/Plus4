@@ -78,11 +78,12 @@ def run(v, name):
     at, to, speed, z, dz, goes = CASES[name]
     s = moves.Setup()
     moves.open_play(s, 9)
-    for i in range(1, 22):              # (the keepers and 9 only)
-        s.put('o_off', 0 if i in (9, 11) else 1, i)
-    s.obj(0, 304, 676, d=0)
-    s.obj(11, 304, 62, d=4)
-    s.obj(9, 304, 300, d=0)
+    for i in range(1, 22):              # (the keepers, 9 and one yellow
+        s.put('o_off', 0 if i in (9, 11, 21) else 1, i)  # far off: with
+    s.obj(0, 304, 676, d=0)             # none the yellow team's set
+    s.obj(11, 304, 62, d=4)             # pieces after a case have no
+    s.obj(9, 304, 300, d=0)             # taker - ctrl_b $FF, a hang)
+    s.obj(21, 304, 150, d=4)
     moves.flight(s, at[0], at[1], to[0], to[1], speed, z, dz)
     for a, vals in s.pokes:
         v.poke(a, vals)
