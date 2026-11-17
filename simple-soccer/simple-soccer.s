@@ -499,9 +499,12 @@ draw:
 
 ; draw_ball: its shadow when it is up, and the ball as high above where
 ; it is as it is - the shadow as the C64 casts it, h / 2 to the right and
-; h / 4 down. Never into the boards' row (TOP_Y): restore puts white back
-; where a figure was, the boards are coloured.
+; h / 4 down. Never into the boards' row (TOP_Y), nor into the stands'
+; coloured rows at the bottom (BOT_Y: from the row shown 99 on, its 15
+; lines - the shadow's - above them): restore puts white back where a
+; figure was, the boards and the crowd are coloured.
 TOP_Y       = 9 * 8
+BOT_Y       = 99 * 8 - 15
 draw_ball:
         ldx #BALL
         lda #COL_LINE
@@ -558,7 +561,7 @@ draw_ball:
         ; (on to ball_at)
 
 ; ball_at: the ball's picture fig_img for the place fig_x, fig_y on the
-; ground: its top left, kept below the boards
+; ground: its top left, kept below the boards and above the stands
 ball_at:
         lda fig_x
         sec
@@ -582,7 +585,16 @@ ball_at:
         sta fig_y
         lda #0
         sta fig_y + 1
-@draw:  jmp fig_draw
+@draw:  lda #<BOT_Y
+        cmp fig_y
+        lda #>BOT_Y
+        sbc fig_y + 1
+        bcs :+
+        lda #<BOT_Y
+        sta fig_y
+        lda #>BOT_Y
+        sta fig_y + 1
+:       jmp fig_draw
 
 ; draw_hud: while the ball is dead for a kick-off, the score and the
 ; minute at the top left of the view - drawn as figures, at a place on

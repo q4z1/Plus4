@@ -12,7 +12,11 @@ many pixels either way before each picture, so the view moves by several cells b
 picture's builds (shift's longer moves, and full builds). With ends, it
 is kept near the top and the bottom of the ground by turns, where the
 stands and the boards have colours of their own. Each such cell's colour
-is checked too (white elsewhere).
+is checked too (white elsewhere). With shadow, the ball is put high up
+behind the bottom goal line before each picture, its shadow further down
+(it must keep out of the stands' colours there, as it does at the top).
+
+    tests/consistency.py 2 0 shadow
 """
 import random
 import os
@@ -34,6 +38,7 @@ def main():
     per = int(sys.argv[1]) if len(sys.argv) > 1 else 6
     jump = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     ends = 'ends' in sys.argv[3:]
+    shadow = 'shadow' in sys.argv[3:]
     rnd = random.Random(1)
     # the ground's rows as they are shown (data/rows.txt): which row of
     # the map each is
@@ -71,6 +76,14 @@ def main():
                         p = min(max(p + rnd.randint(-jump, jump), bot), top)
                         v.poke(lab[lo] + 22, [p & 255])
                         v.poke(lab[hi] + 22, [p >> 8])
+                if shadow:              # high up, behind the bottom goal line
+                    x, y = rnd.randint(150, 450), rnd.randint(705, 719)
+                    v.poke(lab['o_xl'] + 22, [x & 255])
+                    v.poke(lab['o_xh'] + 22, [x >> 8])
+                    v.poke(lab['o_yl'] + 22, [y & 255])
+                    v.poke(lab['o_yh'] + 22, [y >> 8])
+                    v.poke(lab['o_zl'] + 22, [rnd.randint(30, 90)])
+                    v.poke(lab['o_dzl'] + 22, [0])
                 v.cmd('x')
                 b = v.mem(lab['back'], 1)[0]
                 col, row = v.mem(lab['b_col'] + b, 1)[0], v.mem(lab['b_row'] + b, 1)[0]
