@@ -368,7 +368,11 @@ piece's taker - kick-off, throw-in, goal kick, corner, free kick,
 penalty, the keeper's kick out - may not touch the ball again before
 anyone else has. For 8 frames after his kick no one dribbles it, so it
 leaves his feet; if he is the next to get to it after all, the whistle,
-and a free kick for the other team where he is.
+and a free kick for the other team where he is. Until someone else has
+touched it the joystick does not go back to him, nor does he run to it
+for the team: a kick-off played straight back, its taker on his way to
+his place along the same line, was given back to him as the nearest and
+whistled - in a long test match, the cause of the double touches seen.
 
 What the whistle went for - FOUL, OFFSIDE or DOUBLE TOUCH - is written
 at the top of the view, as the score is before a kick-off, until the

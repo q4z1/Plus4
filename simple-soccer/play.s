@@ -4228,13 +4228,9 @@ switch:
         ldx t_hi
 @look:  cpx helper
         jeq @next
-        cpx kick_pl             ; (kicker, mate_dist, closer: in line -
-        bne :+                  ; given up once |dx| squared alone is no
-        ldy me                  ; nearer than the nearest so far)
-        lda kick_t,y
-        cmp #KICKED_T
-        jcc @next
-:       lda o_off,x
+        jsr kicker              ; (kicker, mate_dist, closer: in line -
+        jcs @next               ; given up once |dx| squared alone is no
+        lda o_off,x             ; nearer than the nearest so far)
         bne @next
         lda o_xl,x
         sec
@@ -4297,19 +4293,26 @@ switch:
         sta helper
 @done:  rts
 
-; kicker: carry set if cyan player X passed or shot KICKED_T frames ago
-; or less. Keeps X.
+; kicker: carry set if player X of the joystick's team passed or shot
+; KICKED_T frames ago or less, or took a set piece and may not touch the
+; ball again yet (off_pl $FE, off_by him: double touch) - not his to run
+; to, nor the joystick's. Keeps X, Y.
 kicker:
         cpx kick_pl
         bne @no
-        lda me                  ; (the team's: Y kept)
+        lda off_pl
+        cmp #$FE
+        bne :+
+        cpx off_by
+        beq @yes
+:       lda me                  ; (the team's: Y kept)
         bne :+
         lda kick_t
         jmp @t
 :       lda kick_t + 1
 @t:     cmp #KICKED_T
         bcs @no
-        sec
+@yes:   sec
         rts
 @no:    clc
         rts
