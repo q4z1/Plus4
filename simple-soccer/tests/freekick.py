@@ -2,9 +2,9 @@
 """A free kick's distance (play.s WALL_D: set_wall, keep_off), in a match
 in VICE: free kicks for cyan at a few places, the cyan stick let alone -
 while each waits, how near the ball the nearest yellow player (not the
-keeper) comes. Sensible Soccer's wall stands 51-56 pixels from the ball
-(its free kicks' places); ours, WALL_D off in y and as far across as
-each stood, 48-51.
+keeper) comes. In the band before the goal attacked its four nearest
+the goal go to Sensible Soccer's wall, 51-56 pixels from the ball (spot);
+elsewhere each to his formation's place, kept WALL_D (40) off in y.
 
     tests/freekick.py
 
@@ -22,7 +22,7 @@ import moves  # noqa: E402
 lab = labels()
 OFF_PL = 0xED                   # (play.s)
 R_FREE = 5
-NEAR = 45                       # (WALL_D 40 in y, and across)
+NEAR = 40                       # (WALL_D)
 PLACES = [(304, 250), (200, 220), (420, 230), (304, 470), (120, 400), (480, 160)]
 
 

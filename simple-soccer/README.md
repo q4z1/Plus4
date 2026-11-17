@@ -220,13 +220,17 @@ goal line, between the posts and under the bar, it is a goal and the
 other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
 after a goal - then it is put down with the taker behind it. Meanwhile
-both teams go to their places in their formations for where it is taken,
-the other team's kept out of its way: out of the box at a goal kick or
-when the keeper has the ball, else 40 pixels from the ball, on the side
-of their own goal (at a corner, into the pitch). At its own goal kick
-or keeper's ball a team leaves the box to its keeper too, as on the C64,
-whatever its formation. At a corner three of the corner's team go into
-the box - to the near post, the far post and the penalty spot. Whoever is
+both teams go to their places for it, as Sensible Soccer has them for
+each kind of set piece and each shirt, the team taking it and the other:
+for a goal kick from either side of the goal area, the keeper's ball, a
+corner either side, a free kick in one of seven columns in the band before
+the goal attacked (the other team's four nearest the goal then a wall
+some 55 pixels from the ball, between it and the goal), a penalty, and a
+throw-in in one of three bands along either touch line (three or four of
+its team near the taker). Where it has no place for a player - a free
+kick elsewhere, the other team at a throw-in - he goes to his place in
+the formation for where it is taken, kept 40 pixels from the ball on the
+side of his own goal if he is the other team's. Whoever is
 still in the way when the ball is put down is put out of it, and the
 other team's joystick's player stands where he is till the ball moves -
 the same when a keeper has caught it. If the computer finds no one to
@@ -316,9 +320,10 @@ if the tackle had not reached the ball first, and if it had, with him
 right at it, when it comes from behind (the ways at most 45 degrees
 apart) - the whistle, the player fouled down, and a free kick for his
 team where he lies; in the penalty area his team attacks, a penalty. For a free kick the other team's players within 40 pixels of
-the ball stand off between it and their goal, a wall; for a penalty the
-ball is on the spot, the keeper on his line, and everyone else but the
-taker out of the area. The taker faces the goal; yours turns with the
+the ball are put between it and their goal, then go to their places
+for it (above); for a penalty the
+ball is on the spot, the keeper on his line, everyone else but the
+taker put out of the area, then to their places at its edge. The taker faces the goal; yours turns with the
 stick and kicks with fire as for any set piece - held, it is a shot -
 and the yellow team shoots its penalties at one corner or the other.
 

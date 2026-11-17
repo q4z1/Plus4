@@ -71,14 +71,16 @@ def throw_in(v, at):
     for a, vals in s.pokes:
         v.poke(a, vals)
     v.poke(OFF_PL, [0xFF])
-    bs_t = way = 0
+    bs_t, way, rk = 0, None, R_THROW
     for f in range(400):
         v.cmd('x')
         if f > 2 and not mem1(v, 'kickoff') and not mem1(v, 'dead_t'):
             break
         bs_t = mem1(v, 'bs_t')
+        rk = mem1(v, 'rs_kind')
         taker = mem1(v, 'taker')
-        way = mem1(v, 'o_dir', taker) if taker < 22 else None
+        if taker < 22:                  # (the last frame he was the taker)
+            way = mem1(v, 'o_dir', taker)
     else:
         return 'none', 'not taken within 400 frames'
     speed = mem1(v, 'o_spl', BALL) + 256 * mem1(v, 'o_sph', BALL)
@@ -91,7 +93,9 @@ def throw_in(v, at):
         return 'late', 'kicked after %d frames waiting' % bs_t
     up = (1 ^ mem1(v, 'flip')) == 0         # (yellow: me 1)
     ways = long_ways(at[0], at[1], up)
-    if way is None or not ways >> way & 1:
+    if way is None or rk != R_THROW:
+        return 'other', 'not a throw-in kicked (another set piece first)'
+    if not ways >> way & 1:
         return 'wrong', 'from %d,%d the way %s, not one of %02x' % (at[0], at[1], way, ways)
     x0, y0, z = ball(v)
     top = z

@@ -3312,13 +3312,7 @@ team_ai:
         bne @play
         sec
         rts
-@play:  lda kickoff             ; (a free kick, a penalty waiting: they
-        beq :+                  ; stay where they were put)
-        lda rs_kind
-        cmp #R_FREE
-        bcc :+
-        rts                     ; (carry set)
-:       lda form_i              ; one of each team's eleven a frame in turn,
+@play:  lda form_i              ; one of each team's eleven a frame in turn,
         clc                     ; so each anew every 11 frames, as Sensible
         adc pic_n               ; Soccer's (c144d2)
         cmp #11
@@ -3481,7 +3475,10 @@ place_formation:
         lda z_t8
         adc tac_y0h,y
         sta z_py + 1
-        jsr keep_off
+        jsr spot                ; a set piece waiting: Sensible Soccer's
+        bcc :+                  ; place for him, else his formation's out
+        jsr keep_off            ; of its way
+:
         ; hardly away from the last place (the ball has hardly moved):
         ; that one kept - a new way would cost a new angle; standing, and
         ; hardly away from where he stands, he stays
@@ -3534,29 +3531,23 @@ place_formation:
 @keep:  rts
 
 ; keep_off: player X's new place (z_px, z_py) out of the way of the
-; other team's set piece, while it is dead or waits: out of a goal
-; kick's or the keeper's box, else WALL_D from where it is taken (as
-; set_wall puts those already there), on its side - so the teams stand
-; ready before it is taken, as their formations have it; and out of his
-; own team's box at its goal kick or keeper's ball, as on the C64 (its
-; keeper alone in it). Keeps X.
+; other team's set piece, while it is dead or waits, where Sensible
+; Soccer has no place of its own for him (spot: a throw-in, a free kick
+; away from the goal, some of its shirts): WALL_D from where it is taken
+; (as set_wall puts those already there), on its side. His own team's
+; as their formation has them. Keeps X.
 keep_off:
         lda dead_t
         ora kickoff
         beq @done
         lda rs_kind             ; (not a kick-off: line_up; nor a penalty:
-        beq @done               ; set_wall)
+        beq @done               ; spot)
         cmp #R_PENALTY
         beq @done
-        jsr team_y              ; (his team's own: as they are - but a
-        cpy rs_team             ; corner's, three into the box: @own)
-        jeq @own
+        jsr team_y
+        cpy rs_team
+        beq @done
         jsr rs_side
-        lda rs_kind
-        cmp #R_GOALKICK
-        beq @box
-        cmp #R_KEEPER
-        beq @box
         lda #WALL_D             ; within WALL_D of it both ways: WALL_D
         sta z_t8                ; off it on the side
         lda z_px
@@ -3584,74 +3575,268 @@ keep_off:
         adc wall_dh,y
         sta z_py + 1
 @done:  rts
-@box:   lda z_px                ; a goal kick: in its box, to its edge
-        cmp #<BOX_L
-        lda z_px + 1
-        sbc #>BOX_L
-        bcc @done
-        lda #<BOX_R
-        cmp z_px
-        lda #>BOX_R
-        sbc z_px + 1
-        bcc @done
-        ldy r_s
-        bne @bottom
-        lda z_py
-        cmp #<BOX_T
-        lda z_py + 1
-        sbc #>BOX_T
-        bcs @done
-        bcc @out
-@bottom:
-        lda #<BOX_B
-        cmp z_py
-        lda #>BOX_B
-        sbc z_py + 1
-        bcs @done
-@out:   lda box_out,y
-        sta z_py
-        lda box_oh,y
-        sta z_py + 1
+
+wall_dl:    .byte <(-WALL_D), <WALL_D
+wall_dh:    .byte >(-WALL_D), >WALL_D
+
+; spot: player X's place while a set piece waits - Sensible Soccer's for
+; each kind of set piece (sp_kind) and shirt, the team taking it's and
+; the other's (sp_*: in a team's own frame, its goal at the top: x / 2
+; and y / 3 from 54, 49; the team at the bottom's turned about - or, its
+; bit in the mask, off the ball as far as the two bytes say): carry clear,
+; z_px, z_py; carry set none - his formation's then. Keeps X.
+spot:
+        lda dead_t
+        ora kickoff
+        beq @no
+        jsr sp_kind
+        bcc :+
+@no:    sec
         rts
-@own:   cmp #R_GOALKICK         ; its goal kick, its keeper's ball: out
-        beq @obox               ; of the box too, as on the C64
-        cmp #R_KEEPER
-        bne @corner
-@obox:  jsr rs_side
-        jmp @box
-@corner:
-        cmp #R_CORNER           ; its corner: 8, 9, 10 to the near post,
-        bne @done               ; the far one, the spot (corner_*: 256 +
-        txa                     ; x, y the top's, then the bottom's)
+:       sta tmp
+        jsr team_y              ; (the other team's: 21 on)
+        cpy rs_team
+        beq :+
+        clc
+        adc #21
+        sta tmp
+:       ldy tmp
+        lda sp_hi,y
+        beq @none
+        sta z_ptr + 1
+        lda sp_lo,y
+        sta z_ptr
+        txa                     ; his shirt's, 2 + 2 * (X mod 11) on
         cpx #11
         bcc :+
         sbc #11
-:       sec
-        sbc #8
-        cmp #3
-        bcs @done
+:       sta tmp
+        asl a
+        adc #2
         tay
-        lda corner_x,y
+        lda (z_ptr),y
+        sta z_ax
+        iny
+        and (z_ptr),y           ; ($FF, $FF: none)
+        cmp #$FF
+        beq @none
+        lda (z_ptr),y
+        sta z_ay
+        ldy #0                  ; his bit of the mask: off the ball?
+        lda tmp
+        cmp #8
+        bcc :+
+        iny
+        sbc #8
+:       sta tmp + 1
+        lda (z_ptr),y
+        ldy tmp + 1
+        iny
+:       lsr a
+        dey
+        bne :-
+        bcs @ball
+        lda #0                  ; x * 2, y * 3
+        sta z_ax + 1
+        sta z_ay + 1
+        asl z_ax
+        rol z_ax + 1
+        lda z_ay
+        asl a
+        rol z_ay + 1
+        adc z_ay
+        sta z_ay
+        bcc :+
+        inc z_ay + 1
+:       jsr sp_top
+        beq @turn
+        lda z_ax                ; the team at the top: from 54, 49
+        clc
+        adc #54
         sta z_px
-        lda #1
+        lda z_ax + 1
+        adc #0
         sta z_px + 1
-        lda rs_y + 1            ; (the top: 0, the bottom: 2)
-        sta z_py + 1
-        beq :+
-        iny                     ; (the bottom's: three on)
-        iny
-        iny
-:       lda corner_y,y
+        lda z_ay
+        clc
+        adc #49
         sta z_py
+        lda z_ay + 1
+        adc #0
+        sta z_py + 1
+        clc
+        rts
+@none:  sec
+        rts
+@turn:  lda #<553               ; the team at the bottom: 553 - x, 689 - y
+        sec
+        sbc z_ax
+        sta z_px
+        lda #>553
+        sbc z_ax + 1
+        sta z_px + 1
+        lda #<689
+        sec
+        sbc z_ay
+        sta z_py
+        lda #>689
+        sbc z_ay + 1
+        sta z_py + 1
+        clc
+        rts
+@ball:  jsr sp_top              ; off the ball (turned about at the bottom)
+        bne :+
+        lda #0
+        sec
+        sbc z_ax
+        sta z_ax
+        lda #0
+        sec
+        sbc z_ay
+        sta z_ay
+:       lda z_ax
+        ldy #0
+        jsr sp_add
+        sta z_px
+        sty z_px + 1
+        lda z_ay
+        ldy #rs_y - rs_x
+        jsr sp_add
+        sta z_py
+        sty z_py + 1
+        clc
         rts
 
-corner_x:   .byte 304 - 256, 286 - 256, 324 - 256
-corner_y:   .byte LINE_T + 58, LINE_T + 22, LINE_T + 30
-            .byte <(LINE_B - 58), <(LINE_B - 22), <(LINE_B - 30)
-.assert >(LINE_B - 58) = 2 && >(LINE_B - 22) = 2, error, "corner_yb: high bytes"
-wall_dl:    .byte <(-WALL_D), <WALL_D
-wall_dh:    .byte >(-WALL_D), >WALL_D
-box_oh:     .byte >(BOX_T + 12), >(BOX_B - 12)
+; sp_add: A, Y = rs_x (Y 0) or rs_y (Y 2) + A (signed). Keeps X.
+sp_add:
+        sta tmp
+        clc
+        adc rs_x,y
+        pha
+        lda tmp
+        and #$80
+        beq :+
+        lda #$FF
+:       adc rs_x + 1,y
+        tay
+        pla
+        rts
+
+; sp_top: Z clear if player X's team has its goal at the top. Keeps X.
+sp_top:
+        jsr team_y
+        tya
+        eor flip
+        rts
+
+; sp_kind: A = the kind of the set piece waiting, carry clear - as
+; Sensible Soccer has them, by its place for the team taking it (its own
+; frame: its goal at the top, its right as it looks down): a goal kick
+; its right 1, its left 2; the keeper's ball 3; a corner its right 4,
+; its left 5; a free kick in the band before the goal it attacks 6 - 12
+; by the column from its right (x 121, 229, 277, 330, 378, 486), a
+; penalty 14; a throw-in on its right 15 - 17, on its left 18 - 20, by
+; the band from its goal (y 262, 476). Carry set none: a kick-off
+; (line_up), a free kick elsewhere. Keeps X.
+sp_kind:
+        lda rs_team
+        eor flip
+        sta tmp + 1             ; (1: the taker's goal at the top)
+        lda rs_x
+        cmp #<304
+        lda rs_x + 1
+        sbc #>304
+        lda #0
+        rol a                   ; (1: the right half)
+        eor tmp + 1
+        eor #1
+        sta tmp                 ; (1: its right)
+        ldy rs_kind
+        cpy #R_GOALKICK
+        bne :+
+        lda #2
+        bne @side
+:       cpy #R_CORNER
+        bne :+
+        lda #5
+@side:  sec
+        sbc tmp
+        clc
+        rts
+:       cpy #R_KEEPER
+        bne :+
+        lda #3
+        clc
+        rts
+:       cpy #R_PENALTY
+        bne :+
+        lda #14
+        clc
+        rts
+:       cpy #R_THROW
+        bne @free
+        ldy #0                  ; the band (y 262, 476)
+        jsr sp_ge
+        lda #0
+        adc #0
+        sta z_ax
+        ldy #1
+        jsr sp_ge
+        lda z_ax
+        adc #0                  ; (0 - 2 from the top)
+        ldy tmp + 1
+        bne :+
+        eor #$FF                ; (the taker's goal at the bottom: 2 - it)
+        sec
+        adc #2
+:       clc
+        adc #18
+        ldy tmp
+        beq :+
+        sbc #3 - 1              ; (its right: 15 on - the carry clear)
+:       clc
+        rts
+@free:  cpy #R_FREE
+        bne @none
+        ldy #2                  ; the band before the goal attacked: y
+        lda tmp + 1             ; 136 - 250 attacking up, 487 - 602 down
+        beq :+
+        ldy #4
+:       jsr sp_ge
+        bcc @none
+        iny
+        jsr sp_ge
+        bcs @none
+        ldy #0                  ; the column from the left
+:       lda rs_x
+        cmp fk_xl,y
+        lda rs_x + 1
+        sbc fk_xh,y
+        bcc :+
+        iny
+        cpy #6
+        bne :-
+:       tya
+        ldy tmp + 1             ; from its right: 12 less it attacking
+        beq :+                  ; down, 6 on attacking up
+        eor #$FF
+        sec
+        adc #12
+        clc
+        rts
+:       clc
+        adc #6
+        rts
+@none:  sec
+        rts
+
+; sp_ge: carry set if rs_y is sp_y* Y or more. Keeps X, Y.
+sp_ge:
+        lda rs_y
+        cmp sp_yl,y
+        lda rs_y + 1
+        sbc sp_yh,y
+        rts
 
 ; pace: player X's speed to his new place: his team's (jog_*: Sensible
 ; Soccer's for it, c144dc). Keeps X.
@@ -7064,6 +7249,114 @@ ball_way:
         rts
 
 ; each way's joystick bits
+; spot's: the bands (sp_kind: a throw-in's, a free kick's attacking up,
+; down), the free kick's columns; Sensible Soccer's places at set pieces
+; (sp_lo, sp_hi: by the kind, the team taking it's, then the other's 21
+; on; 0 none)
+sp_yl:      .byte <262, <476, <136, <251, <487, <603
+sp_yh:      .byte >262, >476, >136, >251, >487, >603
+fk_xl:      .byte <121, <229, <277, <330, <378, <486
+fk_xh:      .byte >121, >229, >277, >330, >378, >486
+sp_lo:  .byte 0, <sp_t1, <sp_t2, <sp_t3, <sp_t4, <sp_t5, <sp_t6, <sp_t7, <sp_t8, <sp_t9, <sp_ta, <sp_tb, <sp_tc, 0, <sp_te, <sp_tf, <sp_t10, <sp_t11, <sp_t12, <sp_t13, <sp_t14
+        .byte 0, <sp_d1, <sp_d2, <sp_d3, <sp_d4, <sp_d5, <sp_d6, <sp_d7, <sp_d8, <sp_d9, <sp_da, <sp_db, <sp_dc, 0, <sp_de, 0, 0, 0, 0, 0, 0
+sp_hi:  .byte 0, >sp_t1, >sp_t2, >sp_t3, >sp_t4, >sp_t5, >sp_t6, >sp_t7, >sp_t8, >sp_t9, >sp_ta, >sp_tb, >sp_tc, 0, >sp_te, >sp_tf, >sp_t10, >sp_t11, >sp_t12, >sp_t13, >sp_t14
+        .byte 0, >sp_d1, >sp_d2, >sp_d3, >sp_d4, >sp_d5, >sp_d6, >sp_d7, >sp_d8, >sp_d9, >sp_da, >sp_db, >sp_dc, 0, >sp_de, 0, 0, 0, 0, 0, 0
+sp_t1:  ; taker: goal kick, its right
+        .word $000
+        .byte 145,3, 50,55, 100,44, 150,44, 200,55, 50,118, 100,92, 150,92, 200,118, 100,148, 150,148
+sp_t2:  ; taker: goal kick, its left
+        .word $000
+        .byte 105,3, 50,55, 100,44, 150,44, 200,55, 50,118, 100,92, 150,92, 200,118, 100,148, 150,148
+sp_t3:  ; taker: the keeper's ball
+        .word $001
+        .byte 0,0, 50,55, 100,44, 150,44, 200,55, 50,118, 100,92, 150,92, 200,118, 100,148, 150,148
+sp_t4:  ; taker: corner, its right
+        .word $000
+        .byte 125,2, 50,200, 100,92, 150,92, 245,200, 75,167, 125,200, 175,167, 225,185, 105,204, 145,204
+sp_t5:  ; taker: corner, its left
+        .word $000
+        .byte 125,2, 5,200, 100,92, 150,92, 200,92, 25,185, 75,167, 125,200, 175,167, 105,204, 145,204
+sp_t6:  ; taker: free kick, column 0 from its right
+        .word $180
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 80,174, 150,167, 226,231, 0,241, 120,204, 140,202
+sp_t7:  ; taker: free kick, column 1 from its right
+        .word $180
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 80,174, 125,137, 226,231, 0,241, 120,204, 140,204
+sp_t8:  ; taker: free kick, column 2 from its right
+        .word $180
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 80,174, 125,137, 226,231, 0,241, 120,204, 140,204
+sp_t9:  ; taker: free kick, column 3 from its right
+        .word $7E0
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 166,20, 221,221, 20,196, 120,30, 236,246, 40,241
+sp_ta:  ; taker: free kick, column 4 from its right
+        .word $060
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 0,241, 30,231, 125,137, 170,174, 110,204, 130,204
+sp_tb:  ; taker: free kick, column 5 from its right
+        .word $060
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 0,241, 30,231, 125,137, 170,174, 110,204, 130,204
+sp_tc:  ; taker: free kick, column 6 from its right
+        .word $060
+        .byte 125,2, 255,255, 255,255, 255,255, 255,255, 0,241, 30,231, 100,167, 170,174, 110,202, 130,204
+sp_te:  ; taker: penalty
+        .word $000
+        .byte 125,2, 50,92, 100,92, 150,92, 200,92, 50,167, 100,167, 150,167, 200,167, 110,185, 125,174
+sp_tf:  ; taker: throw-in, its right, band 0 from its goal
+        .word $198
+        .byte 255,255, 255,255, 255,255, 181,0, 231,0, 255,255, 255,255, 181,50, 206,75, 255,255, 255,255
+sp_t10:  ; taker: throw-in, its right, band 1 from its goal
+        .word $5C0
+        .byte 255,255, 255,255, 255,255, 255,255, 255,255, 255,255, 156,25, 181,236, 231,231, 255,255, 181,75
+sp_t11:  ; taker: throw-in, its right, band 2 from its goal
+        .word $1C0
+        .byte 255,255, 255,255, 255,255, 255,255, 255,255, 255,255, 181,206, 181,0, 231,0, 255,255, 255,255
+sp_t12:  ; taker: throw-in, its left, band 0 from its goal
+        .word $066
+        .byte 255,255, 25,0, 75,0, 255,255, 255,255, 75,50, 50,75, 255,255, 255,255, 255,255, 255,255
+sp_t13:  ; taker: throw-in, its left, band 1 from its goal
+        .word $4E0
+        .byte 255,255, 255,255, 255,255, 255,255, 255,255, 25,231, 75,236, 100,25, 255,255, 255,255, 75,75
+sp_t14:  ; taker: throw-in, its left, band 2 from its goal
+        .word $0E0
+        .byte 255,255, 255,255, 255,255, 255,255, 255,255, 25,0, 75,0, 75,206, 255,255, 255,255, 255,255
+sp_d1:  ; the other team: goal kick, its right
+        .word $000
+        .byte 125,4, 50,48, 100,48, 150,48, 200,48, 50,81, 100,92, 150,92, 200,81, 100,148, 150,148
+sp_d2:  ; the other team: goal kick, its left
+        .word $000
+        .byte 125,4, 50,48, 100,48, 150,48, 200,48, 50,81, 100,92, 150,92, 200,81, 100,148, 150,148
+sp_d3:  ; the other team: the keeper's ball
+        .word $000
+        .byte 125,4, 50,48, 100,48, 150,48, 200,48, 50,81, 100,92, 150,92, 200,81, 100,148, 150,148
+sp_d4:  ; the other team: corner, its right
+        .word $000
+        .byte 125,1, 88,13, 112,7, 138,7, 162,13, 75,37, 100,18, 150,28, 200,55, 100,100, 150,100
+sp_d5:  ; the other team: corner, its left
+        .word $000
+        .byte 125,1, 88,13, 112,7, 138,7, 162,13, 50,55, 100,28, 150,18, 175,37, 100,100, 150,100
+sp_d6:  ; the other team: free kick, column 0 from its right
+        .word $006
+        .byte 125,1, 43,219, 48,227, 140,9, 105,7, 95,7, 125,9, 170,17, 170,29, 255,255, 255,255
+sp_d7:  ; the other team: free kick, column 1 from its right
+        .word $01E
+        .byte 125,1, 30,215, 37,220, 43,225, 48,230, 100,7, 125,11, 140,13, 155,4, 255,255, 255,255
+sp_d8:  ; the other team: free kick, column 2 from its right
+        .word $01E
+        .byte 125,1, 14,203, 23,206, 31,209, 38,212, 100,7, 125,11, 140,13, 155,4, 255,255, 255,255
+sp_d9:  ; the other team: free kick, column 3 from its right
+        .word $1FE
+        .byte 125,1, 241,202, 251,201, 5,201, 15,202, 176,20, 206,201, 60,211, 70,40, 255,255, 255,255
+sp_da:  ; the other team: free kick, column 4 from its right
+        .word $01E
+        .byte 125,1, 218,212, 225,209, 233,206, 242,203, 95,4, 110,13, 125,11, 150,7, 255,255, 255,255
+sp_db:  ; the other team: free kick, column 5 from its right
+        .word $01E
+        .byte 125,1, 208,230, 213,225, 219,220, 226,215, 95,4, 110,13, 125,11, 150,7, 255,255, 255,255
+sp_dc:  ; the other team: free kick, column 6 from its right
+        .word $018
+        .byte 125,1, 145,7, 110,9, 208,227, 213,219, 80,29, 80,17, 125,9, 155,7, 255,255, 255,255
+sp_de:  ; the other team: penalty
+        .word $000
+        .byte 125,1, 88,29, 112,41, 138,41, 162,29, 35,52, 100,55, 150,55, 215,52, 75,100, 150,100
 ; thr_ways: the ways a throw-in goes long from (thr_ok), a bit each (0
 ; up, 2 right): attacking up, the left touch line's bands from the top,
 ; then the right's; attacking down the same (Sensible Soccer's c154a2,
