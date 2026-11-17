@@ -5092,11 +5092,14 @@ keeper:
         lda #>SPEED_JOG
         sta z_ks + 1
         ldx z_obj
+        jsr k_high              ; (a high ball into his box: to where it
+        bcc @set                ; comes down)
+        ldx z_obj
         jsr k_shot              ; (a shot at him: across to it, faster)
         ldx z_obj
         jsr k_get               ; (a slow ball near him, or he the nearest:
                                 ; to it)
-        lda z_px                ; somewhere else: there
+@set:   lda z_px                ; somewhere else: there
         cmp o_txl,x
         bne :+
         lda z_px + 1
@@ -5413,6 +5416,226 @@ k_get:
 @not:   ldx z_obj
         rts
 
+; k_high: keeper X and a high ball in his box, as Sensible Soccer's
+; (c12a80, c12e0c, c10e66): where it will come down through 20 high (or
+; through as high as it is, 13 at least), if that is in his box too and
+; he at most half as far from it as the ball - there, SPEED_NEAR; the
+; ball in his goal area always, else 12 - his team's keeper's level times
+; in 16 (the level: kp_g*). Carry clear if so: z_px, z_py, z_ks. Keeps X.
+k_high:
+        lda o_zl + BALL         ; (high: 13 at least)
+        cmp #13
+        jcc @no
+        lda o_vxl + BALL        ; (moving: a pixel a frame at least, one
+        clc                     ; way or the other - Sensible Soccer's
+        adc #1                  ; from -1 to 1 still)
+        cmp #2
+        bcs :+
+        lda o_vyl + BALL
+        clc
+        adc #1
+        cmp #2
+        jcc @no
+:       lda o_xl + BALL         ; (the ball: z_ax, z_ay)
+        sta z_ax
+        lda o_xh + BALL
+        sta z_ax + 1
+        lda o_yl + BALL
+        sta z_ay
+        lda o_yh + BALL
+        sta z_ay + 1
+        ldy #0                  ; in his box now
+        jsr k_area
+        jcs @no
+        ldy #4                  ; in his goal area, or the die
+        jsr k_area
+        bcc @fall
+        jsr team_y
+        lda #<1056              ; (the level: (1056 - kp_g) / 32)
+        sec
+        sbc kp_gl,y
+        pha
+        lda #>1056
+        sbc kp_gh,y
+        sta tmp + 1
+        pla
+        ldy #5
+        jsr shr16
+        eor #$FF                ; (12 - it)
+        sec
+        adc #12
+        sta z_t8
+        jsr rnd
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        cmp z_t8
+        jcs @no
+@fall:  lda o_zl + BALL         ; the frames till it comes down through h
+        cmp #20                 ; (20, or as high as it is)
+        bcc :+
+        lda #20
+:       sta z_t8
+        lda o_zf + BALL
+        sta tmp
+        lda o_zl + BALL
+        sta tmp + 1
+        lda o_dzf + BALL
+        sta z_dvd
+        lda o_dzl + BALL
+        sta z_dvd + 1
+        ldy #0
+:       iny
+        jeq @no                 ; (not down in 255 frames)
+        lda z_dvd               ; (gravity, then the step up or down)
+        sec
+        sbc #$12
+        sta z_dvd
+        bcs :+
+        dec z_dvd + 1
+:       lda tmp
+        clc
+        adc z_dvd
+        sta tmp
+        lda tmp + 1
+        adc z_dvd + 1
+        sta tmp + 1
+        bmi :+
+        cmp z_t8
+        bcs :--
+:       sty k_f
+        stx z_obj
+        tya                     ; there: the ball's x, y + frames * steps
+        jsr step_x
+        lda tmp
+        clc
+        adc o_xl + BALL
+        sta z_ax
+        lda tmp + 1
+        adc o_xh + BALL
+        sta z_ax + 1
+        lda k_f
+        jsr step_y
+        lda tmp
+        clc
+        adc o_yl + BALL
+        sta z_ay
+        lda tmp + 1
+        adc o_yh + BALL
+        sta z_ay + 1
+        ldx z_obj
+        ldy #0                  ; in his box
+        jsr k_area
+        jcs @no
+        ldx #BALL               ; he at most half as far as the ball:
+        jsr l_d2                ; 4 * his way squared no more than its
+        ldx z_obj
+        bcs :+                  ; (the ball far: any)
+        lda tmp
+        sta k_d2
+        lda tmp + 1
+        sta k_d2 + 1
+        jsr l_d2
+        jcs @no
+        asl tmp
+        rol tmp + 1
+        jcs @no
+        asl tmp
+        rol tmp + 1
+        jcs @no
+        lda k_d2
+        cmp tmp
+        lda k_d2 + 1
+        sbc tmp + 1
+        jcc @no
+:       lda z_ax
+        sta z_px
+        lda z_ax + 1
+        sta z_px + 1
+        lda z_ay
+        sta z_py
+        lda z_ay + 1
+        sta z_py + 1
+        lda #<SPEED_NEAR
+        sta z_ks
+        lda #>SPEED_NEAR
+        sta z_ks + 1
+        clc
+        rts
+@no:    sec
+        rts
+
+; k_area: carry clear if (z_ax, z_ay) is in keeper X's penalty area (Y
+; 0) or goal area (Y 4): x from ka_x Y to ka_x Y + 2; y to ka_y Y (the
+; top's), or from ka_y Y + 2 (the bottom's). Keeps X.
+k_area:
+        lda z_ax
+        cmp ka_x,y
+        lda z_ax + 1
+        sbc ka_x + 1,y
+        bcc @out
+        lda ka_x + 2,y
+        cmp z_ax
+        lda ka_x + 3,y
+        sbc z_ax + 1
+        bcc @out
+        jsr top_of
+        beq @bottom
+        lda ka_y,y
+        cmp z_ay
+        lda ka_y + 1,y
+        sbc z_ay + 1
+        bcc @out
+        clc
+        rts
+@bottom:
+        lda z_ay
+        cmp ka_y + 2,y
+        lda z_ay + 1
+        sbc ka_y + 3,y
+        bcc @out
+        clc
+        rts
+@out:   sec
+        rts
+
+ka_x:       .word 161, 446, 241, 366
+ka_y:       .word 136, 602, 78, 660
+
+; l_d2: tmp = the distance squared from (z_ax, z_ay) to object X, carry
+; set if it is 65536 or more. Keeps X.
+l_d2:
+        lda #0
+        sta mate_t
+        sta mate_t + 1
+        lda z_ax
+        sec
+        sbc o_xl,x
+        sta tmp
+        lda z_ax + 1
+        sbc o_xh,x
+        jsr abs16
+        bne @far
+        tay
+        jsr sq_add
+        lda tmp
+        sta mate_t
+        lda tmp + 1
+        sta mate_t + 1
+        lda z_ay
+        sec
+        sbc o_yl,x
+        sta tmp
+        lda z_ay + 1
+        sbc o_yh,x
+        jsr abs16
+        bne @far
+        tay
+        jmp sq_add
+@far:   sec
+        rts
+
 ; k_nearer: carry clear if player A (none: $FF) is nearer the ball than
 ; keeper z_obj (k_d2) - not the keeper himself
 k_nearer:
@@ -5435,11 +5658,16 @@ NEAR_N      = * - near_of
 
 ; step_x: tmp = A frames * the ball's step across (8.8, signed) / 256 -
 ; its way in so many frames. Keeps X.
+step_y:                         ; (the same down)
+        ldy o_vyf + BALL
+        sty z_dvs
+        ldy o_vyl + BALL
+        jmp step_c
 step_x:
         ldy o_vxf + BALL
         sty z_dvs
         ldy o_vxl + BALL
-        sty z_dvs + 1
+step_c: sty z_dvs + 1
         sty z_sg
         jsr mul_set
         bit z_sg                ; (|step|)

@@ -570,9 +570,13 @@ a level) and
 picks up - holding it up in his hands till he kicks it out - and one low in his box that he is nearer than the players
 going for it - either team's joystick's, the one run after it, a
 pass's receiver - he goes for too (1024, its c12f46), when it is no
-shot at his goal. A cross he lets come down, as Sensible Soccer's
-keeper does (measured: high balls into the box he does not run out
-for, though its code reckons where they come down); once it is down in
+shot at his goal. A high ball in his box (13 pixels up or more, a pixel
+a frame or faster) he runs out to (1024) where it will come down through
+20 pixels high, if that is in his box too and he is at most half as far
+from it as the ball - always when it is in his goal area, else 12 less
+his keeper's level times in 16, as Sensible Soccer's keeper does. A
+cross from outside the box he mostly lets come down so (by the time it is
+in the box it is about as near where it lands as he is); once it is down in
 his box and he is the nearest, it is his - 20 of 30 crosses of a test
 are, 17 in the original. So shots at him are held, ones by the posts and across him
 mostly parried, a hard one into a corner from close in now and then
