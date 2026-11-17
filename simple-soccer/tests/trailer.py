@@ -673,6 +673,16 @@ def part(name, out, pieces, caps=()):
     return d, len(shown)
 
 
+def x264_ffmpeg():
+    """an ffmpeg that has libx264: this one's, or the host's (the
+    sandbox's ffmpeg lost it with an update, 17.11.2026)"""
+    enc = subprocess.run(['ffmpeg', '-hide_banner', '-encoders'],
+                         capture_output=True, text=True).stdout
+    if 'libx264' in enc:
+        return ['ffmpeg']
+    return ['flatpak-spawn', '--host', '--directory=' + os.getcwd(), 'ffmpeg']
+
+
 def main():
     os.makedirs(T, exist_ok=True)
     if '--boot' in sys.argv:
@@ -730,7 +740,7 @@ def main():
           'fade=t=out:st=%.2f:d=1.5,format=yuv420p[outv];' % (total - 1.5) +
           '[3:a]aresample=%d,volume=%s,lowpass=f=9000,atrim=duration=%.3f,' % (RATE, SONG, total) +
           'asetpts=N/SR/TB,afade=t=in:d=0.3,afade=t=out:st=%.2f:d=2.5[outa]' % (total - 2.5))
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-filter_complex_threads', '2',
+    subprocess.run(x264_ffmpeg() + ['-v', 'error', '-y', '-filter_complex_threads', '2',
                     '-i', cr, '-i', bf, '-i', ce, '-i', song, '-filter_complex', fc,
                     '-map', '[outv]', '-map', '[outa]', '-t', '%.3f' % total,
                     '-c:v', 'libx264', '-threads', '4', '-preset', 'slow', '-crf', '16', '-pix_fmt', 'yuv420p',
