@@ -35,7 +35,7 @@ FIGS        = PLAYERS + 1
 ; the pitch onto the ground: x - 23, y + 58 (the touchlines at 49 and 558
 ; onto the ground's at 26 and 535, the goal lines at 49 and 689 onto its
 ; rows 107 and 747 - the ground as the C64 shows it, the grass rows
-; repeated: wrow_*)
+; repeated: seg*_*)
 GROUND_X    = 23
 GROUND_Y    = 58
 

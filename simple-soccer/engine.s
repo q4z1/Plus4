@@ -31,7 +31,7 @@
         .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
         .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
-        .import _pitch_font, wrow_lo, wrow_hi
+        .import _pitch_font, seg_at, seg_lol, seg_loh, seg_hil, seg_hih
         .import img_ox, img_oy, img_lo, img_hi, pix_lo, pix_hi
         .import crow_of, cmap_lo, cmap_hi
         .import la_codes, la_step, la_norm, la_up
@@ -54,7 +54,6 @@ CUT_IRQ     = CUT_LINE - 8      ; on at the end of a line from CUT_IRQ to
                                 ; room for an interrupt held up (joy_read).
 
         .zeropage
-z_map:      .res 2              ; the ground row being copied, from col0
 z_scr:      .res 2              ; the code matrix row it goes to
 z_src:      .res 2
 z_dst:      .res 2
@@ -62,7 +61,7 @@ z_t:        .res 1
 z_t2:       .res 1
 z_row:      .res 1
 z_n:        .res 1
-z_wr:       .res 1              ; the ground's row shown next (map_row)
+z_wr:       .res 1              ; the ground's row shown next (fill)
 z_att:      .res 2              ; a cell's colour
 z_fnt:      .res 2              ; a character's pixels
 z_atthi:    .res 1              ; the back picture: its colour matrix,
@@ -448,9 +447,8 @@ eng_begin:
         ; the code below for the back picture: its cache, its matrices,
         ; its characters, its list
         lda xlat_hi,x
-        sta cl_look + 2
+        sta fi_look + 2
         sta al_put + 2
-        sta fc_look + 2
         sta ev_look + 2
         sta ev_clr + 2
         lda fl_hi,x
@@ -786,20 +784,6 @@ eng_end:
         stx queued
         rts
 
-; map_row: z_map = the ground's row z_wr (as it is shown: wrow_*) from
-; col0, and z_wr the next. Keeps Y.
-map_row:
-        ldx z_wr
-        lda wrow_lo,x
-        clc
-        adc col0
-        sta z_map
-        lda wrow_hi,x
-        adc #0
-        sta z_map + 1
-        inc z_wr
-        rts
-
 ; restore: the cells the back picture's figures took, from its list,
 ; the last figure first (a cell two figures took is listed for both, the
 ; later with the earlier's code): their colour back to the ground's, and
@@ -893,43 +877,11 @@ cells:
         sta z_scr
         lda #VIS_H
         sta z_row
-; cl_rows: z_row rows of cells, from the ground's row z_wr on to the codes
-; at z_scr
-cl_rows:
-cl_row:   jsr map_row
-        lda z_map               ; (the row's places in the code: abs,y is
-        sta cl_src + 1          ; quicker than (zp),y)
-        lda z_map + 1
-        sta cl_src + 2
-        lda z_scr
-        sta cl_dst + 1
-        lda z_scr + 1
-        sta cl_dst + 2
-        ldy #SCR_W - 1
-cl_cell:
-cl_src = *
-        lda $FFFF,y
-        beq cl_put              ; (the grass, code 0 in every set: first)
-        tax
-cl_look = *
-        lda xlat0,x             ; (the picture's cache)
-        beq cl_none
-cl_put:
-cl_dst = *
-        sta $FFFF,y
-        dey
-        bpl cl_cell
-        lda z_scr
-        clc
-        adc #SCR_W
-        sta z_scr
-        bcc :+
-        inc z_scr + 1
-:       dec z_row
-        bne cl_row
-        rts
-cl_none:  jsr alloc
-        jmp cl_put
+        lda #0
+        sta z_c
+        lda #SCR_W
+        sta z_cnt
+        jmp fill
 
 ; shift: the back picture, built three cells off at most (z_dc, z_dr),
 ; moved over to col0, row0: the cells its figures took put back where
@@ -1047,7 +999,11 @@ fill_row:
         sta z_scr + 1
         lda #1
         sta z_row
-        jmp cl_rows
+        lda #0
+        sta z_c
+        lda #SCR_W
+        sta z_cnt
+        jmp fill
 
 ; fill_cols: columns A to A + z_k - 1 of the back picture's codes looked
 ; up afresh, the rows shown, a row at a time (its ground row found once)
@@ -1066,37 +1022,95 @@ fill_cols:
         sta z_scr
         lda #VIS_H
         sta z_row
-fc_row: ldx z_wr                ; (map_row, in line)
-        lda wrow_lo,x
+        ; (fill)
+
+; fill: the back picture's codes in columns z_c .. z_cnt - 1, z_row rows
+; of them from the ground's row z_wr (as it is shown) on, the first row's
+; codes at z_scr - looked up afresh, a segment of the map at a time: its
+; columns seg_at .. the next's - 1, each row of it in its own place
+; (tools/mkdata.py: rows alike in a segment there once; its tables
+; seg_*: for each row shown the place less the segment's first column).
+; Where the rows begin kept in the code for each segment.
+fill:
+        lda z_wr
+        sta fi_wr + 1
+        lda z_row
+        sta fi_rows + 1
+        lda z_scr
+        sta fi_scr + 1
+        lda z_scr + 1
+        sta fi_scrh + 1
+fi_seg: lda col0                ; the segment of the first column
         clc
+        adc z_c
+        ldx #NSEG - 1
+:       cmp seg_at,x
+        bcs :+
+        dex
+        bpl :-                  ; (not past 0: seg_at is 0 there)
+:       lda seg_at + 1,x        ; to its end on the picture, or the
+        sec                     ; stretch's
+        sbc col0
+        cmp z_cnt
+        bcc :+
+        lda z_cnt
+:       sta fi_end + 1
+        lda seg_lol,x           ; its tables
+        sta fi_lo + 1
+        lda seg_loh,x
+        sta fi_lo + 2
+        lda seg_hil,x
+        sta fi_hi + 1
+        lda seg_hih,x
+        sta fi_hi + 2
+fi_wr:  lda #0                  ; its rows from the first
+        sta z_wr
+fi_rows:
+        lda #0
+        sta z_row
+fi_scr: lda #0
+        sta fi_dst + 1
+fi_scrh:
+        lda #0
+        sta fi_dst + 2
+fi_row: ldx z_wr
+fi_lo:  lda $FFFF,x             ; (the row's places: abs,y is quicker than
+        clc                     ; (zp),y)
         adc col0
-        sta z_map
-        lda wrow_hi,x
+        sta fi_src + 1
+fi_hi:  lda $FFFF,x
         adc #0
-        sta z_map + 1
+        sta fi_src + 2
         inc z_wr
         ldy z_c                 ; (Y the column: alloc keeps it)
-fc_cell:
-        lda (z_map),y
-        beq fc_put              ; (the grass, code 0 in every set: first)
+fi_cell:
+fi_src = *
+        lda $FFFF,y
+        beq fi_dst              ; (the grass, code 0 in every set: first)
         tax
-fc_look = *
+fi_look = *
         lda xlat0,x             ; (the picture's cache)
-        bne fc_put
+        bne fi_dst
         jsr alloc
-fc_put: sta (z_scr),y
+fi_dst = *
+        sta $FFFF,y
         iny
-        cpy z_cnt
-        bne fc_cell
-        lda z_scr
+fi_end: cpy #0
+        bne fi_cell
+        lda fi_dst + 1
         clc
         adc #SCR_W
-        sta z_scr
+        sta fi_dst + 1
         bcc :+
-        inc z_scr + 1
+        inc fi_dst + 2
 :       dec z_row
-        bne fc_row
-        rts
+        bne fi_row
+        lda fi_end + 1          ; the next segment, if the stretch goes on
+        sta z_c
+        cmp z_cnt
+        beq :+
+        jmp fi_seg
+:       rts
 
 ; move_up: the codes moved to lower addresses, from z_src (the matrix +
 ; off) to z_dst (the matrix), the lowest first, MOVE_U a turn: the rows

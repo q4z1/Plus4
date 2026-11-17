@@ -6,10 +6,11 @@ Writes build/gen/data.s (the tables) and build/gen/data.inc (their sizes
 and the colours, for the code):
 
   pitch_map    the ground's rows, 79 character codes each (data/pitch.txt),
-               and its colour rows (cmap*) - overlapped where a row
-               ends as another begins
-  wrow_*       the ground as it is shown (data/rows.txt): each of its
-               rows' place in pitch_map
+               in pieces (seg*_*), and its colour rows (cmap*) -
+               overlapped where one ends as another begins
+  seg*_*       the ground as it is shown (data/rows.txt), cut into NSEG
+               segments: for each, each of its rows' place in pitch_map
+               (less the segment's first column, seg_at)
   pitch_font   its characters, 8 bytes each, multicolour
   img_*        the figures (data/sprites.txt), cut to what they cover and
                shifted to each of the four pixels in a character, ready
@@ -677,6 +678,25 @@ def tactics():
     return forms
 
 
+# The ground's rows in segments (engine.s fill: a segment at a time), the
+# rows' pieces alike in one of them there once
+NSEG = 4
+
+
+def segments(rows, n):
+    """where to cut the rows into n segments for the fewest bytes: the
+    first column of each, and the rows' width"""
+    w = len(rows[0])
+    size = {(i, j): len(set(r[i:j] for r in rows)) * (j - i)
+            for i in range(w) for j in range(i + 1, w + 1)}
+    best = {(0, 0): (0, [])}
+    for k in range(1, n + 1):
+        for j in range(k, w + 1):
+            best[k, j] = min((best[k - 1, i][0] + size[i, j], best[k - 1, i][1] + [i])
+                             for i in range(k - 1, j) if (k - 1, i) in best)
+    return best[n, w][1] + [w]
+
+
 def overlapped(rows):
     """one string with each of rows in it, shorter than all of them one
     after the other where one row ends as another begins (greedy: the
@@ -713,16 +733,24 @@ def main():
     with open(os.path.join(GEN, 'data.s'), 'w') as out:
         out.write('; made by tools/mkdata.py from data/ - do not edit\n\n')
         out.write('        .export _pitch_map, _pitch_font\n\n        .rodata\n')
-        # the ground's rows and the colour rows (tint) as one string, each
-        # row in it somewhere (engine.s reads a row from its start on)
+        # the ground's rows cut into segments, each row's piece of each
+        # (alike ones once), and the colour rows (tint), as one string
         tint = colours()
-        packed, at = overlapped([bytes(r) for r in rows] + [bytes(c) for _, c in tint])
-        out.write('_pitch_map:             ; the rows, overlapped\n')
+        cuts = segments(rows, NSEG)
+        pieces = [bytes(r[a:b]) for a, b in zip(cuts, cuts[1:]) for r in rows]
+        packed, at = overlapped(pieces + [bytes(c) for _, c in tint])
+        out.write('_pitch_map:             ; the pieces, overlapped\n')
         hexrows(out, packed, 40)
         shown = shown_rows()
-        out.write('\n        .export wrow_lo, wrow_hi\n        .rodata\n')
-        out.write('wrow_lo: .lobytes ' + ', '.join('_pitch_map + %d' % at[r] for r in shown) + '\n')
-        out.write('wrow_hi: .hibytes ' + ', '.join('_pitch_map + %d' % at[r] for r in shown) + '\n')
+        out.write('\n        .export seg_at, seg_lol, seg_loh, seg_hil, seg_hih\n        .rodata\n')
+        out.write('seg_at:  .byte ' + ', '.join(str(c) for c in cuts) + '    ; each one\'s first column\n')
+        for x in ('lol', 'loh', 'hil', 'hih'):
+            out.write('seg_%s: .byte ' % x + ', '.join('%s(seg%d_%s)' % ('<' if x[2] == 'l' else '>', k, x[:2])
+                                                    for k in range(NSEG)) + '\n')
+        for k, a in enumerate(cuts[:-1]):       # (the place less the first column)
+            places = ['_pitch_map + %d' % (at[k * len(rows) + r] - a) for r in shown]
+            out.write('seg%d_lo: .lobytes ' % k + ', '.join(places) + '\n')
+            out.write('seg%d_hi: .hibytes ' % k + ', '.join(places) + '\n')
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')
         hexrows(out, chars())
         out.write('\n        .export la_codes, la_step, la_norm, la_up\n        .rodata\n')
@@ -742,7 +770,7 @@ def main():
         out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
         out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')
         for i, (y, cols) in enumerate(tint):
-            out.write('cmap%d = _pitch_map + %d   ; ground row %d\n' % (i, at[len(rows) + i], y))
+            out.write('cmap%d = _pitch_map + %d   ; ground row %d\n' % (i, at[len(pieces) + i], y))
         spr = sprites()
         figs = [figure(digit_pic(b[5]) if isinstance(b, str) else
                        black_socks(small_shadow(spr[b])) if b in RUN_FRAMES else
@@ -798,8 +826,9 @@ def main():
         boot_logo(out, data)
     with open(os.path.join(GEN, 'data.inc'), 'w') as out:
         out.write('; made by tools/mkdata.py from data/ - do not edit\n\n')
-        out.write('MAP_W       = %d\nMAP_H       = %d            ; rows shown (wrow_*)\n\n'
+        out.write('MAP_W       = %d\nMAP_H       = %d            ; rows shown (seg*_*)\n'
                   % (w, len(shown_rows())))
+        out.write('NSEG        = %d             ; the map\'s segments (seg_at)\n\n' % NSEG)
         out.write('IMAGES      = %d\n' % len(IMAGES))
         out.write('FIG_PAD     = %d             ; empty lines round a column\'s pixels\n' % PAD)
         out.write('IMG_BALL    = %d            ; four, turning\n' % IMAGES.index(0x40))
