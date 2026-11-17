@@ -89,6 +89,9 @@ BOX_B       = 601
 SPOT_T      = 107               ; the penalty spots (c11b9a)
 SPOT_B      = 631
 WALL_D      = 40                ; a set piece: the other team this far off
+                                ; (in y; with how far across they stand
+                                ; some 50 from the ball, Sensible Soccer's
+                                ; wall 51-56: tests/freekick.py)
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 HOLD_LIFT   = 14                ; a keeper's hands up, the ball held in them
