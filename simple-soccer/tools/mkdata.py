@@ -489,8 +489,19 @@ DIGITS = {
     '-': ['...', '...', '...', 'ccc', '...', '...', '...'],
     '#': ['ccc', 'ccc', 'ccc', 'ccc', 'ccc'],     # a card: yellow or red
     '.': ['c', 'c'],                              # a throw-in's, corner's aim
+    # the letters of a whistle's reason (O and S: the digits 0 and 5)
+    'D': ['cc.', 'c.c', 'c.c', 'c.c', 'c.c', 'c.c', 'cc.'],
+    'F': ['ccc', 'c..', 'c..', 'cc.', 'c..', 'c..', 'c..'],
+    'I': ['ccc', '.c.', '.c.', '.c.', '.c.', '.c.', 'ccc'],
+    'E': ['ccc', 'c..', 'c..', 'cc.', 'c..', 'c..', 'ccc'],
+    'U': ['c.c', 'c.c', 'c.c', 'c.c', 'c.c', 'c.c', 'ccc'],
+    'L': ['c..', 'c..', 'c..', 'c..', 'c..', 'c..', 'ccc'],
+    'B': ['cc.', 'c.c', 'c.c', 'cc.', 'c.c', 'c.c', 'cc.'],
+    'T': ['ccc', '.c.', '.c.', '.c.', '.c.', '.c.', '.c.'],
+    'C': ['ccc', 'c..', 'c..', 'c..', 'c..', 'c..', 'ccc'],
+    'H': ['c.c', 'c.c', 'c.c', 'ccc', 'c.c', 'c.c', 'c.c'],
 }
-DIGIT_ORDER = '0123456789-#.'
+DIGIT_ORDER = '0123456789-#.DFIEULBTCH'
 
 
 def digit_pic(ch):
@@ -857,6 +868,7 @@ def main():
         out.write('IMG_DIGIT   = %d            ; 0-9, then the dash\n' % IMAGES.index('digit0'))
         out.write('IMG_CARD    = %d            ; a referee\'s card\n' % IMAGES.index('digit#'))
         out.write('IMG_DOT     = %d            ; the aim\'s dot\n' % IMAGES.index('digit.'))
+        out.write('IMG_LETTER  = %d            ; D F I E U L B T C H\n' % IMAGES.index('digitD'))
         out.write('COL_YELLOW  = $%02X           ; its colours, multicolour\n' % 0x6F)
         out.write('COL_RED     = $%02X\n' % 0x4A)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))

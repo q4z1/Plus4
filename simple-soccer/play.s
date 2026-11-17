@@ -36,7 +36,7 @@
         .include "data.inc"
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
-        .export lift, o_off, card_pl, card_c, anew, whistle
+        .export lift, o_off, card_pl, card_c, anew, whistle, why
         .export fine_on, sp_way_of, sin4
         .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import quit_a
@@ -395,6 +395,14 @@ ref_k:      .res 1              ; the referee's: a yellow in 32 fouls
 o_off:      .res NOBJ           ; 1: sent off - gone from the match
 card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
+
+        .segment "DATA"         ; (BSS full)
+; why: the reason for the whistle shown till the set piece is taken -
+; WHY_FOUL, WHY_OFF (offside), WHY_TWICE (a double touch); 0 none
+why:        .byte 0
+WHY_FOUL    = 1
+WHY_OFF     = 2
+WHY_TWICE   = 3
 ; a test's plan for the joystick, by the match's frames: (frame low, high,
 ; J_ bits) each, $FFFF the end; dbg_on set to 2 starts it - the frames
 ; counted from then, and the match's own counters from 0 too, so that it
@@ -537,6 +545,8 @@ play_init:
         lda #$FF                ; no card, no one offside (off_pl: above the
         sta card_pl             ; match's zero page, as the title left it -
         sta off_pl              ; its 0 the keeper offside: a penalty)
+        lda #0
+        sta why
         lda #1
         sta kickoff
         jmp sfx_whistle
@@ -2596,23 +2606,32 @@ kick_to:
         lda tmp + 1
         adc o_yh + BALL
         sta o_tyh + BALL
-        ; as hard as he is far: under 99 pixels, under 240, more
+        ; as hard as he is far, as the C64's L4383 has it: a step each 50
+        ; pixels (pass_d; mate_d may be doubled: his own distance), and
+        ; harder the better the kicker (pass_b, by sk_duel: $3E98)
+        jsr mate_dist
         ldy #0
-        lda mate_d
-        cmp #<9800
-        lda mate_d + 1
-        sbc #>9800
+@far:   lda tmp
+        cmp pass_dl,y
+        lda tmp + 1
+        sbc pass_dh,y
         bcc @hard
         iny
-        lda mate_d
-        cmp #<57801
-        lda mate_d + 1
-        sbc #>57801
-        bcc @hard
-        iny
+        cpy #5
+        bcc @far
 @hard:  lda pass_lo,y
         sta o_spl + BALL
         lda pass_hi,y
+        sta o_sph + BALL
+        ldy kick_pl
+        lda sk_duel,y
+        tay
+        lda pass_bl - 7,y
+        clc
+        adc o_spl + BALL
+        sta o_spl + BALL
+        lda pass_bh - 7,y
+        adc o_sph + BALL
         sta o_sph + BALL
 kicked: ; (on the ground - a throw-in's from his head: at_throw)
         lda #0
@@ -2647,8 +2666,14 @@ curl_y:     .byte 0, 0, <(-23), 0, <(-32), 32, 0, 23, 0, 0, 23, 0, 32, <(-32), 0
 at_w:       .byte 5, 4, 3, 2, 2, 2, 2, 1, 1, 1
 lift_lo:    .byte <2688, <2560
 lift_hi:    .byte >2688, >2560
-pass_lo:    .byte <1536, <1792, <2048
-pass_hi:    .byte >1536, >1792, >2048
+; a pass's speed by its length ($3EC8/$3ED0: under 50 pixels, 100, .. 250,
+; more - squared, pass_d*), and more by the kicker's skill ($3E98/$3EA0)
+pass_lo:    .byte <1536, <1664, <1792, <1877, <1962, <2048
+pass_hi:    .byte >1536, >1664, >1792, >1877, >1962, >2048
+pass_dl:    .byte <2496, <10000, <22496, <40000, <62496
+pass_dh:    .byte >2496, >10000, >22496, >40000, >62496
+pass_bl:    .byte <0, <48, <96, <144, <192, <256, <320, <384, <384
+pass_bh:    .byte >0, >48, >96, >144, >192, >256, >320, >384, >384
 
 ; mate_way: the way from the ball to player X, 0 up .. 255 clockwise, in
 ; A; carry set when he is on it. Keeps X.
@@ -3590,6 +3615,7 @@ team_ai:
         beq :+
         lda #0
         sta kickoff
+        sta why                 ; (the whistle's reason no longer shown)
         lda #$FF
         sta taker
         bne @play
@@ -4724,6 +4750,8 @@ face_y:     .word 369, LINE_T, LINE_B   ; the middle, the top goal, the bottom
 ; referee's, for the match: squad), a second yellow a red - he is off
 ; when play goes on (restart)
 foul:
+        lda #WHY_FOUL
+        sta why
         lda #$FF
         sta card_pl
         stx lm_f
@@ -4886,7 +4914,14 @@ off_chk:
         sty off_pl
         cpx last_pl
         bne @rts
-        iny                     ; the free kick the other team's
+        lda #WHY_OFF            ; (off_by $FE: the taker's double touch)
+        ldy off_by
+        iny
+        iny
+        bne :+
+        lda #WHY_TWICE
+:       sta why
+        ldy #0                  ; the free kick the other team's
         cpx #11
         bcs :+
         iny

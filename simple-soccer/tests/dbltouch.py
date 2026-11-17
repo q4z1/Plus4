@@ -74,6 +74,16 @@ def chase(v):
     return '+'.join(stick)
 
 
+WHY_OFF, WHY_TWICE = 2, 3               # (play.s why: the reason shown)
+
+
+def shown(v, name):
+    """the reason shown: a screenshot 30 frames after the whistle"""
+    for _ in range(30):
+        v.cmd('x')
+    v.screenshot(os.path.join(WORK, 'why-%s.png' % name))
+
+
 def run(v, name):
     setup, kick, after, want = CASES[name]
     s = moves.Setup()
@@ -100,9 +110,11 @@ def run(v, name):
             team, = v.mem(lab['rs_team'], 1)
             x = v.mem(lab['rs_x'], 2)
             y = v.mem(lab['rs_y'], 2)
-            got = 'whistle: free kick for team %d at %d,%d (taker %s)' % (
-                team, x[0] + 256 * x[1], y[0] + 256 * y[1], taker)
-            return want and team == 1 and taker == 7, got
+            why, = v.mem(lab['why'], 1)
+            got = 'whistle: free kick for team %d at %d,%d (taker %s, shown %d)' % (
+                team, x[0] + 256 * x[1], y[0] + 256 * y[1], taker, why)
+            shown(v, name)
+            return want and team == 1 and taker == 7 and why == WHY_TWICE, got
         if not want and f > start + 3 and lp == 9:
             for _ in range(30):         # (the check is the next frame's)
                 v.cmd('x')

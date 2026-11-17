@@ -16,7 +16,7 @@
         .import play_init, play_frame, play_picture, pose_of, score, game_min, hud, lift
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
-        .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4
+        .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why
         .export team_col, team_flk, start, played
         .import pause_chk, resume, squares
         .import title
@@ -209,6 +209,7 @@ draw_it: jsr place
         jsr sort
         jsr draw
         jsr draw_hud
+        jsr draw_why
         jsr draw_card
         jsr draw_aim
         jsr eng_end             ; (waits while a picture is still waiting)
@@ -638,6 +639,54 @@ draw_hud:
         pla
         jmp hud_digit
 
+; draw_why: while a whistle's set piece waits, its reason (play.s why)
+; in letters at the HUD's place
+draw_why:
+        ldx why
+        beq @none
+        lda #COL_LINE
+        sta fig_col
+        lda #0
+        sta hud_n
+        lda why_at - 1,x
+        sta why_i
+@next:  ldx why_i
+        inc why_i
+        lda why_w,x
+        bmi @none               ; ($FF: the end)
+        bne :+
+        inc hud_n               ; (0: a gap)
+        bne @next
+:       clc
+        adc #IMG_DIGIT - 1
+        jsr hud_img
+        jmp @next
+@none:  rts
+
+; the reasons' letters - images from IMG_DIGIT, one more (0 a gap, $FF
+; the end): the digits 0 and 5 for O and S, then IMG_LETTER's
+W_O = 1
+W_S = 6
+W_D = IMG_LETTER - IMG_DIGIT + 1
+W_F = W_D + 1
+W_I = W_D + 2
+W_E = W_D + 3
+W_U = W_D + 4
+W_L = W_D + 5
+W_B = W_D + 6
+W_T = W_D + 7
+W_C = W_D + 8
+W_H = W_D + 9
+why_w:
+why_fl: .byte W_F, W_O, W_U, W_L, $FF
+why_of: .byte W_O, W_F, W_F, W_S, W_I, W_D, W_E, $FF
+why_tw: .byte W_D, W_O, W_U, W_B, W_L, W_E, 0, W_T, W_O, W_U, W_C, W_H, $FF
+why_at: .byte why_fl - why_w, why_of - why_w, why_tw - why_w
+
+        .segment "DATA"
+why_i:  .byte 0                 ; (draw_why's next letter)
+        .segment "CODE"
+
 ; hud_digit: digit A (9 at most; 10 the dash) at the HUD's next place
 hud_digit:
         cmp #11
@@ -645,6 +694,7 @@ hud_digit:
         lda #9
 :       clc
         adc #IMG_DIGIT
+hud_img:                        ; (image A)
         sta fig_img
         lda hud_n               ; x: the view's + HUD_X + n * 9
         asl a

@@ -146,7 +146,10 @@ does not hide it) - as the C64's Arlasoft Soccer kicks it, at his own
 pace and, every other touch, a push more by how good he is (130 for the
 weakest, down to 32 for the best), a little more with the ball behind
 him: it stays close, and he keeps it through his turns - and a pass goes to a team-mate, harder the
-further he is: the nearest within 22.5 degrees of the way you face -
+further he is and the better the kicker, as Arlasoft Soccer passes (3
+pixels a frame under 50 pixels, a step each 50 up to 4 from 250, and up
+to 0.75 more for the best players - Luca found the shortest too short
+to leave the kicker behind): the nearest within 22.5 degrees of the way you face -
 unless one up to 67.5 degrees off it is under seven tenths as far; only
 with no one in either does it run on by itself. Fire let go before the ball has
 come to you passes it as it comes, first time. As in Sensible Soccer,
@@ -366,6 +369,12 @@ penalty, the keeper's kick out - may not touch the ball again before
 anyone else has. For 8 frames after his kick no one dribbles it, so it
 leaves his feet; if he is the next to get to it after all, the whistle,
 and a free kick for the other team where he is.
+
+What the whistle went for - FOUL, OFFSIDE or DOUBLE TOUCH - is written
+at the top of the view, as the score is before a kick-off, until the
+free kick is taken: without it Luca took the offside calls for fouls
+made up. `tests/offside.py` and `tests/dbltouch.py` check it is shown,
+and leave screenshots (`why-*.png`).
 
 A ball in the air goes over the players' heads unless one of them goes
 for it - and a header is a diving header, as Sensible Soccer has no
