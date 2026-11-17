@@ -601,9 +601,10 @@ upper half of the guesses one by his level: 3 at level 1, 6.5 at 8). He dives at
 all, and is down 40 frames. A ball that comes right at him (3 pixels)
 he catches; one he gets to diving (6 pixels across) bounces off him,
 out to the side and away from his goal, at three quarters of its speed.
-A slow ball low and near him (some 70 pixels) he goes for (1056 - 32
-a level) and
-picks up - holding it up in his hands till he kicks it out - and one low in his box that he is nearer than the players
+A slow ball low and near him (some 70 pixels), in his box, he goes for
+(1056 - 32 a level) and
+picks up - holding it up in his hands, then after half a second at his
+chest, his arms down, till he kicks it out - and one low in his box that he is nearer than the players
 going for it - either team's joystick's, the one run after it, a
 pass's receiver - he goes for too (1024, its c12f46), when it is no
 shot at his goal. A high ball in his box (13 pixels up or more, a pixel
@@ -622,6 +623,15 @@ dive is drawn level in the air, his arms on ahead
 - pictures drawn for this game (the C64's lean over at 45 degrees and,
 without their shadows, look like a player falling over); a diving
 header has them too.
+
+His hands, as the laws have them (Sensible Soccer's keeper takes any
+ball he gets to; Luca asked for it): only in his box - a ball he gets to
+out of it, or a team-mate's back-pass anywhere, he kicks away out from
+his goal, as hard as a shot and rising. He no longer goes for a slow
+ball out of his box at all. `tests/keeperhands.py`: a back-pass, a shot
+held and the arms down after it (screenshots `keeper-up.png`,
+`keeper-chest.png`), a ball reaching him out of his box, a still one
+just outside it.
 
 At a penalty he does as Sensible Soccer's keeper does (its c109ce): he
 waits on his line till the ball is 12 pixels from it - one time in four

@@ -97,6 +97,7 @@ THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
 HOLD_LIFT   = 14                ; a keeper's hands up, the ball held in them
 HOLD_TOP    = 6                 ; (the top goal's keeper: before his chest)
+ARMS_T      = 25                ; frames holding it up, then at his chest
 SPEED_DIVE  = 2048              ; his dive (c0dffc),
 SPEED_DIVE_W = 1280             ; the wrong way at a penalty (c0dffe),
 DIVE_SLOW   = 72                ; less each frame after the first two
@@ -5263,9 +5264,13 @@ throwing:
         ldy #HOLD_LIFT          ; (the keeper's: in his hands over his head
         cmp #R_KEEPER           ; - the top one's before his chest: over
         bne @throw              ; his head it would be drawn on his line,
-        lda rs_team             ; in the net)
-        eor flip
-        beq @hold
+        lda rs_team             ; in the net; after ARMS_T both at the
+        eor flip                ; chest, the arms down)
+        beq :+
+        ldy #HOLD_TOP
+:       lda touch_t
+        cmp #ARMS_T
+        bcc @hold
         ldy #HOLD_TOP
         bne @hold
 @throw: cmp #R_THROW
@@ -5759,6 +5764,8 @@ k_get:
         bcc :+
         lda #1
 :       jsr held
+        bcs @out
+        jsr ball_box            ; (in his box only: out of it no hands)
         bcc :+
 @out:   rts
 :       jsr mate_dist
@@ -6211,7 +6218,8 @@ div16:
         rts
 
 ; catch: a keeper with the ball within his reach, under the bar, not his
-; own kick: he holds it
+; own kick: he holds it - in his box, and not a team-mate's back-pass;
+; else he kicks it away (k_clear)
 catch:
         lda kickoff
         ora dead_t
@@ -6225,10 +6233,57 @@ catch:
         ldx #11
         jsr reach
         bcs @done
-:       lda o_dive,x            ; (diving: it bounces off him)
+:       jsr ball_box            ; (his hands: in his box only, nor
+        bcs k_clear             ; for a team-mate's back-pass)
+        ldy #0
+        cpx #11
+        bcc :+
+        iny
+:       cpy last_team
+        beq k_clear
+        lda o_dive,x            ; (diving: it bounces off him)
         bne parry
         jmp hold
 @done:  rts
+
+; ball_box: carry clear if the ball is in keeper X's penalty area (k_area).
+; Keeps X.
+ball_box:
+        lda o_xl + BALL
+        sta z_ax
+        lda o_xh + BALL
+        sta z_ax + 1
+        lda o_yl + BALL
+        sta z_ay
+        lda o_yh + BALL
+        sta z_ay + 1
+        ldy #0
+        jmp k_area
+
+; k_clear: keeper X at a ball he may not take in his hands - out of his
+; box, or a team-mate's back-pass: he kicks it away out from his goal,
+; as hard as a shot and rising. Keeps X.
+k_clear:
+        lda #0                  ; (stopped: no dive on)
+        sta o_dive,x
+        tay
+        cpx #11
+        bcc :+
+        iny
+:       sty last_team
+        jsr touch_x
+        jsr top_of              ; the way out: down from the top goal
+        beq :+
+        lda #4
+:       sta o_dir,x
+        tay
+        jsr ball_ahead
+        jsr shot_speed
+        lda #<SHOT_DZ
+        sta o_dzf + BALL
+        lda #>SHOT_DZ
+        sta o_dzl + BALL
+        jmp sfx_kick
 
 ; parry: keeper X diving has got to the ball: as from Sensible Soccer's
 ; it bounces off him out to the side he dives and away from his goal, a
@@ -6912,6 +6967,9 @@ pose_of:
         lda rs_kind
         cmp #R_KEEPER
         bne @none
+        lda touch_t             ; (after ARMS_T at his chest: standing)
+        cmp #ARMS_T
+        bcs @none
         lda #IMG_HOLD
         rts
 @down:  lda #IMG_DOWN
