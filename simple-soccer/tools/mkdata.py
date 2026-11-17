@@ -15,8 +15,10 @@ and the colours, for the code):
   img_*        the figures (data/sprites.txt), cut to what they cover and
                shifted to each of the four pixels in a character, ready
                to go into the characters under them: each one's head
-               (its columns, their bits to keep; one for all alike)
+               (its columns; one for all alike)
   pix_*        and its pixels, in one pool (fig_pix)
+  keep_tab     for a byte of a figure's pixels, the bits it leaves of
+               what is under it (on a page of its own)
   atan_tab     the angle of a move from its steps: 0 along x .. 64 along
                y, by the larger of |dx|, |dy| (16-31: the smaller ones
                doubled up to it, the ratio the same) and the smaller -
@@ -721,6 +723,12 @@ def overlapped(rows):
     return packed, [packed.index(r) for r in rows]
 
 
+def keep_of(d):
+    """the bits of a character's byte that a figure's byte d leaves: the
+    pixels where it has none"""
+    return sum(3 << 2 * p for p in range(4) if not d >> 2 * p & 3)
+
+
 def hexrows(out, data, per=16):
     for i in range(0, len(data), per):
         out.write('        .byte ' + ', '.join('$%02X' % b for b in data[i:i + per]) + '\n')
@@ -792,7 +800,14 @@ def main():
                 for _ in range(n):
                     i += 4 + rec[i + 1]
                 assert rec[1] == i + PAD and rec[i:i + PAD] == [0] * PAD
-                head = tuple([n] + rec[2:i])
+                head, j, px = [n], 2, i + PAD
+                for _ in range(n):      # (the bits to keep left out: keep_tab
+                    h = rec[j + 1]      # has them for the pixels)
+                    assert rec[j + 4:j + 4 + h] == [keep_of(d) for d in rec[px:px + h]]
+                    head += rec[j:j + 4]
+                    j += 4 + h
+                    px += h + PAD
+                head = tuple(head)
                 names.append('fh%d' % heads.setdefault(head, len(heads)))
                 pix_at.append(len(pool))
                 pool += rec[i + PAD:]
@@ -806,6 +821,9 @@ def main():
             hexrows(out, bytes(head))
         out.write('fig_pix:\n')
         hexrows(out, bytes(pool))
+        out.write('\n        .export keep_tab\n        .segment "KEEPTAB"\n')
+        out.write('keep_tab:               ; the bits a figure\'s byte leaves\n')
+        hexrows(out, bytes(keep_of(d) for d in range(256)))
         out.write('\n        .export lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh\n        .segment "TITLE"\n')
         forms = tactics()
         assert all(t[0] >> 8 < 4 and t[2] >> 8 < 4 for form in forms for t in form)

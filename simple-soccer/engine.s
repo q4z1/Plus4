@@ -32,7 +32,7 @@
         .export fig_x, fig_y, fig_img, fig_col
         .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
         .import _pitch_font, seg_at, seg_lol, seg_loh, seg_hil, seg_hih
-        .import img_ox, img_oy, img_lo, img_hi, pix_lo, pix_hi
+        .import img_ox, img_oy, img_lo, img_hi, pix_lo, pix_hi, keep_tab
         .import crow_of, cmap_lo, cmap_hi
         .import la_codes, la_step, la_norm, la_up
         .import snd_init, snd_tick
@@ -93,7 +93,6 @@ z_i:        .res 1              ; and its number in the column
 z_mix:      .res 1              ; bit 7: a cell showed more than grass
 z_grass:    .res 1              ; a bit for each cell to be cleared
 z_d:        .res 2              ; the column's pixels, less its first line
-z_kp:       .res 2              ; and its bits to keep
 z_px:       .res 2              ; the column's pixels, from its first line
 z_rmp:      .res 1              ; bit 7: the cell's white turns light
 z_kk:       .res 1              ; the cell's in the strip
@@ -1494,7 +1493,7 @@ fd_yok:   lda z_ty
         sta z_cy
         ; the record for the shift: its head - the number of columns,
         ; then per column its first line, its lines, its cells in the
-        ; cell's colour, the bits to keep (z_dat + 1 on) - and its
+        ; cell's colour (z_dat + 1 on) - and its
         ; pixels, column after column, FIG_PAD empty lines before each
         ; and after the last (tools/mkdata.py's pool)
         lda fig_img
@@ -1893,19 +1892,6 @@ fm_done:
         lda z_px + 1
         sbc #0
         sta z_d + 1
-        lda #5                  ; the bits to keep, after the column's four
-        sec                     ; bytes (z_dat + 5), less A
-        sbc z_t
-        sta z_t2                ; (signed)
-        clc
-        adc z_dat
-        sta z_kp
-        lda z_t2
-        and #$80
-        beq :+
-        lda #$FF
-:       adc z_dat + 1
-        sta z_kp + 1
         lda z_y0                ; the strip from line y0, less A: y0 - A,
         sec                     ; signed, mostly negative
         sbc z_t
@@ -1927,12 +1913,11 @@ fm_done:
         tay
 fd_mcall:
         jsr mblock
-fd_ncol:                        ; the next column: its four bytes and the
-        inc z_c                 ; bits to keep on, its pixels and FIG_PAD
-        lda z_h                 ; empty lines on
+fd_ncol:                        ; the next column: its four bytes on, its
+        inc z_c                 ; pixels and FIG_PAD empty lines on
+        lda z_dat
         clc
         adc #4
-        adc z_dat
         sta z_dat
         bcc :+
         inc z_dat + 1
@@ -1985,8 +1970,9 @@ row40s_hi:
 
 ; fblock, mblock: lines of a strip at z_fnt from y on to its end, the
 ; strip's last line (31) - straight from the pixels at z_d, or through
-; the mask: what is there, the bits at z_kp, the pixels at z_d. Entered at
-; the first line's entry (by the column's cells above, mb_*).
+; the mask: what is there, the bits of it the pixels at z_d leave
+; (keep_tab: where a pixel is 0), the pixels. Entered at the first line's
+; entry (by the column's cells above, mb_*).
 fblock:
         .repeat STRIP
         lda (z_d),y
@@ -1996,8 +1982,10 @@ fblock:
         rts
 mblock:
         .repeat STRIP
+        lda (z_d),y
+        tax
         lda (z_fnt),y
-        and (z_kp),y
+        and keep_tab,x
         ora (z_d),y
         sta (z_fnt),y
         iny
@@ -2005,11 +1993,11 @@ mblock:
         rts
 mb_lo:
         .repeat STRIP + 1, I
-        .byte <(mblock + 9 * I)
+        .byte <(mblock + 13 * I)
         .endrepeat
 mb_hi:
         .repeat STRIP + 1, I
-        .byte >(mblock + 9 * I)
+        .byte >(mblock + 13 * I)
         .endrepeat
 
 ; char_at: z_fnt = the pixels of code A in the back picture's set
