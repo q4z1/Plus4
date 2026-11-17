@@ -5092,6 +5092,11 @@ keeper:
         lda #>SPEED_JOG
         sta z_ks + 1
         ldx z_obj
+        jsr spot                ; (a set piece waiting: his place for it,
+        bcc @set                ; Sensible Soccer's - else his own - and
+        lda dead_t              ; nothing to go for till it is taken: the
+        ora kickoff             ; ball on the penalty spot is no slow ball
+        bne @set                ; near him)
         jsr k_high              ; (a high ball into his box: to where it
         bcc @set                ; comes down)
         ldx z_obj

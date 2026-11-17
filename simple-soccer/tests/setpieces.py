@@ -2,7 +2,7 @@
 """The players' places at set pieces (play.s spot, sp_kind, sp_*), in a
 match in VICE: goal kicks, corners, free kicks, penalties and throw-ins
 for either team at a few places each - after a while waiting, each
-player the formation moves (not the keepers, not the joysticks' nor the
+player the formation moves and the keepers (not the joysticks' nor the
 taker) is to go where the tables say: worked out here anew from play.s's
 sp_* rows (the kind by the place, the team's own frame: its goal at the
 top, the team at the bottom's turned about; places off the ball by its
@@ -104,8 +104,8 @@ def run(v, tab, name):
         v.poke(a, vals)
     v.poke(OFF_PL, [0xFF])
     v.poke(lab['dbg_joy'], [0])
-    skip = {0, 11}                      # (and who the sticks or the
-    for f in range(WAIT):               # computer had, its last 22)
+    skip = set()                        # (who the sticks or the computer
+    for f in range(WAIT):               # had, its last 22 frames)
         v.cmd('x')
         if f >= WAIT - 22:
             skip |= {mem1(v, n) for n in ('ctrl', 'ctrl_b', 'helper', 'taker')}
