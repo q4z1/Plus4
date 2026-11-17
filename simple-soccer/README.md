@@ -32,6 +32,7 @@ on YouTube (made by `tests/trailer.py`).
 | directions | cursor keys | run, and dribble the ball at your feet |
 | none | | stand - a ball that comes to you runs on past you |
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
+| at your throw-in or corner: each push of a direction | cursor keys | turns the aim (two dots) a step towards it |
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
 | fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
 | fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
@@ -246,9 +247,12 @@ towards the box near the goal attacked, forwards further back; a corner crossed 
 kick and the keeper's kicked long - a pass only to the team-mate
 nearest the ball that way, else he turns on. He turns only
 the ways Sensible Soccer lets him: into the pitch and towards the other
-goal - up to 90 degrees off for a kick-off, a throw-in, a goal kick and
-the keeper's kick, 45 for a corner and a penalty - and any way for a free
-kick. The penalty areas and spots are as its rules have them, the spots
+goal - up to 90 degrees off for a kick-off and a throw-in, 45 for a
+goal kick, the keeper's kick, a corner and a penalty - and any way for a
+free kick. (The goal kick and the keeper's 45 for yours too, as for the
+computer's in Sensible Soccer: kicked across his own goal, the
+aftertouch could bend the ball back into it - it did, the stick pulled
+back towards it.) The penalty areas and spots are as its rules have them, the spots
 107 and 631, 58 pixels out from the goal lines.
 
 A throw-in is thrown: the taker stands behind the touch line facing the
@@ -257,11 +261,24 @@ going forward - the ball leaving his hands from up there, 12 pixels up,
 as on the C64: a pass rising, held fire a long throw, as hard as a shot.
 Its two pictures, each way, are drawn for this game, not the C64's.
 
-As on the C64, a throw-in or a corner kicked the way the taker faces
-goes a little in from the line: up or down a touch line 250 in 1000
-across towards the middle, along the goal line 150 in 1000 in from it,
-and a corner slanting in 350 in 1000 off the goal line (19 degrees,
-not 45).
+As on the C64, the computer's throw-in or corner kicked the way the
+taker faces goes a little in from the line: up or down a touch line 250
+in 1000 across towards the middle, along the goal line 150 in 1000 in
+from it, and a corner slanting in 350 in 1000 off the goal line (19
+degrees, not 45).
+
+Yours you aim finer than the stick's eight ways (Luca's wish - the ways
+along a line were of no use, and two more angles each side wanted): two
+dots on the grass show where the ball goes, and each push of the stick
+turns the aim a step towards the way pushed (held, a step every 8
+frames after 15). A throw-in has seven aims, straight in and 22.5, 45
+and 67.5 degrees either side - none along the line; a corner six, from
+4 degrees off the goal line through 8, 14, 20 (where it starts) and 27
+to 45 - the box is all within 25 of it. Fire kicks it that way: held, a
+shot or long throw exactly so; tapped, a pass to the team-mate nearest
+the ball within 34 degrees of the aim (half the usual cone), else
+straight on. `tests/aim.py` checks each aim of both teams' throw-ins
+and corners and the shot's way.
 
 The player a pass goes to runs to meet it, and the joystick is his once
 he has it. The first touch is Sensible Soccer's: the one running to the
@@ -327,8 +344,14 @@ taker put out of the area, then to their places at its edge. The taker faces the
 stick and kicks with fire as for any set piece - held, it is a shot -
 and the yellow team shoots its penalties at one corner or the other.
 
-The referee counts each player's fouls: his second brings a yellow card,
-his fourth a second yellow and so a red one. The card is shown by him
+The cards are Sensible Soccer's (c10fca): none for a penalty; a red
+one if the player fouled was the last man - nearer the goal than every
+one of the fouler's team-mates but the keeper; else a yellow card by
+chance, for 4 to 10 fouls in 32 - the referee's, drawn for each match
+from Sensible Soccer's table (c0fa92: 6 in 32 on average) - and a second
+yellow is a red. (Before, every second foul brought one; Luca found it
+far too often.) `tests/cards.py` calls the foul again and again and
+counts. The card is shown by the fouler
 while the ball is dead; with a red he is off when play goes on - not
 drawn, never in reach of the ball, no one's to pass to, the joystick
 gone to a team-mate - and his team plays on with ten.

@@ -488,8 +488,9 @@ DIGITS = {
     '9': ['ccc', 'c.c', 'c.c', 'ccc', '..c', '..c', 'ccc'],
     '-': ['...', '...', '...', 'ccc', '...', '...', '...'],
     '#': ['ccc', 'ccc', 'ccc', 'ccc', 'ccc'],     # a card: yellow or red
+    '.': ['c', 'c'],                              # a throw-in's, corner's aim
 }
-DIGIT_ORDER = '0123456789-#'
+DIGIT_ORDER = '0123456789-#.'
 
 
 def digit_pic(ch):
@@ -855,6 +856,7 @@ def main():
             out.write('IMG_%-8s= %d\n' % (name, IMAGES.index(b)))
         out.write('IMG_DIGIT   = %d            ; 0-9, then the dash\n' % IMAGES.index('digit0'))
         out.write('IMG_CARD    = %d            ; a referee\'s card\n' % IMAGES.index('digit#'))
+        out.write('IMG_DOT     = %d            ; the aim\'s dot\n' % IMAGES.index('digit.'))
         out.write('COL_YELLOW  = $%02X           ; its colours, multicolour\n' % 0x6F)
         out.write('COL_RED     = $%02X\n' % 0x4A)
         out.write('COL_GRASS   = $%02X           ; C64 green\n' % ted_of(5))

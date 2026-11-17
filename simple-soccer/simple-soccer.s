@@ -16,7 +16,7 @@
         .import play_init, play_frame, play_picture, pose_of, score, game_min, hud, lift
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
-        .import o_off, card_pl, card_c
+        .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4
         .export team_col, team_flk, start, played
         .import pause_chk, resume, squares
         .import title
@@ -47,6 +47,9 @@ BALL_X      = 7
 BALL_Y      = 11
 SHADOW_Y    = 12
 CARD_X      = 6                 ; a card this far right of the feet
+AIM_D       = 16                ; (draw_aim: the nearer dot ~16 pixels off)
+DOT_X       = 2                 ; the aim's dot's middle in its picture
+DOT_Y       = 2
 
 MAX_STEPS   = 4                 ; frames of play caught up in a turn at most
 
@@ -121,6 +124,8 @@ s_yl:   .res FIGS
 s_yh:   .res FIGS
 tick:   .res 1                  ; turns of the loop
 played: .res 1                  ; frames played up to
+aim_r:  .res 1                  ; (draw_aim's: how far, the dot's offset)
+aim_t:  .res 2
 order:  .res FIGS               ; the figures from the top down
 tmp:    .res 1
 tmp2:   .res 1
@@ -205,6 +210,7 @@ draw_it: jsr place
         jsr draw
         jsr draw_hud
         jsr draw_card
+        jsr draw_aim
         jsr eng_end             ; (waits while a picture is still waiting)
         jmp loop
 
@@ -668,6 +674,70 @@ hud_digit:
         sta fig_y + 1
         inc hud_n
         jmp fig_draw
+
+; draw_aim: a joystick's throw-in or corner waiting, its aim (play.s's
+; fine_aim) shown by two dots on the ground, AIM_D and twice as far from
+; the ball
+draw_aim:
+        jsr fine_on
+        bcs @none
+        lda #AIM_D
+        jsr @dot
+        lda #AIM_D * 2
+@dot:   sta aim_r               ; (sin4's 1000 times aim_r / 1024)
+        jsr sp_way_of
+        jsr @part
+        clc
+        adc s_xl + BALL
+        sta fig_x
+        lda aim_t + 1
+        adc s_xh + BALL
+        sta fig_x + 1
+        jsr sp_way_of
+        clc
+        adc #64
+        jsr @part
+        lda s_yl + BALL
+        sec
+        sbc aim_t
+        sta fig_y
+        lda s_yh + BALL
+        sbc aim_t + 1
+        sta fig_y + 1
+        lda fig_x
+        sec
+        sbc #DOT_X
+        sta fig_x
+        bcs :+
+        dec fig_x + 1
+:       lda fig_y
+        sec
+        sbc #DOT_Y
+        sta fig_y
+        bcs :+
+        dec fig_y + 1
+:       lda #IMG_DOT
+        sta fig_img
+        lda #COL_LINE
+        sta fig_col
+        jmp fig_draw
+@none:  rts
+@part:  jsr sin4                ; aim_t = sin * aim_r / 1024 (aim_r 16,
+        sta aim_t               ; 32: / 64, / 32)
+        sty aim_t + 1
+        ldy #6
+        lda aim_r
+        cmp #AIM_D * 2
+        bne :+
+        dey
+:       lda aim_t + 1
+        cmp #$80
+        ror aim_t + 1
+        ror aim_t
+        dey
+        bne :-
+        lda aim_t
+        rts
 
 ; draw_card: while the ball is dead for a foul with a card, the card by
 ; the fouler's head

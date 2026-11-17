@@ -37,6 +37,7 @@
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
         .export lift, o_off, card_pl, card_c, anew, whistle
+        .export fine_on, sp_way_of, sin4
         .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import quit_a
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
@@ -244,6 +245,15 @@ recv_t:     .res 2              ; frames recv still goes to meet a pass
         .zeropage
 z_ax:       .res 2              ; aim's: the way to the destination
 z_ay:       .res 2
+sp_s        = z_ax              ; (fine_aim's: the stick's way 0-255, how
+sp_d        = z_ax + 1          ; far the aim is off it; way_y's count)
+sp_n        = z_ay
+sp_r        = z_ay + 1          ; (fine_aim's: the middle of the aims' ways)
+lm_g        = z_ax              ; (last_man's: the goal's y, the fouled
+lm_v        = z_ay              ; player's distance squared / 16 to it,
+lm_f        = mf_a              ; the fouler)
+p_w         = mf_a              ; (pass's cone: half its width)
+sp_w        = mf_c              ; (sin4's way)
 z_sx:       .res 1              ;   its signs
 z_sy:       .res 1
 z_sw:       .res 1              ; angle's: bit 7, dx and dy swapped
@@ -338,6 +348,10 @@ o_hit:  .res NOBJ               ; 1: the tackle has reached the ball ($80:
 o_dive: .res NOBJ               ; a keeper's frames left of a dive, 0 none
 o_dvd:  .res NOBJ               ; its way: 0 right, 1 left
         .segment "LOWBSS"       ; (down low: simple-soccer.cfg)
+sp_aim:     .res 1              ; a joystick's throw-in or corner: its aim
+                                ; (sp_ways' index, $FF none yet)
+sp_j:       .res 1              ; fine_aim's: the stick's way the frame
+sp_rep:     .res 1              ; before, frames till it turns the aim again
 c_axl:  .res NOBJ               ; aim's last way and speed: the same
 c_axh:  .res NOBJ               ; again, the step is still right
 c_ayl:  .res NOBJ
@@ -376,7 +390,8 @@ br_70:      .res 1              ; brain's (br_*: MATCHZP): the side its kick
 br_d:       .res 2              ; squared to the ball
 score:      .res 2              ; goals, cyan and yellow
 lift:       .res 1              ; how high the ball is drawn over where it is
-fouls:      .res PLAYERS        ; each player's fouls in the match
+fouls:      .res PLAYERS        ; each player's yellow cards in the match
+ref_k:      .res 1              ; the referee's: a yellow in 32 fouls
 o_off:      .res NOBJ           ; 1: sent off - gone from the match
 card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
@@ -448,9 +463,12 @@ line_lo:    .byte <line_kick, <line_back
 line_hi:    .byte >line_kick, >line_back
 
 ; may_face: the ways a taker may be off the middle one, + 1, by the
-; restart (R_*); a corner's middle way by the corner: top left, top
-; right, bottom left, bottom right
-face_r:     .byte 3, 3, 3, 2, 3, 5, 2
+; restart (R_*) - a goal kick and the keeper's within 45 degrees of
+; straight out (as the computer's in Sensible Soccer, its and $bb: no
+; kick across his own goal, whose aftertouch would bend it back into
+; it); a corner's middle way by the corner: top left, top right, bottom
+; left, bottom right
+face_r:     .byte 3, 3, 2, 2, 2, 5, 2
 corner_c:   .byte 3, 5, 1, 7
 ; the joystick as a way to go (8: none)
 joy_dir:    .byte 8, 0, 4, 8, 6, 7, 5, 6, 2, 1, 3, 2, 8, 0, 4, 8
@@ -1182,6 +1200,10 @@ control:
         cmp me
         beq :+
         jmp stand               ; (the other team's: he stands off, set_wall)
+:       jsr fine_kind           ; (a joystick's throw-in or corner: the
+        bcs :+                  ; stick turns its aim, fine_aim)
+        jsr fine_aim
+        jmp @ev
 :       lda pj
         and #$0F
         tay
@@ -1387,8 +1409,8 @@ odds:
 
 ; may_face: carry clear if a set piece's taker may face way A, as
 ; Sensible Soccer lets him (a bit for each way, c0f8ea): into the pitch
-; or towards the other goal - up to 90 degrees off for a kick-off, a
-; throw-in, a goal kick and the keeper's kick, 45 for a corner and a
+; or towards the other goal - up to 90 degrees off for a kick-off and a
+; throw-in, 45 for a goal kick, the keeper's kick, a corner and a
 ; penalty, any way for a free kick. Keeps A, X.
 may_face:
         sta mf_a
@@ -1431,6 +1453,255 @@ may_face:
         cmp face_r,y
         lda mf_a
         rts
+
+; ---- a throw-in's and a corner's aim ---------------------------------------
+;
+; A joystick's throw-in or corner is aimed finer than its eight ways:
+; each push of the stick turns the aim a step towards the way pushed
+; (held, a step every SP_REP frames after SP_FIRST), among sp_ways' -
+; a throw-in's seven, 22.5 degrees apart up to 67.5 either side of
+; straight in (not along the line), a corner's six from just off the
+; goal line to 45 degrees in (the box is all within 25: the C64 turns
+; its corners in to 8.5 and 19.3). Two dots show the aim (draw_aim); the
+; kick goes that way (aim_to), a pass to a team-mate within half the
+; usual cone of it (pass).
+
+SP_FIRST    = 15
+SP_REP      = 8
+
+; fine_kind: carry clear if the set piece is a throw-in or a corner and
+; team me plays by joystick
+fine_kind:
+        lda me
+        beq :+
+        lda two
+        beq @no
+:       lda rs_kind
+        cmp #R_THROW
+        beq @yes
+        cmp #R_CORNER
+        beq @yes
+@no:    sec
+        rts
+@yes:   clc
+        rts
+
+; fine_on: carry clear and A = the aim's way (0-255) if the ball is a
+; joystick's throw-in or corner being taken, aimed. Keeps X.
+fine_on:
+        lda kickoff
+        beq @no
+        lda sp_aim
+        bmi @no
+        jsr fine_kind
+        bcs @no
+        jmp sp_way_of
+@no:    sec
+        rts
+
+; aim_to: the ball's destination 1000 pixels the aim's way, if fine_on.
+; Keeps X.
+aim_to:
+        jsr fine_on
+        bcs @no
+        pha
+        jsr sin4                ; x: + sin
+        clc
+        adc o_xl + BALL
+        sta o_txl + BALL
+        lda tmp + 1
+        adc o_xh + BALL
+        sta o_txh + BALL
+        pla
+        clc
+        adc #64                 ; y: - cos (sin a quarter on)
+        jsr sin4
+        lda o_yl + BALL
+        sec
+        sbc tmp
+        sta o_tyl + BALL
+        lda o_yh + BALL
+        sbc tmp + 1
+        sta o_tyh + BALL
+@no:    rts
+
+; sin4: tmp, Y:A = 1000 * sin of way A (0-255: 0 up, 64 right), signed
+; (sin_t's 250, times 4). Keeps X.
+sin4:
+        sta sp_w
+        and #63
+        bit sp_w                ; (the second and fourth quarters: back)
+        bvc :+
+        eor #$FF
+        clc
+        adc #65
+:       tay
+        lda sin_t,y
+        sta tmp
+        lda #0
+        asl tmp
+        rol a
+        asl tmp
+        rol a
+        sta tmp + 1
+        bit sp_w                ; (the second half: less than 0)
+        bpl :+
+        lda #0
+        sec
+        sbc tmp
+        sta tmp
+        lda #0
+        sbc tmp + 1
+        sta tmp + 1
+:       ldy tmp + 1
+        lda tmp
+        rts
+
+; fine_aim: a frame of a joystick's throw-in or corner, player X its
+; taker: the aim first the middle one, then turned by the stick; he
+; faces it (the nearest of his eight ways). Keeps X.
+fine_aim:
+        lda sp_aim
+        bpl :+
+        lda #3                  ; (both: the fourth, straight in; the old
+        sta sp_aim              ; corner's diagonal, 19.7 degrees)
+        lda pj                  ; (the stick held as it began: no step till
+        and #$0F                ; it is pushed again)
+        tay
+        lda joy_dir,y
+        sta sp_j
+        lda #0
+        sta sp_rep
+:       lda pj
+        and #$0F
+        tay
+        lda joy_dir,y
+        cmp sp_j
+        sta sp_j
+        bne @new                ; (pushed another way: a step at once)
+        cmp #8
+        beq @face               ; (let go)
+        dec sp_rep
+        bne @face
+        lda #SP_REP
+        bne @step
+@new:   cmp #8
+        beq @face
+        lda #SP_FIRST
+@step:  sta sp_rep
+        jsr sp_way_of           ; (sp_n: how many; after them the middle
+        ldy sp_n                ; one, straight in - the ways measured
+        jsr way_y               ; from it either side, not round about:
+        sta sp_r                ; the stick out of the pitch goes to an
+        lda sp_j                ; end)
+        asl a                   ; the stick's way, 0-255
+        asl a
+        asl a
+        asl a
+        asl a
+        sec
+        sbc sp_r
+        eor #$80
+        sta sp_s
+        jsr sp_way_of           ; a step, if one is nearer it
+        jsr sp_off
+        sta sp_d
+        ldy sp_aim
+        iny
+        cpy sp_n
+        bcs @back
+        jsr sp_try
+        bcc @face
+@back:  ldy sp_aim
+        dey
+        bmi @face
+        jsr sp_try
+@face:  jsr sp_way_of           ; (the aim's way)
+        clc
+        adc #16
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta o_dir,x
+        rts
+
+; sp_try: carry clear, the aim aim Y, if its way is nearer the stick's
+; than sp_d. Keeps X.
+sp_try:
+        tya
+        pha
+        jsr way_y
+        jsr sp_off
+        tay
+        pla
+        cpy sp_d
+        bcs :+
+        sta sp_aim
+:       rts
+
+; sp_off: A = how far way A is from the stick's: both from the middle
+; one (sp_r), -128 to 127 (+ 128: sp_s the stick's)
+sp_off:
+        sec
+        sbc sp_r
+        eor #$80
+        sec
+        sbc sp_s
+        bcs :+
+        eor #$FF
+        adc #1
+:       rts
+
+; sp_way_of: A = the way of aim sp_aim. Keeps X.
+sp_way_of:
+        ldy sp_aim
+        jmp way_y
+
+; way_y: A = the way of aim Y (sp_ways' for the kind, turned about for
+; the side: a throw-in from the right line, a corner at the right turned
+; across; a throw-in for the team attacking down, a corner at the bottom
+; upside down); sp_n how many aims the kind has. Keeps X.
+way_y:
+        lda rs_kind
+        cmp #R_CORNER
+        beq @corner
+        lda #7
+        sta sp_n
+        lda sp_ways_t,y
+        sta sp_w
+        lda rs_team             ; (attacking down: upside down)
+        eor flip
+        beq @x
+        bne @y
+@corner:
+        lda #6
+        sta sp_n
+        lda sp_ways_c,y
+        sta sp_w
+        lda o_yl + BALL         ; (the bottom: upside down)
+        cmp #<369
+        lda o_yh + BALL
+        sbc #>369
+        bcc @x
+@y:     lda #128
+        sec
+        sbc sp_w
+        sta sp_w
+@x:     jsr ball_rx             ; (the right: across)
+        lda sp_w
+        bcc :+
+        eor #$FF
+        clc
+        adc #1
+:       rts
+
+; the aims, from the ball on the left touch line attacking up and the
+; top left corner: ways 0-255, 0 up, 64 right
+sp_ways_t:  .byte 16, 32, 48, 64, 80, 96, 112, 64     ; (then the middle)
+sp_ways_c:  .byte 67, 70, 74, 78, 83, 96, 96
+sin_t:      .byte 0, 6, 12, 18, 25, 31, 37, 43, 49, 55, 61, 67, 73, 78, 84, 90, 96, 101, 107, 112, 118, 123, 129, 134, 139, 144, 149, 154, 159, 163, 168, 172, 177, 181, 185, 189, 193, 197, 201, 204, 208, 211, 214, 218, 220, 223, 226, 229, 231, 233, 235, 237, 239, 241, 243, 244, 245, 246, 247, 248, 249, 249, 250, 250, 250
 
 ; ball_rx: carry set if the ball is right of the middle (x 304 on)
 ball_rx:
@@ -1662,6 +1933,7 @@ shot:
         sta at_dir,y
         tay
         jsr ball_ahead
+        jsr aim_to
         jsr shot_speed
         lda #<SHOT_DZ
         sta o_dzf + BALL
@@ -2224,18 +2496,31 @@ pass:
         asl a
         asl a
         sta kick_way
-        ldx t_hi
+        lda #48
+        sta p_w
+        jsr fine_on             ; (a throw-in's or corner's aim: that way,
+        bcs :+                  ; and the cone half as wide)
+        sta kick_way
+        lsr p_w
+:       ldx t_hi
 @look:  cpx ctrl
         beq @next
         jsr mate_way            ; the way from the ball to him, 0-255
         bcs @next               ; (on the ball)
         sec
-        sbc kick_way            ; within 48 of the way he kicks
+        sbc kick_way            ; within p_w of the way he kicks
         clc
-        adc #48
-        cmp #97
-        bcs @next
-        sbc #32 - 1             ; (carry clear: within 16 under 33)
+        adc p_w
+        sta z_off
+        lda p_w
+        asl a
+        cmp z_off
+        bcc @next
+        lda z_off               ; (within 16: under 33)
+        sec
+        sbc p_w
+        clc
+        adc #16
         sta z_off
         jsr mate_dist           ; the nearest
         lda z_off
@@ -2263,6 +2548,7 @@ pass:
 :       ldx ctrl                ; no one: straight on
         ldy o_dir,x
         jsr ball_ahead
+        jsr aim_to
         lda #<1792
         sta o_spl + BALL
         lda #>1792
@@ -4303,6 +4589,8 @@ net:
 
 ; restart: the dead time over - the ball put down, the taker to it
 restart:
+        lda #$FF                ; (no throw-in's or corner's aim yet)
+        sta sp_aim
         ldx card_pl             ; a red card: off
         bmi :+
         lda card_c
@@ -4429,22 +4717,34 @@ face_y:     .word 369, LINE_T, LINE_B   ; the middle, the top goal, the bottom
 ; box.
 
 ; foul: player X has fouled the player on the ball - the whistle, the
-; ball dead, him down, a free kick or penalty for his team; for the
-; fouler's second foul a yellow card, for his fourth (a second yellow)
-; a red, and he is off when play goes on (restart)
+; ball dead, him down, a free kick or penalty for his team. A card as
+; Sensible Soccer gives it (c10fca): none for a penalty; a red if the
+; one fouled was the last man, nearer the goal than all the fouler's
+; team-mates but the keeper; else a yellow for ref_k fouls in 32 (the
+; referee's, for the match: squad), a second yellow a red - he is off
+; when play goes on (restart)
 foul:
         lda #$FF
         sta card_pl
+        stx lm_f
+        lda last_team           ; (in_box's side: the one the fouled
+        eor flip                ; player's team attacks)
+        sta r_s
+        ldx last_pl
+        jsr in_box
+        bcc @tally              ; (a penalty: no card)
+        jsr last_man
+        ldx lm_f
+        lda #1                  ; (the last man: red)
+        bcc @card
+        jsr rnd
+        and #31
+        cmp ref_k
+        bcs @tally
+        lda fouls,x             ; (a yellow: 0, his second 1 - red)
         inc fouls,x
-        lda fouls,x
-        lsr a
-        bcs @tally              ; (an odd one: no card)
-        stx card_pl
-        cmp #2                  ; (fouls / 2: 1 yellow, 2 red)
-        lda #0
-        bcc :+
-        lda #1
-:       sta card_c
+@card:  stx card_pl
+        sta card_c
 @tally: ldx last_pl
         lda #1                  ; down (slides lets him up when play goes on:
         sta o_slide,x           ; restart)
@@ -4632,6 +4932,84 @@ send_off:
         bne :+
         sta recv_b
 :       rts
+
+ref_tab:    .byte 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 7, 7, 8, 9, 10
+
+; last_man: carry clear if player X, fouled by lm_f, is the last man -
+; nearer the goal at side r_s than every one of lm_f's team-mates but
+; the keeper and those sent off (by distance / 4, squared: gd6)
+last_man:
+        ldy r_s
+        lda gl_l,y
+        sta lm_g
+        lda gl_h,y
+        sta lm_g + 1
+        jsr gd6
+        lda tmp
+        sta lm_v
+        lda tmp + 1
+        sta lm_v + 1
+        ldx #1                  ; (the fouler's team-mates)
+        lda lm_f
+        cmp #11
+        bcc @next
+        ldx #12
+@next:  cpx lm_f
+        beq @skip
+        lda o_off,x
+        bne @skip
+        jsr gd6
+        lda lm_v                ; (as near or nearer: not the last man)
+        cmp tmp
+        lda lm_v + 1
+        sbc tmp + 1
+        bcs @no
+@skip:  inx
+        cpx #11
+        beq @yes
+        cpx #22
+        bne @next
+@yes:   clc
+        rts
+@no:    sec
+        rts
+
+; gd6: tmp = (the distance from player X to (304, lm_g) / 4) squared.
+; Keeps X.
+gd6:
+        lda o_xl,x
+        sec
+        sbc #<304
+        pha
+        lda o_xh,x
+        sbc #>304
+        tay
+        pla
+        jsr quarter
+        lda sq8_lo,y
+        sta tmp
+        lda sq8_hi,y
+        sta tmp + 1
+        lda o_yl,x
+        sec
+        sbc lm_g
+        pha
+        lda o_yh,x
+        sbc lm_g + 1
+        tay
+        pla
+        jsr quarter
+        lda sq8_lo,y
+        clc
+        adc tmp
+        sta tmp
+        lda sq8_hi,y
+        adc tmp + 1
+        sta tmp + 1
+        rts
+
+gl_l:       .byte <49, <689     ; the goal lines' middles: top, bottom
+gl_h:       .byte >49, >689
 
 spot_l:     .byte <SPOT_T, <SPOT_B
 spot_h:     .byte >SPOT_T, >SPOT_B
@@ -6603,10 +6981,16 @@ anew:   lda #0                  ; (pause.s: a match anew)
         sta dead_t              ; (the kick-off next frame)
         rts
 
-; squad: no fouls, no one off - but in training only the keepers and
+; squad: no cards, no one off - but in training only the keepers and
 ; four of each team: a centre back (4), the central midfielders (7, 8)
-; and the centre forward (10)
+; and the centre forward (10); the match's referee (ref_k: how often he
+; shows a yellow, of Sensible Soccer's c0fa92 by chance)
 squad:
+        jsr rnd
+        and #15
+        tax
+        lda ref_tab,x
+        sta ref_k
         ldx #PLAYERS - 1
 :       lda #0
         sta fouls,x
