@@ -36,7 +36,7 @@
         .include "data.inc"
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
-        .export lift, o_off, card_pl, card_c, anew, whistle, why
+        .export lift, o_off, card_pl, card_c, anew, whistle, why, jumps, HEAD_T
         .export fine_on, sp_way_of, sin4
         .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import quit_a
@@ -145,6 +145,12 @@ SPEED_DHEAD = 2048              ; so fast, slowing so much a frame, and in
 DHEAD_DECEL = 36                ; the first frames of it heads the ball 8 -
 DHEAD_T     = 16                ; 15 high on: a quarter faster than he goes,
 DHEAD_DZ    = $00A0             ; rising 0.625
+HEAD_LO     = 13                ; a header (head): the ball this high and up
+HEAD_HI     = 26                ; to this, its distance squared at most
+HEAD_D2     = 100               ; HEAD_D2 from him; headed on at HEAD_SPEED,
+HEAD_SPEED  = 1536              ; rising as a diving header's; he jumps
+HEAD_T      = 16                ; HEAD_T frames, his arms up (o_zl, a
+                                ; player's: pose_of)
 DEAD_HALF   = 150               ; frames dead at half time and full time
 DIVE_T      = 40                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
@@ -404,6 +410,7 @@ card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
 
         .segment "DATA"         ; (BSS full)
 sh_pow:     .byte 0             ; how hard the shot: 0 - 24 (shot_power)
+jumps:      .byte 0             ; frames a header's jump may still go on
 ; why: the reason for the whistle shown till the set piece is taken -
 ; WHY_FOUL, WHY_OFF (offside), WHY_TWICE (a double touch); 0 none
 why:        .byte 0
@@ -823,10 +830,22 @@ play_frame:
         ldy #>aftertouch
         jsr each
 :       jsr ball_move
-        jsr take                ; (each team's helper at it: his)
+        jsr take                ; (each team's helper at it: his; a ball
+        jsr head                ; at his head headed on)
         jsr swap
         jsr take
+        jsr head
         jsr swap
+        lda jumps               ; (the headers' jumps: down - only while
+        beq @jumped             ; one may go on)
+        dec jumps
+        ldx #PLAYERS - 1
+:       lda o_zl,x
+        beq :+
+        dec o_zl,x
+:       dex
+        bpl :--
+@jumped:
         jsr catch
         jmp rules
 @one:   lda o_mov,x
@@ -4274,7 +4293,14 @@ take:
         ldy me                  ; run past its receiver beside the taker)
         lda lock_t,y
         bne @no
-:       jsr at_ball
+:       lda o_xl,x              ; (near across, at_ball's at most 5:
+        sec                     ; within 8 first, the rest only then)
+        sbc o_xl + BALL
+        clc
+        adc #8
+        cmp #17
+        bcs @no
+        jsr at_ball
         bcc @no
         lda me
         jsr held
@@ -4286,6 +4312,85 @@ take:
         sec
         rts
 @no:    clc
+        rts
+
+; head: a header, every frame (play_frame) for each team - neither
+; original has any but the diving one (Luca missed them): the ball HEAD_LO
+; to HEAD_HI high within HEAD_D2 of the team's joystick's player or its
+; runner (not a keeper, not sliding, not jumping still, not the one who
+; just kicked it): he jumps (HEAD_T) and heads it on - the joystick's the
+; way the stick points (let go: the way he faces), the runner on towards
+; the goal his team attacks. Fire and the stick for a ball in the air is
+; the diving header still: harder, further.
+head:
+        lda kickoff
+        ora dead_t
+        bne @no
+        lda o_zl + BALL
+        cmp #HEAD_LO
+        bcc @no
+        cmp #HEAD_HI + 1
+        bcs @no
+        ldy me
+        lda lock_t,y
+        bne @no
+        ldx ctrl
+        bmi :+
+        jsr can_head
+        bcc @go
+:       ldx helper
+        bmi @no
+        jsr can_head
+        bcc @go
+@no:    rts
+@go:    lda #HEAD_T
+        sta o_zl,x
+        sta jumps
+        lda me
+        sta last_team
+        jsr touch_x
+        cpx ctrl
+        bne @goal
+        jsr stick_way
+        cmp #8
+        bne @way
+        lda o_dir,x
+        bpl @way
+@goal:  jsr top_of              ; (from the top: down the pitch)
+        beq @way
+        lda #4
+@way:   sta o_dir,x
+        tay
+        jsr ball_ahead
+        lda #<HEAD_SPEED
+        sta o_spl + BALL
+        lda #>HEAD_SPEED
+        sta o_sph + BALL
+        lda #<DHEAD_DZ
+        sta o_dzf + BALL
+        lda #>DHEAD_DZ
+        sta o_dzl + BALL
+        jmp sfx_kick
+
+; can_head: carry clear if player X may head the ball on now (head).
+; Keeps X.
+can_head:
+        txa                     ; (no keeper: his hands)
+        beq @no
+        cpx #11
+        beq @no
+        lda o_slide,x
+        ora o_zl,x
+        bne @no
+        jsr kicker
+        bcs @no
+        jsr mate_dist
+        lda tmp + 1
+        bne @no
+        lda tmp
+        cmp #HEAD_D2 + 1
+        rts
+@no:    sec
         rts
 
 ; switch, once a picture: as Sensible Soccer and the C64 do it: the
@@ -7066,7 +7171,11 @@ pose_of:
         lda #IMG_SLIDE_A
 :       rts
 @keeper:
-        txa
+        lda o_zl,x              ; (a header's jump: the arms up)
+        beq :+
+        lda #IMG_HOLD
+        rts
+:       txa
         beq :+
         cpx #11
         bne @none

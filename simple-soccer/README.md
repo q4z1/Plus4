@@ -404,17 +404,25 @@ too hurried to see the card: without it Luca took the offside calls for fouls
 made up. `tests/offside.py` and `tests/dbltouch.py` check it is shown,
 and leave screenshots (`why-*.png`).
 
-A ball in the air goes over the players' heads unless one of them goes
-for it - and a header is a diving header, as Sensible Soccer has no
+A ball 13 to 26 high coming within 10 pixels of a team's joystick's
+player or its runner is headed on - neither original has such a header,
+Luca missed it: he jumps, his arms up, for 16 frames, and heads it at
+1536, rising as a diving header's - the joystick's player the way the
+stick points (let go, the way he faces), the runner towards the goal his
+team attacks; the computer's team heads so too. Not a keeper (his
+hands), nor one who has just kicked it. `tests/header.py`: the stick up,
+right, let go, a ball over his head, the runner to a pass.
+
+Above or below that a ball in the air goes over the players' heads unless one of them goes
+for it - and the other header is the diving one, as Sensible Soccer has no
 other (c13af4, c140d4): fire pressed with the
 stick pushed, the ball higher than 8 and within 49 pixels, and two
 frames on your player dives the stick's way (2048, slowing 36 a frame);
 in the first 16 frames of his dive, the ball 8 to 15 high and within 8
 pixels, he heads it on - the way he dives, a step nearer the stick's, a
 quarter faster than he goes (some 2400) and rising (0.625). The yellow
-team does not head at all, as Sensible Soccer's computer team does not
-(its brain never presses fire for it): its player takes a high ball
-once it is down to 12 at his feet. There are no crosses
+team makes no diving header, as Sensible Soccer's computer team does not
+(its brain never presses fire for it). There are no crosses
 as such, as in Sensible Soccer: a shot lifted with the aftertouch is
 one.
 

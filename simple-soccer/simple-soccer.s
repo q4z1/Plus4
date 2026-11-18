@@ -16,7 +16,7 @@
         .import play_init, play_frame, play_picture, pose_of, score, game_min, hud, lift
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
-        .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why
+        .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why, jumps, HEAD_T
         .export team_col, team_flk, start, played
         .import pause_chk, resume, squares
         .import title
@@ -179,7 +179,9 @@ main:
         inx
         cpx #FIGS
         bne :-
-@on:    lda frames
+@on:    lda #<HEAD_T            ; (a saved match's headers' jumps run
+        sta jumps               ; down: play.s jumps is not saved)
+        lda frames
         sta played
 loop:
         jsr joy_read
