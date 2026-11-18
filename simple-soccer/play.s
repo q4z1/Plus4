@@ -168,6 +168,8 @@ KICKED_T    = 50                ; frames the one who passed or shot is not
 KICK_Z      = 4                 ; and low enough
 TRAP_Z      = 4                 ; low enough to stop dead (Sensible Soccer)
 SHOT_HOLD   = 9                 ; frames fire is held for a shot
+SHOT_MAX    = SHOT_HOLD + 24    ; held so long: as hard as he shoots (sh_pow)
+SHOT_CPU    = 13                ; the computer's sh_pow: 2208, as ever
 SHOT_SPEED  = 2208
 SHOT_DZ     = $0140             ; its rise, 8.8: 1.25
 LIFT_DZ     = $0160             ; the aftertouch's lift: 1.375,
@@ -398,6 +400,7 @@ card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
 
         .segment "DATA"         ; (BSS full)
+sh_pow:     .byte 0             ; how hard the shot: 0 - 24 (shot_power)
 ; why: the reason for the whistle shown till the set piece is taken -
 ; WHY_FOUL, WHY_OFF (offside), WHY_TWICE (a double touch); 0 none
 why:        .byte 0
@@ -817,6 +820,10 @@ play_frame:
         ldy #>aftertouch
         jsr each
 :       jsr ball_move
+        jsr take                ; (each team's helper at it: his)
+        jsr swap
+        jsr take
+        jsr swap
         jsr catch
         jmp rules
 @one:   lda o_mov,x
@@ -1237,8 +1244,8 @@ control:
         tay
         lda #1
         sta o_mov,x
-        jsr aim_way             ; 1000 pixels the way the stick points
-        jsr inside
+        jsr aim_run             ; ahead the way the stick points (set
+        jsr inside              ; each frame)
         jsr dist2               ; slower with the ball close
         ldy #SP_RUN
         jsr speed
@@ -1287,17 +1294,19 @@ control:
         cmp #1
         bne :+
         jmp pass
-:       jmp shot
+:       lda #SHOT_CPU
+        sta sh_pow
+        jmp shot
 @fire:  lda frame_n             ; fire as Sensible Soccer's players act on
         eor me                  ; it: every second frame (the dribble's),
         lsr a
-        bcs @done               ; as it was the frame before - so one or
+        jcs @done               ; as it was the frame before - so one or
         lda pfire               ; two frames after it is pressed or let go
         and #J_FIRE             ; fire: let go within SHOT_HOLD - 1
-        beq @let                ; frames a pass, held SHOT_HOLD frames a
-        lda fire_n              ; shot - as soon as the ball is at his
-        cmp #$FF                ; feet, once held so long
-        beq @done               ; (shot)
+        jeq @let                ; frames a pass, held SHOT_HOLD frames a
+        lda fire_n              ; shot, as hard as held long (to SHOT_MAX)
+        cmp #$FF                ; - held SHOT_MAX, as soon as the ball is
+        jeq @done               ; at his feet (shot)
         lda kickoff             ; pressed, the stick pushed, the ball in
         bne @foot               ; the air near him: a diving header (as
         ldx ctrl                ; Sensible Soccer has only that, c13af4)
@@ -1309,7 +1318,7 @@ control:
         sta fire_n
         jmp dive_head
 @foot:  lda fire_n
-        cmp #SHOT_HOLD
+        cmp #SHOT_MAX
         bcs :+
         inc fire_n              ; (two frames a time)
         inc fire_n
@@ -1324,11 +1333,18 @@ control:
         sta fire_n
         ldx ctrl
         jmp slide
-@held:  lda fire_n
-        cmp #SHOT_HOLD
+@held:  lda fire_n                ; (held SHOT_MAX: the hardest, as soon
+        cmp #SHOT_MAX           ; as the ball is at his feet)
         bcc @done
 :       jsr can_kick
         bcs @done
+        lda #SHOT_MAX
+@shoot: sec                     ; (sh_pow: the frames held past SHOT_HOLD,
+        sbc #SHOT_HOLD          ; 24 at most)
+        cmp #SHOT_MAX - SHOT_HOLD + 1
+        bcc :+
+        lda #SHOT_MAX - SHOT_HOLD
+:       sta sh_pow
         lda #$FF
         sta fire_n
         jmp shot
@@ -1337,9 +1353,16 @@ control:
         sty fire_n
         cmp #1
         bcc @done               ; (not held)
-        cmp #SHOT_HOLD
-        bcs @done               ; (the shot taken, or held for one)
+        cmp #$FF
+        beq @done               ; (the shot taken)
+        cmp #SHOT_HOLD          ; let go after SHOT_HOLD: the shot, as hard
+        bcc :+                  ; as it was held long
+        pha
         jsr can_kick
+        pla
+        bcc @shoot
+        rts
+:       jsr can_kick
         bcs @wait
         jmp pass
 @wait:  lda #PASS_Q             ; (too soon: it goes as the ball comes)
@@ -1945,7 +1968,7 @@ shot:
         tay
         jsr ball_ahead
         jsr aim_to
-        jsr shot_speed
+        jsr shot_power
         lda #<SHOT_DZ
         sta o_dzf + BALL
         lda #>SHOT_DZ
@@ -2286,7 +2309,9 @@ dribble:
 :       rts
 
         .segment "RODATA"
-glue_of:    .byte 4, 5, 6, 8, 11, 14, 17, 21, 21  ; (by sk_duel, 7-15)
+glue_of:    .byte 8, 9, 10, 12, 14, 17, 19, 22, 22  ; (by sk_duel, 7-15: the
+                                ; C64's $3E88 4 - 21; the weakest kept it too
+                                ; little, said Luca)
 drib_of:    .byte 130, 116, 102, 88, 74, 60, 46, 32, 32  ; ($3E80)
         .segment "CODE"
 
@@ -2408,6 +2433,41 @@ shot_speed:
         lda #>SHOT_SPEED
         sta o_sph + BALL
         rts
+
+; shot_power: the ball as hard as sh_pow has it - 1792 and 32 a step,
+; up to 2560 (Sensible Soccer's, and the C64's, is 2208 for all: sh_pow
+; 13, the computer's), more by the kicker X's skill (shot_b, by sk_duel:
+; up to 192); a throw-in 512 less (it went to the moon, said Luca). Keeps X.
+shot_power:
+        lda #0
+        sta tmp + 1
+        lda sh_pow
+        asl a
+        asl a
+        asl a
+        asl a
+        rol tmp + 1
+        asl a
+        rol tmp + 1
+        ldy sk_duel,x
+        clc
+        adc shot_b - 7,y
+        bcc :+
+        inc tmp + 1
+:       clc
+        adc #<1792
+        sta o_spl + BALL
+        lda tmp + 1
+        adc #>1792
+        sta o_sph + BALL
+        jsr at_throw
+        beq :+
+        lda o_sph + BALL
+        sec
+        sbc #>512
+        sta o_sph + BALL
+:       rts
+shot_b:     .byte 0, 24, 48, 72, 96, 128, 160, 192, 192
 
 ; kick_by: the joystick's player (ctrl) kicks the ball - his team's and
 ; his touch, and his kick. X = ctrl after.
@@ -2556,13 +2616,13 @@ pass:
         sta recv_t,y
         jsr off_mark
         jmp kick_to
-:       ldx ctrl                ; no one: straight on
-        ldy o_dir,x
-        jsr ball_ahead
+:       ldx ctrl                ; no one: straight on, 2048 - far enough
+        ldy o_dir,x             ; to leave the kicker behind (Luca; the C64
+        jsr ball_ahead          ; and Sensible Soccer 1792)
         jsr aim_to
-        lda #<1792
+        lda #<2048
         sta o_spl + BALL
-        lda #>1792
+        lda #>2048
         sta o_sph + BALL
         jmp kicked
 
@@ -4188,6 +4248,42 @@ form22: .byte 0, 22             ; (each team's in tac_*)
 
 ; ---- whose the joystick is ------------------------------------------------
 
+; take: every frame (play_frame) and in switch - the helper running to
+; the ball gets it as he is at it (at_ball - Sensible Soccer's runner,
+; c14314), the joystick his, his first touch (trap) - unless the other
+; team holds it (on the C64 only the joystick's players fight for it:
+; duel); not just after losing it so. Carry set if he did. Once a picture
+; only, as switch had it, a pass and its receiver running to meet it
+; passed each other between two looks (some 18 pixels a picture against
+; the 5.6 of at_ball) - the kick-off's pass never got there (Luca).
+take:
+        lda kickoff
+        ora dead_t
+        bne @no
+        ldx helper
+        bmi @no
+        beq @no                 ; (a keeper: his hands, catch's - a pass
+        cpx #11                 ; back to him too)
+        beq @no
+        cpx recv                ; (a pass to him: not locked - a set
+        beq :+                  ; piece's lock, DBL_T, let the kick-off
+        ldy me                  ; run past its receiver beside the taker)
+        lda lock_t,y
+        bne @no
+:       jsr at_ball
+        bcc @no
+        lda me
+        jsr held
+        bcs @no
+        stx ctrl
+        lda #$FF
+        sta helper
+        jsr trap
+        sec
+        rts
+@no:    clc
+        rts
+
 ; switch, once a picture: as Sensible Soccer and the C64 do it: the
 ; helper running to the ball gets it as he is at it (at_ball - Sensible
 ; Soccer's runner, c14314), his first touch (trap); else the joystick's
@@ -4205,20 +4301,9 @@ switch:
         lda o_slide,x
         beq :+
         rts
-:       ldx helper              ; the helper at the ball: his - unless
-        bmi :+                  ; the other team holds it (on the C64
-        ldy me                  ; only the joystick's players fight for
-        lda lock_t,y            ; it: duel); not just after losing it so
-        bne :+
-        jsr at_ball
+:       jsr take                ; (the helper at it: his)
         bcc :+
-        lda me
-        jsr held
-        bcs :+
-        stx ctrl
-        lda #$FF
-        sta helper
-        jmp trap
+        rts
 :       ldx ctrl                ; the joystick's at the ball: his still
         jsr near_ball
         jcs @done
@@ -6607,6 +6692,38 @@ slide:
         jsr aim_way
         lda #$FF
         rts
+
+; aim_run: the joystick's player X's destination RUN_D pixels the way Y,
+; set again each frame he runs: 1000 pixels on, inside cut it at the
+; walls round the pitch from far off and turned his way - running up and
+; right from the middle he went 34 degrees off up, the ball he dribbled 45:
+; it was soon out of his reach (Luca: no diagonal ever keeps the ball).
+; Keeps X, Y.
+RUN_D       = 128
+aim_run:
+        lda o_xl,x
+        clc
+        adc run_x,y
+        sta o_txl,x
+        lda run_x,y
+        and #$80                ; (the high byte: the sign's)
+        beq :+
+        lda #$FF
+:       adc o_xh,x
+        sta o_txh,x
+        lda o_yl,x
+        clc
+        adc run_y,y
+        sta o_tyl,x
+        lda run_y,y
+        and #$80
+        beq :+
+        lda #$FF
+:       adc o_yh,x
+        sta o_tyh,x
+        rts
+run_x:      .byte 0, RUN_D - 1, RUN_D - 1, RUN_D - 1, 0, <(1 - RUN_D), <(1 - RUN_D), <(1 - RUN_D)
+run_y:      .byte <(1 - RUN_D), <(1 - RUN_D), 0, RUN_D - 1, RUN_D - 1, RUN_D - 1, 0, <(1 - RUN_D)
 
 ; aim_way: object X's destination 1000 pixels from it, way Y. Keeps X, Y.
 aim_way:

@@ -145,17 +145,30 @@ whenever it is at his feet (going up, beside his right foot, where he
 does not hide it) - as the C64's Arlasoft Soccer kicks it, at his own
 pace and, every other touch, a push more by how good he is (130 for the
 weakest, down to 32 for the best), a little more with the ball behind
-him: it stays close, and he keeps it through his turns - and a pass goes to a team-mate, harder the
+him: it stays close, and he keeps it through his turns (running, the
+player heads for a point 128 pixels the way the stick points, set anew
+each frame - 1000 pixels on, as before, the walls round the pitch cut it
+and turned a diagonal run some 11 degrees off the ball's, which was soon
+out of reach: no diagonal kept it, said Luca) - and a pass goes to a team-mate, harder the
 further he is and the better the kicker, as Arlasoft Soccer passes (3
 pixels a frame under 50 pixels, a step each 50 up to 4 from 250, and up
 to 0.75 more for the best players - Luca found the shortest too short
 to leave the kicker behind): the nearest within 22.5 degrees of the way you face -
 unless one up to 67.5 degrees off it is under seven tenths as far; only
-with no one in either does it run on by itself. Fire let go before the ball has
+with no one in either does it run on by itself, at 2048 (4 pixels a
+frame: the originals' 1792 left it too near its kicker, said Luca). Fire let go before the ball has
 come to you passes it as it comes, first time. As in Sensible Soccer,
 fire is acted on every second frame, as it was the frame before - a
 pass, a slide or a header comes one or two frames after fire is let go
-or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, rising; for the next ten
+or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, rising - and, unlike
+both originals, whose shots are all as hard (2208), the longer it is
+held the harder: let go, it goes at 1792 and 32 more for each frame held
+past the nine, held 33 frames it goes at once at 2560; up to 192 more for
+the best players (Luca's wish: the kick's length by the time held and the
+team's level). A throw-in held so goes 512 slower - a short one or a long
+one, no longer always to the moon. The computer shoots at 2208 as
+before, and its level's more. `tests/power.py` holds fire so long and
+measures; for the next ten
 frames the stick bends the ball to one side if it is pushed across the
 shot, and on the fifth it lifts it - high when pulled back, less when let
 go or across. The C64 runs its match on the same pitch, in the same
@@ -288,6 +301,13 @@ he has it. The first touch is Sensible Soccer's: the one running to the
 ball - a pass's receiver, or the nearest to a loose one - takes it as
 it reaches his feet on the ground, stops, and has it dead a pixel before
 him, the joystick his; with the stick pushed he dribbles it on at once.
+That is looked at every frame, not once a picture as most of the teams'
+minds are: a pass and its receiver running to meet it come together at
+some 18 pixels a picture, and at his feet is 5.6 pixels - once a picture
+they passed each other, and Luca's kick-off never got to its man. Nor
+does a set piece's lock (DBL_T, against its taker's double touch) keep a
+pass's receiver off it: the kick-off to the one beside the taker ran past
+him.
 Your player with the stick let go does not touch a ball that comes to
 him - it runs on past him, as in Sensible Soccer; push the stick and he
 dribbles it.
@@ -320,8 +340,9 @@ the better more often, by his team's level (a level better, or a star,
 one step up): even 16 in 32, each step between them one in 32 more, at
 most 23. The ball stops dead at his feet, and the other team cannot
 dribble it for 24 frames. And it sticks to a dribbler only for so many
-turns with it since he got it - 4 for the weakest (level 8, no star),
-21 for the best: past them, each turn he makes with the other team's
+turns with it since he got it - 8 for the weakest (level 8, no star),
+22 for the best (the C64's 4 to 21: Luca found the weak teams could not
+keep it at all): past them, each turn he makes with the other team's
 player at the ball too lets it go to that one, his own team not
 touching it for 16 frames. The same roll decides when a sliding tackle
 reaches the ball at a player's feet: lost, the tackle misses the ball,
