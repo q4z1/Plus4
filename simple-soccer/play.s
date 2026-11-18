@@ -178,7 +178,11 @@ KICKED_T    = 50                ; frames the one who passed or shot is not
 KICK_Z      = 4                 ; and low enough
 TRAP_Z      = 4                 ; low enough to stop dead (Sensible Soccer)
 SHOT_HOLD   = 9                 ; frames fire is held for a shot
-SHOT_MAX    = SHOT_HOLD + 24    ; held so long: as hard as he shoots (sh_pow)
+CHARGE_N    = 12                ; fire held on after a shot: steps (two frames
+                                ; each) it goes harder (charge)
+CHARGE_D    = 64                ; a step's speed (a throw-in's half): 1792 to
+                                ; 2560, as fire held before the shot went
+CHARGE_DZ   = $20               ; pulled back, a step's rise, to LIFT_HI_DZ
 SHOT_CPU    = 13                ; the computer's sh_pow: 2208, as ever
 SHOT_SPEED  = 2208
 SHOT_DZ     = $0140             ; its rise, 8.8: 1.25
@@ -559,7 +563,8 @@ play_init:
         sta taker
         lda #$FF                ; no card, no one offside (off_pl: above the
         sta card_pl             ; match's zero page, as the title left it -
-        sta off_pl              ; its 0 the keeper offside: a penalty)
+        sta off_pl              ; its 0 the keeper offside: a penalty; nor
+        sta thrower             ; a throw-in - head: 0 the keeper's kicks)
         lda #0
         sta why
         lda #1
@@ -766,6 +771,20 @@ still:
 
 ; ---- a frame --------------------------------------------------------------
 
+; get_up: everyone lying or sliding up again, standing (restart's, in the
+; dead time)
+get_up:
+        ldx #PLAYERS - 1
+@pl:    lda o_slide,x
+        beq @next
+        lda #0
+        sta o_slide,x
+        sta o_hd,x
+        jsr stand
+@next:  dex
+        bpl @pl
+        rts
+
 play_frame:
         jsr clock
         jsr throwing
@@ -782,6 +801,12 @@ play_frame:
 :       dec dead_t
         bne :+
         jmp restart
+:       lda dead_t              ; (FALL_T frames into a whistle's dead time,
+        cmp #DEAD_FOUL - FALL_T ; or 10 into one after the ball went out:
+        beq :+                  ; everyone lying up again, to his place -
+        cmp #DEAD_OUT - 10      ; Luca: they lay till the restart)
+        bne :++
+:       jsr get_up
 :       jsr keepers_move
         jsr ball_move
         jmp net
@@ -1343,9 +1368,11 @@ control:
         lda pfire               ; two frames after it is pressed or let go
         and #J_FIRE             ; fire: let go within SHOT_HOLD - 1
         jeq @let                ; frames a pass, held SHOT_HOLD frames a
-        lda fire_n              ; shot, as hard as held long (to SHOT_MAX)
-        cmp #$FF                ; - held SHOT_MAX, as soon as the ball is
-        jeq @done               ; at his feet (shot)
+        lda fire_n              ; shot at once, held on harder (charge) -
+        cmp #$FF                ; Luca: the ball must go as the game knows
+        jeq @done               ; it is a shot, not as fire is let go
+        cmp #$80                ; (the shot on its way: fire held on)
+        jcs @charge
         lda kickoff             ; pressed, the stick pushed, the ball in
         bne @foot               ; the air near him: a diving header (as
         ldx ctrl                ; Sensible Soccer has only that, c13af4)
@@ -1357,8 +1384,8 @@ control:
         sta fire_n
         jmp dive_head
 @foot:  lda fire_n
-        cmp #SHOT_MAX
-        bcs :+
+        cmp #SHOT_HOLD
+        bcs @held
         inc fire_n              ; (two frames a time)
         inc fire_n
         lda fire_n
@@ -1372,35 +1399,49 @@ control:
         sta fire_n
         ldx ctrl
         jmp slide
-@held:  lda fire_n                ; (held SHOT_MAX: the hardest, as soon
-        cmp #SHOT_MAX           ; as the ball is at his feet)
-        bcc @done
-:       jsr can_kick
+@held:  lda fire_n                ; (held SHOT_HOLD: the shot, as soon as
+        cmp #SHOT_HOLD          ; the ball is at his feet - fire held on
+        bcc @done               ; charges it: $80 on, a throw-in $C0 on)
+        jsr can_kick
         bcs @done
-        lda #SHOT_MAX
-@shoot: sec                     ; (sh_pow: the frames held past SHOT_HOLD,
-        sbc #SHOT_HOLD          ; 24 at most)
-        cmp #SHOT_MAX - SHOT_HOLD + 1
-        bcc :+
-        lda #SHOT_MAX - SHOT_HOLD
-:       sta sh_pow
-        lda #$FF
-        sta fire_n
+        ldy #$80
+        jsr at_throw
+        beq :+
+        ldy #$C0
+:       jsr lofted              ; (a goal kick, the keeper's, a corner:
+        bcs :+                  ; high unless the stick pushes on - $A0)
+        ldy #$A0
+:       sty fire_n
+@kick:  lda #0                  ; (as hard as shot_power's least)
+        sta sh_pow
         jmp shot
+@charge:
+        and #$1F                ; (fire held on: the steps so far)
+        cmp #CHARGE_N
+        bcs @full
+        lda last_team           ; (the ball still his kick, untouched)
+        cmp me
+        bne @full
+        lda last_pl
+        cmp kick_pl
+        bne @full
+        inc fire_n
+        jmp charge
+@full:  lda #$FF                ; (no more: till fire is let go)
+        sta fire_n
+        rts
 @let:   lda fire_n
         ldy #0
         sty fire_n
         cmp #1
         bcc @done               ; (not held)
-        cmp #$FF
-        beq @done               ; (the shot taken)
-        cmp #SHOT_HOLD          ; let go after SHOT_HOLD: the shot, as hard
-        bcc :+                  ; as it was held long
-        pha
+        cmp #$80
+        bcs @done               ; (the shot taken)
+        cmp #SHOT_HOLD          ; let go after SHOT_HOLD, the ball not at
+        bcc :+                  ; his feet then: the shot if it is now
         jsr can_kick
-        pla
-        bcc @shoot
-        rts
+        bcs @done
+        jmp @kick
 :       jsr can_kick
         bcs @wait
         jmp pass
@@ -2017,14 +2058,87 @@ shot:
         sta o_dzf + BALL
         lda #>SHOT_DZ
         sta o_dzl + BALL
-        jsr at_throw            ; (a long throw-in: from his head)
-        beq :+
-        sta o_zl + BALL
-:       jsr sfx_kick
-        lda #0
+        jsr sfx_kick
+        jsr at_throw            ; (a long throw-in: from his head - and no
+        beq @at                 ; aftertouch: on its fifth frame it set it
+        sta o_zl + BALL         ; to a shot's 2560, the throw-ins went
+        lda #$FF                ; super powerful still, said Luca)
+        .byte $2C               ; (bit: over the lda)
+@at:    lda #0
         sta at_n
         lda #$FF
         rts
+
+; lofted: carry clear if the set piece the joystick's team takes is one
+; whose kick held goes high by itself (charge): a goal kick, the keeper's,
+; a corner - Luca: the goal kick to be high, it was always intercepted.
+; Keeps X.
+lofted:
+        lda kickoff
+        beq @no
+        lda rs_kind
+        cmp #R_GOALKICK
+        beq @yes
+        cmp #R_CORNER
+        beq @yes
+        cmp #R_KEEPER
+        beq @yes
+@no:    sec
+        rts
+@yes:   clc
+        rts
+
+; charge: a step of fire held on after the joystick's shot (control) -
+; the ball CHARGE_D faster (a throw-in half), and the stick pulled back
+; CHARGE_DZ more rise, up to LIFT_HI_DZ: let go before CHARGE_N steps, a
+; shot as hard and high as wanted (Luca). The computer's shot as Sensible
+; Soccer's: its aftertouch's lift.
+charge:
+        lda #CHARGE_D
+        bit fire_n              ; (bit 6: a throw-in)
+        bvc :+
+        lsr a
+:       clc
+        adc o_spl + BALL
+        sta o_spl + BALL
+        bcc :+
+        inc o_sph + BALL
+:       jsr stick_way           ; pulled back: 3 - 5 off the shot's way -
+        cmp #8                  ; a goal kick's, the keeper's, a corner's
+        beq @let                ; (bit 5) let go or across too
+        sta tmp
+        ldy me
+        lda at_dir,y
+        sec
+        sbc tmp
+        and #7
+        cmp #3
+        bcc @on
+        cmp #6
+        bcc @up
+        cmp #7
+        bcs @on
+@let:   lda fire_n              ; (let go, across: bit 5's only)
+        and #$20
+        beq @done
+        bne @up
+@on:    cmp #2                  ; (0, 1, 7 on: low)
+        beq @let
+@done2: rts
+@up:    lda o_dzf + BALL        ; (rising less than LIFT_HI_DZ: more)
+        cmp #<LIFT_HI_DZ
+        lda o_dzl + BALL
+        sbc #>LIFT_HI_DZ
+        bvc :+
+        eor #$80
+:       bpl @done
+        lda o_dzf + BALL
+        clc
+        adc #CHARGE_DZ
+        sta o_dzf + BALL
+        bcc @done
+        inc o_dzl + BALL
+@done:  rts
 
 ; aftertouch: for ten frames after a shot, the joystick bends it - the
 ; first way it is pushed across the shot (or across and back) sends the
@@ -2081,6 +2195,10 @@ aftertouch:
         bne @add
 @lift:  ldx at_n
         cpx #4
+        bne @next
+        lda me                  ; (a player's shot: fire held on lifts it,
+        beq @next               ; charge - not this)
+        lda two
         bne @next
         lda at_j
         cmp #8
@@ -4351,7 +4469,12 @@ head:
         ldy me
         lda lock_t,y
         bne @no
-        ldx ctrl
+        cpy last_team           ; (its own throw-in, untouched since: not
+        bne :+                  ; headed of itself - a double shot, said
+        lda last_pl             ; Luca: thrown to him at head height, he
+        cmp thrower             ; headed it on)
+        beq @no
+:       ldx ctrl
         bmi :+
         jsr can_head
         bcc @go
@@ -6748,6 +6871,14 @@ touch_me:
         lda me
         sta last_team
 touch_x:
+        php                     ; (another touches it: thrown no longer -
+        cpx thrower             ; head)
+        beq :+
+        pha
+        lda #$FF
+        sta thrower
+        pla
+:       plp
         stx last_pl
 touch:
         php

@@ -34,7 +34,7 @@ on YouTube (made by `tests/trailer.py`).
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | at your throw-in or corner: each push of a direction | cursor keys | turns the aim (two dots) a step towards it |
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
-| fire, held | space | shot, the harder the longer held - then the stick bends it across, or lifts it pulled back |
+| fire, held | space | shot, at once - held on, the harder; pulled back meanwhile, the higher; the stick across bends it |
 | (a ball at head height comes to you) | | header, the stick's way |
 | fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
 | | RUN/STOP or P | pause |
@@ -165,18 +165,34 @@ frame: the originals' 1792 left it too near its kicker, said Luca). Fire let go 
 come to you passes it as it comes, first time. As in Sensible Soccer,
 fire is acted on every second frame, as it was the frame before - a
 pass, a slide or a header comes one or two frames after fire is let go
-or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, rising - and, unlike
-both originals, whose shots are all as hard (2208), the longer it is
-held the harder: let go, it goes at 1792 and 32 more for each frame held
-past the nine, held 33 frames it goes at once at 2560; up to 192 more for
-the best players (Luca's wish: the kick's length by the time held and the
-team's level). A throw-in held so goes 512 slower - a short one or a long
-one, no longer always to the moon. The computer shoots at 2208 as
-before, and its level's more. `tests/power.py` holds fire so long and
-measures; for the next ten
-frames the stick bends the ball to one side if it is pushed across the
-shot, and on the fifth it lifts it - high when pulled back, less when let
-go or across. The C64 runs its match on the same pitch, in the same
+or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, at once, rising -
+at 1792, up to 192 more for the best players - and, unlike both
+originals, whose shots are all as hard (2208), fire held on after it
+went makes it harder, 32 a frame for up to 24 frames (2560), and with
+the stick pulled back meanwhile higher too: let go early, a low shot,
+held long and pulled back, a high one - a goal kick, the keeper's kick
+and a corner high unless the stick pushes on (Luca: the goal kick was
+always intercepted; `tests/restarts.py` takes each set piece with fire
+tapped and held and says who gets to it first) (Luca's wish: the game is to know
+it is a shot as soon as fire is held so long, not when it is let go, and
+the shot to be as hard and high as fire held on). A throw-in held so
+goes 512 slower and takes on half as much - a short one or a long one,
+some 1600 at most. For the next ten frames the stick bends the ball to
+one side if it is pushed across the shot. The computer shoots as
+Sensible Soccer's: at 2208 and its level's more, lifted on the fifth
+frame - high when the stick is pulled back, less when let go or across
+(for a while the aftertouch did so to a player's shots and throw-ins
+too: it set a throw-in to a shot's 2560 - the throw-ins Luca found super
+powerful still). `tests/power.py` holds fire so long and measures, the
+stick pulled back too, a tap just after a shot (it was swallowed - fire
+was taken as still held), a throw-in held long, and what the receiver
+of a throw-in does: he no longer heads a throw-in of his own team
+untouched since of himself (a double shot, said Luca).
+
+Fire is seen each frame: the interrupt notes it pressed, the next turn
+takes it as pressed even if it is let go again by then - the joystick is
+read once a picture, three frames, and a tap between two readings was
+lost (the ball stayed glued, said Luca). The C64 runs its match on the same pitch, in the same
 pixels, and so does this game: a pixel of the pitch is a pixel on the
 screen, up and down as across - the ground is shown as the C64 shows it,
 its plain rows of grass between the boxes and the centre circle, and
@@ -369,7 +385,9 @@ was near the ball it may be a foul (Sensible Soccer's c10f0c): always
 if the tackle had not reached the ball first, and if it had, with him
 right at it, when it comes from behind (the ways at most 45 degrees
 apart) - the whistle, the player fouled down, and a free kick for his
-team where he lies; in the penalty area his team attacks, a penalty. For a free kick the other team's players within 40 pixels of
+team where he lies (a second after the whistle everyone lying gets up
+and goes to his place, ten frames on after the ball went out - they lay
+till the restart, said Luca; `tests/foulshow.py`); in the penalty area his team attacks, a penalty. For a free kick the other team's players within 40 pixels of
 the ball are put between it and their goal, then go to their places
 for it (above); for a penalty the
 ball is on the spot, the keeper on his line, everyone else but the

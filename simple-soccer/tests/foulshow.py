@@ -8,7 +8,9 @@ behind, and a yellow one into the cyan one.
 
 A line each frame from the tackle on: each one's slide, fall (o_hit),
 the whistle (rs_kind, last_team: whose free kick); screenshots
-in ~/.cache/simple-soccer/test/foul-<case>.png.
+in ~/.cache/simple-soccer/test/foul-<case>.png. Then when all are up
+again: OK while the ball is still dead (play.s get_up; they lay till the
+free kick was taken, said Luca).
 """
 import os
 import sys
@@ -81,8 +83,13 @@ def main():
                 if f == 20:                     # (both lying, the whistle gone)
                     v.screenshot(os.path.join(WORK, 'foul-%s.png' % name))
             v.poke(key, [0])
-            for _ in range(250):                # (the free kick taken, play on)
-                v.cmd('x')
+            up = None                           # all up again while the ball
+            for f in range(70, 320):            # is dead still (Luca: they lay
+                v.cmd('x')                      # till the free kick)
+                if up is None and not any(v.mem(lab['o_slide'], 22)):
+                    up = (f, v.mem(lab['dead_t'], 1)[0])
+            print('all up at frame %s, the ball dead %s frames more  %s'
+                  % (up and up[0], up and up[1], 'OK' if up and up[1] > 0 else 'WRONG'))
     finally:
         v.stop()
 

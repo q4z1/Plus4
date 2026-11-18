@@ -96,6 +96,8 @@ TEXT_DROP   = DROP + 1          ; (the away side's words at its flag's foot,
 FIRE_ROW    = 20
 PORTS_ROW   = 22                ; (where the joysticks go)
 PORTS_COL   = 6
+P_HOME      = 12                ; (the digits in ports_2: ports_dig)
+P_AWAY      = 27
 CREDIT_ROW  = 24
 LINE_0      = 3                 ; the raster line of the text's first row
 SPLIT_HOME  = LINE_0 + (FLAG_ROW - 1) * 8           ; (the frame's row
@@ -1177,8 +1179,6 @@ ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
 PORTS_W     = * - ports_1
 ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
 .assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
-P_HOME      = 12                ; (its digits: ports_dig)
-P_AWAY      = 27
 .assert ports_2 + P_HOME + 1 <= * && ports_2 + P_AWAY + 1 = *, error, "ports_2: the digits"
 modes:      .byte "MATCH   "    ; (t_train: MODE_*)
 MODE_W      = * - modes

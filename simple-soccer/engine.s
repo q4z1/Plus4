@@ -116,6 +116,8 @@ joy_a:      .res 1              ; the first joystick's and the keys,
 joy_b:      .res 1              ; the second joystick's
 dbg_joy:    .res 1              ; J_ bits held for joy_read by a test,
 dbg_joyb:   .res 1              ; and on the second joystick
+fire_l:     .res 1              ; fire seen pressed by the interrupt since
+                                ; the last joy_read: bit 6 port 1, 7 port 2
 back:       .res 1              ; the picture being drawn: 0, 1 or 2
 shown:      .res 1              ; the one on screen, $FF none yet
 queued:     .res 1              ; the one finished, waiting; $FF none
@@ -331,6 +333,16 @@ irq:    pha
         tya
         pha
         jsr snd_tick            ; (the sounds, 50 times a second)
+        lda #$F9                ; fire, each frame: a tap between two
+        sta TED_KEYS            ; pictures' joy_read was lost (Luca: the
+        lda TED_KEYS            ; ball kept glued) - both joysticks at
+        lda TED_KEYS            ; once, their fire bits 6 and 7 apart;
+        eor #$FF                ; the keyboard's row latch is $FF but in
+        and #$C0                ; joy_read and pause_key, with the
+        ora fire_l              ; interrupt off
+        sta fire_l
+        lda #$FF
+        sta TED_KEYS
         inc frames
         inc since
         ldx queued
@@ -2054,7 +2066,18 @@ joy_scan:                       ; (the title's: nothing else reads the keys)
         lda #J_FIRE
         ora joy_b
         sta joy_b
-:       lda joy                 ; (a test's, as the ports' own)
+:       bit fire_l              ; (fire pressed since the last time: the
+        bvc :+                  ; interrupt's)
+        lda #J_FIRE
+        ora joy
+        sta joy
+:       bpl :+
+        lda #J_FIRE
+        ora joy_b
+        sta joy_b
+:       lda #0
+        sta fire_l
+        lda joy                 ; (a test's, as the ports' own)
         ora dbg_joy
         sta joy
         lda joy_b
