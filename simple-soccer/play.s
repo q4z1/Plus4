@@ -75,6 +75,9 @@ NET_L       = 275               ; and between the side nettings (the posts
 NET_R       = 335               ; are drawn at 270 and 340, the ball 5 wide)
 DEAD_OUT    = 50                ; frames the ball is dead after going out,
 DEAD_GOAL   = 125               ; after a goal
+DEAD_FOUL   = 125               ; after a whistle (free_at): its card, its
+                                ; reason seen, everyone to his place - in a
+                                ; second it was gone, said Luca
 CPU_WAIT    = 40                ; the yellow team's set pieces: after 40 frames
 R_KICKOFF   = 0                 ; restarts
 R_THROW     = 1
@@ -3676,8 +3679,9 @@ team_ai:
         beq :+
         lda #0
         sta kickoff
-        sta why                 ; (the whistle's reason no longer shown)
-        lda #$FF
+        sta why                 ; (the whistle's reason no longer shown,
+        lda #$FF                ; nor its card)
+        sta card_pl
         sta taker
         bne @play
 :       jsr cpu_take            ; (the yellow team's, after a while)
@@ -4706,13 +4710,12 @@ net:
 restart:
         lda #$FF                ; (no throw-in's or corner's aim yet)
         sta sp_aim
-        ldx card_pl             ; a red card: off
-        bmi :+
+        ldx card_pl             ; a red card: off (the card shown till the
+        bmi :+                  ; free kick is taken: team_ai)
         lda card_c
         beq :+
         jsr send_off
 :       lda #$FF
-        sta card_pl
         sta off_pl              ; (no one offside)
         lda #0
         sta goal
@@ -4896,7 +4899,7 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
         sta rs_y
         lda spot_h,y
         sta rs_y + 1
-@free:  lda #DEAD_OUT
+@free:  lda #DEAD_FOUL
         sta dead_t
         jsr sfx_whistle
         jmp calm

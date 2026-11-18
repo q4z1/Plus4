@@ -397,7 +397,10 @@ whistled - in a long test match, the cause of the double touches seen.
 
 What the whistle went for - FOUL, OFFSIDE or DOUBLE TOUCH - is written
 at the top of the view, as the score is before a kick-off, until the
-free kick is taken: without it Luca took the offside calls for fouls
+free kick is taken, and a card stays by its player as long; the ball is
+dead two and a half seconds after a whistle (a second after it goes
+out), everyone on his way to his place meanwhile - Luca found the game
+too hurried to see the card: without it Luca took the offside calls for fouls
 made up. `tests/offside.py` and `tests/dbltouch.py` check it is shown,
 and leave screenshots (`why-*.png`).
 
