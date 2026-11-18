@@ -511,7 +511,8 @@ one player. The length chosen is the length of every match of it.
 
 After each match of a player comes the league's page - the name at the
 top as on the title, in the title's letters (the font the flags' file
-brings, used where it lies): the matchday's results, the table (points, then goal difference, then goals), and the
+brings, used where it lies; bold since 18.11., each line ORed with itself
+a pixel on - thin, Luca found them lost on the green): the matchday's results, the table (points, then goal difference, then goals), and the
 next match - or, the league over, who won it. The computer's matches of
 a matchday are worked out once the players have played theirs: six
 chances a side, each going in more often the better the team is than the
@@ -695,7 +696,12 @@ once a picture).
 
 When the view has moved by a cell or two since a picture was last drawn,
 its codes are not looked up afresh but moved over in memory, and only the
-rows and columns coming in are looked up.
+rows and columns coming in are looked up. Up and down the view follows
+the ball only as far as it is more than 16 pixels off the middle
+(`CAM_DZ`): the ball dribbled to and fro had the view move a row and back
+again, each a costly move - since a ball kept longer and headed made the
+play busier (18.11.), that kept 94.2 % of the pictures in time over six
+of `tests/pace.py`'s matches (93.3 before that day, 91.4 without it).
 
 The ground is 79 x 103 cells (67 different rows) of 221 different characters - too many to sit
 in a character set next to the players'. But a screen never shows more

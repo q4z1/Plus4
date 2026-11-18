@@ -170,7 +170,11 @@ def title_font():
     for ch, rows in FONT5.items():
         c = ord(ch) - 32
         for y, row in enumerate(rows.split()):
-            font[c * 8 + y] = sum(1 << (6 - x) for x, v in enumerate(row) if v == 'X')
+            b = sum(1 << (6 - x) for x, v in enumerate(row) if v == 'X')
+            # bold: each line ORed with itself a pixel on - its strokes two
+            # pixels wide, two between the letters (thin, it was lost on the
+            # pages' green, said Luca)
+            font[c * 8 + y] = b | (b >> 1)
     for k, ch in enumerate(LOGO_LETTERS):
         big = [[0] * 16 for _ in range(16)]
         for y, row in enumerate(GLYPHS[ch]):

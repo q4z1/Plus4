@@ -832,10 +832,20 @@ play_frame:
 :       jsr ball_move
         jsr take                ; (each team's helper at it: his; a ball
         jsr head                ; at his head headed on)
-        jsr swap
+        ldx helper_b            ; (the yellow team's swapped in only when
+        bmi :+                  ; its runner is near the ball across, or
+        jsr near_x              ; the ball as high as a head)
+        bcc @yel
+:       lda o_zl + BALL
+        cmp #HEAD_LO
+        bcc @noyel
+        cmp #HEAD_HI + 1
+        bcs @noyel
+@yel:   jsr swap
         jsr take
         jsr head
         jsr swap
+@noyel:
         lda jumps               ; (the headers' jumps: down - only while
         beq @jumped             ; one may go on)
         dec jumps
@@ -4293,12 +4303,7 @@ take:
         ldy me                  ; run past its receiver beside the taker)
         lda lock_t,y
         bne @no
-:       lda o_xl,x              ; (near across, at_ball's at most 5:
-        sec                     ; within 8 first, the rest only then)
-        sbc o_xl + BALL
-        clc
-        adc #8
-        cmp #17
+:       jsr near_x              ; (near across first, the rest only then)
         bcs @no
         jsr at_ball
         bcc @no
@@ -4393,6 +4398,17 @@ can_head:
 @no:    sec
         rts
 
+; near_x: carry clear if player X is within 8 of the ball across (at_ball's
+; at most 5; the low bytes enough: never a near one missed). Keeps X, Y.
+near_x:
+        lda o_xl,x
+        sec
+        sbc o_xl + BALL
+        clc
+        adc #8
+        cmp #17
+        rts
+
 ; switch, once a picture: as Sensible Soccer and the C64 do it: the
 ; helper running to the ball gets it as he is at it (at_ball - Sensible
 ; Soccer's runner, c14314), his first touch (trap); else the joystick's
@@ -4423,9 +4439,11 @@ switch:
         ldx t_hi
 @look:  cpx helper
         jeq @next
-        jsr kicker              ; (kicker, mate_dist, closer: in line -
-        jcs @next               ; given up once |dx| squared alone is no
-        lda o_off,x             ; nearer than the nearest so far)
+        cpx kick_pl             ; (kicker, mate_dist, closer: in line -
+        bne :+                  ; given up once |dx| squared alone is no
+        jsr kicker              ; nearer than the nearest so far)
+        jcs @next
+:       lda o_off,x
         bne @next
         lda o_xl,x
         sec
@@ -5957,8 +5975,6 @@ k_get:
         bcc :+
         lda #1
 :       jsr held
-        bcs @out
-        jsr ball_box            ; (in his box only: out of it no hands)
         bcc :+
 @out:   rts
 :       jsr mate_dist
@@ -5975,6 +5991,8 @@ k_get:
         lda tmp + 1
         cmp #>GET_D2
         bcs @near
+        jsr ball_box            ; (in his box only: out of it no hands;
+        bcs @out                ; @near's its own box)
         jsr team_y              ; (his team's: kp_g*)
         lda kp_gl,y
         sta z_ks

@@ -238,7 +238,9 @@ place:
         sta s_yh,x
         rts
 
-; follow: the view on the ball, as far as the ground goes
+; follow: the view on the ball, as far as the ground goes - across on it,
+; up and down within CAM_DZ of it
+CAM_DZ      = 16
 follow:
         ldx #BALL
         lda s_xl,x
@@ -261,14 +263,43 @@ follow:
         sta cam_x
         lda #>MAX_X
         sta cam_x + 1
-:       lda s_yl,x
-        sec
-        sbc #88                 ; (the middle of the 22 rows shown: engine.s
-                                ; CUT_LINE)
+:       lda s_yl,x              ; up and down only as far as the ball is
+        sec                     ; more than CAM_DZ off the middle of the
+        sbc #<(88 + CAM_DZ)     ; 22 rows shown (engine.s CUT_LINE): each
+        sta tmp                 ; row it goes costs a coarse scroll, and the
+        lda s_yh,x              ; ball dribbled to and fro made one in
+        sbc #0                  ; many pictures (tmp: the lowest the view
+        sta tmp2                ; may be, the ball CAM_DZ below the middle)
+        lda cam_y
+        cmp tmp
+        lda cam_y + 1
+        sbc tmp2
+        bvc :+
+        eor #$80
+:       bpl :+                  ; (higher than that: down to it)
+        lda tmp
         sta cam_y
-        lda s_yh,x
-        sbc #0
+        lda tmp2
         sta cam_y + 1
+:       lda tmp                 ; (the highest: the ball CAM_DZ above)
+        clc
+        adc #2 * CAM_DZ
+        sta tmp
+        lda tmp2
+        adc #0
+        sta tmp2
+        lda tmp
+        cmp cam_y
+        lda tmp2
+        sbc cam_y + 1
+        bvc :+
+        eor #$80
+:       bpl :+
+        lda tmp
+        sta cam_y
+        lda tmp2
+        sta cam_y + 1
+:       lda cam_y + 1
         bpl :+
         lda #0
         sta cam_y
