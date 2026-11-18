@@ -887,7 +887,8 @@ t_ft:       .byte "FULL TIME", 0
 t_wins:     .byte " WINS", 0
 t_draw:     .byte "A DRAW", 0
 t_wonby:    .byte "THE LEAGUE IS WON BY", 0
-t_goon:     .byte "PRESS FIRE TO GO ON   ", 0   ; (over "... TO KICK OFF")
+t_goon:     .byte " PRESS FIRE TO GO ON  ", 0   ; (over "... TO KICK OFF":
+                                                ; in the middle, as near as can be)
 t_blank1:   .byte " ", 0
 t_1st:      .byte "1ST ", 0
 t_2nd:      .byte "2ND ", 0

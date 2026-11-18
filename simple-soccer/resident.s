@@ -60,6 +60,10 @@ klow:   sta ROMON
         jsr IOINIT
         jsr RAMTAS
         jsr RESTOR
+        lda #$FF                ; (IOINIT's cursor at the top left, black
+        sta $FF0D               ; on the loading page: off the screen, as
+        lda #3                  ; cup.s puts it too late - Luca on real
+        sta $FF0C               ; hardware)
         lda #PAGE_BG            ; (IOINIT's colours: the pages' green;
         sta TED_BG              ; its raster interrupt off, should the
         lda #PAGE_BORDER        ; KERNAL let them in)
