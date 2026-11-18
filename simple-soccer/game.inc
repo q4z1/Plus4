@@ -79,7 +79,12 @@ K_CH        = K_VARS + 7        ; the title's choices (title.s t_*): the
                                 ; their formations (2)
 K_CH_N      = 7
 K_STORED    = K_CH + K_CH_N     ; K_MAGIC_0: RES_STORE holds RES (the boot)
-K_VARS_END  = K_STORED + 1
+K_HOME      = K_STORED + 1      ; the home team's joystick: bit 0 clear port 1
+                                ; (and the keys), set port 2 - the one used
+                                ; last in the title (title.s home_stick;
+                                ; engine.s joy_read)
+K_VARS_END  = K_HOME + 1
+.assert K_VARS_END <= K_VARS + 16, error, "K_VARS: past $FCEF"
 
 K_TITLE     = 0                 ; K_REQ: back to the title
 K_NEW       = 1                 ;   a new league

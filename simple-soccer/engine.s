@@ -2015,7 +2015,10 @@ char_at:
 ; ---- input ----------------------------------------------------------------
 
 ; joy_read: both joysticks, the cursor keys and the space bar into joy;
-; the first joystick and the keys into joy_a, the second into joy_b.
+; the home team's joystick and the keys into joy_a, the away team's into
+; joy_b - port 1's and port 2's, swapped if K_HOME says so (the title's
+; home_stick: the one used there last is the home team's). dbg_joy and
+; dbg_joyb, a test's, count as ports 1 and 2.
 ; A row goes to both latches and $FF08 is read twice: the first read
 ; still sees the value written.
 joy_read:
@@ -2051,6 +2054,19 @@ joy_scan:                       ; (the title's: nothing else reads the keys)
         lda #J_FIRE
         ora joy_b
         sta joy_b
+:       lda joy                 ; (a test's, as the ports' own)
+        ora dbg_joy
+        sta joy
+        lda joy_b
+        ora dbg_joyb
+        sta joy_b
+        lda K_HOME              ; (port 2 the home team's: the two
+        lsr a                   ; swapped - the keys stay the home
+        bcc :+                  ; team's)
+        lda joy
+        ldx joy_b
+        sta joy_b
+        stx joy
 :       lda #$BF                ; cursor left (bit 0), right (bit 3)
         jsr krow
         lsr a
@@ -2089,11 +2105,7 @@ joy_scan:                       ; (the title's: nothing else reads the keys)
 :       lda #$FF
         sta KEY_ROW
         sta TED_KEYS
-        lda joy_b
-        ora dbg_joyb
-        sta joy_b
         lda joy
-        ora dbg_joy
         sta joy_a
         ora joy_b
         sta joy

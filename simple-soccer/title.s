@@ -31,7 +31,7 @@
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, min_frames, two, train, team_col, team_flk, sk
+        .import joy_scan, joy, joy_a, joy_b, min_frames, two, train, team_col, team_flk, sk
         .import lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
@@ -359,6 +359,7 @@ title_on:
         bcc :+                  ; C set: nothing for the title)
         jmp @next
 :       jsr look                ; (the teams as the mode has them)
+        jsr home_stick
         lda t_was               ; let go of: held before, not now
         eor #$FF
         and joy
@@ -429,6 +430,38 @@ title_on:
 :       lda #K_TITLE            ; a match, training: back here after
         sta K_REQ
         jmp chosen
+
+; home_stick: the joystick used in the title the home team's (K_HOME):
+; the away one's pushed or pressed while the home one's is not, they
+; swap - with one player in either port, his the home team with two (the
+; one port 1 always, Luca found it the wrong way about); the ports' line
+; anew. In MAIN, as ports_dig: the title has no room left.
+        .code
+home_stick:
+        lda joy_b
+        beq @done
+        lda joy_a
+        bne @done
+        lda K_HOME
+        eor #1
+        sta K_HOME
+        jmp show_values
+@done:  rts
+
+; ports_dig: show_values' end - with two players the ports' line's digits
+; as K_HOME has them (" HOME: PORT 2   AWAY: PORT 1")
+ports_dig:
+        lda t_two
+        beq @done
+        lda K_HOME
+        and #1
+        clc
+        adc #'1'
+        sta TCODE + PORTS_ROW * 40 + PORTS_COL + P_HOME
+        eor #'1' ^ '2'
+        sta TCODE + PORTS_ROW * 40 + PORTS_COL + P_AWAY
+@done:  rts
+        .segment "TITLE"
 
 ; k_init: the choices kept from the match before (K_CH), the first time
 ; the first of each - 3 minutes, one player, a match - and two teams at
@@ -683,7 +716,7 @@ show_values:
 :       sta TCODE + PORTS_ROW * 40 + PORTS_COL,x
         dex
         bpl :--
-        rts
+        jmp ports_dig
 @forms: ldx #0                  ; (X: the home line's place, the away's
         ldy t_form              ; 40 on)
         jsr @name
@@ -1144,6 +1177,9 @@ ports_1:    .byte "  JOYSTICK IN EITHER PORT   "
 PORTS_W     = * - ports_1
 ports_2:    .byte " HOME: PORT 1   AWAY: PORT 2"
 .assert * - ports_2 = PORTS_W, error, "ports_2: not PORTS_W"
+P_HOME      = 12                ; (its digits: ports_dig)
+P_AWAY      = 27
+.assert ports_2 + P_HOME + 1 <= * && ports_2 + P_AWAY + 1 = *, error, "ports_2: the digits"
 modes:      .byte "MATCH   "    ; (t_train: MODE_*)
 MODE_W      = * - modes
             .byte "TRAINING"

@@ -76,8 +76,12 @@ start:  sei
         sta RES + $100,x
         inx
         bne :-
-:
-        lda $FFFE               ; the boot's music playing (boot.s)? On,
+:       lda K_MAGIC             ; (no boot - a test: port 1 the home
+        cmp #K_MAGIC_0          ; team's, K_HOME as the boot sets it)
+        beq :+
+        lda #0
+        sta K_HOME
+:       lda $FFFE               ; the boot's music playing (boot.s)? On,
         cmp #<BM_SYNTH          ; into the title (music.s: mus_start)
         bne :+
         lda $FFFF

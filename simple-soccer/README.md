@@ -53,9 +53,13 @@ chosen the title shows no teams and no TEAM SETTINGS: the match is the
 saved one or the league's next, not the title's to choose.
 
 With one player the joystick in either port (or the keyboard) runs the
-home team. With two, the first joystick (and the keyboard) runs the home
-team and the second the away team, each the same way - the title says
-"PLAYER 1" and "PLAYER 2" over them then. (The code and the
+home team. With two, the joystick used last on the title runs the home
+team (with the keyboard) and the other the away team, each the same
+way - the title says "PLAYER 1" and "PLAYER 2" over them then, and below
+"HOME: PORT 1   AWAY: PORT 2" or the other way about: whoever played
+alone with his joystick in port 2 keeps the home team when a friend
+joins (Luca found port 1 always the home team's the wrong way about).
+`tests/ports.py` checks it on the title in Yape. (The code and the
 rest of this text call them the cyan and the yellow team, the colours
 they had before there was a choice.)
 
@@ -249,9 +253,12 @@ its team near the taker). Where it has no place for a player - a free
 kick elsewhere, the other team at a throw-in - he goes to his place in
 the formation for where it is taken, kept 40 pixels from the ball on the
 side of his own goal if he is the other team's. Whoever is
-still in the way when the ball is put down is put out of it, and the
-other team's joystick's player stands where he is till the ball moves -
-the same when a keeper has caught it. If the computer finds no one to
+still in the way when the ball is put down is put out of it, but at a
+goal kick and when a keeper has caught it the other team runs out of
+the box, its joystick's player too, and the ball is kicked out only once
+the box is clear - put out of it at once, the attacker beside the keeper
+just vanished (Luca). Else the other team's joystick's player stands
+where he is till the ball moves. If the computer finds no one to
 pass to, it kicks the ball after 150 frames. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
 a shot). The computer takes its set pieces as Sensible Soccer's does
@@ -276,7 +283,8 @@ A throw-in is thrown: the taker stands behind the touch line facing the
 pitch, the ball held up behind his head, and throws it with his arms
 going forward - the ball leaving his hands from up there, 12 pixels up,
 as on the C64: a pass rising, held fire a long throw, as hard as a shot.
-Its two pictures, each way, are drawn for this game, not the C64's.
+Its two pictures, each way, are drawn for this game, not the C64's; the
+arms held up a line shorter since Luca's look on real hardware.
 
 As on the C64, the computer's throw-in or corner kicked the way the
 taker faces goes a little in from the line: up or down a touch line 250
@@ -670,7 +678,11 @@ his goal, as hard as a shot and rising. He no longer goes for a slow
 ball out of his box at all. `tests/keeperhands.py`: a back-pass, a shot
 held and the arms down after it (screenshots `keeper-up.png`,
 `keeper-chest.png`), a ball reaching him out of his box, a still one
-just outside it.
+just outside it; and `clear`, `clear-top`: he catches it with three
+of the other team beside him in his box (one theirs to run with the
+joystick) - none of them jumps (12 pixels a picture at most), they run
+out, and fire pressed meanwhile does not kick it out till they are out
+(screenshot `keeper-clear.png`).
 
 At a penalty he does as Sensible Soccer's keeper does (its c109ce): he
 waits on his line till the ball is 12 pixels from it - one time in four

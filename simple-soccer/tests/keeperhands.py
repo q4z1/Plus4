@@ -15,6 +15,14 @@ outside  he stands out of his box, a yellow ball rolls at him: no hold,
          kicked away
 loose    a still ball just out of his box, near him: he does not go
          for it (stays in his box)
+clear    he catches it, three of the yellow team in his box beside him
+         (one their joystick's): none put out of it at once (Luca: the
+         attacker beside the keeper vanished) - each runs out, no step
+         over STEP_MAX; fire pressed and let go meanwhile does not kick it,
+         only once the box is clear; screenshot keeper-clear.png
+clear-top the yellow keeper catches it, the cyan joystick's player and two
+         more in his box: they run out likewise, the yellow team kicks it
+         out only then
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -139,7 +147,71 @@ def loose(lab):
         s.stop()
 
 
-CASES = {'back': back, 'shot': shot, 'outside': outside, 'loose': loose}
+STEP_MAX = 16                   # (1024 a frame, three frames a picture: 12)
+BOX_T = 137                     # (play.s: the top box above this)
+
+
+def in_box(p, top):
+    return 161 <= p[0] <= 446 and (p[1] < BOX_T if top else p[1] > BOX_B - 1)
+
+
+def clear(lab, top=False):
+    s = Scene(lab)
+    try:
+        keeper, mates, them = (11, range(12, 22), range(1, 11)) if top else \
+            (0, range(1, 11), range(12, 22))
+        gy, d = (60, 1) if top else (680, -1)
+        s.obj(keeper, 304, gy)
+        s.obj(BALL, 304, gy + 14 * d, ty=gy - 3200 * d, speed=1024)
+        for i in mates:                 # his team-mates far up the pitch
+            s.obj(i, 60 + 40 * (i % 11), 369)
+        ctl = s.get('ctrl' if top else 'ctrl_b')
+        if ctl not in them:
+            return False, 'the other joystick on %d' % ctl
+        near = [ctl] + [i for i in them if i != ctl][:2]
+        for i, (x, dy) in zip(near, [(270, 10), (338, 18), (304, 40)]):
+            s.obj(i, x, gy + dy * d)
+        for i in them:
+            if i not in near:
+                s.obj(i, 60 + 40 * (i % 11), 369)
+        s.put('last_team', 0, 0 if top else 1)
+        s.put('last_pl', 0, 3 if top else 14)
+        for k in range(20):
+            s.picture()
+            if s.get('kickoff') == 1 and s.get('rs_kind') == R_KEEPER:
+                break
+        else:
+            return False, 'not held'
+        was = {i: s.where(i) for i in near}
+        step = 0
+        busy = 0
+        for k in range(150):
+            if not top:                 # fire tapped: 2 pictures down, 2 up
+                s.v.poke(lab['dbg_joy'], [BITS['fire'] if k % 4 < 2 else 0])
+            s.picture()
+            if k == 6 and not top:
+                s.v.screenshot(os.path.join(WORK, 'keeper-clear.png'))
+            now = {i: s.where(i) for i in near}
+            step = max([step] + [max(abs(now[i][0] - was[i][0]), abs(now[i][1] - was[i][1]))
+                                 for i in near])
+            was = now
+            inside = [i for i in them if in_box(s.where(i), top)]
+            if s.get('kickoff') == 0:
+                s.v.poke(lab['dbg_joy'], [0])
+                return busy > 3 and step <= STEP_MAX, \
+                    'taken after %d pictures, the box clear %d of them, ' \
+                    'steps up to %d' % (k + 1, k + 1 - busy, step)
+            if inside:
+                busy = k + 1
+                if k > 100:
+                    return False, 'still in the box: %s' % inside
+        return False, 'never taken (box clear after %d pictures)' % busy
+    finally:
+        s.stop()
+
+
+CASES = {'back': back, 'shot': shot, 'outside': outside, 'loose': loose,
+         'clear': clear, 'clear-top': lambda lab: clear(lab, True)}
 
 
 def main():

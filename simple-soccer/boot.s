@@ -247,6 +247,9 @@ eol:    .word 0
         sta K_FAST
         lda #K_TITLE
         sta K_REQ
+        .assert K_TITLE = 0, error, "boot: K_HOME 0 too"
+        sta K_HOME              ; (port 1 the home team's, till the title
+                                ; sees the other used: home_stick)
         sei                     ; our interrupt: the ball, the dots - through
         lda #0                  ; $FFFE while the RAM is in, through the
         sta IRQEN               ; KERNAL while the ROM is

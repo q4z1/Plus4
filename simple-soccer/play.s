@@ -97,7 +97,8 @@ WALL_D      = 40                ; a set piece: the other team this far off
                                 ; some 50 from the ball, Sensible Soccer's
                                 ; wall 51-56: tests/freekick.py)
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
-THROW_HOLD  = 19                ; taker's head, drawn so high while he holds it
+THROW_HOLD  = 18                ; taker's head, drawn so high while he holds it
+                                ; (in his hands: data/sprites.txt 60, 62)
 HOLD_LIFT   = 14                ; a keeper's hands up, the ball held in them
 HOLD_TOP    = 6                 ; (the top goal's keeper: before his chest)
 ARMS_T      = 25                ; frames holding it up, then at his chest
@@ -1249,7 +1250,13 @@ control:
 @set:   lda rs_team
         cmp me
         beq :+
-        jmp stand               ; (the other team's: he stands off, set_wall)
+        lda rs_kind             ; (the other team's: at a goal kick and
+        cmp #R_GOALKICK         ; the keeper's ball to his place as the
+        beq @off                ; rest, spot - out of the box: box_busy;
+        cmp #R_KEEPER           ; else he stands off, set_wall - on his
+        beq @off                ; way he passed by the ball, at a free
+        jmp stand               ; kick 5 pixels off)
+@off:   jmp place_formation
 :       jsr fine_kind           ; (a joystick's throw-in or corner: the
         bcs :+                  ; stick turns its aim, fine_aim)
         jsr fine_aim
@@ -1856,9 +1863,14 @@ walls:
         .assert o_xh - o_txh = o_xl - o_txl && o_yl - o_tyl = o_xl - o_txl && o_yh - o_tyh = o_xl - o_txl && o_xl - o_txl + NOBJ <= 256, error, "walls: the places as far after the destinations"
 
 ; can_kick: carry clear if the joystick's player can kick the ball: at
-; his feet, near enough, and low. Keeps X.
+; his feet, near enough, and low - a goal kick or the keeper's ball not
+; while the other team is in the box still (box_busy). Keeps X.
 can_kick:
-        jsr dist2
+        lda kickoff
+        beq :+
+        jsr box_busy
+        bcs @no
+:       jsr dist2
         lda d2 + 1
         bne @no
         lda d2
@@ -5325,6 +5337,39 @@ rs_side:
 :       sta r_s
         rts
 
+; box_busy: carry set if a goal kick or the keeper's ball waits and one
+; of the other team is in its box still - they run out of it to their
+; places (spot), seen, and it is taken only then: put out of it at once
+; (set_wall, as before) the attacker beside the keeper who caught the
+; ball vanished (Luca). Keeps X.
+box_busy:
+        lda rs_kind
+        cmp #R_GOALKICK
+        beq :+
+        cmp #R_KEEPER
+        bne @free
+:       txa
+        pha
+        jsr rs_side
+        ldx #PLAYERS - 1
+@pl:    jsr team_y
+        cpy rs_team
+        beq @next
+        lda o_off,x             ; (one sent off: not there)
+        bne @next
+        jsr in_box
+        bcc @busy
+@next:  dex
+        bpl @pl
+        pla
+        tax
+@free:  clc
+        rts
+@busy:  pla
+        tax
+        sec
+        rts
+
 ; wall_one: set_wall's player X. Keeps X.
 wall_one:
         cpx taker
@@ -5339,10 +5384,10 @@ wall_one:
         cmp rs_team             ; its box
         beq @next
         lda rs_kind
-        cmp #R_GOALKICK
-        beq @box
+        cmp #R_GOALKICK         ; (a goal kick, the keeper's ball: they run
+        beq @next               ; out of the box - box_busy)
         cmp #R_KEEPER
-        beq @box
+        beq @next
         jsr wall_near
         bcs @next
         lda r_s
