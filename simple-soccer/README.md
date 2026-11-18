@@ -34,7 +34,8 @@ on YouTube (made by `tests/trailer.py`).
 | fire, tapped | space | pass, to the team-mate the way you face; takes a throw-in, corner, goal kick or kick-off |
 | at your throw-in or corner: each push of a direction | cursor keys | turns the aim (two dots) a step towards it |
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
-| fire, held | space | shot - then the stick bends it across, or lifts it pulled back |
+| fire, held | space | shot, the harder the longer held - then the stick bends it across, or lifts it pulled back |
+| (a ball at head height comes to you) | | header, the stick's way |
 | fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
 | | RUN/STOP or P | pause |
 | in the pause: up, down, fire let go | cursor keys, space (RUN/STOP, P: on) | CONTINUE, or QUIT the match |
@@ -445,7 +446,9 @@ three blasts at half and full time, and the crowd roaring at a goal.
 A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
 minutes), one player or two, a match or training, and the home and the away team to choose
 (the first time two at random) - the stick up and down to a line, left and right on it - fire to kick
-off. TEAM SETTINGS (right on it) turns to a second page of those four
+off. The line the stick is on shows white, label and choice, the others
+grey (the choices were all yellow after each change, which Luca found
+confusing). TEAM SETTINGS (right on it) turns to a second page of those four
 lines: each team's formation, or RANDOM; MAIN SETTINGS (left on it)
 turns back. Each of the 35 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
@@ -456,7 +459,10 @@ away team wears the first shirt that does not look like the home team's
 second, else white, red or dark blue. A team's name on the title shows
 the shirt it will play in. The joystick's player flickers to his shirt's
 colour a few shades darker (a light shirt, three) or lighter (a dark
-one, four; a dark green five, the grass between). It is loaded where the
+one, four; a dark green five, the grass between). The keepers wear their
+own shirt, as a match starts the first of grey, purple and a dark yellow
+that is unlike both teams' - another hue, or two shades apart - else
+black (Luca's wish). It is loaded where the
 pictures go once the match is on, and runs before them.
 
 With two players the yellow team is run just as the cyan one: what a

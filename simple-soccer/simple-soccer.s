@@ -179,7 +179,8 @@ main:
         inx
         cpx #FIGS
         bne :-
-@on:    lda #<HEAD_T            ; (a saved match's headers' jumps run
+@on:    jsr keep_kit            ; (the keepers' shirts, from the teams')
+        lda #<HEAD_T            ; (a saved match's headers' jumps run
         sta jumps               ; down: play.s jumps is not saved)
         lda frames
         sta played
@@ -484,8 +485,13 @@ draw:
         cpx #11
         bcc :+
         iny
+        cpx #11                 ; (the keepers: keep_col)
+        beq @kp
 :       lda team_col,y
-        cpx ctrl                ; a joystick's player: his shirt white
+        cpx #0
+        bne @fc
+@kp:    lda keep_col
+@fc:    cpx ctrl                ; a joystick's player: his shirt white
         beq @fl                 ; two pictures in four, flickering as the
         cpx ctrl_b              ; C64 shows him (white 4 frames in 8; two
         bne :+
@@ -687,7 +693,60 @@ why_at: .byte why_fl - why_w, why_of - why_w, why_tw - why_w
 
         .segment "DATA"
 why_i:  .byte 0                 ; (draw_why's next letter)
+keep_col: .byte $41 | $08       ; the keepers' shirts (keep_kit)
         .segment "CODE"
+
+; keep_kit: the keepers' shirts, as a match starts (a saved one too):
+; unlike both teams' (team_col) - the first of grey, purple, a dark yellow
+; that is another hue than each or two shades apart; else black. Luca
+; wanted keepers in their own colours.
+keep_kit:
+        ldy #0
+@try:   lda keep_try,y
+        ldx #0
+        jsr unlike
+        bcc @next
+        inx
+        jsr unlike
+        bcs @set
+@next:  iny
+        cpy #3
+        bne @try
+        lda keep_try,y          ; (black)
+@set:   ora #$08                ; (multicolour)
+        sta keep_col
+        rts
+keep_try:   .byte $41, $44, $27, $00
+
+; unlike: carry set if shirt A (luminance, hue 0-7) is unlike team X's -
+; another hue, or two shades apart. Keeps A, X, Y.
+unlike:
+        sta tmp
+        eor team_col,x
+        and #$07
+        bne @yes
+        lda team_col,x          ; (the shades: high nibbles)
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta tmp2
+        lda tmp
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sec
+        sbc tmp2
+        bcs :+
+        eor #$FF                ; (|a - b|)
+        adc #1
+:       cmp #2
+        lda tmp
+        rts
+@yes:   lda tmp
+        sec
+        rts
 
 ; hud_digit: digit A (9 at most; 10 the dash) at the HUD's next place
 hud_digit:

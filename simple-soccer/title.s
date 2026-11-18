@@ -53,7 +53,6 @@ TFONT       = FNT2              ; characters
 C_BG        = PAGE_BG           ; dark green (the flags' too)
 C_BORDER    = PAGE_BORDER
 C_TEXT      = $71               ; white
-C_VALUE     = $77               ; yellow
 C_DIM       = $51               ; grey: a line not chosen
 C_FIRE0     = $75               ; light green, and white, by turns
 C_FIRE1     = $71
@@ -647,7 +646,9 @@ show_rows:
 
 ; show_values: the length's and the players' digits, the mode (training:
 ; no length, "-"), and where the joysticks go - on the second page the
-; teams' formations
+; teams' formations; their colours the lines' (show_rows: the one the stick
+; is on white - they were all yellow after each change, Luca found it
+; confusing)
 show_values:
         lda t_page
         bne @forms
@@ -671,13 +672,9 @@ show_values:
         ldx #MODE_W - 1
 :       lda modes,y
         sta TCODE + MODE_ROW * 40 + VALUE_COL,x
-        lda #C_VALUE
-        sta TCOL + MODE_ROW * 40 + VALUE_COL,x
         dey
         dex
         bpl :-
-        sta TCOL + LEN_ROW * 40 + VALUE_COL
-        sta TCOL + PLAYERS_ROW * 40 + VALUE_COL
         ldx #PORTS_W - 1
 :       lda ports_1,x
         ldy t_two
@@ -702,8 +699,6 @@ show_values:
         sta t_i
 :       lda form_names,y
         sta TCODE + LEN_ROW * 40 + VALUE_COL,x
-        lda #C_VALUE
-        sta TCOL + LEN_ROW * 40 + VALUE_COL,x
         inx
         iny
         dec t_i
