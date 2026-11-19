@@ -47,10 +47,11 @@ def case(v, kind, x, y, hold):
     for a, vals in s.pokes:
         v.poke(a, vals)
     v.poke(0xED, [0xFF])                # (play.s off_pl)
-    for f in range(400):                # ready: the taker at it, and a while
-        v.cmd('x')                      # for the box to clear
-        if m(v, 'kickoff') and not m(v, 'dead_t') and f > 150:
-            break
+    for f in range(600):                # ready: the taker at it, and a while
+        v.cmd('x')                      # for the box to clear and his team
+        if m(v, 'kickoff') and not m(v, 'dead_t') and f > 150 and \
+                not any(m(v, 'o_mov', i) for i in range(1, 11)):
+            break                       # at its places (from the case before)
     taker = m(v, 'taker')
     at = (w(v, 'o_xl', 'o_xh', BALL), w(v, 'o_yl', 'o_yh', BALL))
     v.poke(lab['dbg_joy'], [BITS['fire']])

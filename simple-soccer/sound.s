@@ -2,8 +2,9 @@
 ; the keeper's catch, the referee's whistle, the crowd at a goal.
 ;
 ; An effect is a list of steps - frames, the frequency register's low
-; byte, its high two bits | a kind (SFX_NOISE, SFX_REST) - ended by 0
-; frames; sfx_start puts one on a voice, the interrupt (snd_tick) goes on
+; byte, its high two bits | a kind (SFX_NOISE, SFX_REST) | a volume
+; (bits 2 - 5: 1 - 8, 0 VOLUME - the TED's one for both voices) - ended
+; by 0 frames; sfx_start puts one on a voice, the interrupt (snd_tick) goes on
 ; with it 50 times a second, whatever the pictures do. A new effect on a
 ; voice takes over from the one there. Voice 0 is the TED's first (square
 ; only), voice 1 its second (square or noise).
@@ -30,6 +31,9 @@ SFX_REST    = $80
 .endmacro
 .macro  rest n
         step n, 0, SFX_REST
+.endmacro
+.macro  vstep n, reg, kind, vol
+        .byte n, <(reg), >(reg) | kind | ((vol) << 2)
 .endmacro
 
         .zeropage
@@ -140,6 +144,16 @@ advance:
         sta v_left,y
         lda snd_k
         bmi off                 ; (a rest)
+        lsr a                   ; its volume (0: VOLUME)
+        lsr a
+        and #$0F
+        bne :+
+        lda #VOLUME
+:       sta snd_t
+        lda TED_SOUND
+        and #$F0
+        ora snd_t
+        sta TED_SOUND
         lda on_bit,y            ; on: a square, voice 1 noise if so
         bit snd_k
         bvc :+
@@ -232,13 +246,36 @@ halftime:
         step 1, TONE(3150), 0
         .endrepeat
         .byte 0
+; the crowd at a goal (Luca: barely horrible - it was a hiss that rose
+; and stopped): a frame a step, the noise's pitch thrown about each frame
+; (many voices, not one) between a low roar and a brighter shout, both
+; rising as it swells; the volume up in a quarter of a second, held for
+; a second and a half, and down over a second in waves
+GOAL_N = 140
 goal:
-        .repeat 12, i           ; the roar, swelling
-        step 3, 950 + i * 3, SFX_NOISE
-        step 2, 960 + i * 3, SFX_NOISE
-        .endrepeat
-        .repeat 10, i           ; and dying away, in gasps
-        step 3, 990 - i * 4, SFX_NOISE
-        rest 1 + i / 3
+        .repeat GOAL_N, i
+        .if i < 12
+        G_VOL .set 2 + i / 2
+        .elseif i < 85
+        G_VOL .set 8 - ((i / 9) .mod 2)
+        .else
+        G_VOL .set 8 - (i - 85) / 8 + ((i / 5) .mod 2)
+        .endif
+        .if G_VOL > 8
+        G_VOL .set 8
+        .endif
+        .if G_VOL < 1
+        G_VOL .set 1
+        .endif
+        G_RISE .set i / 4
+        .if i > 60
+        G_RISE .set 15 - (i - 60) / 6
+        .endif
+        .if (i .mod 2) = 0
+        G_REG .set 868 + G_RISE + (i * 37 + 11) .mod 29
+        .else
+        G_REG .set 930 + G_RISE + (i * 53 + 7) .mod 23
+        .endif
+        vstep 1, G_REG, SFX_NOISE, G_VOL
         .endrepeat
         .byte 0

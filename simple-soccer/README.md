@@ -162,7 +162,15 @@ to leave the kicker behind): the nearest within 22.5 degrees of the way you face
 unless one up to 67.5 degrees off it is under seven tenths as far; only
 with no one in either does it run on by itself, at 2048 (4 pixels a
 frame: the originals' 1792 left it too near its kicker, said Luca). Fire let go before the ball has
-come to you passes it as it comes, first time. As in Sensible Soccer,
+come to you passes it as it comes, first time - the way you faced while
+fire was held (with the stick let go he turns to meet the ball, and the
+pass went back where it came from), and while a pass to you is on its
+way it waits for it however long it takes. Fire pressed as a pass comes
+to you, or as your own dribbled ball is a few pixels ahead, is never a
+sliding tackle - it was, and the pass on was lost; Luca found the
+passes worked fifty-fifty. `tests/passing.py` taps fire in each of
+twelve frames of a dribble and of a pass coming in, a picture or two
+long: 48 of 48 reach the team-mate (19 before). As in Sensible Soccer,
 fire is acted on every second frame, as it was the frame before - a
 pass, a slide or a header comes one or two frames after fire is let go
 or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, at once, rising -
@@ -277,7 +285,17 @@ just vanished (Luca). Else the other team's joystick's player stands
 where he is till the ball moves. If the computer finds no one to
 pass to, it kicks the ball after 150 frames. When it is
 the cyan team's, the stick turns him and fire takes it (a pass, or held,
-a shot). The computer takes its set pieces as Sensible Soccer's does
+a shot) - a goal kick's or the keeper's pass to the team-mate within 34
+degrees of the way he faces first, only then within 67.5 (with the wide
+cone alone it went to the same man ahead whichever way he faced, said
+Luca). At your throw-in, goal kick and keeper's ball a team-mate offers
+himself (Luca's idea): look one way for 40 frames - the aim, or the way
+the keeper faces - and the team-mate that way (as a pass would choose
+him) comes to 62 pixels from the ball and waits; a tap passes to him.
+Look another way and he goes back to his place, and after 40 frames the
+next comes. `tests/offer.py` checks the keeper's three ways go to three
+team-mates, and that the one offering comes and gets the pass at goal
+kicks to either side and throw-ins aimed up and down. The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
 meanwhile to look for someone (a throw-in), along the goal line (a
 corner, as on the C64) or to the goal (a free kick); then a kick-off
@@ -318,14 +336,20 @@ and 67.5 degrees either side - none along the line; a corner six, from
 to 45 - the box is all within 25 of it. Fire kicks it that way: held, a
 shot or long throw exactly so; tapped, a pass to the team-mate nearest
 the ball within 34 degrees of the aim (half the usual cone), else
-straight on. `tests/aim.py` checks each aim of both teams' throw-ins
+within the usual 67.5 (a tap is the safe pass, said Luca), only with no
+one there straight on. `tests/aim.py` checks each aim of both teams' throw-ins
 and corners and the shot's way.
 
 The player a pass goes to runs to meet it, and the joystick is his once
 he has it. The first touch is Sensible Soccer's: the one running to the
 ball - a pass's receiver, or the nearest to a loose one - takes it as
 it reaches his feet on the ground, stops, and has it dead a pixel before
-him, the joystick his; with the stick pushed he dribbles it on at once.
+him, the joystick his (a pass's receiver within 8.5 pixels, as near as
+the joystick's player kicks it - at 5.6 a pass going by six pixels off
+ran past him; and a throw-in's up to the height of his head, on his
+chest or head: thrown from 12 pixels up a short throw-in was still 18
+up as it got to him, flew over him to the other team - Luca found the
+throw-ins intercepted so often); with the stick pushed he dribbles it on at once.
 That is looked at every frame, not once a picture as most of the teams'
 minds are: a pass and its receiver running to meet it come together at
 some 18 pixels a picture, and at his feet is 5.6 pixels - once a picture
@@ -467,7 +491,12 @@ frames - so the one tackled does not just take it back.
 The TED's two voices give the match its sounds, played by the interrupt
 50 times a second: a thump for every pass and shot, a softer one for
 the keeper's catch, the referee's whistle - a trill - at a kick-off,
-three blasts at half and full time, and the crowd roaring at a goal.
+three blasts at half and full time, and the crowd roaring at a goal -
+a step each frame, the noise's pitch thrown about between a low roar
+and a brighter shout (many voices, not one), the volume (set by each
+step now) up in a quarter of a second, held for a second and a half and
+down in waves over a second; it was a hiss that rose and stopped, which
+Luca found horrible.
 
 A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
 minutes), one player or two, a match or training, and the home and the away team to choose

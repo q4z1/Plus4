@@ -171,6 +171,8 @@ DRIB_NEAR   = 50                ; - for a dribble's touch: the C64 asks
                                 ; its pictures it touches it at 51, not
                                 ; at 66
 CLOSE       = 72                ; near enough to kick it
+OFFER_T     = 40                ; frames a set piece's taker looks a way
+                                ; before the team-mate that way comes
 PASS_Q      = 12                ; frames a pass let go of too soon waits for
                                 ; the ball to come
 KICKED_T    = 50                ; frames the one who passed or shot is not
@@ -394,6 +396,14 @@ o_3yf:      .res NOBJ           ; three frames (o_3yl in the LOWBSS)
 goal:       .res 1              ; 1: dead for a goal - the net holds the ball
 rs_x:       .res 2              ; where
 rs_y:       .res 2
+pass_w:     .res 2              ; the way pass_q's pass goes
+near_z:     .res 1
+near_d:     .res 1              ; at_ball_d's: so near (squared, + 1)
+offer:      .res 1              ; offering's: the team-mate coming, $FF none,
+offer_w:    .res 1              ; the way the taker looks, the frames he
+offer_t:    .res 1              ; has looked it, the place (sp_add's order:
+offer_x:    .res 2              ; x, y)
+offer_y:    .res 2
 min_frames: .res 1              ; frames to a minute (the title's choice:
                                 ; 100, 167, 233 - 90 in 3, 5, 7 minutes)
 game_min:   .res 1              ; the match's minute, 0-90
@@ -1260,16 +1270,23 @@ control:
 :       lda kickoff             ; his team's set piece: the stick turns
         bne @set                ; the taker, fire kicks
         ldy me                  ; in play: a pass let go of too soon goes
-        lda pass_q,y            ; as the ball comes to him
-        beq :+
+        lda pass_q,y            ; as the ball comes to him - the way he
+        beq :+                  ; faced as fire was let go (he turns to
+        cpx recv                ; meet it), not counting down while a
+        bne @qd                 ; pass is on its way to him
+        lda recv_t,y
+        bne @qk
+@qd:    lda pass_q,y
         sec
         sbc #1
         sta pass_q,y
-        jsr can_kick
+@qk:    jsr can_kick
         bcs :+
         lda #0
         ldy me
         sta pass_q,y
+        lda pass_w,y
+        sta o_dir,x
         jmp pass
 :       jmp @stick
 @set:   lda rs_team
@@ -1285,7 +1302,7 @@ control:
 :       jsr fine_kind           ; (a joystick's throw-in or corner: the
         bcs :+                  ; stick turns its aim, fine_aim)
         jsr fine_aim
-        jmp @ev
+        jmp @of
 :       lda pj
         and #$0F
         tay
@@ -1295,7 +1312,9 @@ control:
         jsr may_face
         bcs :+
         sta o_dir,x
-:       jmp @ev
+:
+@of:    jsr offering            ; (a team-mate comes to the way he looks)
+        jmp @ev
 @stick: lda pj
         and #$0F
         tay
@@ -1386,6 +1405,10 @@ control:
 @foot:  lda fire_n
         cmp #SHOT_HOLD
         bcs @held
+        ldx ctrl                ; (the way he faces while fire is held:
+        ldy me                  ; pass_q's pass - let go, he turns to meet
+        lda o_dir,x             ; the ball, and it went back)
+        sta pass_w,y
         inc fire_n              ; (two frames a time)
         inc fire_n
         lda fire_n
@@ -1444,6 +1467,9 @@ control:
         jmp @kick
 :       jsr can_kick
         bcs @wait
+        ldy me                  ; (the way he faced with fire held)
+        lda pass_w,y
+        sta o_dir,x
         jmp pass
 @wait:  lda #PASS_Q             ; (too soon: it goes as the ball comes)
         ldy me
@@ -1946,7 +1972,17 @@ can_dive:
 ; the ball low (SLIDE_Z), near (DHEAD_D2, as for a diving header) but not
 ; close (CLOSE: its $37 alone), and the helper not nearer it. Keeps X.
 can_slide:
-        jsr stick_way
+        cpx recv                ; (a pass on its way to him: fire passes
+        bne :+                  ; it on as it comes, pass_q - he slid
+        ldy me                  ; for it, Luca's passes went wrong)
+        lda recv_t,y
+        bne @no
+:       lda last_team           ; (nor for his own ball, dribbled ahead)
+        cmp me
+        bne :+
+        cpx last_pl
+        beq @no
+:       jsr stick_way
         cmp #8
         beq @no
         jsr slide_d2
@@ -2717,11 +2753,13 @@ ball_ahead:
 ; nearest to that side; or, no one, straight on
 pass:
         jsr kick_by
-        lda #$FF
-        sta mate
-        sta mate_d
-        sta mate_d + 1
-        ldy ctrl                ; the way he kicks, 0-255
+        ldx offer               ; (a team-mate offering himself at a
+        bmi :+                  ; throw-in or goal kick: to him - offering)
+        lda kickoff
+        beq :+
+        stx mate
+        bpl @got
+:       ldy ctrl                ; the way he kicks, 0-255
         lda o_dir,y
         asl a
         asl a
@@ -2732,10 +2770,156 @@ pass:
         lda #48
         sta p_w
         jsr fine_on             ; (a throw-in's or corner's aim: that way,
-        bcs :+                  ; and the cone half as wide)
+        bcs :+                  ; and the cone half as wide first)
         sta kick_way
-        lsr p_w
-:       ldx t_hi
+        bcc @half
+:       jsr keeper_kick         ; (a goal kick, the keeper's: half as wide
+        bcs @one                ; first - the way he faces chooses, Luca;
+@half:  lsr p_w                 ; no one so: as wide - a tap a safe pass)
+        jsr pass_scan
+        ldx mate
+        bpl @got
+        asl p_w
+@one:   jsr pass_scan
+@got:   ldx mate
+        bmi :+
+        stx recv                ; he runs to meet it (help), the joystick
+        stx helper              ; to the nearest of the others (switch)
+        ldy me
+        lda #RECV_T
+        sta recv_t,y
+        jsr off_mark
+        jmp kick_to
+:       ldx ctrl                ; no one: straight on, 2048 - far enough
+        ldy o_dir,x             ; to leave the kicker behind (Luca; the C64
+        jsr ball_ahead          ; and Sensible Soccer 1792)
+        jsr aim_to
+        lda #<2048
+        sta o_spl + BALL
+        lda #>2048
+        sta o_sph + BALL
+        jmp kicked
+
+;
+; offering: a frame of the joystick's throw-in, goal kick or keeper's ball,
+; player X its taker - Luca's: looking the same way OFFER_T frames, the
+; team-mate that way (as pass would choose him, its cone half as wide
+; first) comes to 62 pixels from the ball (spot: offer_x, offer_y) and stays; a
+; tap passes to him (pass). Looking another way, he goes back to his
+; place, and the next comes after OFFER_T more. Keeps X.
+offering:
+        lda rs_kind
+        cmp #R_THROW
+        beq :+
+        jsr keeper_kick
+        bcs @no
+:       jsr fine_on             ; (a throw-in: its aim's way)
+        bcc :+
+        lda o_dir,x
+        asl a
+        asl a
+        asl a
+        asl a
+        asl a
+:       cmp offer_w
+        beq @same
+        sta offer_w
+        lda #0
+        sta offer_t
+        lda #$FF
+        sta offer
+@no:    rts
+@same:  lda offer_t
+        cmp #OFFER_T
+        bcs @no
+        inc offer_t
+        cmp #OFFER_T - 1
+        bne @no
+        txa
+        pha
+        lda offer_w
+        sta kick_way
+        lda #24
+        sta p_w
+        jsr pass_scan
+        ldx mate
+        bpl :+
+        asl p_w
+        jsr pass_scan
+        ldx mate
+        bmi @none
+:       stx offer
+        lda offer_w             ; his place: OFFER_D the way from the ball
+        jsr sin_d
+        ldy #0
+        jsr ball_add
+        sta offer_x
+        sty offer_x + 1
+        lda offer_w
+        clc
+        adc #64
+        jsr sin_d
+        eor #$FF                ; (y: - cos)
+        clc
+        adc #1
+        ldy #o_yl - o_xl
+        jsr ball_add
+        sta offer_y
+        sty offer_y + 1
+@none:  pla
+        tax
+        rts
+
+; ball_add: A, Y = the ball's x (Y 0) or y (Y o_yl - o_xl) + A, signed
+ball_add:
+        sta tmp
+        clc
+        adc o_xl + BALL,y
+        pha
+        lda tmp
+        and #$80
+        beq :+
+        lda #$FF
+:       adc o_xh + BALL,y
+        tay
+        pla
+        rts
+
+; sin_d: A = 62 * sin of way A (0 up, 64 right), signed: sin4's / 16
+sin_d:
+        jsr sin4
+        ldy #4
+:       lda tmp + 1
+        cmp #$80
+        ror tmp + 1
+        ror tmp
+        dey
+        bne :-
+        lda tmp
+        rts
+
+; keeper_kick: carry clear if the joystick's team takes a goal kick or the
+; keeper's ball. Keeps X.
+keeper_kick:
+        lda kickoff
+        beq @no
+        lda rs_kind
+        cmp #R_GOALKICK
+        beq @yes
+        cmp #R_KEEPER
+        beq @yes
+@no:    sec
+        rts
+@yes:   clc
+        rts
+
+; pass_scan: mate = the team-mate pass kicks to - kick_way, p_w - $FF none
+pass_scan:
+        lda #$FF
+        sta mate
+        sta mate_d
+        sta mate_d + 1
+        ldx t_hi
 @look:  cpx ctrl
         beq @next
         jsr mate_way            ; the way from the ball to him, 0-255
@@ -2769,24 +2953,7 @@ pass:
 @next:  dex
         cpx t_end
         bne @look
-        ldx mate
-        bmi :+
-        stx recv                ; he runs to meet it (help), the joystick
-        stx helper              ; to the nearest of the others (switch)
-        ldy me
-        lda #RECV_T
-        sta recv_t,y
-        jsr off_mark
-        jmp kick_to
-:       ldx ctrl                ; no one: straight on, 2048 - far enough
-        ldy o_dir,x             ; to leave the kicker behind (Luca; the C64
-        jsr ball_ahead          ; and Sensible Soccer 1792)
-        jsr aim_to
-        lda #<2048
-        sta o_spl + BALL
-        lda #>2048
-        sta o_sph + BALL
-        jmp kicked
+        rts
 
 ; kick_to: the ball passed to player X, mate_d away (squared): its
 ; destination 32 times as far as he is
@@ -4122,7 +4289,21 @@ wall_dh:    .byte >(-WALL_D), >WALL_D
 ; bit in the mask, off the ball as far as the two bytes say): carry clear,
 ; z_px, z_py; carry set none - his formation's then. Keeps X.
 spot:
-        lda dead_t
+        cpx offer               ; (the team-mate offering himself: offering's
+        bne :+                  ; place for him)
+        lda kickoff
+        beq :+
+        lda offer_x
+        sta z_px
+        lda offer_x + 1
+        sta z_px + 1
+        lda offer_y
+        sta z_py
+        lda offer_y + 1
+        sta z_py + 1
+        clc
+        rts
+:       lda dead_t
         ora kickoff
         beq @no
         jsr sp_kind
@@ -4435,7 +4616,18 @@ take:
         bne @no
 :       jsr near_x              ; (near across first, the rest only then)
         bcs @no
-        jsr at_ball
+        lda #TRAP_Z + 1
+        sta near_z
+        lda #NEAR + 1           ; (a pass's receiver as near as the
+        cpx recv                ; joystick's, CLOSE: at NEAR a pass going
+        bne @at                 ; by him six pixels off ran past him -
+        ldy thrower             ; Luca: the passes work fifty-fifty; a
+        cpy last_pl             ; throw-in's, untouched, as high as his
+        bne :+                  ; head - chest or head, it flew over him
+        ldy #HEAD_HI + 1        ; at 18 to the other team, and he may not
+        sty near_z              ; head it on: head)
+:       lda #CLOSE + 1
+@at:    jsr at_ball_d
         bcc @no
         lda me
         jsr held
@@ -4669,16 +4861,21 @@ kicker:
 ; runner takes it (c14314): at his feet (NEAR), on the ground (TRAP_Z) -
 ; and not the one who has just passed or shot (kicker). Keeps X.
 at_ball:
+        lda #TRAP_Z + 1
+        sta near_z
+        lda #NEAR + 1
+at_ball_d:                      ; (A: so near, squared, + 1; near_z: so
+        sta near_d              ; low, + 1)
         jsr kicker
         bcs at_no
         lda o_zl + BALL
-        cmp #TRAP_Z + 1
+        cmp near_z
         bcs at_no
         jsr mate_dist
         lda tmp + 1
         bne at_no
         lda tmp
-        cmp #NEAR + 1
+        cmp near_d
         bcs at_no
         sec
         rts
@@ -5678,6 +5875,8 @@ throwing:
 ; team on its own after a while
 await:
         lda #$FF
+        sta offer               ; (no one offering yet: offering)
+        sta offer_w
         sta at_n
         sta at_n_b
         sta recv
