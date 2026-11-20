@@ -69,9 +69,9 @@ EDGE = 4
 
 BOOT_LOAD = 5.0                 # seconds of the loading screen shown
 BOOT_TITLE = 7.0                # of the title after it, before its second page is chosen
-BOOT_CAPS = [('THE LOADER - A FAST LOADER WITH MUSIC',
-              'THE TITLE SONG PLAYS ALL THROUGH THE LOADING'),
-             ('THE TITLE - 35 NATIONAL TEAMS',
+# (the loading shown without a caption: the music no longer plays all
+# through it, only at its end)
+BOOT_CAPS = [('THE TITLE - 35 NATIONAL TEAMS',
               'ONE OR TWO PLAYERS - A MATCH OR TRAINING'),
              ('TEAM SETTINGS - A FORMATION EACH SIDE',
               '4-4-2 TO 4-3-3 - ATTACK DEFEND OR RANDOM')]
@@ -789,8 +789,8 @@ def main():
     p2, end = map(int, open(os.path.join(WORK, 'boot', 'settings.txt')).read().split())
     a = t0 - int(BOOT_LOAD * FPS)
     parts.append(('boot',) + part('boot', 'boot', [(a, end, 1)],
-                                  caps=[(BOOT_CAPS[0], 0, BOOT_LOAD), (BOOT_CAPS[1], BOOT_LOAD, (p2 - a) / FPS),
-                                        (BOOT_CAPS[2], (p2 - a) / FPS, -X)]))
+                                  caps=[(BOOT_CAPS[0], BOOT_LOAD, (p2 - a) / FPS),
+                                        (BOOT_CAPS[1], (p2 - a) / FPS, -X)]))
     parts += league_parts()
     tp = title_picture()
     parts.append(('end',) + part('boot', 'end', [(tp, tp + 1, int(END_S * FPS))], caps=[(END, X, None)]))
