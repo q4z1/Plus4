@@ -18,7 +18,10 @@ a yellow player sliding into a cyan one:
             screenshots cards-walk-30.png, cards-walk-90.png
 
 A second yellow's red has card_c 2 (drawn with the yellow beside it),
-a straight red 1.
+a straight red 1. And the crowd heard as each card is shown (Luca): a
+yellow's murmur on voice 1 (fx_yellow), the referee's whistle on voice 0;
+a red's louder murmur (fx_red) and the whistle with the crowd whistling
+(fx_red_w); none without a card.
 
     tests/cards.py [fouls]
 
@@ -78,6 +81,22 @@ def card(v):
     return None if pl == 0xFF else ('yellow' if c == 0 else 'red')
 
 
+def voice(v, y):
+    """where voice y's effect is (sound.s v_lo, v_hi)"""
+    return mem1(v, 'v_lo', y) + 256 * mem1(v, 'v_hi', y)
+
+
+def crowd_ok(v, got):
+    """the sound as card got is shown: its effects just started (each a
+    step on: 3 bytes)"""
+    v1, v0 = voice(v, 1), voice(v, 0)
+    if got == 'yellow':
+        return v1 == lab['fx_yellow'] + 3 and lab['fx_whistle'] < v0 <= lab['fx_whistle'] + 42
+    if got == 'red':
+        return v1 == lab['fx_red'] + 3 and lab['fx_red_w'] < v0 <= lab['fx_red_w'] + 42
+    return not (lab['fx_yellow'] <= v1 < lab['fx_red_w'])
+
+
 def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 160
     v = Vice(PRG, WORK)
@@ -94,14 +113,22 @@ def main():
         print('the referee: a yellow for %d fouls in 32' % ref, flush=True)
 
         placed = [None]
+        heard = []
 
         def run(at, mates_y, fouls_before=0):
             if placed[0] != (at, mates_y):      # (foul moves no one)
                 place(v, at, mates_y)
                 placed[0] = (at, mates_y)
             v.poke(lab['fouls'] + FOULER, [fouls_before])
+            for y in (0, 1):                    # (voice 1 quiet: v_lo, v_hi,
+                v.poke(lab['v_lo'] + y, [0])    # v_left)
+                v.poke(lab['v_hi'] + y, [0])
+                v.poke(lab['v_lo'] + 4 + y, [0])
             call_foul(v)
-            return card(v)
+            got = card(v)
+            if not crowd_ok(v, got):
+                heard.append((got, voice(v, 0), voice(v, 1)))
+            return got
 
         got = [run((304, 300), 150) for _ in range(n)]
         y = got.count('yellow')
@@ -134,6 +161,10 @@ def main():
         ok = got.count(None) == 20 and mem1(v, 'rs_kind') == 6
         print('box      %s, rs_kind %d  %s' % (sorted(set(map(str, got))), mem1(v, 'rs_kind'),
                                               'ok' if ok else 'NOT RIGHT'), flush=True)
+        bad += not ok
+        ok = not heard
+        print('crowd    %s  %s' % ('as each card was shown' if ok else
+                                   'not right: %s' % heard[:4], 'ok' if ok else 'NOT RIGHT'), flush=True)
         bad += not ok
         place(v, (330, 300), 380)
         placed[0] = None

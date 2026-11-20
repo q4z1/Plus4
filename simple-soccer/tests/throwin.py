@@ -30,8 +30,10 @@ lab = labels()
 OFF_PL = 0xED                   # (play.s)
 BALL = 22
 R_THROW = 1
-LONG = 2100                     # (play.s SHOT_SPEED 2208, a frame's slowing
-                                # less; a pass 1762 at most)
+# A long one is a set piece's shot (bs_shot): it rises (o_dzl 1 on), a
+# pass (kick_to) is flat. Not by its speed: since the throw-in went 512
+# slower (c562e70, 3c83a4b: Luca found them super powerful) a long one
+# is some 1690, a pass 1810 - 2066; at 2100 this test found none since.
 FLIGHT = 40                     # frames the long ones are followed
 
 
@@ -87,7 +89,7 @@ def throw_in(v, at):
     if '-v' in sys.argv:
         print('  at %s: speed %d, z %d, dz %d, after %d frames' % (
             at, speed, mem1(v, 'o_zl', BALL), mem1(v, 'o_dzl', BALL), bs_t))
-    if speed < LONG:
+    if mem1(v, 'o_dzl', BALL) == 0:
         return 'pass', ''
     if bs_t >= 150:
         return 'late', 'kicked after %d frames waiting' % bs_t

@@ -378,7 +378,11 @@ some 18 pixels a picture, and at his feet is 5.6 pixels - once a picture
 they passed each other, and Luca's kick-off never got to its man. Nor
 does a set piece's lock (DBL_T, against its taker's double touch) keep a
 pass's receiver off it: the kick-off to the one beside the taker ran past
-him.
+him. The very first kick-off of a match had its own bug: a tap went
+back to your keeper whatever way you faced - the team-mate offering
+himself (at throw-ins and goal kicks) was set to none at every set
+piece but that one, and its 0 is the keeper; `tests/kickdir.py` starts
+a match as a player does, from the title in Yape, and passes at it.
 Your player with the stick let go does not touch a ball that comes to
 him - it runs on past him, as in Sensible Soccer; push the stick and he
 dribbles it.
@@ -529,7 +533,21 @@ a step each frame, the noise's pitch thrown about between a low roar
 and a brighter shout (many voices, not one), the volume (set by each
 step now) up in a quarter of a second, held for a second and a half and
 down in waves over a second; it was a hiss that rose and stopped, which
-Luca found horrible.
+Luca found horrible. With it the crowd whistles - three whistles gliding
+up and down on the other voice. The crowd also goes "oh" (Luca's wish)
+when a fast ball goes just wide - 24 pixels past a post at most - or
+over the bar, and when the keeper saves the other team's shot, caught or
+parried: up at once and falling as it dies away, a second long. It
+murmurs, low, when a yellow card is shown, and at a red one louder and
+longer, whistling. The crowd's noise is worked out by the interrupt each
+frame - a random pitch within a band, the volume a step every few
+frames - and the whistles glide by themselves, a step a frame: written
+out frame by frame, the goal's roar alone took 420 bytes. A kick does
+not sound over the crowd. The TED has one volume for both voices: the
+crowd sets it, and the referee's whistle at the end of a roar keeps it
+(it made the roar loud again). `tests/sfx.py` plays each sound in VICE
+into `build/sfx.wav`; `tests/crowd.py` checks the misses and saves that
+start the "oh" (and those that do not), `tests/cards.py` the cards'.
 
 A title comes first: the name, a gold cup between its words, the length of the match (3, 5 or 7
 minutes), one player or two, a match or training, and the home and the away team to choose

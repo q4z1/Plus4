@@ -53,6 +53,7 @@ off_pl      = $ED               ; the receiver offside, $FF none, $FE a set
 off_by      = $EE               ; piece's taker in off_by (above the match's
                                 ; zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
+        .import sfx_save, sfx_miss, sfx_yellow, sfx_red
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -69,6 +70,10 @@ POST_L      = 269               ; between the posts (the ball's middle on
 POST_R      = 340               ; them, as they are drawn at 269-270 and
                                 ; 339-340: the left one was 263, a ball
                                 ; past it a goal - Luca)
+NEAR_W      = 24                ; just wide: so far past a post at most,
+MISS_SP     = $0300             ;   so fast at least (near_miss)
+SAVE_SP     = $0400             ; a save: the ball so fast at least (a
+                                ;   shot, 1792 on, 16 slower each frame)
 BAR_Z       = 17                ; under the bar
 NET_T       = 12                ; the net this far behind the line: at the
 NET_B       = 5                 ; top, at the bottom (as the goals are drawn:
@@ -588,9 +593,9 @@ play_init:
         sta thrower             ; a throw-in - head: 0 the keeper's kicks)
         lda #0
         sta why
-        lda #1
-        sta kickoff
-        jmp sfx_whistle
+        jsr await               ; (as every kick-off: no one offering - its
+        jmp sfx_whistle         ; 0, the keeper: the first kick-off's tap
+                                ; went back to him, Luca)
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
 ctx_new:    .byte 0, $FF, 0, $FF, $FF, $FF, 0, 0, 0, 10, $FF
@@ -5138,7 +5143,8 @@ rules:
         jsr kick_spot
         lda #DEAD_GOAL
         bne @dead2
-@wide:  ldy #0                  ; the side it went out: x 0 left, 1 right
+@wide:  jsr near_miss
+        ldy #0                  ; the side it went out: x 0 left, 1 right
         lda o_xl,x
         cmp #<304
         lda o_xh,x
@@ -5440,8 +5446,38 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
         sta rs_y + 1
 @free:  lda #DEAD_FOUL
         sta dead_t
-        jsr sfx_whistle
+        lda why                 ; (a card: the crowd murmurs - a red
+        cmp #WHY_FOUL           ; louder and longer, and it whistles:
+        bne @wh                 ; Luca)
+        lda card_pl
+        bmi @wh
+        lda card_c
+        beq :+
+        jsr sfx_red             ; (the referee's whistle its own)
         jmp calm
+:       jsr sfx_yellow
+@wh:    jsr sfx_whistle
+        jmp calm
+
+; near_miss: the ball X out over a goal line, no goal - fast and just
+; wide or over the bar (NEAR_W pixels past a post at most): the crowd's
+; "oh" (Luca). Keeps X.
+near_miss:
+        lda o_sph,x
+        cmp #>MISS_SP
+        bcc @no
+        lda o_xl,x
+        cmp #<(POST_L - NEAR_W)
+        lda o_xh,x
+        sbc #>(POST_L - NEAR_W)
+        bcc @no
+        lda #<(POST_R + NEAR_W)
+        cmp o_xl,x
+        lda #>(POST_R + NEAR_W)
+        sbc o_xh,x
+        bcc @no
+        jmp sfx_miss
+@no:    rts
 
 box_yl:     .byte <BOX_T, <BOX_B    ; the box's line, a free kick on it
 box_yh:     .byte >BOX_T, >BOX_B
@@ -6979,7 +7015,7 @@ catch:
         bcc :+
         iny
 :       cpy last_team
-        bne @hands
+        bne @theirs
         cpx last_pl             ; (his own parry, his own kick: his
         bne k_clear             ; hands again OWN_T frames on - else
         lda touch_t             ; the ball he had saved was the team's
@@ -6991,6 +7027,12 @@ catch:
 @hands: lda o_dive,x            ; (diving: it bounces off him)
         bne parry
         jmp hold
+@theirs:
+        lda o_sph + BALL        ; (their shot saved, caught or parried:
+        cmp #>SAVE_SP           ; the crowd's "oh" - Luca)
+        bcc @hands
+        jsr @hands
+        jmp sfx_save
 @done:  rts
 
 ; ball_box: carry clear if the ball is in keeper X's penalty area (k_area).

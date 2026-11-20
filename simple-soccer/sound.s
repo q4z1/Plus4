@@ -1,18 +1,30 @@
 ; sound.s - the match's sounds on the TED's two voices: the ball kicked,
-; the keeper's catch, the referee's whistle, the crowd at a goal.
+; the keeper's catch, the referee's whistle, the crowd - at a goal, a near
+; miss, a save, a card.
 ;
 ; An effect is a list of steps - frames, the frequency register's low
 ; byte, its high two bits | a kind (SFX_NOISE, SFX_REST) | a volume
 ; (bits 2 - 5: 1 - 8, 0 VOLUME - the TED's one for both voices) - ended
 ; by 0 frames; sfx_start puts one on a voice, the interrupt (snd_tick) goes on
 ; with it 50 times a second, whatever the pictures do. A new effect on a
-; voice takes over from the one there. Voice 0 is the TED's first (square
+; voice takes over from the one there - but a kick or a catch not from
+; the crowd (crowd1: it drowns them). Voice 0 is the TED's first (square
 ; only), voice 1 its second (square or noise).
+;
+; A step of both kinds (SFX_EXT: noise and rest, else meaningless) has a
+; fourth byte and is worked out each frame: on voice 1 the crowd - noise,
+; its register the step's and a random 0 - spread (the fourth byte, 2^n -
+; 1) more each frame, many voices rather than one hiss; on voice 0 a
+; glide - a square, its register the fourth byte (signed) more each frame,
+; a whistle in the crowd. Its volume 0 leaves the volume as it is; and
+; voice 0's plain steps with volume 0 leave it too while the crowd is on
+; voice 1 (the referee's whistle at the end of the roar made it loud).
 
         .include "game.inc"
 
         .export snd_init, snd_tick
         .export sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
+        .export sfx_save, sfx_miss, sfx_yellow, sfx_red
 
 TED_V1LO    = $FF0E             ; voice 1's frequency, low
 TED_V2LO    = $FF0F             ; voice 2's
@@ -24,6 +36,7 @@ VOLUME      = 6
 
 SFX_NOISE   = $40
 SFX_REST    = $80
+SFX_EXT     = $C0
 ; the frequency register for a square of hz (PAL)
 .define TONE(hz) (1024 - (110840 + (hz) / 2) / (hz))
 .macro  step n, reg, kind
@@ -34,6 +47,14 @@ SFX_REST    = $80
 .endmacro
 .macro  vstep n, reg, kind, vol
         .byte n, <(reg), >(reg) | kind | ((vol) << 2)
+.endmacro
+; the crowd (voice 1): n frames, the register reg + 0 - spread, at vol
+.macro  crowd n, reg, vol, spread
+        .byte n, <(reg), >(reg) | SFX_EXT | ((vol) << 2), spread
+.endmacro
+; a glide (voice 0): n frames from reg, d more each frame
+.macro  glide n, reg, d
+        .byte n, <(reg), >(reg) | SFX_EXT, <(d)
 .endmacro
 
         .zeropage
@@ -66,8 +87,12 @@ snd_tick:
         sec
         sbc #1
         sta v_left,y
-        bne @next
+        bne @frame
         jsr advance
+        jmp @next
+@frame: lda v_ext,y             ; (the crowd, a glide: worked out each
+        beq @next               ; frame)
+        jsr ext_frame
 @next:  dey
         bpl @voice
         rts
@@ -97,119 +122,255 @@ advance:
         bne :+
         ldy snd_v
         sta v_left,y
+        sta v_ext,y
         jmp off
 :       pha
         iny
         lda (snd_p),y
-        pha                     ; (the low byte)
+        sta snd_lo              ; (the low byte)
         iny
         lda (snd_p),y
-        tay                     ; (the high bits and the kind)
-        lda snd_p               ; on past it
-        clc
-        adc #3
-        sta snd_p
-        bcc :+
-        inc snd_p + 1
+        sta snd_k               ; (the high bits and the kind)
+        iny
+        lda (snd_p),y
+        sta snd_d               ; (an extended step's fourth byte)
+        ldy #3                  ; on past it: 3 bytes, extended 4
+        lda snd_k
+        and #SFX_EXT
+        cmp #SFX_EXT
+        bne :+
+        iny
 :       tya
         ldy snd_v
-        pha
-        lda snd_p
+        clc
+        adc snd_p
         sta v_lo,y
         lda snd_p + 1
+        adc #0
         sta v_hi,y
-        pla
-        sta snd_k               ; (the high bits and the kind)
-        pla                     ; the low byte to the voice
-        cpy #0
-        bne :+
-        sta TED_V1LO
-        lda TED_V1HI
-        and #$FC
-        sta snd_t
-        lda snd_k
-        and #$03
-        ora snd_t
-        sta TED_V1HI
-        jmp @on
-:       sta TED_V2LO
-        lda TED_V2HI
-        and #$FC
-        sta snd_t
-        lda snd_k
-        and #$03
-        ora snd_t
-        sta TED_V2HI
-@on:    pla                     ; its frames
+        pla                     ; its frames
         sta v_left,y
+        lda #0
+        sta v_ext,y
+        lda snd_k
+        and #SFX_EXT
+        cmp #SFX_EXT
+        bne @plain
+        sta v_ext,y             ; (extended: its register, its spread or
+        lda snd_lo              ; step)
+        sta v_rl,y
+        lda snd_k
+        and #3
+        sta v_rh,y
+        lda snd_d
+        sta v_d,y
+        lda snd_k               ; its volume (0: as it is)
+        jsr vol_of
+        beq :+
+        jsr set_vol
+:       lda on_ext,y            ; on: voice 0 a square, voice 1 noise
+        jsr voice_on
+        cpy #0
+        bne ext_frame           ; (the crowd: its first frame's noise)
+        lda v_rl                ; (a glide: from its register)
+        sta snd_lo
+        lda v_rh
+        jmp put_reg
+@plain: lda snd_k               ; the register
+        jsr put_reg
         lda snd_k
         bmi off                 ; (a rest)
-        lsr a                   ; its volume (0: VOLUME)
-        lsr a
-        and #$0F
-        bne :+
-        lda #VOLUME
-:       sta snd_t
-        lda TED_SOUND
-        and #$F0
-        ora snd_t
-        sta TED_SOUND
-        lda on_bit,y            ; on: a square, voice 1 noise if so
+        jsr vol_of              ; its volume (0: VOLUME - but voice 0's
+        bne @vol                ; not while the crowd is on voice 1)
+        cpy #0
+        bne @full
+        lda v_left + 1
+        beq @full
+        lda v_ext + 1
+        bne @on
+@full:  lda #VOLUME
+@vol:   jsr set_vol
+@on:    lda on_bit,y            ; on: a square, voice 1 noise if so
         bit snd_k
         bvc :+
         lda #SFX_NOISE
-:       sta snd_t
-        lda TED_SOUND
-        and off_mask,y
-        ora snd_t
-        sta TED_SOUND
-        rts
+:       jmp voice_on
 off:    lda TED_SOUND           ; voice Y quiet
         and off_mask,y
         sta TED_SOUND
         rts
 
+; ext_frame: a frame of voice Y's extended step - the crowd's noise a
+; random 0 - spread above its register, a glide its step on. Keeps X, Y.
+ext_frame:
+        cpy #0
+        beq @glide
+        lda lfsr                ; (its own random: the game's rnd is the
+        asl a                   ; match's, the same whatever is heard)
+        bcc :+
+        eor #$1D
+:       sta lfsr
+        and v_d + 1
+        clc
+        adc v_rl + 1
+        sta snd_lo
+        lda v_rh + 1
+        adc #0
+        jmp put_reg
+@glide: lda v_d
+        clc
+        adc v_rl
+        sta v_rl
+        sta snd_lo
+        lda v_d                 ; (the step's sign)
+        and #$80
+        beq :+
+        lda #$FF
+:       adc v_rh
+        and #3
+        sta v_rh
+        jmp put_reg
+
+; put_reg: voice Y's frequency register, snd_lo its low byte and A's two
+; low bits its high ones. Keeps X, Y.
+put_reg:
+        and #3
+        sta snd_t
+        cpy #0
+        bne :+
+        lda TED_V1HI            ; (its high bits with the bitmap's)
+        and #$FC
+        ora snd_t
+        sta TED_V1HI
+        lda snd_lo
+        sta TED_V1LO
+        rts
+:       lda TED_V2HI
+        and #$FC
+        ora snd_t
+        sta TED_V2HI
+        lda snd_lo
+        sta TED_V2LO
+        rts
+
+; vol_of: the volume in kind A (bits 2 - 5), Z set if 0
+vol_of: lsr a
+        lsr a
+        and #$0F
+        rts
+
+; set_vol: the TED's volume A (both voices')
+set_vol:
+        sta snd_t
+        lda TED_SOUND
+        and #$F0
+        ora snd_t
+        sta TED_SOUND
+        rts
+
+; voice_on: voice Y on, A its bits (on_bit, SFX_NOISE)
+voice_on:
+        sta snd_t
+        lda TED_SOUND
+        and off_mask,y
+        ora snd_t
+        sta TED_SOUND
+        rts
+
 on_bit:     .byte $10, $20
+on_ext:     .byte $10, SFX_NOISE
 off_mask:   .byte <~$10, <~$60
+
+        .data                   ; (the BSS is full)
 snd_k:  .byte 0
 snd_t:  .byte 0
+snd_lo: .byte 0
+snd_d:  .byte 0
+v_ext:  .byte 0, 0              ; each voice: 0 a plain step, else an
+v_rl:   .byte 0, 0              ; extended one - its register (low, high
+v_rh:   .byte 0, 0              ; bits), its spread or step
+v_d:    .byte 0, 0
+v_crowd: .byte 0                ; not 0: voice 1's effect the crowd's
+lfsr:   .byte $5A               ; (ext_frame's random)
+        .code
 
 ; the effects, each on its voice. Keep X, Y.
 sfx_kick:
         jsr save
-        lda #<kick
-        ldx #>kick
-        ldy #1
-        jmp go
+        lda #<fx_kick
+        ldx #>fx_kick
+        jmp low1
 sfx_catch:
         jsr save
-        lda #<catch
-        ldx #>catch
-        ldy #1
-        jmp go
-sfx_goal:
+        lda #<fx_catch
+        ldx #>fx_catch
+        jmp low1
+sfx_goal:                       ; the crowd roaring, whistling
         jsr save
-        lda #<goal
-        ldx #>goal
-        ldy #1
-        jmp go
+        lda #<fx_goal_w
+        ldx #>fx_goal_w
+        ldy #0
+        jsr sfx_start
+        lda #<fx_goal
+        ldx #>fx_goal
+        jmp crowd1
+sfx_save:                       ; the keeper's save: the ball at his
+        jsr save                ; hands, the crowd's "oh"
+        lda #<fx_save
+        ldx #>fx_save
+        jmp crowd1
+sfx_miss:                       ; just wide, over the bar: "oh"
+        jsr save
+        lda #<fx_ooh
+        ldx #>fx_ooh
+        jmp crowd1
+sfx_yellow:                     ; a yellow card: a murmur
+        jsr save
+        lda #<fx_yellow
+        ldx #>fx_yellow
+        jmp crowd1
+sfx_red:                        ; a red card: the whistle, a murmur
+        jsr save                ; louder and longer, the crowd whistling
+        lda #<fx_red_w
+        ldx #>fx_red_w
+        ldy #0
+        jsr sfx_start
+        lda #<fx_red
+        ldx #>fx_red
+        jmp crowd1
 sfx_whistle:
         jsr save
-        lda #<whistle
-        ldx #>whistle
+        lda #<fx_whistle
+        ldx #>fx_whistle
         ldy #0
         jmp go
 sfx_halftime:
         jsr save
-        lda #<halftime
-        ldx #>halftime
+        lda #<fx_halftime
+        ldx #>fx_halftime
         ldy #0
         jmp go
 save:   stx snd_x               ; (X and Y kept for the one who called)
         sty snd_y
         rts
+low1:   pha                     ; voice 1, but not over the crowd
+        lda v_crowd
+        beq :+
+        lda v_left + 1
+        beq :+
+        pla
+        jmp back
+:       sta v_crowd
+        pla
+        ldy #1
+        jmp go
+crowd1: pha                     ; voice 1, the crowd's
+        lda #1
+        sta v_crowd
+        pla
+        ldy #1
 go:     jsr sfx_start
-        ldx snd_x
+back:   ldx snd_x
         ldy snd_y
         rts
 snd_x:  .byte 0
@@ -218,22 +379,22 @@ snd_y:  .byte 0
 ; The effects. The TED has no envelopes: a kick is a short noise that
 ; drops, the whistle a trill, the crowd a noise that swells and dies away.
         .rodata
-kick:
+fx_kick:
         step 1, 900, SFX_NOISE
         step 2, 830, SFX_NOISE
         step 1, 760, SFX_NOISE
         .byte 0
-catch:
+fx_catch:
         step 1, 860, SFX_NOISE
         step 1, 800, SFX_NOISE
         .byte 0
-whistle:
+fx_whistle:
         .repeat 7
         step 1, TONE(2800), 0
         step 1, TONE(3150), 0
         .endrepeat
         .byte 0
-halftime:
+fx_halftime:
         .repeat 2
         .repeat 5
         step 1, TONE(2800), 0
@@ -247,19 +408,20 @@ halftime:
         .endrepeat
         .byte 0
 ; the crowd at a goal (Luca: barely horrible - it was a hiss that rose
-; and stopped): a frame a step, the noise's pitch thrown about each frame
-; (many voices, not one) between a low roar and a brighter shout, both
-; rising as it swells; the volume up in a quarter of a second, held for
-; a second and a half, and down over a second in waves
-GOAL_N = 140
-goal:
-        .repeat GOAL_N, i
-        .if i < 12
-        G_VOL .set 2 + i / 2
-        .elseif i < 85
-        G_VOL .set 8 - ((i / 9) .mod 2)
+; and stopped): the noise thrown about each frame (many voices, not one)
+; over a low roar to a brighter shout, rising as it swells; the volume up
+; in a quarter of a second, held for a second and a half, and down over a
+; second in waves - in steps of 4 frames
+GOAL_N = 35
+fx_goal:
+        .repeat GOAL_N, k
+        G_I .set k * 4
+        .if G_I < 12
+        G_VOL .set 2 + G_I / 2
+        .elseif G_I < 85
+        G_VOL .set 8 - ((G_I / 9) .mod 2)
         .else
-        G_VOL .set 8 - (i - 85) / 8 + ((i / 5) .mod 2)
+        G_VOL .set 8 - (G_I - 85) / 8 + ((G_I / 5) .mod 2)
         .endif
         .if G_VOL > 8
         G_VOL .set 8
@@ -267,15 +429,103 @@ goal:
         .if G_VOL < 1
         G_VOL .set 1
         .endif
-        G_RISE .set i / 4
-        .if i > 60
-        G_RISE .set 15 - (i - 60) / 6
+        G_RISE .set G_I / 4
+        .if G_I > 60
+        G_RISE .set 15 - (G_I - 60) / 6
         .endif
-        .if (i .mod 2) = 0
-        G_REG .set 868 + G_RISE + (i * 37 + 11) .mod 29
-        .else
-        G_REG .set 930 + G_RISE + (i * 53 + 7) .mod 23
-        .endif
-        vstep 1, G_REG, SFX_NOISE, G_VOL
+        crowd 4, 868 + G_RISE, G_VOL, 63
         .endrepeat
+        .byte 0
+; and whistling (Luca): up and down, three of them in the roar - done
+; before the kick-off's whistle (DEAD_GOAL)
+fx_goal_w:
+        rest 18
+        glide 7, 944, 5
+        rest 2
+        glide 9, 978, -2
+        rest 14
+        glide 5, 950, 6
+        glide 6, 980, 0
+        glide 7, 980, -3
+        rest 20
+        glide 8, 940, 5
+        rest 2
+        glide 10, 976, -2
+        .byte 0
+; a near miss, a save: "oh" - quickly up, falling as it dies away; the
+; save with the ball at the keeper's hands first (catch's)
+fx_save:
+        step 1, 860, SFX_NOISE
+        step 1, 800, SFX_NOISE
+fx_ooh:
+        .repeat 16, k
+        .if k < 2
+        O_VOL .set 4 + 2 * k
+        .elseif k < 5
+        O_VOL .set 7
+        .else
+        O_VOL .set 7 - (k - 3) / 2
+        .endif
+        crowd 3, 944 - 5 * k, O_VOL, 31
+        .endrepeat
+        .byte 0
+; a card: the crowd murmurs, low, after the whistle (a yellow); a red
+; louder and longer, and it whistles
+fx_yellow:
+        rest 14
+        crowd 4, 766, 2, 31
+        crowd 4, 766, 3, 31
+        crowd 4, 766, 3, 31
+        crowd 4, 766, 4, 31
+        crowd 4, 766, 3, 31
+        crowd 4, 766, 4, 31
+        crowd 4, 766, 4, 31
+        crowd 4, 766, 3, 31
+        crowd 4, 766, 4, 31
+        crowd 4, 766, 3, 31
+        crowd 4, 766, 3, 31
+        crowd 4, 766, 2, 31
+        crowd 4, 766, 1, 31
+        .byte 0
+fx_red:
+        rest 14
+        .repeat 30, k
+        .if k < 8
+        R_VOL .set 2 + k / 2
+        .elseif k < 20
+        R_VOL .set 6 - ((k / 3) .mod 2)
+        .else
+        R_VOL .set 6 - (k - 20) / 2
+        .endif
+        .if R_VOL < 1
+        R_VOL .set 1
+        .endif
+        crowd 4, 770 + 2 * k, R_VOL, 31
+        .endrepeat
+        .byte 0
+fx_red_w:                          ; (the referee's whistle, as fx_whistle's)
+        .repeat 7
+        step 1, TONE(2800), 0
+        step 1, TONE(3150), 0
+        .endrepeat
+        rest 16
+        glide 3, 952, 8
+        glide 6, 976, 1
+        glide 6, 982, -1
+        glide 4, 976, -4
+        rest 6
+        glide 3, 958, 7
+        glide 7, 979, 1
+        glide 7, 986, -1
+        glide 5, 979, -5
+        rest 10
+        glide 3, 948, 8
+        glide 5, 972, 1
+        glide 5, 977, -1
+        glide 4, 972, -3
+        rest 8
+        glide 2, 960, 9
+        glide 8, 978, 1
+        glide 8, 986, -1
+        glide 6, 978, -4
         .byte 0
