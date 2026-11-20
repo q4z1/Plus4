@@ -28,6 +28,9 @@ slider   one of the yellow team, neither its joystick's player nor its
          slowed as any tackle, up again, out of the box, and the keeper
          kicks it out (Luca: such a one slid on 1000 pixels, off the
          pitch to y 1675, and the keeper's ball waited for him for ever)
+again    he holds it, taps fire - out of his hands: not marked as a set
+         piece's taker (off_pl $FE), so his next touch is no double touch
+         (it was, a free kick at his box: Luca's penalty out of nowhere)
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -41,6 +44,7 @@ from shot import WORK, BITS, labels  # noqa: E402
 R_KEEPER = 4
 BOX_B = 602                     # (play.s ka_y: the bottom box from here)
 ARMS_T = 25
+OFF_PL = 0xED                   # (play.s)
 HOLD_TOP = 6
 
 
@@ -277,9 +281,47 @@ def slider(lab):
         s.stop()
 
 
+def again(lab):
+    s = Scene(lab)
+    try:
+        gy = 680
+        s.obj(0, 304, gy)
+        s.obj(BALL, 304, gy - 14, ty=gy + 3200, speed=1024)
+        for i in range(1, 22):
+            if i != 11:
+                s.obj(i, 60 + 24 * (i % 11), 300 if i < 11 else 250)
+        s.put('last_team', 0, 1)
+        s.put('last_pl', 0, 14)
+        for k in range(20):
+            s.picture()
+            if held(s):
+                break
+        else:
+            return False, 'not held'
+        for k in range(60):
+            s.v.poke(lab['dbg_joy'], [BITS['fire'] if k % 4 < 2 else 0])
+            s.picture()
+            if s.get('kickoff') == 0:
+                break
+        else:
+            return False, 'never kicked out'
+        s.v.poke(lab['dbg_joy'], [0])
+        s.picture()
+        if s.get('last_pl') != 0:
+            return False, 'kicked, but last touched by %d' % s.get('last_pl')
+        # (a set piece's taker is marked, off_pl $FE: his next touch before
+        # anyone else's is whistled - off_chk)
+        off = s.v.mem(OFF_PL, 1)[0]
+        return off != 0xFE, 'out of his hands: off_pl $%02X (%s)' % (
+            off, 'marked: his next touch a double touch' if off == 0xFE
+            else 'his again')
+    finally:
+        s.stop()
+
+
 CASES = {'back': back, 'shot': shot, 'outside': outside, 'loose': loose,
          'clear': clear, 'clear-top': lambda lab: clear(lab, True),
-         'slider': slider}
+         'slider': slider, 'again': again}
 
 
 def main():

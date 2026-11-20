@@ -14,6 +14,11 @@ gk-left, gk-up, gk-right   the keeper faces so, fire tapped at once: to
 offer-gk-*                 the same, waited 110 frames: someone offering,
                            come within 90 pixels, the pass to him, his
 offer-throw-*              a throw-in, its aim turned up / down a step
+none-gk, none-throw        someone offering; then the stick back - at his
+                           goal (the keeper), out of the pitch (left on the
+                           left line): he goes back, no one offers 60
+                           frames on, the throw-in's aim as it was (Luca:
+                           a way to have no one offered)
 
 A line each; the exit code counts the wrong ones.
 """
@@ -100,6 +105,49 @@ def case(v, kind, x, y, stick, wait):
     return off, dist, recv, None
 
 
+NONE = {'none-gk': (R_GOALKICK, 244, 664, DOWN),
+        'none-throw': (R_THROW, 49, 300, LEFT)}
+
+
+def none_case(v, kind, x, y, back):
+    s = moves.Setup()
+    moves.restart(s, kind, 0, x, y)
+    for i in moves.EXTRA:
+        s.put('o_off', 0, i)
+    for a, vals in s.pokes:
+        v.poke(a, vals)
+    v.poke(0xED, [0xFF])
+    for f in range(400):
+        v.cmd('x')
+        if m(v, 'kickoff') and not m(v, 'dead_t') and f > 150:
+            break
+    v.poke(lab['dbg_joy'], [UP])
+    for f in range(4):
+        v.cmd('x')
+    v.poke(lab['dbg_joy'], [0])
+    for f in range(110):
+        v.cmd('x')
+    off = m(v, 'offer')
+    if off >= 22:
+        return False, 'no one offered at first'
+    aim = m(v, 'sp_aim')
+    v.poke(lab['dbg_joy'], [back])
+    for f in range(4):
+        v.cmd('x')
+    v.poke(lab['dbg_joy'], [0])
+    d0 = math.dist(pos(v, off), pos(v, BALL))
+    for f in range(60):
+        v.cmd('x')
+        if m(v, 'offer') < 22:
+            return False, '%d offered again after %d frames' % (m(v, 'offer'), f)
+    d1 = math.dist(pos(v, off), pos(v, BALL))
+    same = kind != R_THROW or m(v, 'sp_aim') == aim
+    still = m(v, 'kickoff') == 1
+    return d1 > d0 + 20 and same and still, \
+        '%d offered, then back: %d -> %d away, the aim %s, the set piece %s' % (
+            off, d0, d1, 'kept' if same else 'moved', 'waiting' if still else 'taken')
+
+
 def main():
     v = Vice(PRG, WORK)
     wrong = 0
@@ -118,8 +166,13 @@ def main():
         v.cmd('break %04x' % lab['play_frame'])
         for _ in range(120):
             v.cmd('x')
-        names = [a for a in sys.argv[1:] if not a.startswith('-')] or list(CASES)
+        names = [a for a in sys.argv[1:] if not a.startswith('-')] or list(CASES) + list(NONE)
         for name in names:
+            if name in NONE:
+                ok, text = none_case(v, *NONE[name])
+                wrong += not ok
+                print('%-17s %s %s' % (name, text, 'OK' if ok else 'WRONG'), flush=True)
+                continue
             kind, x, y, stick, wait = CASES[name]
             off, dist, recv, first = case(v, kind, x, y, stick, wait)
             got[name] = recv

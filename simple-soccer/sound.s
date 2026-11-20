@@ -457,14 +457,14 @@ fx_goal_w:
 fx_save:
         step 1, 860, SFX_NOISE
         step 1, 800, SFX_NOISE
-fx_ooh:
-        .repeat 16, k
-        .if k < 2
-        O_VOL .set 4 + 2 * k
-        .elseif k < 5
+fx_ooh:                         ; (swelling over 15 frames, Luca: a soft
+        .repeat 18, k           ; attack - it was 4, 6, then 7 in 6)
+        .if k < 5
+        O_VOL .set 2 + k
+        .elseif k < 8
         O_VOL .set 7
         .else
-        O_VOL .set 7 - (k - 3) / 2
+        O_VOL .set 7 - (k - 6) / 2
         .endif
         crowd 3, 944 - 5 * k, O_VOL, 31
         .endrepeat

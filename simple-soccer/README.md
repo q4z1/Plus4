@@ -334,12 +334,16 @@ himself (Luca's idea): look one way for 40 frames - the aim, or the way
 the keeper faces - and the team-mate that way (as a pass would choose
 him) comes to 62 pixels from the ball and waits; a tap passes to him.
 Look another way and he goes back to his place, and after 40 frames the
-next comes. At a goal kick and the keeper's ball the view leans 40
+next comes. Push the stick back - out of the pitch at a throw-in (left
+on the left line, right on the right), at your own goal at the keeper's
+- and he goes back, no one comes till you look another way, the aim
+stays as it was (Luca: a way to have no one offered). At a goal kick and the keeper's ball the view leans 40
 pixels the way he faces, 4 a picture, so the one offering is in view
 (Luca: as the original's view does when the keeper turns).
 `tests/offer.py` checks the keeper's three ways go to three
 team-mates, and that the one offering comes and gets the pass at goal
-kicks to either side and throw-ins aimed up and down. The computer takes its set pieces as Sensible Soccer's does
+kicks to either side and throw-ins aimed up and down, and that the
+stick back sends him away (none-gk, none-throw). The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
 meanwhile to look for someone (a throw-in), along the goal line (a
 corner, as on the C64) or to the goal (a free kick); then a kick-off
@@ -489,8 +493,10 @@ other team's last but one as it goes - not from a kick-off, a throw-in,
 a goal kick or a corner - and he the next to touch it: the whistle, and
 a free kick for the other team where he is. And the double touch: a set
 piece's taker - kick-off, throw-in, goal kick, corner, free kick,
-penalty, the keeper's kick out - may not touch the ball again before
-anyone else has. For 8 frames after his kick no one dribbles it, so it
+penalty - may not touch the ball again before anyone else has. Not the
+keeper with the ball in his hands: that is no set piece, he may play it
+again at once (his touch after it was whistled as a double touch, a free
+kick at his own box - Luca's penalty out of nowhere). For 8 frames after his kick no one dribbles it, so it
 leaves his feet; if he is the next to get to it after all, the whistle,
 and a free kick for the other team where he is - in the penalty area,
 for a double touch or offside, on the area's line, not a penalty: the
@@ -566,7 +572,8 @@ Luca found horrible. With it the crowd whistles - three whistles gliding
 up and down on the other voice. The crowd also goes "oh" (Luca's wish)
 when a fast ball goes just wide - 24 pixels past a post at most - or
 over the bar, and when the keeper saves the other team's shot, caught or
-parried: up at once and falling as it dies away, a second long. It
+parried: swelling softly for a third of a second (Luca: up at once was
+too hard), then falling as it dies away, a second long. It
 murmurs, low, when a yellow card is shown, and at a red one louder and
 longer, whistling. The crowd's noise is worked out by the interrupt each
 frame - a random pitch within a band, the volume a step every few

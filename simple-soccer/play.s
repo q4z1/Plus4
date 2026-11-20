@@ -1333,6 +1333,9 @@ control:
         beq @off                ; way he passed by the ball, at a free
         jmp stand               ; kick 5 pixels off)
 @off:   jmp place_formation
+:       jsr no_offer            ; (the stick back: no one offered, Luca)
+        bcc :+
+        jmp @ev
 :       jsr fine_kind           ; (a joystick's throw-in or corner: the
         bcs :+                  ; stick turns its aim, fine_aim)
         jsr fine_aim
@@ -2924,6 +2927,45 @@ offering:
         sty offer_y + 1
 @none:  pla
         tax
+        rts
+
+; no_offer: carry set if the stick points back at the joystick's
+; throw-in - out of the pitch: left on the left line, right on the right
+; - or at its goal kick or keeper's ball - at its own goal: the team-mate
+; offered (offering) goes back to his place and no one comes till the
+; aim or the way the keeper looks changes; the aim stays (Luca: a way to
+; have no one offered). Keeps X.
+no_offer:
+        lda pj
+        and #$0F
+        tay
+        lda joy_dir,y           ; (0-7, 8 let go)
+        sta tmp
+        lda rs_kind
+        cmp #R_THROW
+        bne @keeper
+        ldy #6                  ; (the left line: left)
+        lda o_xh + BALL
+        beq @cmp
+        ldy #2
+        bne @cmp
+@keeper:
+        jsr keeper_kick
+        bcs @no
+        ldy #4                  ; (attacking up: down)
+        lda rs_team
+        eor flip
+        beq @cmp
+        ldy #0
+@cmp:   cpy tmp
+        bne @no
+        lda #$FF
+        sta offer
+        lda #OFFER_T
+        sta offer_t
+        sec
+        rts
+@no:    clc
         rts
 
 ; ball_add: A, Y = the ball's x (Y 0) or y (Y o_yl - o_xl) + A, signed
@@ -7298,7 +7340,11 @@ touch:
         cmp #R_PENALTY
         bne :+
         sta pen_kick
-:       lda off_pl              ; a set piece's kick: its taker not to
+:       cmp #R_KEEPER           ; (the keeper's ball out of his hands is
+        beq @dbl                ; no set piece: his again at once - his
+                                ; touch after it was a double touch, a
+                                ; free kick at his box, Luca's penalty)
+        lda off_pl              ; a set piece's kick: its taker not to
         cmp #$FF                ; touch it again before anyone else -
         bne @dbl                ; off_pl $FE, off_by him (not after the
         dec off_pl              ; kick), and no one's dribble for DBL_T
