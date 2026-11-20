@@ -160,6 +160,8 @@ HEAD_SPEED  = 1536              ; rising as a diving header's; he jumps
 HEAD_T      = 16                ; HEAD_T frames, his arms up (o_zl, a
                                 ; player's: pose_of)
 DEAD_HALF   = 150               ; frames dead at half time and full time
+LINE_X0     = 84                ; full time's line-up (spot): the first,
+LINE_DX     = 21                ;   each one on - 84 .. 525
 DIVE_T      = 40                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
 KEEPER_SEES = 76                ; he goes for a shot once it is this near
@@ -1129,11 +1131,13 @@ play_others:
         rts
 @look:  lda o_mov,x             ; (those standing passed over)
         beq @next
+        lda full                ; (after full time no own way: to the
+        bne @go                 ; line-up with the rest)
         cpx ctrl                ; (the two at the ball: their own way)
         beq @next
         cpx ctrl_b
         beq @next
-        stx z_obj
+@go:    stx z_obj
         lda o_new,x             ; the way anew only for a new destination:
         ora o_slide,x           ; on a straight run it stays the same (a
         beq @step               ; slide's, slower each frame: always)
@@ -1462,11 +1466,19 @@ control:
         lda kickoff
         bne @held
         jsr can_slide
-        bcs @held
+        bcs @try
         lda #$FF
         sta fire_n
         ldx ctrl
         jmp slide
+@try:   jsr can_try             ; (the ball in the air near him: he jumps
+        bcs @held               ; for it - head heads it if it comes, Luca:
+        lda #$FF                ; many more tries, missed ones too)
+        sta fire_n
+        lda #HEAD_T
+        sta o_zl,x
+        sta jumps
+        rts
 @held:  lda fire_n                ; (held SHOT_HOLD: the shot, as soon as
         cmp #SHOT_HOLD          ; the ball is at his feet - fire held on
         bcc @done               ; charges it: $80 on, a throw-in $C0 on)
@@ -2934,8 +2946,11 @@ offering:
 ; - or at its goal kick or keeper's ball - at its own goal: the team-mate
 ; offered (offering) goes back to his place and no one comes till the
 ; aim or the way the keeper looks changes; the aim stays (Luca: a way to
-; have no one offered). Keeps X.
+; have no one offered). Not the computer's: its brain turns its taker
+; with a stick of its own (br_stick), out of the pitch too. Keeps X.
 no_offer:
+        jsr cpu_side
+        bcs @no
         lda pj
         and #$0F
         tay
@@ -4132,6 +4147,8 @@ team_ai:
         beq @next
         cpx #11
         beq @next
+        lda full                ; (full time: the joysticks' too, to the
+        bne @all                ; line-up - spot)
         cpx ctrl
         beq @next
         cpx ctrl_b
@@ -4140,12 +4157,14 @@ team_ai:
         beq @next
         cpx helper_b
         beq @next
-        lda o_slide,x           ; (one lying stays down, one sent off away)
+@all:   lda o_slide,x           ; (one lying stays down, one sent off away)
         ora o_off,x
         bne @next
         cpx taker
+        bne :+
+        lda full
         beq @next
-        jsr place_formation     ; (a set piece: the other team's off its
+:       jsr place_formation     ; (a set piece: the other team's off its
                                 ; way - keep_off)
 @next:  cpx #11                 ; (his and the other team's, then the next
         bcs :+                  ; one's)
@@ -4164,7 +4183,8 @@ team_ai:
         jsr keeper              ; Sensible Soccer)
         ldx #11
         jsr keeper
-        clc                     ; (the runners: help, play_picture)
+        lda full                ; (the runners: help, play_picture - not
+        cmp #1                  ; after full time: no one runs to it)
         rts
 
 ; place_formation: player X's destination, his place in the formation for
@@ -4391,7 +4411,30 @@ wall_dh:    .byte >(-WALL_D), >WALL_D
 ; bit in the mask, off the ball as far as the two bytes say): carry clear,
 ; z_px, z_py; carry set none - his formation's then. Keeps X.
 spot:
-        cpx offer               ; (the team-mate offering himself: offering's
+        lda full                ; full time: both teams lined up along the
+        beq @play               ; halfway line, the cyan from the left, the
+        lda #<LINE_X0           ; yellow on from the middle, LINE_DX apart -
+        sta z_px                ; all of them walking there across the
+        lda #>LINE_X0           ; pitch (Luca: something with the players
+        sta z_px + 1            ; after the end, like the mix at half time)
+        txa
+        tay
+        beq @fy
+@fx:    lda z_px
+        clc
+        adc #LINE_DX
+        sta z_px
+        bcc :+
+        inc z_px + 1
+:       dey
+        bne @fx
+@fy:    lda #<369
+        sta z_py
+        lda #>369
+        sta z_py + 1
+        clc
+        rts
+@play:  cpx offer               ; (the team-mate offering himself: offering's
         bne :+                  ; place for him)
         lda kickoff
         beq :+
@@ -4776,12 +4819,14 @@ head:
         beq @no
 :       jsr cpu_side            ; (the computer's: none)
         bcs @no
-        lda pj                  ; (the joystick's: with fire only)
-        and #J_FIRE
-        beq @no
         ldx ctrl
         bmi @no
-        jsr can_head
+        lda pj                  ; (the joystick's: with fire only - or in
+        and #J_FIRE             ; the air already, jumped for it: can_try)
+        bne :+
+        lda o_zl,x
+        beq @no
+:       jsr can_head
         bcc @go
 @no:    rts
 @go:    lda #HEAD_T
@@ -4828,15 +4873,55 @@ can_head:
         cpx #11
         beq @no
         lda o_slide,x
-        ora o_zl,x
         bne @no
-        jsr kicker
+        lda o_zl,x              ; (in the air: a try's jump, not one he
+        beq :+                  ; has headed it in already)
+        cpx last_pl
+        bne :+
+        lda last_team
+        cmp me
+        beq @no
+:       jsr kicker
         bcs @no
         jsr mate_dist
         lda tmp + 1
         bne @no
         lda tmp
         cmp #HEAD_D2 + 1
+        rts
+@no:    sec
+        rts
+
+; can_try: carry clear if the joystick's player X, fire just pressed,
+; jumps for a header (control): the ball in the air - higher than a
+; sliding tackle's (SLIDE_Z) and at most TRY_HI - and near (DHEAD_D2, as
+; a diving header's); not a keeper, nor one sliding or in the air, nor the
+; one who has just kicked it. He is up HEAD_T frames, head heads it if it
+; comes to his head meanwhile - else a try missed (Luca: more tries at
+; headers, at corners too, missed ones as well). Keeps X.
+TRY_HI      = 40
+can_try:
+        jsr cpu_side            ; (the computer heads none: no tries)
+        bcs @no
+        txa
+        beq @no
+        cpx #11
+        beq @no
+        lda o_slide,x
+        ora o_zl,x
+        bne @no
+        lda o_zl + BALL
+        cmp #SLIDE_Z + 1
+        bcc @no
+        cmp #TRY_HI + 1
+        bcs @no
+        jsr kicker
+        bcs @no
+        jsr mate_dist
+        lda tmp
+        cmp #<(DHEAD_D2 + 1)
+        lda tmp + 1
+        sbc #>(DHEAD_D2 + 1)
         rts
 @no:    sec
         rts

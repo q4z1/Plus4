@@ -532,6 +532,14 @@ before its own keeper.) `tests/header.py`: the stick up, right, let go,
 a ball over his head, the runner to a pass, a shot at the computer's
 runner's head.
 
+Fire pressed with the ball in the air near him - higher than a sliding
+tackle's 8 and up to 40, within 49 pixels - and he jumps for it at once,
+even with fire only tapped: if it comes to his head while he is up, he
+heads it as above, else it is a try missed, and everyone sees it (Luca:
+many more tries at headers, at corners too). A lower ball is still a
+sliding tackle's, fire and the stick still a diving header; the
+computer tries none. `tests/header.py` try and miss.
+
 Above or below that a ball in the air goes over the players' heads unless one of them goes
 for it - and the other header is the diving one, as Sensible Soccer has no
 other (c13af4, c140d4): fire pressed with the
@@ -672,7 +680,11 @@ takes its place.
 
 ## Back to the title
 
-After full time fire brings up the winner's page - the title's screen
+At full time both teams walk to the halfway line and stand there in a
+row, the cyan team from the left, the yellow from the middle on - the
+ones on the joysticks and the keepers too - criss-crossing on their way
+as at half time (Luca: something with the players after the end). Then
+fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was - and fire again the title, with the choices as they were. A
 league over has its own: THE LEAGUE IS WON BY, the first and second in
