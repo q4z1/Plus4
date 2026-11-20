@@ -442,6 +442,8 @@ card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
         .segment "DATA"         ; (BSS full)
 sh_pow:     .byte 0             ; how hard the shot: 0 - 24 (shot_power)
 jumps:      .byte 0             ; frames a header's jump may still go on
+sl_any:     .byte 0             ; not 0: someone may be sliding or down
+                                ; (o_slide) - slides looks through them all
 ; why: the reason for the whistle shown till the set piece is taken -
 ; WHY_FOUL, WHY_OFF (offside), WHY_TWICE (a double touch); 0 none
 why:        .byte 0
@@ -5393,6 +5395,7 @@ foul:
 @tally: ldx last_pl
         lda #1                  ; down (slides lets him up when play goes on:
         sta o_slide,x           ; restart)
+        sta sl_any
         lda #0
         sta o_hd,x
         jsr stand
@@ -7380,6 +7383,7 @@ slide:
         sta o_hd,x
         lda #SLIDE_T
         sta o_slide,x
+        sta sl_any
         lda #0
         sta o_hit,x
         lda #1
@@ -7444,17 +7448,30 @@ aim_way:
         sta o_tyh,x
         rts
 
-; slides: the sliding tackles on a frame (the joystick's players, the
-; yellow team's runner): slower, the ball knocked on if reached, up at
-; the end
+; slides: the sliding tackles on a frame: slower, the ball knocked on if
+; reached, up at the end - and the ones knocked over. Each one sliding or
+; down, not only the joystick's players and the yellow team's runner, who
+; start the tackles: one no longer the runner when the computer's runner
+; changed slid on at full speed, never slower, 1000 pixels to where
+; slide aimed him - off the pitch, down there for good (Luca's long
+; tackle, its colours left on the boards) - and in the box, there the
+; keeper's ball waited for him (box_busy) for ever (Luca's stuck keeper)
 slides:
-        ldx ctrl
+        lda sl_any              ; (no one: as quick as it was)
+        beq @rts
+        lda #0
+        sta sl_any
+        ldx #PLAYERS - 1
+@pl:    lda o_slide,x
+        beq @next
+        sta sl_any
+        txa
+        pha
         jsr @one
-        ldx ctrl_b
-        bmi :+
-        jsr @one
-:       ldx helper_b
-        bpl @one
+        pla
+        tax
+@next:  dex
+        bpl @pl
         rts
 @one:   lda dead_t              ; (a foul whistled in this frame, by the
         bne @rts                ; cyan team's: its victim, the yellow
@@ -7654,6 +7671,7 @@ bump:
         beq @no
         lda #FALL_T
         sta o_slide,y
+        sta sl_any
         lda #3
         sta o_hit,y
         lda #0

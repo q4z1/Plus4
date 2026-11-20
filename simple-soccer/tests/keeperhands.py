@@ -23,6 +23,11 @@ clear    he catches it, three of the yellow team in his box beside him
 clear-top the yellow keeper catches it, the cyan joystick's player and two
          more in his box: they run out likewise, the yellow team kicks it
          out only then
+slider   one of the yellow team, neither its joystick's player nor its
+         runner, slides down at the cyan goal as the keeper catches it:
+         slowed as any tackle, up again, out of the box, and the keeper
+         kicks it out (Luca: such a one slid on 1000 pixels, off the
+         pitch to y 1675, and the keeper's ball waited for him for ever)
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -210,8 +215,71 @@ def clear(lab, top=False):
         s.stop()
 
 
+SLIDE_T = 50
+SPEED_SLIDE = 1792
+
+
+def slider(lab):
+    s = Scene(lab)
+    try:
+        gy = 680
+        s.obj(0, 304, gy)
+        s.obj(BALL, 304, gy - 14, ty=gy + 3200, speed=1024)
+        for i in range(1, 11):
+            s.obj(i, 60 + 40 * i, 369)
+        ctl = s.get('ctrl_b')
+        run = s.get('ctx_b', 4)          # (helper_b)
+        one = next(i for i in range(12, 22) if i not in (ctl, run))
+        near = [i for i in range(12, 22) if i != one][:2]
+        for i in range(12, 22):         # two of his nearer the ball: the
+            if i != one:                # joystick's and the runner's, not he
+                s.obj(i, *((290, 590) if i == near[0] else (320, 590)
+                           if i == near[1] else (60 + 40 * (i % 11), 369)))
+        y0 = 610
+        s.obj(one, 180, y0, tx=180, ty=y0 + 1000, speed=SPEED_SLIDE, d=4)
+        s.put('o_slide', one, SLIDE_T)
+        s.put('o_hit', one, 0)
+        s.put('o_mov', one, 1)
+        s.put('o_new', one, 0)
+        if 'sl_any' in lab:
+            s.put('sl_any', 0, 1)
+        s.put('last_team', 0, 1)
+        s.put('last_pl', 0, 14)
+        low = y0
+        left = []
+        for k in range(20):
+            s.picture()
+            low = max(low, s.where(one)[1])
+            if one not in (s.get('ctrl_b'), s.get('ctx_b', 4)):
+                left.append(s.get('o_slide', one))
+            if s.get('kickoff') == 1 and s.get('rs_kind') == R_KEEPER:
+                break
+        else:
+            return False, 'not held'
+        for k in range(200):
+            s.v.poke(lab['dbg_joy'], [BITS['fire'] if k % 4 < 2 else 0])
+            s.picture()
+            low = max(low, s.where(one)[1])
+            if one not in (s.get('ctrl_b'), s.get('ctx_b', 4)):
+                left.append(s.get('o_slide', one))
+            if s.get('kickoff') == 0:
+                s.v.poke(lab['dbg_joy'], [0])
+                # three frames a picture: his tackle's frames counted down
+                # while he was neither the joystick's player nor the runner
+                n = min(3, len(left))
+                slowed = n == 3 and left[0] - left[2] >= 5
+                return slowed and low < 720, 'taken after %d pictures, he ' \
+                    'slid down to y %d (from %d), his tackle %s' % (
+                        k + 1, low, y0, '-'.join(map(str, left[:4])))
+        return False, 'never taken: he is at %s, o_slide %d' % (
+            s.where(one), s.get('o_slide', one))
+    finally:
+        s.stop()
+
+
 CASES = {'back': back, 'shot': shot, 'outside': outside, 'loose': loose,
-         'clear': clear, 'clear-top': lambda lab: clear(lab, True)}
+         'clear': clear, 'clear-top': lambda lab: clear(lab, True),
+         'slider': slider}
 
 
 def main():

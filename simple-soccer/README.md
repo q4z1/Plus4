@@ -544,7 +544,11 @@ slide, a step of the stick's way nearer it, a quarter faster than you
 slide (the computer's team's: as fast), if it is within 8 pixels of you
 (c13f5a, c1145a; you slow to half);
 then the other team's player on the joystick cannot dribble it for 12
-frames - so the one tackled does not just take it back.
+frames - so the one tackled does not just take it back. Every tackle
+slows down and ends the same, whoever slides: the computer's runner no
+longer its runner halfway through his tackle slid on at full speed,
+off the pitch and out of sight, and stayed down there - at the keeper's
+ball in his box, the keeper waited for him for ever (Luca).
 
 The TED's two voices give the match its sounds, played by the interrupt
 50 times a second: a thump for every pass and shot, a softer one for
