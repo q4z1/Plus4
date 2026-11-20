@@ -229,8 +229,7 @@ def pause_quit(v, name):
     press(v, DOWN)
     press(v)                                # QUIT
     v.run_for(0.5)
-    press(v, DOWN)
-    press(v)                                # SAVE THE MATCH? NO
+    press(v)                                # SAVE THE MATCH? NO (the first)
 
 
 def savegame(v):
@@ -256,7 +255,8 @@ def savegame(v):
     v.screenshot(os.path.join(CACHE, 'league-save-ask.png'))
     q = bytes(v.mem(0xEC00 + 9 * 40 + 12, 15))
     assert q == bytes([19, 1, 22, 5, 32, 20, 8, 5, 32, 13, 1, 20, 3, 8, 63]), 'not the question: %r' % q
-    press(v)                                # YES
+    press(v, DOWN)
+    press(v)                                # YES (the second)
     wait(v, lambda: at_title(v), 'the title after saving', 240)
     v.run_for(1)
     lg = ram(v, L_BLOCK, 43)
@@ -282,8 +282,7 @@ def savegame(v):
     press(v, DOWN)
     press(v)                                # QUIT
     v.run_for(0.5)
-    press(v, DOWN)
-    press(v)                                # NO
+    press(v)                                # NO (the first)
     wait(v, lambda: at_title(v), 'the title', 240)
     v.run_for(1)
     going = ram(v, L_BLOCK + 1, 1)[0] == 1
@@ -302,7 +301,8 @@ def savegame(v):
     press(v, DOWN)
     press(v)                                # QUIT
     v.run_for(0.5)
-    press(v)                                # YES
+    press(v, DOWN)
+    press(v)                                # YES (the second)
     wait(v, lambda: at_title(v), 'the title after saving', 240)
     v.run_for(1)
     assert ram(v, L_BLOCK + 42, 1)[0] == 1, 'the league\'s match not saved'

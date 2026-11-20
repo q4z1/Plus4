@@ -6,7 +6,8 @@
 ; place (engine.s: the pictures are worked out anew after it, eng_init):
 ; "PAUSE", the score and the minute, CONTINUE and QUIT - the stick up and
 ; down, fire let go (or the cursor keys and the space bar); RUN/STOP or P
-; goes on as well. QUIT asks "SAVE THE MATCH?": YES, NO (RUN/STOP or P:
+; goes on as well. QUIT asks "SAVE THE MATCH?": NO, YES - NO the first,
+; as CONTINUE: what can be taken back first (Luca) (RUN/STOP or P:
 ; on with it after all). Left, the match goes to the title (cup.s: K_QUIT,
 ; no winner's page) - a league's to the league's page, not played (K_ON:
 ; still to play); saved, to the title too, after cup.s has saved it
@@ -69,10 +70,10 @@ pause:  sei
         jsr page
         cmp #1
         bne @on
-        ldx #W_SAVE             ; SAVE THE MATCH? YES, NO
+        ldx #W_SAVE             ; SAVE THE MATCH? NO, YES
         jsr page
         bmi @on                 ; (the key: on with it)
-        beq :+
+        bne :+
         jsr quit                ; NO (with the disk: never back)
         jmp @on
 :       clc                     ; YES: the match to SAVE_AT (sv_tab: first
@@ -299,8 +300,8 @@ w_tab:  word TOP, 17, "PAUSE"
         .byte $FF
 W_SAVE  = * - w_tab
         word TOP, 12, "SAVE THE MATCH?"
-        word ROW_ON, 16, "YES"
-        word ROW_QUIT, 16, "NO"
+        word ROW_ON, 16, "NO"
+        word ROW_QUIT, 16, "YES"
         .byte $FF
 
         .code
