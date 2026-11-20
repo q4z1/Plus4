@@ -81,13 +81,20 @@ The game comes on a disk, `simple-soccer.d64`: `LOAD"*",8,1` and `RUN`
 (or `LOAD"SIMPLE SOCCER",8`). The first program, the boot (`boot.s`),
 puts up its loading screen at once - the name as the title shows it, in
 the same place, a football turning, and "LOADING" with its dots swelling and fading in the name's colours - and keeps it going while it loads the
-flags and the game, and while the game unpacks itself (it is packed by
-exomizer: 28 KB on the disk, 50 KB in memory). The boot is packed so too -
-the machine's own loading, which brings it, is slow: 12 blocks rather
-than 15 - and the flags, the league's pages and the title are exomizer's
-"raw" files, unpacked by the boot and `cup.s` (`unpack.inc`, the
-decruncher as trainschedule's): they load to $C000 and unpack from there,
-the title over itself. On a 1541 (any of them),
+flags and the game, and while it unpacks the game (packed by ZX0,
+Einar Saukas' compressor - `tools/zx0`, built by `build.sh` - 28 KB on the
+disk, 50 KB in memory, loaded high and unpacked over itself by
+`unzx0.inc`, a decompressor for the 6502 written for this game: the
+game's 15000 blocks are short, so each costs as little as it can - in
+some 6 seconds with the music on, where exomizer's took 10). The boot is
+packed by exomizer - the machine's own loading, which brings it, is slow:
+12 blocks rather than 15 - and the flags, the league's pages and the
+title are exomizer's "raw" files, unpacked by the boot and `cup.s`
+(`unpack.inc`, the decruncher as trainschedule's): they load to $C000 and
+unpack from there, the title over itself. Packing the game takes ZX0 over
+a minute: `build.sh` packs it again only when it has changed, and
+`ZX0_QUICK=1 ./build.sh` packs it in seconds, a kilobyte bigger, for a
+disk only tried out. On a 1541 (any of them),
 1570 or 1571 it loads with the fast loader taken over from trainschedule
 (`drive.s`, `fastload.s`), and the title's music starts as soon as the
 loader is in the drive: the boot loads the music's player first (the
@@ -102,7 +109,7 @@ here waits by the clock: its waits are timed with the TED's timer 2
 instead of counted in cycles, so an interrupt in the middle of one uses
 it up instead of making it longer, and its bits are taken as tightly as
 the drive allows. With all that a 1541 brings up the title after some
-70 seconds in VICE; the files lie further apart on the
+67 seconds in VICE (a 1551 after 33); the files lie further apart on the
 disk to match (`build.sh`, `tests/loadtime.py`). The border turns red while a
 file will not load (no disk, a bad one); it tries again by itself.
 

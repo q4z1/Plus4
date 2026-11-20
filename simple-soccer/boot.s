@@ -19,10 +19,12 @@
 ; title finds them), the
 ; league the disk keeps (the file "league", to L_BLOCK under the ROM, if
 ; it is there and whole), then
-; the game, packed (exomizer), over this program at $1001: what runs then
-; is at $0400 - the interrupt, the loading, the start - which neither the
-; game's file nor the KERNAL's loading touch. The interrupt goes on while
-; the game unpacks itself, till its own start shuts it off.
+; the game, packed (ZX0: unzx0.inc), loaded high - at ZX_AT, up to just
+; past its end - and unpacked over itself and this program from $1001:
+; what runs then is at $0400 and $F800 - the interrupt, the loading, the
+; unpacking, the start - which neither the game's file nor the KERNAL's
+; loading touch. The interrupt goes on while the game unpacks, till its
+; own start shuts it off.
 ;
 ; The screen: text at $0800 (colours) / $0C00 (codes), below $8000, which
 ; the TED reads from the RAM even while the KERNAL loads with the ROM in;
@@ -32,8 +34,9 @@
 ; black pentagons ($FF16), the only cells with the colour's bit 3. The characters are copied
 ; to $E800, out of the flags' way: the title's screen later.
 ;
-; GAMESTART (from build.sh): where the packed game starts, as its own
-; BASIC line would SYS to.
+; From build.sh: GAMESTART, where the game starts, as its own BASIC line
+; SYSes to; ZX_AT, where its packed file goes, and ZX_END, where it ends
+; unpacked.
 
         .setcpu "6502"
 
@@ -77,7 +80,7 @@ KIRQEND = $FCBE         ; and ends here, Y, X, A off the stack
 
 DRIVE   = $0400         ; drive.s, in the drive
 GAME    = $1001
-L_LOAD  = $2000         ; the league loaded here first (past this program)
+L_LOAD  = $2400         ; the league loaded here first (past this program)
 MATRIX  = $0800         ; colours; the codes at $0C00
 CODES   = MATRIX + $400
 ROMFONT = $D000         ; the ROM's capitals and graphics
@@ -411,6 +414,20 @@ texts:
 
         .include "unpack.inc"   ; (the flags: packed)
 
+; the game's unpacking (unzx0.inc), run at ZX_RUN once the game is loaded:
+; under the ROM (the RAM in while it runs), below RES_STORE, past the
+; music's wave pages - the game's variables later, cleared by its start
+ZX_RUN  = $F800
+ZX_ZP   = $D8
+zx_load:
+        .org ZX_RUN
+zx_run:
+        .include "unzx0.inc"
+zx_run_end:
+        .assert zx_run_end <= RES_STORE, error, "boot.s: unzx0 into RES_STORE"
+        .assert zx_run_end - zx_run <= $200, error, "boot.s: unzx0 over two pages"
+        .org zx_load + (zx_run_end - zx_run)
+
 ; ---- which drive -----------------------------------------------------------
 
 ; C clear for a drive the loader knows: "54" at $E5C5 in its ROM (the
@@ -618,15 +635,37 @@ tail2_load = tail_load + (tail_end - tail)
 tail2:
 
 ; the game over this program, the screen on meanwhile; then its start
-game:   lda #<GAME
+; (packed by ZX0: loaded to ZX_AT, under its end; unpacked to GAME by
+; unzx0, copied to ZX_RUN first - this program's main part is the first
+; the unpacking writes over - the RAM in: ZX_RUN is under the ROM)
+game:   lda #<ZX_AT
         sta l_addr
-        lda #>GAME
+        lda #>ZX_AT
         sta l_addr+1
         lda #<gname
         ldy #>gname
         jsr load
-        sta VARTAB              ; where it ended
-        stx VARTAB+1
+        sta RAMON
+        ldx #0                  ; (two pages: whatever is past it too)
+:       lda zx_load,x
+        sta zx_run,x
+        lda zx_load + $100,x
+        sta zx_run + $100,x
+        inx
+        bne :-
+        lda #<ZX_AT
+        sta zx_src
+        lda #>ZX_AT
+        sta zx_src+1
+        lda #<GAME
+        sta zx_dst
+        lda #>GAME
+        sta zx_dst+1
+        jsr unzx0
+        lda #<ZX_END            ; where it ends
+        sta VARTAB
+        lda #>ZX_END
+        sta VARTAB+1
         jmp GAMESTART           ; (the interrupt on: the game shuts it off)
 
 ; The file named at A/Y (0-terminated) to l_addr, by the fast loader if the
@@ -703,3 +742,4 @@ tail2_end:
         .assert tail2_end <= $06EC, error, "the boot's second tail: over a page"
 
         .assert tail2_load + (tail2_end - tail2) <= L_LOAD, error, "boot.s: into L_LOAD"
+        .assert tail2_load + (tail2_end - tail2) <= ZX_AT, error, "boot.s: the packed game over it (zx_load)"

@@ -13,7 +13,8 @@
 #   cup, pages      the way back from a match, the league's page (cup.s:
 #                   the loading screen, then the rest)
 #   title, league   the title again (cup.s loads it), the league saved
-# The boot, the flags, the pages and the title packed too (build/pack/).
+# The boot, the flags, the pages and the title packed too (build/pack/);
+# the game by ZX0 (tools/zx0, built to build/zx0).
 set -e
 cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
@@ -101,21 +102,52 @@ open(sys.argv[5], 'wb').write(bytes([0x00, 0xB3]) + bytes(0xC000 - 0xB300))
 print("title: %d bytes, cup: the league's page" % len(body))
 PY
 
-# The game packed (it leaves the screen and the interrupt as they are: the
-# boot's loading screen goes on while it unpacks), the loader's halves, the
-# boot - with where the packed game starts, the number its BASIC line SYSes
-# to - and the disk, its files a few sectors further apart than the DOS
-# would put them, for the fast loader (tools/mkd64.py): the music 20 (as
-# fast as the loader goes), the flags and the game, loaded while the music
-# plays, 36 - over a turn and a half of the disk for each sector (measured
-# with tests/loadtime.py; the ROM out at the end, so its interrupt goes on)
+# The game packed by ZX0 (unzx0.inc: the boot unpacks it, its loading
+# screen and music going on meanwhile), the loader's halves, the boot -
+# with where the packed game goes, where it ends unpacked, the number its
+# BASIC line SYSes to - and the disk, its files a few sectors further apart
+# than the DOS would put them, for the fast loader (tools/mkd64.py): the
+# music 20 (as fast as the loader goes), the flags and the game, loaded
+# while the music plays, 36 - over a turn and a half of the disk for each
+# sector (measured with tests/loadtime.py; the ROM out at the end, so its
+# interrupt goes on). The game unpacks over itself: loaded so that it ends
+# ZX0's "delta" past where the game ends, below the flags. ZX0 takes over
+# a minute for it: packed again only when the game has changed. ZX0_QUICK=1
+# packs it quickly instead (seconds, a kilobyte more: for trying a disk out
+# only - the next build without it packs it properly again).
 EXOMIZER=${EXOMIZER:-$B/exomizer}
-$EXOMIZER sfx sys -t 4 -q -n -Di_irq_enter=1 -Di_irq_during=1 -Di_irq_exit=1 \
-    -Di_ram_exit=1 \
-    -o build/disk/game.prg build/simple-soccer.prg
+ZX0=${ZX0:-build/zx0}
+if [ "$ZX0" = build/zx0 ] && [ ! -x build/zx0 -o -n "$(find tools/zx0 -newer build/zx0 -name '*.[ch]')" ]; then
+    cc -O2 -o build/zx0 tools/zx0/zx0.c tools/zx0/compress.c tools/zx0/memory.c tools/zx0/optimize.c
+fi
+mkdir -p build/pack
+tail -c +3 build/simple-soccer.prg > build/pack/game.bin
+ZX0MODE=optimal
+[ -n "$ZX0_QUICK" ] && ZX0MODE=quick
+if ! cmp -s build/pack/game.bin build/pack/game.zx0.in || \
+        ! grep -qx "mode $ZX0MODE" build/pack/game.zx0.log 2>/dev/null; then
+    rm -f build/pack/game.zx0.in
+    $ZX0 -f ${ZX0_QUICK:+-q} build/pack/game.bin build/pack/game.zx0 > build/pack/game.zx0.log
+    echo "mode $ZX0MODE" >> build/pack/game.zx0.log
+    cp build/pack/game.bin build/pack/game.zx0.in
+fi
+ZXDEF=$(python3 - build/gen/flags.inc <<'PY'
+import re, sys
+flags = int(re.search(r"^FLAGS\s+= \$(\S+)", open(sys.argv[1]).read(), re.M).group(1), 16)
+body = open('build/pack/game.bin', 'rb').read()
+zx = open('build/pack/game.zx0', 'rb').read()
+delta = int(re.search(r"delta (\d+)", open('build/pack/game.zx0.log').read()).group(1))
+end = 0x1001 + len(body)
+at = end + delta - len(zx)
+if end + delta > flags:
+    sys.exit("the game packed runs into the flags at $%04X" % flags)
+open('build/disk/game.prg', 'wb').write(bytes([at & 255, at >> 8]) + zx)
+print("--asm-define ZX_AT=%d --asm-define ZX_END=%d" % (at, end))
+PY
+)
+START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open(sys.argv[1], "rb").read()[:40]).group(1)))' build/simple-soccer.prg)
 $B/cl65 -t none -C build/raw.cfg -o build/drive.bin drive.s
-START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open(sys.argv[1], "rb").read()[:40]).group(1)))' build/disk/game.prg)
-$B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAMESTART=$START \
+$B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAMESTART=$START $ZXDEF \
     -Ln build/boot.lbl -o build/disk/boot.prg boot.s
 # Packed for the disk (build/pack/): the boot by exomizer as the game -
 # the KERNAL loads it, slowly: the fewer blocks the better - and the flags,
@@ -123,7 +155,6 @@ $B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAM
 # which the boot and cup.s unpack (unpack.inc). They load to UNP_AT
 # ($C000); the title, unpacked over itself there, needs its end and
 # exomizer's safety offset under FLAGS (cup.s moves it up to end there).
-mkdir -p build/pack
 $EXOMIZER sfx sys -t 4 -q -n -o build/pack/boot.prg build/disk/boot.prg
 for f in flags pages title; do
     tail -c +3 build/disk/$f.prg > build/pack/$f.bin
@@ -152,5 +183,5 @@ python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-
     title@${MUSIC_INTERLEAVE:-20}=build/pack/title.prg \
     league@${MUSIC_INTERLEAVE:-20}=build/disk/league.prg \
     match@${MUSIC_INTERLEAVE:-20}=build/disk/match.prg
-echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg) (packed $(stat -c%s build/pack/boot.prg)), game packed $(stat -c%s build/disk/game.prg) bytes"
+echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg) (packed $(stat -c%s build/pack/boot.prg)), game $(stat -c%s build/pack/game.bin), packed $(stat -c%s build/pack/game.zx0) bytes"
 
