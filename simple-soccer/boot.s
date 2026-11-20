@@ -284,18 +284,15 @@ eol:    .word 0
         bne :-
 :       cli
 
-        lda fast                ; the music, with the fast loader
-        beq @flags
-        lda #<BM_START
-        sta l_addr
-        lda #>BM_START
-        sta l_addr+1
-        lda #<name_music
+        lda fast                ; the music, with the fast loader - it
+        beq @flags              ; starts with the game's last MUSIC_LEFT
+        lda #<BM_START          ; blocks (zx_hook): it takes the most of
+        sta l_addr              ; the machine, the loading would go at
+        lda #>BM_START          ; half the speed with it (Luca's: it
+        sta l_addr+1            ; brings the player back, and goes on into
+        lda #<name_music        ; the title)
         ldy #>name_music
         jsr load
-        lda #<tick              ; the ball and the dots each frame
-        ldy #>tick
-        jsr BM_START
 
 @flags: lda #<UNP_AT            ; the flags: the title's (build/gen/flags.inc),
         sta l_addr              ; packed (unpack.inc) - unpacked to FLAGS,
@@ -462,6 +459,8 @@ zx_stream:
         sta RES_HOOK
         lda #>zx_hook
         sta RES_HOOK+1
+        lda #ZX_TOMUSIC         ; (once: again after a failure, the
+        sta zx_tomusic          ; music not started twice)
 zx_again:
         lda #<ZX_AT
         sta zx_src
@@ -516,7 +515,12 @@ zx_again:
 ; zx_hook: (the loader's, a block in) how far the packed bytes are: on with
 ; the unpacking if it can go on
 zx_hook:
-        ldx RES_DST+1           ; (their end's page)
+        dec zx_tomusic          ; the music from here on
+        bne :+
+        lda #<tick              ; (the ball and the dots each frame from
+        ldy #>tick              ; it)
+        jsr BM_START
+:       ldx RES_DST+1           ; (their end's page)
         lda RES_LAST            ; (0: the last block)
         bne :+
 zx_eof: ldx #$FF                ; (all in)
@@ -554,6 +558,14 @@ zx_name: .byte "GAME", 0
 zx_sp:  .byte 0                 ; the unpacking's stack, while it waits
 ld_sp:  .byte 0                 ; the loader's, while the unpacking runs
 zx_done: .byte 0
+zx_tomusic: .byte 0             ; blocks till the music starts
+                                ; (MUSIC_LEFT: the game's blocks with the
+                                ; music, from build.sh)
+.if ZX_BLOCKS > MUSIC_LEFT
+ZX_TOMUSIC = ZX_BLOCKS - MUSIC_LEFT
+.else
+ZX_TOMUSIC = 1
+.endif
 st_run_end:
         .assert st_run_end <= $07D8, error, "boot.s: zx_stream into $07D8"
         .org st_load + (st_run_end - st_run)

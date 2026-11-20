@@ -3,6 +3,10 @@
 
     mkd64.py <out.d64> <disk name> <id> <interleave> <name>[@<interleave>]=<file.prg> ...
 
+A file's interleave may be two: name@head,tail:n - its last n sectors
+tail apart, the others head (the game: its last ones load with the
+music, which slows the loading down).
+
 The files go on the disk in the order given, as PRGs, the way the 1541's
 DOS would put them - starting at the tracks next to the directory (17, 19,
 16, 20 ...) - except for the gap between a file's sectors: the interleave.
@@ -63,7 +67,10 @@ class Disk:
         chunks = [data[i:i + 254] for i in range(0, len(data), 254)] or [b'']
         places = []
         t, s = self.next
-        for _ in chunks:
+        if isinstance(interleave, int):
+            interleave = (interleave, interleave, 0)
+        head, tail, last = interleave
+        for i, _ in enumerate(chunks):
             if not self.free[t]:
                 t = next(u for u in self.tracks() if self.free[u])
             n = SECTORS[t]
@@ -72,7 +79,8 @@ class Disk:
                 s = (s + 1) % n
             self.take(t, s)
             places.append((t, s))
-            s = (s + round(interleave * n / 21)) % n
+            gap = tail if i + 1 >= len(chunks) - last else head
+            s = (s + round(gap * n / 21)) % n
         self.next = (t, s)
         for i, chunk in enumerate(chunks):
             if i + 1 < len(chunks):
@@ -134,7 +142,12 @@ def main():
         step = interleave
         if '@' in fname:
             fname, step = fname.split('@')
-            step = int(step)
+            if ',' in step:             # head,tail:last
+                head, rest = step.split(',')
+                tail, last = rest.split(':')
+                step = (int(head), int(tail), int(last))
+            else:
+                step = int(step)
         places = disk.write_file(open(path, 'rb').read(), step)
         entries.append((fname, places))
     open(out, 'wb').write(disk.image(name, disk_id, entries))

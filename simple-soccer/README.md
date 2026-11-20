@@ -99,10 +99,13 @@ a minute: `build.sh` packs it again only when it has changed, and
 `ZX0_QUICK=1 ./build.sh` packs it in seconds, a kilobyte bigger, for a
 disk only tried out. On a 1541 (any of them),
 1570 or 1571 it loads with the fast loader taken over from trainschedule
-(`drive.s`, `fastload.s`), and the title's music starts as soon as the
-loader is in the drive: the boot loads the music's player first (the
-file `music`) and plays it through the loading and the unpacking, and the
-title goes on with the song where it is. On any other drive - a 1551, an
+(`drive.s`, `fastload.s`), and the title's music starts before the
+title: the boot loads the music's player first (the file `music`) and
+plays it through the last part of the loading - the
+last 50 blocks of the game, some 19 seconds before the title (Luca's idea:
+the music takes most of the machine, so the loading goes at full speed
+till then, and the music brings the player back) - and the title goes on
+with the song where it is. On any other drive - a 1551, an
 SD2IEC - it loads the KERNAL's way, the screen the same, without the
 music till the title: the KERNAL's loading would choke on an interrupt
 5542 times a second.
@@ -112,7 +115,7 @@ here waits by the clock: its waits are timed with the TED's timer 2
 instead of counted in cycles, so an interrupt in the middle of one uses
 it up instead of making it longer, and its bits are taken as tightly as
 the drive allows. With all that a 1541 brings up the title after some
-63 seconds in VICE (a 1551 after 33); the files lie further apart on the
+52 seconds in VICE (a 1551 after 35); the files lie further apart on the
 disk to match (`build.sh`, `tests/loadtime.py`). The border turns red while a
 file will not load (no disk, a bad one); it tries again by itself.
 

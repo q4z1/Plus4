@@ -108,12 +108,15 @@ PY
 # with where the packed game goes, where it ends unpacked, the number its
 # BASIC line SYSes to - and the disk, its files a few sectors further apart
 # than the DOS would put them, for the fast loader (tools/mkd64.py): the
-# music 20 (as fast as the loader goes), the flags and the game, loaded
-# while the music plays (and the game unpacked meanwhile), 36 - over a
-# turn and a half of the disk for each sector: at 32 a 1541 misses the
-# next one (VICE and plus4emu alike), 34 is its fastest by 1.6 s; but a
-# 1551, loading the KERNAL's way, takes 31 s at 36, 46 at 35, 50 at 34
-# (tests/loadtime.py; the ROM out at the end, so its interrupt goes on).
+# music 20 (as fast as the loader goes); the flags and the game 22 - but
+# the game's last MUSIC_LEFT (50) blocks 36, over a turn and a half of the
+# disk for each: the loading music starts with them (boot.s zx_hook, some
+# 19 seconds before the title), and takes the most of the machine; the
+# game unpacked meanwhile. Measured (VICE, plus4emu alike): before the
+# music a 1541 misses the next sector at 18, the title after 52 s at 22
+# (51.7 at 20); with it at 32 (34 the fastest). A 1551, loading the
+# KERNAL's way, takes 35 s (31.5 with 36 throughout - but 46 at 35, 50 at
+# 34: it is touchy). The ROM out at the end, so its interrupt goes on.
 # The game unpacks over itself: loaded so that it ends
 # ZX0's "delta" past where the game ends, below the flags. ZX0 takes over
 # a minute for it: packed again only when the game has changed. ZX0_QUICK=1
@@ -135,7 +138,7 @@ if ! cmp -s build/pack/game.bin build/pack/game.zx0.in || \
     echo "mode $ZX0MODE" >> build/pack/game.zx0.log
     cp build/pack/game.bin build/pack/game.zx0.in
 fi
-ZXDEF=$(python3 - build/gen/flags.inc <<'PY'
+ZXDEF=$(python3 - build/gen/flags.inc ${MUSIC_LEFT:-50} <<'PY'
 import re, sys
 flags = int(re.search(r"^FLAGS\s+= \$(\S+)", open(sys.argv[1]).read(), re.M).group(1), 16)
 body = open('build/pack/game.bin', 'rb').read()
@@ -146,7 +149,8 @@ at = end + delta - len(zx)
 if end + delta > flags:
     sys.exit("the game packed runs into the flags at $%04X" % flags)
 open('build/disk/game.prg', 'wb').write(bytes([at & 255, at >> 8]) + zx)
-print("--asm-define ZX_AT=%d --asm-define ZX_END=%d" % (at, end))
+print("--asm-define ZX_AT=%d --asm-define ZX_END=%d --asm-define ZX_BLOCKS=%d --asm-define MUSIC_LEFT=%d"
+      % (at, end, (len(zx) + 2 + 253) // 254, int(sys.argv[2])))
 PY
 )
 START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open(sys.argv[1], "rb").read()[:40]).group(1)))' build/simple-soccer.prg)
@@ -182,7 +186,7 @@ for f in ('flags', 'pages', 'title'):
 PY
 python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-15} \
     "simple soccer=build/pack/boot.prg" music@${MUSIC_INTERLEAVE:-20}=build/disk/music.prg \
-    flags@${GAME_INTERLEAVE:-36}=build/pack/flags.prg game@${GAME_INTERLEAVE:-36}=build/disk/game.prg \
+    flags@${GAME_HEAD:-22}=build/pack/flags.prg game@${GAME_HEAD:-22},${GAME_INTERLEAVE:-36}:${MUSIC_LEFT:-50}=build/disk/game.prg \
     cup@${MUSIC_INTERLEAVE:-20}=build/disk/cup.prg pages@${MUSIC_INTERLEAVE:-20}=build/pack/pages.prg \
     title@${MUSIC_INTERLEAVE:-20}=build/pack/title.prg \
     league@${MUSIC_INTERLEAVE:-20}=build/disk/league.prg \
