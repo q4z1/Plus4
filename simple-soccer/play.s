@@ -40,7 +40,7 @@
         .export fine_on, sp_way_of, sin4, cam_way
         .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import quit_a
-        .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
+        .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan, goal
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
         .export two, train, sk, sk_duel, jog_lo, jog_hi
         .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys

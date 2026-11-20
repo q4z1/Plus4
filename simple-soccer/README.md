@@ -903,7 +903,24 @@ colours from a map of the rows that have them, put in again only when
 the view has moved. Now and then a wave runs through the stands: the
 spectators of one kind after another raised a pixel - they sit side by
 side in that order, so the raise runs along the rows (the characters
-in each picture's cache rewritten, whatever codes they have there).
+in each picture's cache rewritten, whatever codes they have there). At
+a goal the stands party (Luca's wish): every shirt's hue turns a step
+round red, cyan, purple, green, blue and yellow every 8 frames till the
+kick-off - each picture's rows put in from the map anew, then turned
+there (the map's rows overlap in memory: they stay as they are), and
+three pictures more after it, back as they were.
+
+The picture is cut short to give the CPU more time: 16 lines before its
+end the TED's line counter is put 16 on, so the display stops early and
+the CPU runs at twice the speed below, and in the border 16 back, so the
+frame keeps its 312 lines - an even jump either way, else two lines in
+a row get one PAL colour phase. The jump back came after the sounds and
+the picture's change, wherever in its line that was: read just before
+the line ended and written just after, it went 17 back - a frame of 313
+lines - and an old PAL monitor (Luca's Commodore 1701) showed red
+flashes as the view moved. It is made at once now, early in a line, as
+the cut. `tests/palphase.py` looks at the grass in plus4emu, the one
+emulator that decodes the phase.
 
 ![The stands and the boards](screenshots/stands.png)
 

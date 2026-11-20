@@ -33,7 +33,7 @@
         .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
         .import _pitch_font, seg_at, seg_lol, seg_loh, seg_hil, seg_hih
         .import img_ox, img_oy, img_lo, img_hi, pix_lo, pix_hi, keep_tab
-        .import crow_of, cmap_lo, cmap_hi
+        .import crow_of, cmap_lo, cmap_hi, cmap_board, goal
         .import la_codes, la_step, la_norm, la_up
         .import snd_init, snd_tick
 
@@ -328,7 +328,18 @@ irq:    pha
         sta cut_d
         pla
         rti
-@vbl:   txa
+@vbl:   lda #CUT_IRQ             ; the cut next (the compare first: the
+        sta TED_RCMP            ; counter must not meet VBL_LINE again)
+        lda cut_d               ; and the lines it took back - at once,
+        beq @back               ; early in a line as the cut: after the
+:       lda $FF1E               ; sounds and the picture's change it was
+        cmp #60                 ; read and written as often as not just as
+        bcs :-                  ; the line ended (VICE: $FF1E 176 - 191, it
+        lda TED_LINE            ; turns at some 184) - one line more, an odd
+        sec                     ; jump: two lines of one PAL phase and 313
+        sbc cut_d               ; to the frame, Luca's red flashes on a
+        sta TED_LINE            ; Commodore 1701 as the view moved
+@back:  txa
         pha
         tya
         pha
@@ -367,13 +378,7 @@ irq:    pha
         sta queued
         lda #0
         sta since
-@done:  lda #CUT_IRQ             ; the cut next, and the lines it took back
-        sta TED_RCMP
-        lda TED_LINE
-        sec
-        sbc cut_d
-        sta TED_LINE
-        pla
+@done:  pla
         tay
         pla
         tax
@@ -548,7 +553,9 @@ eng_begin:
         sta since_full
 :       jsr cells
 eng_pool:
+        jsr party_pre
         jsr tint
+        jsr party_rot
         jsr wave
         lda #POOL
         sta pool_next
@@ -672,6 +679,92 @@ tint_dst:
         rts
 
 tc_base:    .byte 0, SCR_H, 2 * SCR_H
+
+; party: the crowd's colours while a goal is cheered (play.s goal: till
+; the kick-off) - each shirt's hue a step on round red, cyan, purple,
+; green, blue, yellow every 8 frames (Luca: the crowd to make a party
+; with a colour cycle), the boards and the white and black ones not. tint
+; puts each row's own colours in anew first (party_pre: its rows looked
+; at as never tinted), then party_rot turns them in the back picture -
+; the colour rows themselves overlap in the map, they stay as they are;
+; three pictures more after it, each back as it was.
+party_pre:
+        lda goal
+        beq @off
+        lda #3
+        sta pt_clean
+        bne @inv
+@off:   lda pt_clean
+        beq @rts
+        dec pt_clean
+@inv:   ldx back
+        lda #$FF                ; (row0 never $FF: all rows looked at)
+        sta tc_r0,x
+        lda tc_base,x
+        tax
+        ldy #VIS_H
+@row:   lda tc_row,x            ; (own colours: as never put in; white
+        cmp #$FF                ; stays white)
+        beq :+
+        lda #$FE
+        sta tc_row,x
+:       inx
+        dey
+        bne @row
+@rts:   rts
+
+party_rot:
+        lda goal
+        beq @rts
+        lda frames              ; the step: frames / 8 mod 6
+        lsr a
+        lsr a
+        lsr a
+:       cmp #6
+        bcc :+
+        sbc #6
+        bcs :-
+:       sta pt_k
+        beq @rts                ; (0: as they are)
+        lda #0
+        sta z_tr
+@row:   lda row0
+        clc
+        adc z_tr
+        tay
+        lda crow_of,y
+        cmp #$FF                ; (white)
+        beq @next
+        cmp #<cmap_board
+        beq @next
+        jsr tint_dst
+        ldy #SCR_W - 1
+@cell:  lda (z_dst),y
+        and #7
+        cmp #2                  ; (black, white: not)
+        bcc @skip
+        adc pt_k                ; (carry set: one less)
+        sbc #0
+        cmp #8
+        bcc :+
+        sbc #6
+:       sta z_t
+        lda (z_dst),y
+        and #$F8
+        ora z_t
+        sta (z_dst),y
+@skip:  dey
+        bpl @cell
+@next:  inc z_tr
+        lda z_tr
+        cmp #VIS_H
+        bne @row
+@rts:   rts
+
+        .segment "DATA"
+pt_clean:   .byte 0             ; pictures still to put back as they were
+pt_k:       .byte 0             ; (party_rot's step)
+        .code
 
 ; wave: the back picture's spectators of the wave (la_codes) as they sit,
 ; or a pixel up those of its step while a wave runs - in the characters
