@@ -510,14 +510,17 @@ A ball 13 to 26 high within 10 pixels of your joystick's player, fire
 pressed, is headed on - neither original has such a header, Luca missed
 it: he jumps, his arms up, for 16 frames, and heads it at 1536, rising
 as a diving header's, the way the stick points (let go: towards the
-goal his team attacks). The computer's team heads so of itself, its
-joystick's player or its runner, but only a ball your team played, and
-always towards the goal it attacks. Not a keeper (his hands), nor one
-who has just kicked it. (Every header came of itself at first, your
-team's runner's too and the way your player faced: they met every ball
-going by, a team-mate's shot as well - own goals like rain, said Luca.)
-`tests/header.py`: the stick up, right, let go, a ball over his head,
-the runner to a pass.
+goal his team attacks). Not a keeper (his hands), nor one who has just
+kicked it. The computer's team heads none, as Sensible Soccer's does not
+(its header's fire is dead code): it takes a high ball with the foot, up
+to 12 high, and the rest goes over it. (Every header came of itself at
+first, your team's runner's too and the way your player faced: they met
+every ball going by, a team-mate's shot as well - own goals like rain,
+said Luca; then the computer's still headed every ball your team played
+at head height, your shots over its heads and long passes too, even
+before its own keeper.) `tests/header.py`: the stick up, right, let go,
+a ball over his head, the runner to a pass, a shot at the computer's
+runner's head.
 
 Above or below that a ball in the air goes over the players' heads unless one of them goes
 for it - and the other header is the diving one, as Sensible Soccer has no

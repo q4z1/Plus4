@@ -4698,15 +4698,17 @@ take:
 ; head: a header, every frame (play_frame) for each team - neither
 ; original has any but the diving one (Luca missed them): the ball HEAD_LO
 ; to HEAD_HI high within HEAD_D2 of the team's joystick's player with fire
-; pressed, or of the computer's team's player or runner on a ball the
-; other team played (not a keeper, not sliding, not jumping still, not the
-; one who just kicked it): he jumps (HEAD_T) and heads it on - the
-; joystick's the way the stick points, let go and the computer's on
-; towards the goal his team attacks. Fire and the stick for a ball in the
-; air is the diving header still: harder, further. (The headers of
-; themselves, the joystick's team's runner's too, met every ball going
-; by, a team-mate's shot as well, the way he faced: own goals like rain,
-; said Luca - a header now only when asked for.)
+; pressed (not a keeper, not sliding, not jumping still, not the one who
+; just kicked it): he jumps (HEAD_T) and heads it on, the way the stick
+; points, let go on towards the goal his team attacks. Fire and the stick
+; for a ball in the air is the diving header still: harder, further. The
+; computer heads none, as Sensible Soccer's (its header's fire, c1539c, is
+; dead code): it takes a high ball with the foot, up to 12 high. (The
+; headers of themselves, the joystick's team's runner's too, met every
+; ball going by, a team-mate's shot as well, the way he faced: own goals
+; like rain, said Luca; the computer's on the other team's balls took
+; every shot and long pass at head height, to its keeper too - a header
+; now only when asked for.)
 head:
         lda kickoff
         ora dead_t
@@ -4724,39 +4726,26 @@ head:
         lda last_pl             ; Luca: thrown to him at head height, he
         cmp thrower             ; headed it on)
         beq @no
-:       jsr cpu_side            ; (the computer's: the other team's ball
-        bcc @joy                ; only - not its own passes, shots)
-        lda last_team
-        cmp me
-        beq @no
-        ldx ctrl
-        bmi :+
-        jsr can_head
-        bcc @go
-:       ldx helper
-        bmi @no
-        jsr can_head
-        bcc @go
-@no:    rts
-@joy:   lda pj                  ; (the joystick's: with fire only)
+:       jsr cpu_side            ; (the computer's: none)
+        bcs @no
+        lda pj                  ; (the joystick's: with fire only)
         and #J_FIRE
         beq @no
         ldx ctrl
         bmi @no
         jsr can_head
-        bcs @no
+        bcc @go
+@no:    rts
 @go:    lda #HEAD_T
         sta o_zl,x
         sta jumps
         lda me
         sta last_team
         jsr touch_x
-        jsr cpu_side
-        bcs @goal
         jsr stick_way
         cmp #8
         bne @way
-@goal:  jsr top_of              ; (from the top: down the pitch)
+        jsr top_of              ; (from the top: down the pitch)
         beq @way
         lda #4
 @way:   sta o_dir,x

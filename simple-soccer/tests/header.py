@@ -16,6 +16,10 @@ high      the ball over his head (40 high), fire held: no header
 runner    7 the runner to a pass to him (recv, helper), the joystick on 9
           far off: no header of himself (the joystick's team's runner
           heads none)
+cpu       a cyan shot at head height up the pitch at the computer's 20
+          (its runner): no header - it goes over him (Luca: the computer
+          intercepts every ball by a header; Sensible Soccer's computer
+          heads none)
 
 A line each: who touched it, where it went, how fast, his jump; OK or
 WRONG; a screenshot as he heads it (header-<case>.png). The exit code counts the wrong ones.
@@ -42,6 +46,7 @@ CASES = {
     'nofire': (9, 'up', 18, None, 0),
     'high': (9, 'up+fire', 40, None, 0),
     'runner': (7, '', 18, None, 0),
+    'cpu': (20, '', 18, None, 0),
 }
 
 
@@ -57,7 +62,45 @@ def word(v, lo, hi, i):
     return w - 65536 if w > 32767 else w
 
 
+def run_cpu(v, name):
+    """the computer's runner 20 at (304, 300) facing down, a cyan shot
+    flying up at his head"""
+    who = 20
+    v.poke(lab['dbg_joy'], [0])
+    for _ in range(6):
+        v.cmd('x')
+    s = moves.Setup()
+    moves.open_play(s, 9)
+    for i in range(1, 22):
+        s.put('o_off', 0 if i in (9, 11, 20) else 1, i)
+    s.obj(0, 304, 676, d=0)
+    s.obj(11, 304, 62, d=4)
+    s.obj(9, 304, 560, d=0)
+    s.obj(who, 304, 300, d=4)
+    s.put('ctrl_b', who)
+    s.pokes.append((lab['ctx_b'] + lab['helper'] - lab['ctx'], [who]))
+    s.put('last_pl', 9)                 # (cyan's shot)
+    moves.flight(s, 304, 360, 304, 360 - 32 * 60, 1536, 18, 0)
+    for a, vals in s.pokes:
+        v.poke(a, vals)
+    v.poke(OFF_PL, [0xFF])
+    jump = 0
+    zs = []
+    for f in range(40):
+        v.cmd('x')
+        jump = max(jump, v.mem(lab['o_zl'] + who, 1)[0])
+        by = word(v, 'o_yl', 'o_yh', BALL)
+        if abs(by - 300) < 12:
+            zs.append(v.mem(lab['o_zl'] + BALL, 1)[0])
+        if v.mem(lab['last_pl'], 1)[0] == who:
+            v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
+            return False, '%d took it (his jump %d, the ball %s high at him)' % (who, jump, zs)
+    return True, 'no header: it went by him %s high' % zs
+
+
 def run(v, name):
+    if name == 'cpu':
+        return run_cpu(v, name)
     who, stick, z, way, speed = CASES[name]
     fire = 'fire' in stick              # (fire pressed as the ball comes
     stick = stick.replace('fire', '').strip('+')    # near, 16 pixels: held
