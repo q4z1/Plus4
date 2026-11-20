@@ -100,6 +100,17 @@ LEAGUE_CAPS = [('THE LEAGUE - EIGHT TEAMS',
                 'SAVED ON THE DISK AFTER EACH MATCH'),
                ('THE WINNER',
                 'A PAGE OF ITS OWN - AFTER EVERY MATCH TOO')]
+# the cyan joystick's throw-in and corner, after the goal: the ball put a
+# pixel over the line, the yellow team's touch last - the rules whistle
+# them as for any ball gone out; where (beyond the line), the stick's
+# pushes to aim it (each a step of the two dots), fire tapped or held,
+# and the seconds the pilot plays on after it
+SET_PIECES = [('throw', (46, 330), ('up', 'up'), False, 3.5),
+              ('corner', (150, 46), ('right',), True, 4.0)]
+SET_CAPS = {'throw': ('THE THROW-IN - AIMED WITH THE STICK',
+                      'TWO DOTS SHOW THE WAY - TAPPED A PASS'),
+            'corner': ('THE CORNER - SIX AIMS',
+                       'FIRE HELD - A CROSS INTO THE BOX')}
 L_BLOCK, L_LEN, K_CH = 0xFFC8, 43, 0xFCE7      # (game.inc)
 LEAGUE_SERIES = 60000           # pictures Yape may write (the old ones pruned)
 END_AT = 2.5                    # the title's picture the end holds: seconds into it
@@ -472,6 +483,8 @@ def record_league():
         if not autogoal.yape_goal(y, at_goal, log=print, tick=prune, open_secs=GOAL_MIN, clean=True):
             raise RuntimeError('no goal played')
         time.sleep(GOAL_AFTER + 1.0)
+        for name, at, pushes, held, after in SET_PIECES:
+            set_piece(y, lab, mark, name, at, pushes, held, after)
         y.poke(lab['game_min'], [89])       # then on to its end
         while y.mem(lab['full'], 1)[0] != 1:
             stick('up+fire', 0.1)
@@ -516,6 +529,72 @@ def record_league():
     print('%d pictures' % len(frames_of('league')))
 
 
+def set_piece(y, lab, mark, name, at, pushes, held, after):
+    """the cyan team's throw-in or corner: the ball (in play, the sides
+    not changed) put just beyond the line at 'at', still, the yellow
+    team's touch last - the rules see it gone out and set it up; then the
+    joystick's taker aims it (the stick pushed, a step each) and kicks
+    or throws it (fire tapped: a pass; held: exactly so), and the pilot
+    plays on for 'after' seconds, heading a high ball near him. Marks
+    name (set up), name-kick, name-end"""
+    from moves import monitor_open, monitor_cmd
+    t = time.time()
+    while True:
+        if time.time() - t > 60:
+            raise RuntimeError('no moment for the %s' % name)
+        monitor_open(y)
+        mem = autogoal.stopped_reader(y)
+        s = autogoal.read_state(mem)
+        ok = not (s['kickoff'] or s['dead'] or s['flip'] or mem(lab['throw_t'], 1)[0])
+        cmds = ['> %04x 00' % lab['dbg_joy']]
+        if ok:
+            x, yy = at
+            for n, v in (('o_xl', x), ('o_xh', x >> 8), ('o_yl', yy), ('o_yh', yy >> 8),
+                         ('o_txl', x), ('o_txh', x >> 8), ('o_tyl', yy), ('o_tyh', yy >> 8),
+                         ('o_xf', 0), ('o_yf', 0), ('o_spl', 0), ('o_sph', 0),
+                         ('o_zl', 0), ('o_zf', 0), ('o_dzl', 0), ('o_dzf', 0)):
+                cmds.append('> %04x %02x' % (lab[n] + autogoal.BALL, v & 255))
+            cmds.append('> %04x 01 0f' % lab['last_team'])     # (last_pl after it)
+            mark(name + '-out')
+        monitor_cmd(y, *cmds, 'x')
+        y._read_until(b'MONITOR LEFT\n', timeout=20)
+        if ok:
+            break
+        time.sleep(0.2)
+    assert lab['last_pl'] == lab['last_team'] + 1
+
+    def ready():                        # (one stop of the monitor)
+        monitor_open(y)
+        s = autogoal.read_state(autogoal.stopped_reader(y))
+        monitor_cmd(y, 'x')
+        y._read_until(b'MONITOR LEFT\n', timeout=20)
+        return s['kickoff'] and s['taker'] == s['ctrl'] and s['taker'] < 11
+    t = time.time()
+    while not ready():
+        if time.time() - t > 20:
+            raise RuntimeError('the %s not set up' % name)
+        time.sleep(0.1)
+    mark(name)
+    time.sleep(1.2)
+    for p in pushes:                    # the aim, a step each
+        y.poke(lab['dbg_joy'], [moves.bits(p)])
+        time.sleep(0.12)
+        y.poke(lab['dbg_joy'], [0])
+        time.sleep(0.6)
+    time.sleep(0.4)
+    y.poke(lab['dbg_joy'], [moves.bits('fire')])
+    time.sleep(0.6 if held else 0.02)
+    y.poke(lab['dbg_joy'], [0])
+    mark(name + '-kick')
+    scored = []
+    autogoal.yape_goal(y, scored.append, secs=after, heads=True)
+    if scored:
+        print('  (a goal from the %s)' % name)
+        time.sleep(2.5)
+    y.poke(lab['dbg_joy'], [0])
+    mark(name + '-end')
+
+
 def league_parts():
     """the match's goal and the league's three parts: (name, pictures,
     sound, how many) each - the loading between shown a moment only"""
@@ -534,7 +613,9 @@ def league_parts():
          (mk['day7-page'], mk['day7-page'] + int(6.5 * FPS), 1)]
     w = [(mk['champ-back'] + 5, mk['champ-back'] + 5 + load, 1),
          (mk['champ'], mk['champ'] + int(6.0 * FPS), 1)]
-    out = [('goal', goal, [(GOAL_CAPS[0], X, gt - 0.2), (GOAL_CAPS[1], gt, -X)]),
+    sets = [(n, [(mk[n], mk[n + '-end'], 1)], [(SET_CAPS[n], X, -X)])
+            for n, *_ in SET_PIECES]
+    out = [('goal', goal, [(GOAL_CAPS[0], X, gt - 0.2), (GOAL_CAPS[1], gt, -X)])] + sets + [
            ('league1', a, [(LEAGUE_CAPS[0], X, -X)]),
            ('league2', d, [(LEAGUE_CAPS[1], X, -X)]),
            ('league3', w, [(LEAGUE_CAPS[2], X, -X)])]

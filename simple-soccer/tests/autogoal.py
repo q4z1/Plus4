@@ -35,6 +35,9 @@ KEEPER_OFF = 18                 # the shot's way this far from the keeper, at le
 # (let go sooner it is a pass) - the shot the way he faces, once the ball
 # is at his feet (play.s control); then let go
 SHOT_FRAMES = 27
+# a header (play.s head: fire held, the ball 13 - 26 high and within 10):
+# fire held already as a high ball comes near, the stick at the goal
+HEAD_Z, HEAD_NEAR = (9, 30), 24
 NAMES = ['up', 'up+right', 'right', 'down+right', 'down', 'down+left', 'left', 'up+left']
 
 
@@ -75,8 +78,9 @@ def read_state(mem):
 class Pilot:
     """the stick, look by look"""
 
-    def __init__(self):
+    def __init__(self, heads=False):
         self.shot_t = None                  # the frame the shot's fire went down
+        self.heads = heads                  # a high ball near him: headed at the goal
         self.aim = 'up'
         self.kick = 0
 
@@ -104,6 +108,9 @@ class Pilot:
                 self.kick = (self.kick + 1) % 6
                 return 'up+fire' if self.kick == 5 else 'up'
             return 'none'
+        if self.heads and HEAD_Z[0] <= s['z'] <= HEAD_Z[1] and \
+                math.hypot(bx - px, by - py) < HEAD_NEAR:
+            return stick_to(GOAL[0] - px, GOAL[1] - py) + '+fire'
         near = math.hypot(bx - px, by - py) < 10 and s['z'] < 8
         if near and s['last_team'] == 0:
             side = 1 if px >= GOAL[0] else -1
@@ -160,7 +167,7 @@ def stopped_reader(y):
 
 
 def yape_goal(y, at_goal, secs=900, step=0.03, log=None, clock_back=True, tick=None, open_secs=0,
-              clean=False):
+              clean=False, heads=False):
     """the pilot at the cyan joystick in Yape (dbg_joy) till the cyan team
     scores: at_goal(since) called then, the machine still stopped -
     since: the match's frames from the last set piece; False if
@@ -172,9 +179,11 @@ def yape_goal(y, at_goal, secs=900, step=0.03, log=None, clock_back=True, tick=N
     once: a cut in the picture), else it plays on for another. clean:
     the score kept as it was at the start (a goal that does not count,
     one of the yellow team's: set back), so the one that counts is the
-    first on the board"""
+    first on the board. heads: a high ball near the joystick's player
+    headed at the goal (fire held)"""
     from moves import monitor_open, monitor_cmd
     pilot = Pilot()
+    pilot.heads = heads
     first = None
     t0 = time.time()
     n = 0
