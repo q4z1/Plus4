@@ -35,7 +35,7 @@ on YouTube (made by `tests/trailer.py`).
 | at your throw-in or corner: each push of a direction | cursor keys | turns the aim (two dots) a step towards it |
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
 | fire, held | space | shot, at once - held on, the harder; pulled back meanwhile, the higher; the stick across bends it |
-| (a ball at head height comes to you) | | header, the stick's way |
+| fire, a ball at head height near you | space | header, the stick's way (let go: towards the goal) |
 | fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
 | | RUN/STOP or P | pause |
 | in the pause: up, down, fire let go | cursor keys, space (RUN/STOP, P: on) | CONTINUE, or QUIT the match |
@@ -170,10 +170,25 @@ to you, or as your own dribbled ball is a few pixels ahead, is never a
 sliding tackle - it was, and the pass on was lost; Luca found the
 passes worked fifty-fifty. `tests/passing.py` taps fire in each of
 twelve frames of a dribble and of a pass coming in, a picture or two
-long: 48 of 48 reach the team-mate (19 before). As in Sensible Soccer,
+long: 48 of 48 reach the team-mate (19 before), and as many the eight
+ways across the pitch. Fire pressed with the stick let go - easily done
+with a joystick - left the dribbler standing while the ball rolled on
+out of his reach, and the pass waited for it in vain (Luca: three
+passes in ten the ball stays glued to the foot; `tests/taps.py` taps
+fire at random in a match, the ball at the joystick's player's feet,
+and found it). Now, the ball his and fire held for a pass or a shot, or
+a pass waiting, he goes after it with the stick let go, and the waiting
+pass does not run out meanwhile: `tests/passing.py letgo`, 24 of 24 (0
+before). As in Sensible Soccer,
 fire is acted on every second frame, as it was the frame before - a
 pass, a slide or a header comes one or two frames after fire is let go
-or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, at once, rising -
+or pressed, a shot nine or ten after it is pressed (measured in it). Fire held for nine frames shoots instead, at once, rising
+1.44 a frame - over the players' heads (13) from some 14 frames on to
+27, its top 14.7 under the bar (at Sensible Soccer's 1.25 it was never
+above 11, and anyone in its way took it: Luca found every shot blocked;
+a ball as fast as a shot, 1536 on, your player now takes only at his
+feet, 6 high at most; a set piece's kick and a throw-in rise 1.25 as
+before - at 1.44 the long ones came down into the other team's heads) -
 at 1792, up to 192 more for the best players - and, unlike both
 originals, whose shots are all as hard (2208), fire held on after it
 went makes it harder, 32 a frame for up to 24 frames (2560), and with
@@ -233,7 +248,9 @@ it waits 15 frames, and 13 after any of its team's. Its runner slides
 in as Sensible Soccer's computer team's does (c154a8): the ball low and
 within 14 pixels of him (but not at his feet), your player within 56
 pixels of it, and not facing his way or within 45 degrees of it - so
-its fouls come as yours do.
+its fouls come as yours do; and only for a ball your team played last
+(he slid for his own team's passes coming to him, down for nothing,
+said Luca).
 
 As in Sensible Soccer and on the C64, the cyan player nearest a ball no
 one has - not yours, not the keeper - runs to it on his own, as a pass's
@@ -262,7 +279,9 @@ picture's way at a time - on the Plus/4 the match would else take more
 time than the drawing.
 
 Over a touch line the ball goes to the other team for a throw-in; over a
-goal line, between the posts and under the bar, it is a goal and the
+goal line, between the posts (the ball's middle on them at most, as
+they are drawn - the left one let a ball 6 pixels past it in, said
+Luca) and under the bar, it is a goal and the
 other team kicks off; else a goal kick or a corner, by who touched it
 last. The ball is dead for a moment first - it rolls on, the net holds it
 after a goal - then it is put down with the taker behind it. Meanwhile
@@ -293,7 +312,10 @@ himself (Luca's idea): look one way for 40 frames - the aim, or the way
 the keeper faces - and the team-mate that way (as a pass would choose
 him) comes to 62 pixels from the ball and waits; a tap passes to him.
 Look another way and he goes back to his place, and after 40 frames the
-next comes. `tests/offer.py` checks the keeper's three ways go to three
+next comes. At a goal kick and the keeper's ball the view leans 40
+pixels the way he faces, 4 a picture, so the one offering is in view
+(Luca: as the original's view does when the keeper turns).
+`tests/offer.py` checks the keeper's three ways go to three
 team-mates, and that the one offering comes and gets the pass at goal
 kicks to either side and throw-ins aimed up and down. The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
@@ -380,7 +402,7 @@ computer's by its level (1: 1408, then 164 less a level, 8: 260). So a team of t
 and yours is as good as you are.
 
 Nothing else sets one player apart from another, as nothing does in
-Sensible Soccer: everyone shoots as hard (2208, rising 1.25, c11756),
+Sensible Soccer: everyone shoots as hard (2208, rising 1.25, c11756 - 1.44 here),
 heads only diving and touches the ball as surely - but for one thing
 taken from the C64's Arlasoft Soccer, so a team keeps the ball it has
 won. Only the two players on the joysticks fight for a ball at a
@@ -424,12 +446,16 @@ one if the player fouled was the last man - nearer the goal than every
 one of the fouler's team-mates but the keeper; else a yellow card by
 chance, for 4 to 10 fouls in 32 - the referee's, drawn for each match
 from Sensible Soccer's table (c0fa92: 6 in 32 on average) - and a second
-yellow is a red. (Before, every second foul brought one; Luca found it
+yellow is a red, shown with the yellow beside it (Luca: which red was
+it?). (Before, every second foul brought one; Luca found it
 far too often.) `tests/cards.py` calls the foul again and again and
 counts. The card is shown by the fouler
-while the ball is dead; with a red he is off when play goes on - not
-drawn, never in reach of the ball, no one's to pass to, the joystick
-gone to a team-mate - and his team plays on with ten.
+while the ball is dead; with a red, as everyone gets up he walks off
+over the nearer touch line (2 pixels a frame, the ball dead till he is
+off), out of the team's play at once, and is gone
+when play goes on - never in reach of the ball, no one's to pass to,
+the joystick gone to a team-mate - and his team plays on with ten
+(Luca wanted to see him go; `tests/cards.py walk`).
 
 Two rules neither original has. Offside: a pass to a team-mate in the
 other team's half, nearer its goal line than the ball and than the
@@ -440,7 +466,10 @@ piece's taker - kick-off, throw-in, goal kick, corner, free kick,
 penalty, the keeper's kick out - may not touch the ball again before
 anyone else has. For 8 frames after his kick no one dribbles it, so it
 leaves his feet; if he is the next to get to it after all, the whistle,
-and a free kick for the other team where he is. Until someone else has
+and a free kick for the other team where he is - in the penalty area,
+for a double touch or offside, on the area's line, not a penalty: the
+keeper touching his goal kick again (his hands went for it) gave the
+other team one (Luca). Until someone else has
 touched it the joystick does not go back to him, nor does he run to it
 for the team: a kick-off played straight back, its taker on his way to
 his place along the same line, was given back to him as the nearest and
@@ -455,14 +484,18 @@ too hurried to see the card: without it Luca took the offside calls for fouls
 made up. `tests/offside.py` and `tests/dbltouch.py` check it is shown,
 and leave screenshots (`why-*.png`).
 
-A ball 13 to 26 high coming within 10 pixels of a team's joystick's
-player or its runner is headed on - neither original has such a header,
-Luca missed it: he jumps, his arms up, for 16 frames, and heads it at
-1536, rising as a diving header's - the joystick's player the way the
-stick points (let go, the way he faces), the runner towards the goal his
-team attacks; the computer's team heads so too. Not a keeper (his
-hands), nor one who has just kicked it. `tests/header.py`: the stick up,
-right, let go, a ball over his head, the runner to a pass.
+A ball 13 to 26 high within 10 pixels of your joystick's player, fire
+pressed, is headed on - neither original has such a header, Luca missed
+it: he jumps, his arms up, for 16 frames, and heads it at 1536, rising
+as a diving header's, the way the stick points (let go: towards the
+goal his team attacks). The computer's team heads so of itself, its
+joystick's player or its runner, but only a ball your team played, and
+always towards the goal it attacks. Not a keeper (his hands), nor one
+who has just kicked it. (Every header came of itself at first, your
+team's runner's too and the way your player faced: they met every ball
+going by, a team-mate's shot as well - own goals like rain, said Luca.)
+`tests/header.py`: the stick up, right, let go, a ball over his head,
+the runner to a pass.
 
 Above or below that a ball in the air goes over the players' heads unless one of them goes
 for it - and the other header is the diving one, as Sensible Soccer has no
@@ -676,9 +709,12 @@ Yape, as a video with its sound).
 
 A match is 90 minutes in three real ones (or five, or seven). At 45 the referee blows for
 half time, the teams change ends and the yellow team kicks off; at 90 the result stays
-till fire starts a new match. While the ball is dead for a kick-off -
-after a goal, at half time, at the start - the score and the minute
-show at the top left of the view.
+till fire starts a new match. While the ball is dead or a set piece
+waits, the score and the minute show at the top left of the view, at
+its right while a whistle's reason is written (they were shown before
+kick-offs only; Luca wanted them at every stop). The view moves across
+in steps of two pixels: the figures are drawn on even pixels of the
+ground, and at an odd step the score shook by one.
 
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.
@@ -721,7 +757,11 @@ header has them too.
 His hands, as the laws have them (Sensible Soccer's keeper takes any
 ball he gets to; Luca asked for it): only in his box - a ball he gets to
 out of it, or a team-mate's back-pass anywhere, he kicks away out from
-his goal, as hard as a shot and rising. He no longer goes for a slow
+his goal, as hard as a shot and rising. A ball he touched last himself
+- his own parry, his own kick - is his to catch again 12 frames on (it
+counted as his team's back-pass: a ball he had saved he could not hold,
+said Luca), but not his goal kick or kick out untouched since (that
+would be a double touch). He no longer goes for a slow
 ball out of his box at all. `tests/keeperhands.py`: a back-pass, a shot
 held and the arms down after it (screenshots `keeper-up.png`,
 `keeper-chest.png`), a ball reaching him out of his box, a still one
@@ -761,6 +801,10 @@ the ball only as far as it is more than 16 pixels off the middle
 again, each a costly move - since a ball kept longer and headed made the
 play busier (18.11.), that kept 94.2 % of the pictures in time over six
 of `tests/pace.py`'s matches (93.3 before that day, 91.4 without it).
+Across, the view moves in steps of two pixels, as the figures stand on
+even ones. Since the score and the minute are shown at every stop
+(20.11.), five figures more while the ball is dead or a set piece waits,
+89.0 % are in time over the six (91.3 with them before kick-offs only).
 
 The ground is 79 x 103 cells (67 different rows) of 221 different characters - too many to sit
 in a character set next to the players'. But a screen never shows more

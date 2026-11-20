@@ -5,13 +5,17 @@ down at him; the others off but the keepers and one yellow far away.
 
     tests/header.py [case ...]
 
-up        the stick up: he jumps and heads it up the pitch
-right     the stick right: headed right (the ball near: he runs off its
-          way)
-none      the stick let go: headed the way he faces (up)
-high      the ball over his head (40 high): it goes over, no header
+up        the stick up, fire held: he jumps and heads it up the pitch
+right     the stick right, fire held: headed right (the ball near: he
+          runs off its way)
+none      the stick let go, fire held: headed towards the goal his team
+          attacks (up)
+nofire    the stick up, no fire: no header - it goes over him (Luca:
+          headers of themselves met every ball going by)
+high      the ball over his head (40 high), fire held: no header
 runner    7 the runner to a pass to him (recv, helper), the joystick on 9
-          far off: 7 heads it on towards the goal his team attacks (up)
+          far off: no header of himself (the joystick's team's runner
+          heads none)
 
 A line each: who touched it, where it went, how fast, his jump; OK or
 WRONG; a screenshot as he heads it (header-<case>.png). The exit code counts the wrong ones.
@@ -32,11 +36,12 @@ HEAD_SPEED = 1536
 # name: (player heading, the stick, z, (x, y) of the player, want: way
 #        'up'/'right'/None (no header), speed)
 CASES = {
-    'up': (9, 'up', 18, 'up', HEAD_SPEED),
-    'right': (9, 'right', 18, 'right', HEAD_SPEED),
-    'none': (9, '', 18, 'up', HEAD_SPEED),
-    'high': (9, 'up', 40, None, 0),
-    'runner': (7, '', 18, 'up', HEAD_SPEED),
+    'up': (9, 'up+fire', 18, 'up', HEAD_SPEED),
+    'right': (9, 'right+fire', 18, 'right', HEAD_SPEED),
+    'none': (9, 'fire', 18, 'up', HEAD_SPEED),
+    'nofire': (9, 'up', 18, None, 0),
+    'high': (9, 'up+fire', 40, None, 0),
+    'runner': (7, '', 18, None, 0),
 }
 
 
@@ -54,7 +59,10 @@ def word(v, lo, hi, i):
 
 def run(v, name):
     who, stick, z, way, speed = CASES[name]
-    v.poke(lab['dbg_joy'], [bits(stick)])   # (read once a picture: its
+    fire = 'fire' in stick              # (fire pressed as the ball comes
+    stick = stick.replace('fire', '').strip('+')    # near, 16 pixels: held
+    v.poke(lab['dbg_joy'], [bits(stick)])   # from afar, with the stick
+    #                                         it is a diving header)
     for _ in range(6):                       # stick first, then the scene)
         v.cmd('x')
     s = moves.Setup()
@@ -81,6 +89,12 @@ def run(v, name):
     v.poke(OFF_PL, [0xFF])
     jump = 0
     for f in range(40):
+        if fire:
+            by = word(v, 'o_yl', 'o_yh', BALL)
+            py = word(v, 'o_yl', 'o_yh', who)
+            if abs(by - py) < 16:
+                v.poke(lab['dbg_joy'], [bits(stick) | BITS['fire']])
+                fire = False
         v.cmd('x')
         jump = max(jump, v.mem(lab['o_zl'] + who, 1)[0])
         if v.mem(lab['last_pl'], 1)[0] == who and jump:

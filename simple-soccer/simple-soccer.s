@@ -17,6 +17,7 @@
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why, jumps, HEAD_T
+        .import cam_way
         .export team_col, team_flk, start, played
         .import pause_chk, resume, squares
         .import title
@@ -47,6 +48,7 @@ BALL_X      = 7
 BALL_Y      = 11
 SHADOW_Y    = 12
 CARD_X      = 6                 ; a card this far right of the feet
+CARD2_X     = 5                 ; a second yellow's yellow this far left
 AIM_D       = 16                ; (draw_aim: the nearer dot ~16 pixels off)
 DOT_X       = 2                 ; the aim's dot's middle in its picture
 DOT_Y       = 2
@@ -245,7 +247,23 @@ place:
 ; follow: the view on the ball, as far as the ground goes - across on it,
 ; up and down within CAM_DZ of it
 CAM_DZ      = 16
+LEAN_S      = 4                 ; (the lean's step a picture)
 follow:
+        jsr cam_way             ; the view's lean (cam_o: x, y): towards
+        ldx #0                  ; lean_x, lean_y the way cam_way says,
+        ldy #0                  ; LEAN_S a picture - else back to none
+        cmp #8
+        bcs :+
+        tay
+        ldx lean_x,y
+        lda lean_y,y
+        tay
+:       txa
+        ldx #0
+        jsr follow_ease
+        tya
+        ldx #1
+        jsr follow_ease
         ldx #BALL
         lda s_xl,x
         sec
@@ -253,6 +271,16 @@ follow:
         sta cam_x
         lda s_xh,x
         sbc #>(SCR_W * 4 - 8)
+        sta cam_x + 1
+        ldy #0                  ; (and the lean)
+        lda cam_o
+        bpl :+
+        dey
+:       clc
+        adc cam_x
+        sta cam_x
+        tya
+        adc cam_x + 1
         sta cam_x + 1
         bpl :+
         lda #0
@@ -267,13 +295,27 @@ follow:
         sta cam_x
         lda #>MAX_X
         sta cam_x + 1
-:       lda s_yl,x              ; up and down only as far as the ball is
+:       lda cam_x               ; (across in steps of two, a multicolour
+        and #$FE                ; pixel: fig_draw puts the figures on even
+        sta cam_x               ; pixels of the ground - at odd ones the
+                                ; score and the minute shook, said Luca)
+        lda s_yl,x              ; up and down only as far as the ball is
         sec                     ; more than CAM_DZ off the middle of the
         sbc #<(88 + CAM_DZ)     ; 22 rows shown (engine.s CUT_LINE): each
         sta tmp                 ; row it goes costs a coarse scroll, and the
         lda s_yh,x              ; ball dribbled to and fro made one in
         sbc #0                  ; many pictures (tmp: the lowest the view
         sta tmp2                ; may be, the ball CAM_DZ below the middle)
+        ldy #0                  ; (and the lean)
+        lda cam_o + 1
+        bpl :+
+        dey
+:       clc
+        adc tmp
+        sta tmp
+        tya
+        adc tmp2
+        sta tmp2
         lda cam_y
         cmp tmp
         lda cam_y + 1
@@ -342,8 +384,9 @@ sort:
         ldx #PLAYERS - 1
 @pick:  lda #1                  ; (out of it till found in it)
         sta s_off,x
-        lda o_off,x             ; (one sent off: never)
-        bne @no
+        lda o_off,x             ; (one sent off: never - 2, walking
+        lsr a                   ; off, still)
+        bcs @no
         lda o_yl,x              ; down: from 8 above to 14 below (first:
         sec                     ; fewer are in the view's height than in
         sbc cg_yl               ; its width)
@@ -646,22 +689,48 @@ ball_at:
         sta fig_y + 1
 :       jmp fig_draw
 
-; draw_hud: while the ball is dead for a kick-off, the score and the
-; minute at the top left of the view - drawn as figures, at a place on
+; follow_ease: the view's lean cam_o,x a step (LEAN_S at most) towards A
+follow_ease:
+        sec
+        sbc cam_o,x
+        beq @done
+        bmi @neg
+        cmp #LEAN_S
+        bcc @add
+        lda #LEAN_S
+        bne @add
+@neg:   cmp #<-LEAN_S
+        bcs @add
+        lda #<-LEAN_S
+@add:   clc
+        adc cam_o,x
+        sta cam_o,x
+@done:  rts
+lean_x:     .byte 0, 28, 40, 28, 0, <-28, <-40, <-28
+lean_y:     .byte <-40, <-28, 0, 28, 40, 28, 0, <-28
+
+; draw_hud: while the ball is dead or a set piece waits, the score and
+; the minute at the top left of the view - at its right while a
+; whistle's reason is shown (draw_why) - drawn as figures, at a place on
 ; the ground that moves with the view, so they keep still on the screen
+; (Luca: the score at every stop)
 HUD_X       = 20                ; (from the view's left, top - or bottom,
 HUD_Y       = 10                ; the stands at the top of the view: no
 HUD_LOW     = 154               ; figure goes over them, see engine.s tint;
                                 ; above the cut, engine.s CUT_LINE)
 HUD_HIGH    = 80                ; (the view higher than this: at the bottom)
+HUD_R       = 25                ; (beside a reason: from this place on)
 draw_hud:
         lda hud
         bne :+
         rts
 :       lda #COL_LINE
         sta fig_col
-        lda #0
-        sta hud_n
+        ldy #0
+        lda why
+        beq :+
+        ldy #HUD_R
+:       sty hud_n
         lda score               ; cyan - yellow
         jsr hud_digit
         lda #10                 ; (the dash)
@@ -728,6 +797,7 @@ why_at: .byte why_fl - why_w, why_of - why_w, why_tw - why_w
 
         .segment "DATA"
 why_i:  .byte 0                 ; (draw_why's next letter)
+cam_o:  .byte 0, 0              ; the view's lean, x and y (follow)
 keep_col: .byte $41 | $08       ; the keepers' shirts (keep_kit)
         .segment "CODE"
 
@@ -792,17 +862,25 @@ hud_digit:
         adc #IMG_DIGIT
 hud_img:                        ; (image A)
         sta fig_img
-        lda hud_n               ; x: the view's + HUD_X + n * 9
+        lda #0                  ; x: the view's + HUD_X + n * 9 (over 255
+        sta fig_x + 1           ; from the 27th place on: beside a reason
+        lda hud_n               ; it went back to the left)
         asl a
         asl a
         asl a
-        adc hud_n               ; (* 9)
-        adc #HUD_X
         clc
-        adc cam_x
+        adc hud_n               ; (* 9)
+        bcc :+
+        inc fig_x + 1
+        clc
+:       adc #HUD_X
+        bcc :+
+        inc fig_x + 1
+        clc
+:       adc cam_x
         sta fig_x
         lda cam_x + 1
-        adc #0
+        adc fig_x + 1
         sta fig_x + 1
         ldx #HUD_Y              ; (the stands in view at the top: at the
         lda cam_y + 1           ; bottom)
@@ -892,13 +970,23 @@ draw_card:
         bmi @none
         lda s_off,x
         bne @none
-        lda #IMG_CARD
-        sta fig_img
-        ldy #COL_YELLOW
+        lda card_c              ; (a second yellow, card_c 2: a yellow
+        cmp #2                  ; card left of the red - Luca: was it a
+        bne :+                  ; red or two yellows?)
+        lda #COL_YELLOW
+        ldy #CARD2_X
+        jsr @one
+        ldx card_pl
+:       ldy #COL_YELLOW
         lda card_c
         beq :+
         ldy #COL_RED
-:       sty fig_col
+:       tya
+        ldy #0
+@one:   sta fig_col
+        sty tmp2
+        lda #IMG_CARD
+        sta fig_img
         lda o_xl,x              ; (from its place, as draw's)
         sec
         sbc #GROUND_X + FOOT_X - CARD_X
@@ -906,6 +994,13 @@ draw_card:
         lda o_xh,x
         sbc #0
         sta fig_x + 1
+        lda fig_x
+        sec
+        sbc tmp2
+        sta fig_x
+        bcs :+
+        dec fig_x + 1
+:
         lda o_yl,x
         clc
         adc #GROUND_Y - FOOT_Y

@@ -29,7 +29,7 @@ FLIP_Y = 60 + 689               # the keepers' y added: y upside down
 R_THROW = 1                     # (play.s rs_kind)
 SHOOT_Y = (100, 210)            # a shot from between these
 SIDE = 75                       # dribbled to this far to the side of the goal
-POST_L, POST_R = 263, 340       # (play.s)
+POST_L, POST_R = 269, 340       # (play.s)
 KEEPER_OFF = 18                 # the shot's way this far from the keeper, at least
 # a shot: fire held with the stick the way it goes, longer than SHOT_HOLD
 # (let go sooner it is a pass) - the shot the way he faces, once the ball

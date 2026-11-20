@@ -11,6 +11,14 @@ a yellow player sliding into a cyan one:
   lastman   the yellow team-mates all further from their goal than him
             (but the keeper): red each time
   box       in the box (a penalty): no card
+  walk      a red, then the dead time on: the fouler walks off over the
+            nearer touch line (o_off 2, drawn) and is gone (o_off 1) as
+            play goes on - out of the pitch by then (Luca: see him go);
+            shown as a second yellow (card_c 2: the yellow and the red),
+            screenshots cards-walk-30.png, cards-walk-90.png
+
+A second yellow's red has card_c 2 (drawn with the yellow beside it),
+a straight red 1.
 
     tests/cards.py [fouls]
 
@@ -103,20 +111,51 @@ def main():
         print('middle   %d yellow of %d (%.1f expected)%s  %s'
               % (y, n, want, ', also %s' % other if other else '', 'ok' if ok else 'NOT RIGHT'), flush=True)
         bad += not ok
-        got = [run((304, 300), 150, fouls_before=1) for _ in range(n)]
+        got = []
+        twos = True
+        for _ in range(n):
+            got.append(run((304, 300), 150, fouls_before=1))
+            if got[-1] == 'red' and mem1(v, 'card_c') != 2:
+                twos = False
         r = got.count('red')
-        ok = r and set(got) <= {None, 'red'}
+        ok = r and set(got) <= {None, 'red'} and twos
         print('second   %d red of %d, %s  %s' % (r, n, sorted(set(map(str, got))),
                                                  'ok' if ok else 'NOT RIGHT'), flush=True)
         bad += not ok
-        got = [run((304, 300), 380) for _ in range(20)]
-        ok = got.count('red') == 20
+        got = []
+        ones = True
+        for _ in range(20):
+            got.append(run((304, 300), 380))
+            ones = ones and mem1(v, 'card_c') == 1
+        ok = got.count('red') == 20 and ones
         print('lastman  %s  %s' % (sorted(set(map(str, got))), 'ok' if ok else 'NOT RIGHT'), flush=True)
         bad += not ok
         got = [run((304, 110), 380) for _ in range(20)]
         ok = got.count(None) == 20 and mem1(v, 'rs_kind') == 6
         print('box      %s, rs_kind %d  %s' % (sorted(set(map(str, got))), mem1(v, 'rs_kind'),
                                               'ok' if ok else 'NOT RIGHT'), flush=True)
+        bad += not ok
+        place(v, (330, 300), 380)
+        placed[0] = None
+        v.poke(lab['fouls'] + FOULER, [0])
+        call_foul(v)
+        v.poke(lab['card_c'], [2])          # (shown as a second yellow's)
+        seen2 = 0
+        last = None
+        for f in range(400):
+            v.cmd('x')
+            if f in (30, 90):
+                v.screenshot(os.path.join(WORK, 'cards-walk-%d.png' % f))
+            off = mem1(v, 'o_off', FOULER)
+            x = mem1(v, 'o_xl', FOULER) + 256 * mem1(v, 'o_xh', FOULER)
+            if off == 2:
+                seen2 += 1
+                last = x
+            if off == 1:
+                break
+        ok = seen2 > 0 and off == 1 and last is not None and last >= 558
+        print('walk     walking off %d frames, last seen at x %s, then o_off %d  %s'
+              % (seen2, last, off, 'ok' if ok else 'NOT RIGHT'), flush=True)
         bad += not ok
     finally:
         v.stop()

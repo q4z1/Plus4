@@ -37,7 +37,7 @@
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
         .export lift, o_off, card_pl, card_c, anew, whistle, why, jumps, HEAD_T
-        .export fine_on, sp_way_of, sin4
+        .export fine_on, sp_way_of, sin4, cam_way
         .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import quit_a
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan
@@ -65,8 +65,10 @@ LINE_L      = 49                ; the touch lines and goal lines
 LINE_R      = 558
 LINE_T      = 49
 LINE_B      = 689
-POST_L      = 263               ; between the posts (with the ball's width)
-POST_R      = 340
+POST_L      = 269               ; between the posts (the ball's middle on
+POST_R      = 340               ; them, as they are drawn at 269-270 and
+                                ; 339-340: the left one was 263, a ball
+                                ; past it a goal - Luca)
 BAR_Z       = 17                ; under the bar
 NET_T       = 12                ; the net this far behind the line: at the
 NET_B       = 5                 ; top, at the bottom (as the goals are drawn:
@@ -164,6 +166,7 @@ CATCH_X     = 3                 ; the keeper catches the ball this near
 CATCH_Y     = 6
 DIVE_X      = 6                 ; diving, he gets to it this far across
 CATCH_Z     = 13                ; and under this high (a lob goes over him)
+OWN_T       = 12                ; frames: his own parry or kick his again
 SLACK       = 2                 ; a place this near the last one is the same
 NEAR        = 32                ; distance squared: the ball at his feet
 DRIB_NEAR   = 50                ; - for a dribble's touch: the C64 asks
@@ -187,7 +190,14 @@ CHARGE_D    = 64                ; a step's speed (a throw-in's half): 1792 to
 CHARGE_DZ   = $20               ; pulled back, a step's rise, to LIFT_HI_DZ
 SHOT_CPU    = 13                ; the computer's sh_pow: 2208, as ever
 SHOT_SPEED  = 2208
-SHOT_DZ     = $0140             ; its rise, 8.8: 1.25
+SHOT_DZ     = $0170             ; its rise, 8.8: 1.44 - over the heads
+                                ; (13) from some 14 frames to 27, its top
+                                ; 14.7 under the bar (17); 1.25 had it at
+                                ; 11 at most: everyone in its way took it
+SET_DZ      = $0140             ; a set piece's kick's rise: 1.25
+.assert >SET_DZ = >SHOT_DZ, error, "shot: SET_DZ, SHOT_DZ one high byte"
+FAST_SP     = $0600             ; a ball this fast (a shot) the joystick's
+FAST_Z      = 6                 ;   player takes only this low
 LIFT_DZ     = $0160             ; the aftertouch's lift: 1.375,
 LIFT_HI_DZ  = $0200             ;   pulled back 2
 
@@ -419,7 +429,8 @@ score:      .res 2              ; goals, cyan and yellow
 lift:       .res 1              ; how high the ball is drawn over where it is
 fouls:      .res PLAYERS        ; each player's yellow cards in the match
 ref_k:      .res 1              ; the referee's: a yellow in 32 fouls
-o_off:      .res NOBJ           ; 1: sent off - gone from the match
+o_off:      .res NOBJ           ; 1: sent off - gone from the match (2:
+                                ; walking off, drawn still - walk_off)
 card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
 
@@ -793,7 +804,12 @@ get_up:
         jsr stand
 @next:  dex
         bpl @pl
-        rts
+        ldx card_pl             ; (a red card: off he walks - Luca: see
+        bmi :+                  ; him go)
+        lda card_c
+        beq :+
+        jmp walk_off
+:       rts
 
 play_frame:
         jsr clock
@@ -808,7 +824,12 @@ play_frame:
         lda full                ; (full time: dead till fire)
         beq :+
         jsr new_match
-:       dec dead_t
+:       jsr walking             ; (one walking off for a red card: the
+        bcc @dt                 ; ball dead till he is off the pitch)
+        lda dead_t
+        cmp #2
+        bcc :+
+@dt:    dec dead_t
         bne :+
         jmp restart
 :       lda dead_t              ; (FALL_T frames into a whistle's dead time,
@@ -845,7 +866,9 @@ play_frame:
         jsr swap
         lda two                 ; the computer's runner slides in as
         bne :+                  ; Sensible Soccer's, every frame (c154a8)
-        ldx helper_b
+        lda last_team           ; - for the cyan team's ball only: one
+        bne :+                  ; of its own passes coming to him he slid
+        ldx helper_b            ; for, down for nothing (Luca)
         bmi :+
         lda o_slide,x
         bne :+
@@ -1273,9 +1296,13 @@ control:
         lda pass_q,y            ; as the ball comes to him - the way he
         beq :+                  ; faced as fire was let go (he turns to
         cpx recv                ; meet it), not counting down while a
-        bne @qd                 ; pass is on its way to him
-        lda recv_t,y
-        bne @qk
+        bne @qo                 ; pass is on its way to him, nor while
+        lda recv_t,y            ; his own ball is (meet: he goes after
+        bne @qk                 ; it)
+@qo:    cpy last_team
+        bne @qd
+        cpx last_pl
+        beq @qk
 @qd:    lda pass_q,y
         sec
         sbc #1
@@ -1345,6 +1372,14 @@ control:
         lda o_zl + BALL
         cmp #13
         bcs @far
+        ldy o_sph + BALL        ; (a fast ball - a shot, a clearance -
+        cpy #>FAST_SP           ; only at his feet: at the body's height
+        bcc :+                  ; anyone running by took it, Luca: they
+        cpx last_pl             ; block every shot; and not his own:
+        beq @far                ; running on after it, the stick pulled
+        cmp #FAST_Z + 1         ; back, he took his shot back)
+        bcs @far
+:
         lda frame_n             ; (a touch every second frame, the teams
         eor me                  ; in turn, as Sensible Soccer's: face to
         lsr a                   ; face, either may get it - but a turn at
@@ -1852,16 +1887,27 @@ ball_rx:
         rts
 
 ; meet: the joystick's player X, the stick let go: a pass to him he goes
-; to meet; else he stands - and a ball come to him runs on past him, as
-; Sensible Soccer's does (c1383e: no stick, no touch). Keeps X.
+; to meet; his own ball while fire is held (a pass or a shot to come) or
+; a pass let go of too soon waits (pass_q), after it too; else he stands
+; - and a ball come to him runs on past him, as Sensible Soccer's does
+; (c1383e: no stick, no touch). Keeps X.
 meet:
         jsr dist2
-        cpx recv                ; a pass to him: after it, while it runs
-        bne @stand
         ldy me
+        cpx recv                ; a pass to him: after it, while it runs
+        bne @mine
         lda recv_t,y
+        bne @go
+@mine:  cpy last_team           ; (his dribble, the stick let go as fire
+        bne @stand              ; went down: he stood, the ball rolled on
+        cpx last_pl             ; out of his reach and the pass waited in
+        bne @stand              ; vain - Luca: three passes in ten the
+        lda pass_q,y            ; ball stays glued, tests/taps.py)
+        bne @go
+        lda fire_n
         beq @stand
-        ldy #SP_RUN
+        bmi @stand
+@go:    ldy #SP_RUN
         jsr to_ball
         lda #1
         sta o_mov,x
@@ -2091,7 +2137,10 @@ shot:
         jsr aim_to
         jsr shot_power
         lda #<SHOT_DZ
-        sta o_dzf + BALL
+        ldy kickoff             ; (a set piece's kick, a throw-in: as
+        beq :+                  ; before, their flights set by it - at
+        lda #<SET_DZ            ; 1.44 the long throws and goal kicks
+:       sta o_dzf + BALL        ; came down into the heads)
         lda #>SHOT_DZ
         sta o_dzl + BALL
         jsr sfx_kick
@@ -4643,12 +4692,16 @@ take:
 
 ; head: a header, every frame (play_frame) for each team - neither
 ; original has any but the diving one (Luca missed them): the ball HEAD_LO
-; to HEAD_HI high within HEAD_D2 of the team's joystick's player or its
-; runner (not a keeper, not sliding, not jumping still, not the one who
-; just kicked it): he jumps (HEAD_T) and heads it on - the joystick's the
-; way the stick points (let go: the way he faces), the runner on towards
-; the goal his team attacks. Fire and the stick for a ball in the air is
-; the diving header still: harder, further.
+; to HEAD_HI high within HEAD_D2 of the team's joystick's player with fire
+; pressed, or of the computer's team's player or runner on a ball the
+; other team played (not a keeper, not sliding, not jumping still, not the
+; one who just kicked it): he jumps (HEAD_T) and heads it on - the
+; joystick's the way the stick points, let go and the computer's on
+; towards the goal his team attacks. Fire and the stick for a ball in the
+; air is the diving header still: harder, further. (The headers of
+; themselves, the joystick's team's runner's too, met every ball going
+; by, a team-mate's shot as well, the way he faced: own goals like rain,
+; said Luca - a header now only when asked for.)
 head:
         lda kickoff
         ora dead_t
@@ -4666,7 +4719,12 @@ head:
         lda last_pl             ; Luca: thrown to him at head height, he
         cmp thrower             ; headed it on)
         beq @no
-:       ldx ctrl
+:       jsr cpu_side            ; (the computer's: the other team's ball
+        bcc @joy                ; only - not its own passes, shots)
+        lda last_team
+        cmp me
+        beq @no
+        ldx ctrl
         bmi :+
         jsr can_head
         bcc @go
@@ -4675,19 +4733,24 @@ head:
         jsr can_head
         bcc @go
 @no:    rts
+@joy:   lda pj                  ; (the joystick's: with fire only)
+        and #J_FIRE
+        beq @no
+        ldx ctrl
+        bmi @no
+        jsr can_head
+        bcs @no
 @go:    lda #HEAD_T
         sta o_zl,x
         sta jumps
         lda me
         sta last_team
         jsr touch_x
-        cpx ctrl
-        bne @goal
+        jsr cpu_side
+        bcs @goal
         jsr stick_way
         cmp #8
         bne @way
-        lda o_dir,x
-        bpl @way
 @goal:  jsr top_of              ; (from the top: down the pitch)
         beq @way
         lda #4
@@ -4703,6 +4766,17 @@ head:
         lda #>DHEAD_DZ
         sta o_dzl + BALL
         jmp sfx_kick
+
+; cpu_side: carry set if the team playing (me) is the computer's - the
+; yellow one, not two players. Keeps X, Y.
+cpu_side:
+        lda two
+        bne :+
+        lda me
+        cmp #1
+        rts
+:       clc
+        rts
 
 ; can_head: carry clear if player X may head the ball on now (head).
 ; Keeps X.
@@ -5316,8 +5390,9 @@ foul:
         and #31
         cmp ref_k
         bcs @tally
-        lda fouls,x             ; (a yellow: 0, his second 1 - red)
-        inc fouls,x
+        lda fouls,x             ; (a yellow: 0, his second 2 - red,
+        inc fouls,x             ; shown with the yellow: draw_card -
+        asl a                   ; Luca: which red it was)
 @card:  stx card_pl
         sta card_c
 @tally: ldx last_pl
@@ -5343,7 +5418,16 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
         sta rs_y + 1
         jsr in_box              ; in the box: a penalty, from the spot
         bcs @free
-        lda #R_PENALTY
+        lda why                 ; (a foul's only: a double touch, offside
+        cmp #WHY_FOUL           ; there on the box's line - the keeper
+        beq @pen                ; touching his goal kick again gave the
+        ldy r_s                 ; other team a penalty, Luca)
+        lda box_yl,y
+        sta rs_y
+        lda box_yh,y
+        sta rs_y + 1
+        bne @free
+@pen:   lda #R_PENALTY
         sta rs_kind
         lda #<304
         sta rs_x
@@ -5358,6 +5442,9 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
         sta dead_t
         jsr sfx_whistle
         jmp calm
+
+box_yl:     .byte <BOX_T, <BOX_B    ; the box's line, a free kick on it
+box_yh:     .byte >BOX_T, >BOX_B
 
 ;
 ; Offside, as the laws have it (Sensible Soccer and the C64 have none): a
@@ -5476,12 +5563,86 @@ off_chk:
         jmp free_at
 @rts:   rts
 
+; walk_off: player X shown a red card, off the team's play as send_off
+; has him, but seen walking off over the nearer touch line in the dead
+; time (o_off 2: drawn still; restart's send_off makes it 1, gone) -
+; Luca: he wanted to see him go. Keeps X.
+
 ; send_off: player X off the pitch for good - not drawn, not in the
 ; team's play, never near the ball (mate_dist); the joystick, a run to
 ; the ball, a pass to him on to someone else
+walk_off:
+        lda #2
+        jsr off_x
+        ldy #6                  ; (the nearer touch line: left, right)
+        lda o_xl,x
+        cmp #<304
+        lda o_xh,x
+        sbc #>304
+        bcc :+
+        ldy #2
+:       tya
+        sta o_dir,x
+        lda #<SPEED_JOG         ; (his running pictures: walking, not
+        sta o_spl,x             ; others' play - o_mov 0)
+        lda #>SPEED_JOG
+        sta o_sph,x
+        rts
+
+; walking: the one walking off (card_pl, o_off 2) WALK_S a frame on to
+; the touch line he makes for (o_dir 2 or 6: walk_off), a step of his
+; running pictures every four frames; carry set while he is on his way
+; (play_frame keeps the ball dead till he is off). Keeps nothing.
+WALK_S      = 2
+walking:
+        ldx card_pl
+        bmi @off
+        lda o_off,x
+        cmp #2
+        bne @off
+        lda o_dir,x
+        cmp #2
+        bne @left
+        lda o_xl,x
+        clc
+        adc #WALK_S
+        sta o_xl,x
+        bcc :+
+        inc o_xh,x
+:       lda o_xl,x              ; (beyond the touch line: off)
+        cmp #<(LINE_R + 30)
+        lda o_xh,x
+        sbc #>(LINE_R + 30)
+        bcs @off
+        bcc @step
+@left:  lda o_xl,x
+        sec
+        sbc #WALK_S
+        sta o_xl,x
+        bcs :+
+        dec o_xh,x
+:       lda o_xl,x
+        cmp #<(LINE_L - 30)
+        lda o_xh,x
+        sbc #>(LINE_L - 30)
+        bcc @off
+@step:  lda o_xl,x              ; (his destination with him: no one
+        sta o_txl,x             ; turns him back)
+        lda o_xh,x
+        sta o_txh,x
+        dec o_run,x
+        bpl :+
+        lda #3
+        sta o_run,x
+        inc o_step,x
+:       sec
+        rts
+@off:   clc
+        rts
+
 send_off:
         lda #1
-        sta o_off,x
+off_x:  sta o_off,x
         jsr stand
         txa
         tay
@@ -6152,16 +6313,16 @@ k_line:
         sta z_t8
         rts
 
-; k_posts: z_px between the posts (POST_L + 7 .. POST_R - 2)
+; k_posts: z_px between the posts (POST_L + 1 .. POST_R - 2)
 k_posts:
         lda z_px
-        cmp #<(POST_L + 7)
+        cmp #<(POST_L + 1)
         lda z_px + 1
-        sbc #>(POST_L + 7)
+        sbc #>(POST_L + 1)
         bcs :+
-        lda #<(POST_L + 7)
+        lda #<(POST_L + 1)
         sta z_px
-        lda #>(POST_L + 7)
+        lda #>(POST_L + 1)
         sta z_px + 1
         rts
 :       lda #<(POST_R - 2)
@@ -6818,8 +6979,16 @@ catch:
         bcc :+
         iny
 :       cpy last_team
-        beq k_clear
-        lda o_dive,x            ; (diving: it bounces off him)
+        bne @hands
+        cpx last_pl             ; (his own parry, his own kick: his
+        bne k_clear             ; hands again OWN_T frames on - else
+        lda touch_t             ; the ball he had saved was the team's
+        cmp #OWN_T              ; back-pass, he kicked it away, Luca;
+        bcc @done               ; not his set piece's kick untouched
+        lda off_pl              ; since, off_pl $FE: a double touch, a
+        cmp #$FE                ; free kick in his box - a penalty
+        beq @done               ; after his goal kick, said Luca)
+@hands: lda o_dive,x            ; (diving: it bounces off him)
         bne parry
         jmp hold
 @done:  rts
@@ -7599,16 +7768,34 @@ pose_of:
 @none:  lda #$FF
         rts
 
+; cam_way: A = the way the view leans ahead of the ball (follow) - at a
+; goal kick and the keeper's ball the way the taker faces, the team-mate
+; he may pass to in view (Luca: as the original's view, when the keeper
+; turns); else $FF
+cam_way:
+        lda kickoff
+        beq @no
+        lda rs_kind
+        cmp #R_GOALKICK
+        beq :+
+        cmp #R_KEEPER
+        bne @no
+:       ldx taker
+        bmi @no
+        lda o_dir,x
+        rts
+@no:    lda #$FF
+        rts
+
 ; ---- the match's time ---------------------------------------------------
 
 ; clock: a frame of the match's time (not while a set piece waits, nor
 ; after full time): at 45 minutes half time, the yellow team to kick
 ; off, at 90 full time; and hud, the score and minute shown, while the
-; ball is dead for a kick-off
+; ball is dead or a set piece waits (Luca: at every stop - it was the
+; kick-off's only)
 clock:
         lda #0
-        ldy rs_kind
-        bne :+
         ldy kickoff
         bne @hud
         ldy dead_t
