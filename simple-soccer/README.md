@@ -82,7 +82,12 @@ The game comes on a disk, `simple-soccer.d64`: `LOAD"*",8,1` and `RUN`
 puts up its loading screen at once - the name as the title shows it, in
 the same place, a football turning, and "LOADING" with its dots swelling and fading in the name's colours - and keeps it going while it loads the
 flags and the game, and while the game unpacks itself (it is packed by
-exomizer: 21 KB on the disk, 49 KB in memory). On a 1541 (any of them),
+exomizer: 28 KB on the disk, 50 KB in memory). The boot is packed so too -
+the machine's own loading, which brings it, is slow: 12 blocks rather
+than 15 - and the flags, the league's pages and the title are exomizer's
+"raw" files, unpacked by the boot and `cup.s` (`unpack.inc`, the
+decruncher as trainschedule's): they load to $C000 and unpack from there,
+the title over itself. On a 1541 (any of them),
 1570 or 1571 it loads with the fast loader taken over from trainschedule
 (`drive.s`, `fastload.s`), and the title's music starts as soon as the
 loader is in the drive: the boot loads the music's player first (the
@@ -97,7 +102,7 @@ here waits by the clock: its waits are timed with the TED's timer 2
 instead of counted in cycles, so an interrupt in the middle of one uses
 it up instead of making it longer, and its bits are taken as tightly as
 the drive allows. With all that a 1541 brings up the title after some
-62 seconds (41 without the music); the files lie further apart on the
+70 seconds in VICE; the files lie further apart on the
 disk to match (`build.sh`, `tests/loadtime.py`). The border turns red while a
 file will not load (no disk, a bad one); it tries again by itself.
 
@@ -649,9 +654,11 @@ half at $0200 - the KERNAL's page 2 and 3, of no use to the game - and a
 little code at $FF40, under the ROM. On a drive without the fast loader
 the KERNAL is woken up again as the machine's reset does it (IOINIT,
 RAMTAS, RESTOR - not BASIC, not the screen), from code at $0600 below the
-ROM. Either way the file `cup` (`cup.s`, 1.3 KB) comes first: the
+ROM. Either way the file `cup` (`cup.s`, 2.1 KB) comes first: the
 loading screen, which loads the flags, the rest of `cup.s` (the file
-`pages`) and the title; that puts the league's page up, saves the league, and starts
+`pages`) and the title, all three packed - its loading and unpacking put
+at $F800 meanwhile, over the match's variables below the score, and
+cleared again after; that puts the league's page up, saves the league, and starts
 the game again from its beginning - the winner's page set up for the
 title to show first (two hooks in it, turned to code `cup` leaves at
 $E340, free while the title runs). `tests/league.py` goes through it in

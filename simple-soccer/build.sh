@@ -13,6 +13,7 @@
 #   cup, pages      the way back from a match, the league's page (cup.s:
 #                   the loading screen, then the rest)
 #   title, league   the title again (cup.s loads it), the league saved
+# The boot, the flags, the pages and the title packed too (build/pack/).
 set -e
 cd "$(dirname "$0")"
 B=${CC65_BIN:-$HOME/.local/share/cc65-vs64/bin}
@@ -116,12 +117,40 @@ $B/cl65 -t none -C build/raw.cfg -o build/drive.bin drive.s
 START=$(python3 -c 'import re, sys; print(int(re.search(rb"\x9e *([0-9]+)", open(sys.argv[1], "rb").read()[:40]).group(1)))' build/disk/game.prg)
 $B/cl65 -t none -g -C build/raw.cfg --asm-include-dir build/gen --asm-define GAMESTART=$START \
     -Ln build/boot.lbl -o build/disk/boot.prg boot.s
+# Packed for the disk (build/pack/): the boot by exomizer as the game -
+# the KERNAL loads it, slowly: the fewer blocks the better - and the flags,
+# the league's pages and the title as exomizer's "raw" files, forwards,
+# which the boot and cup.s unpack (unpack.inc). They load to UNP_AT
+# ($C000); the title, unpacked over itself there, needs its end and
+# exomizer's safety offset under FLAGS (cup.s moves it up to end there).
+mkdir -p build/pack
+$EXOMIZER sfx sys -t 4 -q -n -o build/pack/boot.prg build/disk/boot.prg
+for f in flags pages title; do
+    tail -c +3 build/disk/$f.prg > build/pack/$f.bin
+    $EXOMIZER raw -o build/pack/$f.exo build/pack/$f.bin > build/pack/$f.log
+done
+python3 - build/gen/flags.inc <<'PY'
+import re, sys
+flags = int(re.search(r"^FLAGS\s+= \$(\S+)", open(sys.argv[1]).read(), re.M).group(1), 16)
+UNP_AT = 0xC000                             # unpack.inc
+for f in ('flags', 'pages', 'title'):
+    body = open('build/pack/%s.bin' % f, 'rb').read()
+    exo = open('build/pack/%s.exo' % f, 'rb').read()
+    safety = int(re.search(r"safety offset is (\d+)", open('build/pack/%s.log' % f).read()).group(1))
+    if UNP_AT + len(exo) > flags:
+        sys.exit("%s packed runs into the flags at $%04X" % (f, flags))
+    if f == 'title' and UNP_AT + len(body) + safety > flags:
+        sys.exit("the title cannot unpack over itself: up to $%04X, safety %d, the flags at $%04X"
+                 % (UNP_AT + len(body) - 1, safety, flags))
+    open('build/pack/%s.prg' % f, 'wb').write(bytes([UNP_AT & 255, UNP_AT >> 8]) + exo)
+    print("%s: %d bytes, packed %d" % (f, len(body), len(exo)))
+PY
 python3 tools/mkd64.py build/simple-soccer.d64 "simple soccer" ss ${INTERLEAVE:-15} \
-    "simple soccer=build/disk/boot.prg" music@${MUSIC_INTERLEAVE:-20}=build/disk/music.prg \
-    flags@${GAME_INTERLEAVE:-36}=build/disk/flags.prg game@${GAME_INTERLEAVE:-36}=build/disk/game.prg \
-    cup@${MUSIC_INTERLEAVE:-20}=build/disk/cup.prg pages@${MUSIC_INTERLEAVE:-20}=build/disk/pages.prg \
-    title@${MUSIC_INTERLEAVE:-20}=build/disk/title.prg \
+    "simple soccer=build/pack/boot.prg" music@${MUSIC_INTERLEAVE:-20}=build/disk/music.prg \
+    flags@${GAME_INTERLEAVE:-36}=build/pack/flags.prg game@${GAME_INTERLEAVE:-36}=build/disk/game.prg \
+    cup@${MUSIC_INTERLEAVE:-20}=build/disk/cup.prg pages@${MUSIC_INTERLEAVE:-20}=build/pack/pages.prg \
+    title@${MUSIC_INTERLEAVE:-20}=build/pack/title.prg \
     league@${MUSIC_INTERLEAVE:-20}=build/disk/league.prg \
     match@${MUSIC_INTERLEAVE:-20}=build/disk/match.prg
-echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg), game packed $(stat -c%s build/disk/game.prg) bytes"
+echo "build/simple-soccer.d64: boot $(stat -c%s build/disk/boot.prg) (packed $(stat -c%s build/pack/boot.prg)), game packed $(stat -c%s build/disk/game.prg) bytes"
 

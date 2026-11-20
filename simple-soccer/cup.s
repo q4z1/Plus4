@@ -57,6 +57,7 @@
         .import __CUPLOW_LOAD__, __CUPLOW_RUN__, __CUPLOW_SIZE__
         .import __LDLOW_LOAD__, __LDLOW_RUN__, __LDLOW_SIZE__
         .import __CUPBSS_RUN__, __CUPBSS_SIZE__, __LDRUN_RUN__, __CUP_RUN__, CUP_MAIN
+        .import __LDHI_LOAD__, __LDHI_RUN__, __LDHI_SIZE__
 
         .repeat 256, I          ; (text as it is, ASCII: put makes screen
         .charmap I, I           ; codes of it)
@@ -267,6 +268,13 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         sta LD_FONT + (LD_BALL - 64) * 8,x
         dex
         bpl :-
+        ldx #0                  ; the loading and unpacking (LDHI: two
+:       lda __LDHI_LOAD__,x     ; pages, whatever is past it too)
+        sta __LDHI_RUN__,x
+        lda __LDHI_LOAD__ + $100,x
+        sta __LDHI_RUN__ + $100,x
+        inx
+        bne :-
         jsr ld_rom
         ldx #15                 ; the blank and the dot
 :       lda ld_glyph,x
@@ -336,18 +344,26 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         sta TED_IRQ
         cli
         lda #<FLAGS             ; the flags, the name; the rest, the title
-        ldx #>FLAGS
+        ldx #>FLAGS             ; - all three packed (unpack.inc)
         ldy #<n_flags
-        jsr dload
+        jsr dunpack
         jsr logo
         lda #<CUP_MAIN
         ldx #>CUP_MAIN
         ldy #<n_pages
-        jsr dload
-        lda #<TITLE_AT
-        ldx #>TITLE_AT
+        jsr dunpack
+        lda #<UNP_AT            ; the title over itself: moved up to end
+        ldx #>UNP_AT            ; at FLAGS first
         ldy #<n_title
         jsr dload
+        jsr mv_up
+        lda #<TITLE_AT
+        sta z:unp_dst
+        lda #>TITLE_AT
+        sta z:unp_dst + 1
+        lda z:mv_to
+        ldx z:mv_to + 1
+        jsr unpack
         sei                     ; the interrupt off again, its vector back
         lda #0
         sta TED_IRQEN
@@ -359,8 +375,32 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         sta $FFFF
         jmp cup_go
 
+; (Loading and unpacking: LDHI, at $F800 - the match's variables, cleared
+; when the game starts again; but not the score, which the league takes -
+; ld_go copies it there, cup_go clears it again)
+        .segment "LDHI"
+
+        .include "unpack.inc"   ; (unpack, at UNP_ZP: mv_from, mv_to
+mv_from     = UNP_ZP            ; are done with before it starts)
+mv_to       = UNP_ZP + 2
+.assert TITLE_AT = UNP_AT, error, "cup.s: the title not at UNP_AT, where it unpacks over itself"
+.assert __LDHI_SIZE__ <= $200, error, "cup.s: LDHI over two pages"
+.assert __LDHI_RUN__ + $200 <= score, error, "cup.s: LDHI over the score"
+
+; dunpack: the file named at Y, packed, to A/X: loaded to UNP_AT, unpacked
+dunpack:
+        sta unp_dst
+        stx unp_dst + 1
+        lda #<UNP_AT
+        ldx #>UNP_AT
+        jsr dload
+        lda #<UNP_AT
+        ldx #>UNP_AT
+        jmp unpack
+
 ; dload: to A/X the file named at Y (in CUPLOW, low for the KERNAL: its
-; name 0-terminated); till it works, the border red
+; name 0-terminated); till it works, the border red. Its end in A/X.
+; (m_load's too, after the loading: LDHI still there then)
 dload:  sta dl_lo
         stx dl_hi
         sty dl_name
@@ -377,17 +417,54 @@ dload:  sta dl_lo
         lda dl_hi
         sta RES_DST + 1
         jsr RES_LOAD
-        bcc @ok
         bcs @red
+        sta mv_from
+        stx mv_from + 1
+        bcc @ok
 @kernal:
         jsr k_load
+        bcs @red
+        stx mv_from
+        sty mv_from + 1
         bcc @ok
 @red:   lda #$32
         sta TED_BORDER
         jmp @again
 @ok:    lda #PAGE_BORDER
         sta TED_BORDER
+        lda mv_from
+        ldx mv_from + 1
         rts
+
+; mv_up: what dload loaded, up to its end (A/X) moved up to end at FLAGS
+; (from the end down: the two overlap); mv_to its start then
+mv_up:  sta mv_from
+        stx mv_from + 1
+        lda #<FLAGS
+        sta mv_to
+        lda #>FLAGS
+        sta mv_to + 1
+@byte:  lda mv_from
+        bne :+
+        dec mv_from + 1
+:       dec mv_from
+        lda z:mv_to
+        bne :+
+        dec mv_to + 1
+:       dec mv_to
+        ldy #0
+        lda (mv_from),y
+        sta (mv_to),y
+        lda mv_from
+        cmp #<UNP_AT
+        bne @byte
+        lda mv_from + 1
+        cmp #>UNP_AT
+        bne @byte
+        rts
+
+        .segment "LDRUN"
+
 
 DOT_C       = ld_dc             ; (dots.inc's variables)
 DOT_P       = ld_dp
@@ -474,7 +551,16 @@ cup_go: lda #0
 :       sta __CUPBSS_RUN__ - 1,x
         dex
         bne :-
-        lda K_REQ
+        lda K_REQ               ; LDHI's two pages cleared, as the game's
+        cmp #K_RESUME           ; start clears them: the match's variables
+        beq :+                  ; there, the joystick's among them, which
+        lda #0                  ; the pages read (but m_load loads through
+        tax                     ; LDHI: the game's start clears them after
+@clr:   sta __LDHI_RUN__,x      ; it)
+        sta __LDHI_RUN__ + $100,x
+        inx
+        bne @clr
+:       lda K_REQ
         cmp #K_NEW
         beq @new
         cmp #K_ON

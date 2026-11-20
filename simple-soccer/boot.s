@@ -15,7 +15,8 @@
 ; ball and the dots turned on by it once a frame. (Not the KERNAL's way:
 ; its loading would be held up by the interrupt, 5542 a second, through
 ; the ROM's handler.) Then the flags for the title (tools/mkflags.py:
-; "flags" to FLAGS, just below $E200, where the title finds them), the
+; "flags", packed - unpack.inc - to FLAGS, just below $E200, where the
+; title finds them), the
 ; league the disk keeps (the file "league", to L_BLOCK under the ROM, if
 ; it is there and whole), then
 ; the game, packed (exomizer), over this program at $1001: what runs then
@@ -293,13 +294,25 @@ eol:    .word 0
         ldy #>tick
         jsr BM_START
 
-@flags: lda #<FLAGS             ; the flags: the title's (build/gen/flags.inc)
-        sta l_addr
-        lda #>FLAGS
-        sta l_addr+1
-        lda #<name_flags
+@flags: lda #<UNP_AT            ; the flags: the title's (build/gen/flags.inc),
+        sta l_addr              ; packed (unpack.inc) - unpacked to FLAGS,
+        lda #>UNP_AT            ; the RAM in meanwhile (the KERNAL's way:
+        sta l_addr+1            ; the interrupt through $FFFE then, the
+        lda #<name_flags        ; boot's own)
         ldy #>name_flags
         jsr load
+        sta RAMON
+        lda #<FLAGS
+        sta z:unp_dst
+        lda #>FLAGS
+        sta z:unp_dst+1
+        lda #<UNP_AT
+        ldx #>UNP_AT
+        jsr unpack
+        lda music
+        bne :+
+        sta ROMON
+:
         lda #<L_LOAD            ; the league as the disk keeps it - if it
         sta l_addr              ; does, and as it was saved (its bytes add
         lda #>L_LOAD            ; up to 0): else none. Loaded low, where
@@ -395,6 +408,8 @@ texts:
 
         .include "spinner.inc"          ; (tools/mkspinner.py)
         .include "logodata.inc"         ; (tools/mkdata.py)
+
+        .include "unpack.inc"   ; (the flags: packed)
 
 ; ---- which drive -----------------------------------------------------------
 
