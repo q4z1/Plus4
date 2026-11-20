@@ -52,6 +52,7 @@ import re, sys
 lbl = {m.group(2): int(m.group(1), 16)
        for m in re.finditer(r"^al ([0-9A-F]+) \.(\w+)$", open(sys.argv[1]).read(), re.M)}
 names = [('RES_LOAD', 'load', 0), ('RES_NM', 'nm', 1), ('RES_DST', 'dst', 1),
+         ('RES_HOOK', 'hook', 1), ('RES_LAST', 'last', 0), ('RES_BUSY', 'busy', 0),
          ('K_GO', 'k_go', 0), ('K_END', 'k_end', 0)]
 with open(sys.argv[2], 'w') as f:
     f.write("; resident.s's labels (build.sh, from build/resident.lbl)\n")
@@ -108,9 +109,12 @@ PY
 # BASIC line SYSes to - and the disk, its files a few sectors further apart
 # than the DOS would put them, for the fast loader (tools/mkd64.py): the
 # music 20 (as fast as the loader goes), the flags and the game, loaded
-# while the music plays, 36 - over a turn and a half of the disk for each
-# sector (measured with tests/loadtime.py; the ROM out at the end, so its
-# interrupt goes on). The game unpacks over itself: loaded so that it ends
+# while the music plays (and the game unpacked meanwhile), 36 - over a
+# turn and a half of the disk for each sector: at 32 a 1541 misses the
+# next one (VICE and plus4emu alike), 34 is its fastest by 1.6 s; but a
+# 1551, loading the KERNAL's way, takes 31 s at 36, 46 at 35, 50 at 34
+# (tests/loadtime.py; the ROM out at the end, so its interrupt goes on).
+# The game unpacks over itself: loaded so that it ends
 # ZX0's "delta" past where the game ends, below the flags. ZX0 takes over
 # a minute for it: packed again only when the game has changed. ZX0_QUICK=1
 # packs it quickly instead (seconds, a kilobyte more: for trying a disk out

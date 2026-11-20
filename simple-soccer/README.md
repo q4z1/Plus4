@@ -86,7 +86,10 @@ Einar Saukas' compressor - `tools/zx0`, built by `build.sh` - 28 KB on the
 disk, 50 KB in memory, loaded high and unpacked over itself by
 `unzx0.inc`, a decompressor for the 6502 written for this game: the
 game's 15000 blocks are short, so each costs as little as it can - in
-some 6 seconds with the music on, where exomizer's took 10). The boot is
+some 6 seconds with the music on, where exomizer's took 10 - and with
+the fast loader it unpacks while the game loads: the loader and the
+unpacking take turns, each on its own stack, the unpacking going on while
+the drive reads the next sector). The boot is
 packed by exomizer - the machine's own loading, which brings it, is slow:
 12 blocks rather than 15 - and the flags, the league's pages and the
 title are exomizer's "raw" files, unpacked by the boot and `cup.s`
@@ -109,7 +112,7 @@ here waits by the clock: its waits are timed with the TED's timer 2
 instead of counted in cycles, so an interrupt in the middle of one uses
 it up instead of making it longer, and its bits are taken as tightly as
 the drive allows. With all that a 1541 brings up the title after some
-67 seconds in VICE (a 1551 after 33); the files lie further apart on the
+63 seconds in VICE (a 1551 after 33); the files lie further apart on the
 disk to match (`build.sh`, `tests/loadtime.py`). The border turns red while a
 file will not load (no disk, a bad one); it tries again by itself.
 

@@ -24,7 +24,14 @@
 ; unzx0: from zx_src to zx_dst (the zero page, set by the caller), up to
 ; the end mark; the RAM in for both. Forwards, so it can unpack over
 ; itself: the packed bytes ending ZX0's "delta" past where the unpacked
-; end. A, X, Y used. The includer gives ZX_ZP: ten bytes.
+; end. A, X, Y used. The includer gives ZX_ZP: twelve bytes, and zx_more.
+;
+; zx_go: the same while the packed bytes are still coming (boot.s
+; zx_stream): only as far as zx_lim (a page, its high byte) says they are
+; in, two pages short of their end - its high byte zx_endhi - so that a
+; block's bytes are all there (a literal of 256 or more waits for its own
+; length); then it calls zx_more, which brings more and returns with Y
+; changed. Both $FF: all there.
 
 zx_src  = ZX_ZP                 ; the packed bytes
 zx_dst  = ZX_ZP + 2             ; the unpacked
@@ -34,6 +41,8 @@ zx_hi   = ZX_ZP + 8             ; a length's high byte (0 between blocks:
                                 ; a long copy counts it down)
 zx_bits = ZX_ZP + 9             ; the bits left of the last byte, a 1 after
                                 ; them: 0 when they are gone
+zx_lim  = ZX_ZP + 10            ; (zx_go) the packed bytes' page to stop at
+zx_endhi = ZX_ZP + 11           ; and their end's
 
 ; C: the stream's next bit (A kept, X not; Y 0)
 .macro  zx_bit
@@ -44,7 +53,10 @@ zx_bits = ZX_ZP + 9             ; the bits left of the last byte, a 1 after
 have:
 .endmacro
 
-unzx0:  lda #$80                ; (no bits: the first takes a byte)
+unzx0:  lda #$FF                ; (all there)
+        sta zx_lim
+        sta zx_endhi
+zx_go:  lda #$80                ; (no bits: the first takes a byte)
         sta zx_bits
         lda #1
         sta zx_off
@@ -53,13 +65,19 @@ unzx0:  lda #$80                ; (no bits: the first takes a byte)
         sty zx_hi
 
 ; literals
-zx_lit: lda #1                  ; (a length of 1 the most common: no
+zx_lit: lda zx_src + 1          ; (enough in?)
+        cmp zx_lim
+        bcc :+
+        jsr zx_more
+        ldy #0
+:       lda #1                  ; (a length of 1 the most common: no
         zx_bit                  ; call for it)
         bcs :+
         jsr zx_gbit
 :       tax
         lda zx_hi
         beq zx_lcopy
+        jsr zx_long
 zx_llong:                       ; (256 bytes or more: the whole pages
         lda (zx_src),y          ; first)
         sta (zx_dst),y
@@ -142,7 +160,12 @@ zx_madd:
         jmp zx_lit
 
 ; a new offset: its high part (the data bits inverted; past 255 the end)
-zx_new: lda #1
+zx_new: lda zx_src + 1          ; (enough in?)
+        cmp zx_lim
+        bcc :+
+        jsr zx_more
+        ldy #0
+:       lda #1
         zx_bit
         bcs zx_nhi
 zx_nbit:
@@ -186,6 +209,25 @@ zx_nlen:
         inc zx_hi
 :       jmp zx_match
 zx_end: rts
+
+; zx_long: (a literal of 256 bytes or more) till its bytes are in, and a
+; page past them
+zx_long:
+        txa
+        pha
+zx_lwait:
+        lda zx_src + 1
+        clc
+        adc zx_hi
+        adc #2                  ; (and a page more: the bits after it)
+        cmp zx_endhi
+        bcc zx_lok
+        jsr zx_more
+        jmp zx_lwait
+zx_lok: pla
+        tax
+        ldy #0
+        rts
 
 ; zx_gbit: a length (Elias gamma) on from its first bit, 0, A 1 and zx_hi
 ; 0 so far: its low byte in A, the high in zx_hi

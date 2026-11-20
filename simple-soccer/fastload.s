@@ -11,7 +11,10 @@
 ; dst+1/dst+2 say (the file's own load address is not sent); the caller
 ; writes them. It returns the end of what it loaded in A/X, C clear; or
 ; C set and 0 if the file is not there or the disk failed. Saving is not
-; here - no room: cup.s has its own half of it. It uses no zero page but
+; here - no room: cup.s has its own half of it. After each block, the
+; drive told it has it (and reading the next), it calls hook+1/hook+2:
+; the boot unpacks the game there while the drive reads (boot.s zx_hook);
+; else it is busy again, which returns at once. It uses no zero page but
 ; the CPU's port, $01:
 ; bit 0 DATA out, bit 1 CLK out (1 = pull the line low), bit 3 the tape
 ; motor (kept off), bit 6 CLK in, bit 7 DATA in (1 = high).
@@ -66,13 +69,15 @@ nm:     lda $FFFF,y
         jsr put                 ; cup.s's)
         lda #FREE
         sta PORT
+        jsr busy                ; till the drive takes CLK: it has read
+                                ; the name
 
-block:  jsr busy                ; till the drive takes CLK: it has read
-:       bit PORT                ; the name, or we the last block; then
-        bvc :-                  ; till the next block is ready (get waits
-        ldy TIMER               ; from here as from an edge: the drive
-        sty edge                ; needs as long as for a new byte till it
-        jsr get                 ; looks for the next edge)
+block:                          ; till the next block is ready (get waits
+:       bit PORT                ; from here as from an edge: the drive
+        bvc :-                  ; needs as long as for a new byte till it
+        ldy TIMER               ; looks for the next edge)
+        sty edge
+        jsr get
         sta last
         beq @last               ; 0: the last block, its count next
         cmp #$FF
@@ -88,6 +93,10 @@ dst:    sta $FFFF
         inc dst+2
 next:   dec count
         bne byte
+        jsr busy                ; till the drive takes CLK: it has the
+                                ; block's last bit, and reads on
+hook:   jsr busy                ; (a block in: the boot unpacks meanwhile -
+                                ; it points this elsewhere; else nothing)
         lda last
         bne block
 

@@ -423,10 +423,140 @@ zx_load:
         .org ZX_RUN
 zx_run:
         .include "unzx0.inc"
+
+; zx_whole: (the KERNAL's way) the game unpacked, all of it loaded
+zx_whole:
+        lda #<ZX_AT
+        sta zx_src
+        lda #>ZX_AT
+        sta zx_src+1
+        lda #<GAME
+        sta zx_dst
+        lda #>GAME
+        sta zx_dst+1
+        jmp unzx0
+
 zx_run_end:
         .assert zx_run_end <= RES_STORE, error, "boot.s: unzx0 into RES_STORE"
         .assert zx_run_end - zx_run <= $200, error, "boot.s: unzx0 over two pages"
         .org zx_load + (zx_run_end - zx_run)
+
+; the loading and unpacking at once (the fast loader's way: the KERNAL is
+; out, $0700 free) - run at ST_RUN, copied there by game
+ST_RUN  = $0700
+st_load:
+        .org ST_RUN
+st_run:
+; zx_stream: (the fast loader) the game loaded and unpacked at once: the
+; unpacking goes on while the drive reads the next sector. The two take
+; turns, each on its own stack: the loader calls zx_hook after each block
+; (fastload.s hook), which goes on with the unpacking (on its stack,
+; from ZX_STACK down) if enough is in; the unpacking calls zx_more when it
+; is not, which goes back to the loader. Unpacked to the end, it goes back
+; through zx_finish. Again from the start, the border red, should the
+; loading fail.
+ZX_STACK = $01A0                ; (the stack's page: the flags' unpacking
+                                ; table, done with)
+zx_stream:
+        lda #<zx_hook
+        sta RES_HOOK
+        lda #>zx_hook
+        sta RES_HOOK+1
+zx_again:
+        lda #<ZX_AT
+        sta zx_src
+        lda #>ZX_AT
+        sta zx_src+1
+        sta zx_endhi            ; (nothing in yet)
+        sec
+        sbc #2
+        sta zx_lim
+        lda #<GAME
+        sta zx_dst
+        lda #>GAME
+        sta zx_dst+1
+        lda #>(zx_finish - 1)   ; the unpacking's stack: zx_go to start
+        sta ZX_STACK            ; with, zx_finish to end with
+        lda #<(zx_finish - 1)
+        sta ZX_STACK - 1
+        lda #>(zx_go - 1)
+        sta ZX_STACK - 2
+        lda #<(zx_go - 1)
+        sta ZX_STACK - 3
+        lda #<(ZX_STACK - 4)
+        sta zx_sp
+        lda #0
+        sta zx_done
+        lda #<zx_name
+        sta RES_NM
+        lda #>zx_name
+        sta RES_NM+1
+        lda #<ZX_AT
+        sta RES_DST
+        lda #>ZX_AT
+        sta RES_DST+1
+        jsr RES_LOAD
+        bcs @red
+        lda zx_done             ; (a last block of no bytes: no hook for
+        bne :+                  ; it)
+        jsr zx_eof
+        lda zx_done
+        beq @red
+:       lda #<RES_BUSY          ; (the hook as it was)
+        sta RES_HOOK
+        lda #>RES_BUSY
+        sta RES_HOOK+1
+        lda #PAGE_BORDER
+        sta BORDER
+        rts
+@red:   lda #$32
+        sta BORDER
+        jmp zx_again
+
+; zx_hook: (the loader's, a block in) how far the packed bytes are: on with
+; the unpacking if it can go on
+zx_hook:
+        ldx RES_DST+1           ; (their end's page)
+        lda RES_LAST            ; (0: the last block)
+        bne :+
+zx_eof: ldx #$FF                ; (all in)
+:       stx zx_endhi
+        dex
+        dex
+        stx zx_lim
+        lda zx_done
+        bne @back
+        lda zx_src+1
+        cmp zx_lim
+        bcs @back
+        tsx                     ; to the unpacking
+        stx ld_sp
+        ldx zx_sp
+        txs
+@back:  rts
+
+; zx_more: (the unpacking's) back to the loader, for more
+zx_more:
+        tsx
+        stx zx_sp
+        ldx ld_sp
+        txs
+        rts
+
+; zx_finish: (unpacked to the end) back to the loader, for good
+zx_finish:
+        inc zx_done
+        ldx ld_sp
+        txs
+        rts
+
+zx_name: .byte "GAME", 0
+zx_sp:  .byte 0                 ; the unpacking's stack, while it waits
+ld_sp:  .byte 0                 ; the loader's, while the unpacking runs
+zx_done: .byte 0
+st_run_end:
+        .assert st_run_end <= $07D8, error, "boot.s: zx_stream into $07D8"
+        .org st_load + (st_run_end - st_run)
 
 ; ---- which drive -----------------------------------------------------------
 
@@ -635,10 +765,28 @@ tail2_load = tail_load + (tail_end - tail)
 tail2:
 
 ; the game over this program, the screen on meanwhile; then its start
-; (packed by ZX0: loaded to ZX_AT, under its end; unpacked to GAME by
-; unzx0, copied to ZX_RUN first - this program's main part is the first
-; the unpacking writes over - the RAM in: ZX_RUN is under the ROM)
-game:   lda #<ZX_AT
+; (packed by ZX0: to ZX_AT, under its end, and unpacked to GAME by unzx0 -
+; copied to ZX_RUN first: this program's main part is the first the
+; unpacking writes over. With the fast loader as it comes, zx_stream; else
+; once it is in, the RAM in: ZX_RUN is under the ROM)
+game:   ldx #0                  ; (two pages: whatever is past it too)
+:       lda zx_load,x
+        sta zx_run,x
+        lda zx_load + $100,x
+        sta zx_run + $100,x
+        inx
+        bne :-
+        lda fast
+        beq @kernal
+        ldx #st_run_end - st_run
+:       lda st_load - 1,x
+        sta st_run - 1,x
+        dex
+        bne :-
+        jsr zx_stream
+        jmp @go
+@kernal:
+        lda #<ZX_AT
         sta l_addr
         lda #>ZX_AT
         sta l_addr+1
@@ -646,22 +794,8 @@ game:   lda #<ZX_AT
         ldy #>gname
         jsr load
         sta RAMON
-        ldx #0                  ; (two pages: whatever is past it too)
-:       lda zx_load,x
-        sta zx_run,x
-        lda zx_load + $100,x
-        sta zx_run + $100,x
-        inx
-        bne :-
-        lda #<ZX_AT
-        sta zx_src
-        lda #>ZX_AT
-        sta zx_src+1
-        lda #<GAME
-        sta zx_dst
-        lda #>GAME
-        sta zx_dst+1
-        jsr unzx0
+        jsr zx_whole
+@go:
         lda #<ZX_END            ; where it ends
         sta VARTAB
         lda #>ZX_END
