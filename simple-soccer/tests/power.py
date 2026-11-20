@@ -24,6 +24,11 @@ caught   a throw-in passed (fire tapped), caught-long held 30: its
          double shot)
 throw    a throw-in held 30 frames: 512 less, half the charge - and no
          aftertouch making it a shot's 2560 (super powerful, said Luca)
+hover    held 13 frames, the stick pulled back once it went: the charge's
+         rise ($20 two frames) and gravity ($12 a frame) left its step at
+         exactly 0 up in the air - and 0 was taken for a ball lying: it
+         flew on at 18 high (Luca: height-locked). Not two frames at one
+         height with no step
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -82,6 +87,48 @@ def kick(frames, sk, back=0):
         s.put('last_team', 0, 0)
         s.put('last_pl', 0, p)
         return follow(s, p, frames, 0, back)
+    finally:
+        s.stop()
+
+
+def hover(frames):
+    """the longest run of frames the ball is up at one height with no
+    step, from the shot to its next touch or 80 frames on"""
+    s = Scene(lab)
+    try:
+        p = s.get('ctrl')
+        s.obj(p, 304, 500, d=0)
+        s.obj(BALL, 304, 496)
+        for i in range(22):
+            if i not in (p, 0, 11):
+                s.obj(i, 40 + 12 * i, 700 if i < 11 else 120)
+        s.put('last_team', 0, 0)
+        s.put('last_pl', 0, p)
+        v = s.v
+        v.cmd('del')
+        v.cmd('break %04x' % lab['play_frame'])
+        v.poke(lab['dbg_joy'], [BITS['fire']])
+        gone, run, most, last, top = None, 0, 0, None, 0
+        for f in range(frames + 80):
+            if f == frames:
+                v.poke(lab['dbg_joy'], [0])
+            v.cmd('x')
+            z = s.get('o_zl', BALL)
+            if gone is None:
+                if s.get16('o_spl', 'o_sph', BALL) > 0 and s.get('last_pl') == p:
+                    gone = f
+                    v.poke(lab['dbg_joy'], [BITS['fire'] | BITS['down']])
+                continue
+            if s.get('last_pl') != p:
+                break
+            dz = s.get16('o_dzf', 'o_dzl', BALL)
+            run = run + 1 if z and not dz and z == last else 0
+            most = max(most, run)
+            last = z
+            top = max(top, z)
+        return gone is not None and most < 2, \
+            'fire %d, pulled back: %2d high, %d frames at one height ' \
+            'with no step' % (frames, top, most)
     finally:
         s.stop()
 
@@ -198,7 +245,8 @@ def main():
              'hold 14': (14, 7, 0, hold(14)), 'hold 22': (22, 7, 0, hold(22)),
              'hold 30': (30, 7, 0, hold(30)), 'hold 60': (60, 7, 0, 2560),
              'best': (60, 15, 0, 2560 + 192)}
-    names = sys.argv[1:] or list(cases) + ['back', 'again', 'throw', 'caught', 'caught-long']
+    names = sys.argv[1:] or list(cases) + ['back', 'again', 'throw', 'caught', 'caught-long',
+                                           'hover']
     wrong = 0
     tops = {}
 
@@ -225,6 +273,8 @@ def main():
             report(name, *caught(2 if name == 'caught' else 30))
         elif name == 'again':
             report(name, *again())
+        elif name == 'hover':
+            report(name, *hover(13))
         elif name == 'throw':
             gone, got, top = throw(30)
             want = 1280 + 32 * 10

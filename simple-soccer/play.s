@@ -3341,7 +3341,11 @@ ball_move:
         lda o_dzf,x
         ora o_dzl,x
         bne :+
-        jmp @walls              ; lying, or rolling
+        lda o_zl,x              ; (no step but up in the air: it falls - a
+        bne :+                  ; step of exactly 0, gravity's $12 a frame
+        jmp @walls              ; against the charge's $20 two, held it
+                                ; at one height till touched: Luca)
+                                ; lying, or rolling
 :       lda o_dzf,x             ; gravity
         sec
         sbc #$12

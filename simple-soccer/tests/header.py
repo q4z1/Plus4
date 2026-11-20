@@ -57,6 +57,15 @@ def bits(s):
     return b
 
 
+def level(dist):
+    """a flight's rise (8.8) that has it as high as it started dist pixels
+    on, at 1536 some 3 a frame: n frames of gravity's $12 take 9 n (n + 1)
+    off n steps - the ball flies at head height, as it went with no step
+    (0 held it at one height, Luca's height-locked ball: play.s ball_move)"""
+    n = round(dist / 3)
+    return 9 * (n + 1)
+
+
 def word(v, lo, hi, i):
     w = v.mem(lab[lo] + i, 1)[0] + 256 * v.mem(lab[hi] + i, 1)[0]
     return w - 65536 if w > 32767 else w
@@ -80,7 +89,7 @@ def run_cpu(v, name):
     s.put('ctrl_b', who)
     s.pokes.append((lab['ctx_b'] + lab['helper'] - lab['ctx'], [who]))
     s.put('last_pl', 9)                 # (cyan's shot)
-    moves.flight(s, 304, 360, 304, 360 - 32 * 60, 1536, 18, 0)
+    moves.flight(s, 304, 360, 304, 360 - 32 * 60, 1536, 18, level(60))
     for a, vals in s.pokes:
         v.poke(a, vals)
     v.poke(OFF_PL, [0xFF])
@@ -126,7 +135,7 @@ def run(v, name):
     else:
         s.obj(7, 100, 650, d=0)
     y0 = 482 if 'right' in stick else 440   # (running across: it comes
-    moves.flight(s, 304, y0, 304, y0 + 32 * 60, 1536, z, 0)  # soon)
+    moves.flight(s, 304, y0, 304, y0 + 32 * 60, 1536, z, level(500 - y0))  # soon)
     for a, vals in s.pokes:
         v.poke(a, vals)
     v.poke(OFF_PL, [0xFF])

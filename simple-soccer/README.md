@@ -217,7 +217,10 @@ and a corner high unless the stick pushes on (Luca: the goal kick was
 always intercepted; `tests/restarts.py` takes each set piece with fire
 tapped and held and says who gets to it first) (Luca's wish: the game is to know
 it is a shot as soon as fire is held so long, not when it is let go, and
-the shot to be as hard and high as fire held on). A throw-in held so
+the shot to be as hard and high as fire held on). A ball up in the air
+always falls: the rise from fire held on and gravity once left a shot's
+upward step at exactly 0, which the game took for a ball lying - it flew
+on at one height till someone touched it (Luca: height-locked). A throw-in held so
 goes 512 slower and takes on half as much - a short one or a long one,
 some 1600 at most. For the next ten frames the stick bends the ball to
 one side if it is pushed across the shot. The computer shoots as
