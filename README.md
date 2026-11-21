@@ -313,8 +313,9 @@ Each program lists its own; see the README in its folder.
 | [Pac-Man](pacman/README.md) | joystick in port 1, or `W` `A` `S` `D`, or the cursor keys; `Q` quits, fire or space starts |
 | [Paradroid](paradroid/README.md) | joystick in either port, or cursor keys; fire (or space, `CTRL`, `C=`) with a direction shoots, held without one transfers, held on a lift or before a console opens it; `Run/Stop` pauses |
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
+| [Simple Soccer](simple-soccer/README.md) | joystick in either port (two players: one each), or cursor keys and space; fire tapped passes, held shoots (pulled back: higher, across: bends), with a direction at a low ball is a sliding tackle, at a high one a (diving) header; `Run/Stop` or `P` pauses |
 | [Stardew Pond](stardew/README.md) | joystick in either port, or cursor keys; fire or space uses what is in your hand; `,` `.` pick an item; `I` the backpack |
-| [trainschedule](trainschedule/README.md) | joystick in either port, or cursor keys and space; fire on a signal and then on its destination sets a route; fire held with a direction is a command (up: overview, left/right: speed, down: next timetable); `F1` music |
+| [trainschedule](trainschedule/README.md) | joystick in either port, or cursor keys and space; fire on a signal and then on its destination sets a route; fire counts when let go; held with a direction it is a command (up: overview, left/right: speed, down: next timetable); `F1` music, `Help` how to play |
 
 ## License
 
