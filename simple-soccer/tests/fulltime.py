@@ -12,9 +12,12 @@ full     the same at 90: full time only once the ball is in the middle
          22 walk to their places round the middle circle (ft_dx, ft_dy),
          mixed - each within ft_jit's 8 of it - and the view goes to the
          middle spot, not the ball left near the goal; the score 10 - 12
-         in two figures each; and there they step about (ft_jit, Luca:
-         them to move among each other a little): 150 pictures on most
-         of them somewhere else; screenshot fulltime.png
+         in two figures each; and there (Luca: way less movement, very
+         sparse) a third stand still, a third turn about where they
+         stand, a third step about (ft_jit) - each every 256 frames: in
+         200 pictures on none of the first two thirds moved, some of the
+         turners facing another way, some of the last third somewhere
+         else; screenshot fulltime.png
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -82,15 +85,22 @@ def full(lab):
         cam = s.get('cam_x') | s.get('cam_x', 1) << 8
         s.v.screenshot(os.path.join(CACHE, 'fulltime.png'))
         was = [s.where(i) for i in range(22)]
-        for k in range(150):
+        faced = [s.get('o_dir', i) for i in range(22)]
+        turned = set()
+        for k in range(200):
             s.picture()
-        moved = sum(1 for i in range(22) if abs(s.where(i)[0] - was[i][0]) > 2 or
-                    abs(s.where(i)[1] - was[i][1]) > 2)
+            turned |= {i for i in range(22) if i % 3 == 1 and s.get('o_dir', i) != faced[i]}
+        moved = [i for i in range(22) if abs(s.where(i)[0] - was[i][0]) > 2 or
+                 abs(s.where(i)[1] - was[i][1]) > 2]
+        still = [i for i in moved if i % 3 != 2]
+        stepped = [i for i in moved if i % 3 == 2]
         ok = up is not None and not far and abs(cam - CAM_X) <= 2 and s.get('full') == 1 \
-            and moved >= 11
+            and not still and len(turned) >= 3 and len(stepped) >= 3
         return ok, '%s; up after %s pictures; not at their places: %s; the view at x %d ' \
-            '(the middle spot\'s %d), y %d; %d of 22 stepped about since' % (
-                text, up, far or 'none', cam, CAM_X, s.get('cam_y') | s.get('cam_y', 1) << 8, moved)
+            '(the middle spot\'s %d), y %d; since: moved of those to stand %s, turned %d of 7, ' \
+            'stepped about %d of 7' % (
+                text, up, far or 'none', cam, CAM_X, s.get('cam_y') | s.get('cam_y', 1) << 8,
+                still or 'none', len(turned), len(stepped))
     finally:
         s.stop()
 

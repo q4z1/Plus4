@@ -413,7 +413,10 @@ some 18 pixels a picture, and at his feet is 5.6 pixels - once a picture
 they passed each other, and Luca's kick-off never got to its man. Nor
 does a set piece's lock (DBL_T, against its taker's double touch) keep a
 pass's receiver off it: the kick-off to the one beside the taker ran past
-him. The very first kick-off of a match had its own bug: a tap went
+him. Nor once he has it: the lock ends with anyone else's touch - the
+one beside the taker got the ball within the 8 frames, ran off with the
+stick pushed and left it lying (Luca: the kick-off to the closest one
+fails). The very first kick-off of a match had its own bug: a tap went
 back to your keeper whatever way you faced - the team-mate offering
 himself (at throw-ins and goal kicks) was set to none at every set
 piece but that one, and its 0 is the keeper; `tests/kickdir.py` starts
@@ -710,11 +713,13 @@ player's, so the two teams stand in turn - the ones on the joysticks and
 the keepers too, criss-crossing on their way as at half time (Luca: the
 friendly chaos, not a line). One lying after a tackle gets up first, and
 the view leaves the ball and goes to the centre spot, six pixels a
-picture. There they step about: every 32 frames, each at his own time,
-a player's place moves up to 8 pixels from his own (a table of 16 small
-steps) and he walks there (Luca: them to move among each other a
-little). `tests/fulltime.py` checks it - 150 pictures on, 19 of the 22
-somewhere else. Then
+picture. There it is quiet (Luca: way less movement, very sparse): a
+third of them stand still, a third turn about where they stand, and a
+third step about - every 256 frames, each at his own time, a turner
+faces another way, a stepper's place moves up to 8 pixels from his own
+(a table of 16 small steps) and he walks there. `tests/fulltime.py`
+checks it - in 200 pictures none of the first two thirds moved, some of
+the turners turned, some of the steppers stepped. Then
 fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was - and fire again the title, with the choices as they were. A

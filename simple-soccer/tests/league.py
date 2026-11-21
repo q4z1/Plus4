@@ -29,6 +29,7 @@ The match is not played out: its minute is poked to 89. The joystick is
 the engine's dbg_joy. Screens go to ~/.cache/simple-soccer/league-*.png.
 """
 import os
+import re
 import sys
 import time
 
@@ -43,6 +44,15 @@ FIRE, UP, DOWN = 0x10, 0x01, 0x02
 K_VARS, K_CH, L_BLOCK = 0xFCE0, 0xFCE7, 0xFFC8
 
 lab = labels()
+# the teams' numbers, by their names (title.s's list: new teams move the
+# numbers of those after them)
+T = {n: i for i, n in enumerate(re.findall(r'^\s+team "([^"]+)"', open(
+    os.path.join(HERE, '..', 'title.s')).read(), re.M))}
+CAN, CRO, GER, BRA, ITA = T['CANADA'], T['CROATIA'], T['GERMANY'], T['BRAZIL'], T['ITALY']
+# a league: Germany, Denmark, Canada, Belgium, Australia, Argentina,
+# Sweden, Hungary
+LG_TEAMS = [GER, T['DENMARK'], CAN, T['BELGIUM'], T['AUSTRALIA'], T['ARGENTINA'],
+            T['SWEDEN'], T['HUNGARY']]
 
 
 def ram(v, addr, n):
@@ -165,7 +175,7 @@ def back(v):
     v.run_for(1)
     v.screenshot(os.path.join(CACHE, 'league-title1.png'))
     print('choices', ram(v, K_CH, 7))
-    v.poke(K_CH, [1, 0, 0, 5, 9, 2, 3])     # 5 minutes, Canada - Croatia
+    v.poke(K_CH, [1, 0, 0, CAN, CRO, 2, 3])     # 5 minutes, Canada - Croatia
     press(v)                                # (fire: let go of)
     wait(v, lambda: in_match(v), 'the match', 60)
     print('match: teams', ram(v, K_CH + 3, 2), 'min_frames', v.mem(lab['min_frames'], 1))
@@ -177,14 +187,14 @@ def back(v):
     winner(v, 'FULL TIME', 'A DRAW' if sc[0] == sc[1] else
            ('CANADA WINS' if sc[0] > sc[1] else 'CROATIA WINS'), '%d - %d' % tuple(sc), 'winner')
     print('choices', ram(v, K_CH, 7))
-    assert ram(v, K_CH, 7)[:5] == [1, 0, 0, 5, 9], 'the choices lost'
+    assert ram(v, K_CH, 7)[:5] == [1, 0, 0, CAN, CRO], 'the choices lost'
     v.screenshot(os.path.join(CACHE, 'league-title2.png'))
 
 
 def league(v):
     wait(v, lambda: at_title(v), 'the title')
     v.run_for(1)
-    v.poke(K_CH, [0, 0, 2, 14, 3, 0, 0])    # LEAGUE: Germany
+    v.poke(K_CH, [0, 0, 2, GER, BRA, 0, 0])    # LEAGUE: Germany
     press(v)
     wait(v, lambda: on_page(v), 'the page', 180)
     v.run_for(2)
@@ -238,7 +248,7 @@ def savegame(v):
         press(v)
     wait(v, lambda: at_title(v), 'the title', 180)
     v.run_for(1)
-    v.poke(K_CH, [1, 0, 0, 5, 9, 2, 3])     # a match: Canada - Croatia
+    v.poke(K_CH, [1, 0, 0, CAN, CRO, 2, 3])     # a match: Canada - Croatia
     press(v)
     wait(v, lambda: in_match(v), 'the match', 60)
     v.run_for(1)
@@ -286,7 +296,7 @@ def savegame(v):
     wait(v, lambda: at_title(v), 'the title', 240)
     v.run_for(1)
     going = ram(v, L_BLOCK + 1, 1)[0] == 1
-    v.poke(K_CH, [0, 0, 3 if going else 2, 14, 3, 0, 0])   # LEAGUE: Germany
+    v.poke(K_CH, [0, 0, 3 if going else 2, GER, BRA, 0, 0])   # LEAGUE: Germany
     press(v)
     wait(v, lambda: on_page(v), 'the page', 180)
     v.run_for(2)
@@ -324,7 +334,7 @@ def savegame(v):
 def quit_(v):
     wait(v, lambda: at_title(v), 'the title')
     v.run_for(1)
-    v.poke(K_CH, [1, 0, 0, 5, 9, 2, 3])     # a match: Canada - Croatia
+    v.poke(K_CH, [1, 0, 0, CAN, CRO, 2, 3])     # a match: Canada - Croatia
     press(v)
     pause_quit(v, 'quit')
     wait(v, lambda: at_title(v), 'the title after quitting', 180)
@@ -334,7 +344,7 @@ def quit_(v):
     assert 'MATCH LENGTH' in t[6] and 'KICK OFF' in t[20], 'not the title (a winner\'s page?)'
     print('quit: the title, no winner\'s page')
     going = ram(v, L_BLOCK + 1, 1)[0] == 1  # (one going on: CONTINUE)
-    v.poke(K_CH, [0, 0, 3 if going else 2, 14, 3, 0, 0])   # LEAGUE: Germany
+    v.poke(K_CH, [0, 0, 3 if going else 2, GER, BRA, 0, 0])   # LEAGUE: Germany
     press(v)
     wait(v, lambda: on_page(v), 'the page', 180)
     v.run_for(2)
@@ -374,7 +384,7 @@ def d64_put(image, name, data):
 def saved(drive):
     """a league saved on the disk (matchday 1 played): the boot loads it,
     the title offers CONTINUE, the page shows it"""
-    lg = [0, 1, 0, 0, 0, 0, 14, 10, 5, 2, 1, 0, 32, 16, 0x13, 0x21, 0x00, 0x03] + [255] * 24
+    lg = [0, 1, 0, 0, 0, 0] + LG_TEAMS + [0x13, 0x21, 0x00, 0x03] + [255] * 24
     lg[0] = -sum(lg[1:]) & 255
     img = os.path.join(CACHE, 'league-saved.d64')
     open(img, 'wb').write(d64_put(D64, 'league', lg))
@@ -421,22 +431,22 @@ def play(v, goals, name):
 
 
 def two(drive):
-    """two players: Germany (14) the first's, Italy (18) the second's.
+    """two players: Germany the first's, Italy the second's.
     A new league: the first's match, then the second's (cyan: his team,
     one player); then the last matchday (from the disk): the two against
     each other, the league over"""
-    lg = [0, 1, 1, 0, 0, 0, 14, 18, 5, 2, 1, 0, 32, 16] + [255] * 28
+    lg = [0, 1, 1, 0, 0, 0, GER, ITA] + LG_TEAMS[2:] + [255] * 28
     v = boot_with([0] * 42, drive)
     try:
-        v.poke(K_CH, [0, 1, 2, 14, 18, 1, 2])   # LEAGUE, two players
+        v.poke(K_CH, [0, 1, 2, GER, ITA, 1, 2])   # LEAGUE, two players
         press(v)
         wait(v, lambda: on_page(v), 'the page', 180)
         v.run_for(2)
         page(v, 'two-new')
         ch, lines = play(v, [2, 0], 'two-1')
-        assert ch[1] == 0 and ch[3] == 14 and ch[5] == 1, 'the first player\'s match'
+        assert ch[1] == 0 and ch[3] == GER and ch[5] == 1, 'the first player\'s match'
         ch, lines = play(v, [1, 1], 'two-2')
-        assert ch[1] == 0 and ch[3] == 18 and ch[5] == 2, 'the second player\'s match'
+        assert ch[1] == 0 and ch[3] == ITA and ch[5] == 2, 'the second player\'s match'
         assert 'MATCHDAY 1' in lines[4]
     finally:
         v.stop()
@@ -450,7 +460,7 @@ def two(drive):
         v.run_for(2)
         page(v, 'two-last')
         ch, lines = play(v, [0, 4], 'two-over')
-        assert ch[1] == 1 and ch[3:5] == [14, 18], 'the players\' match'
+        assert ch[1] == 1 and ch[3:5] == [GER, ITA], 'the players\' match'
         assert 'WON BY' in lines[20], 'not over'
         print('league', ram(v, L_BLOCK, 42))
         assert ram(v, L_BLOCK + 1, 1) == [0], 'still on'
@@ -467,7 +477,7 @@ def ask(drive):
     """LEAGUE chosen with a league going on: its page and the question;
     kept (fire: the first choice) - back at the title, CONTINUE, the
     league as it was; then a new one (down, fire)"""
-    lg = [0, 1, 0, 0, 0, 0, 14, 10, 5, 2, 1, 0, 32, 16, 0x13, 0x21, 0x00, 0x03] + [255] * 24
+    lg = [0, 1, 0, 0, 0, 0] + LG_TEAMS + [0x13, 0x21, 0x00, 0x03] + [255] * 24
     lg[0] = -sum(lg[1:]) & 255
     v = boot_with(lg, drive)
     try:

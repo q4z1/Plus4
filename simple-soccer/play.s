@@ -427,6 +427,7 @@ min_frames: .res 1              ; frames to a minute (the title's choice:
 game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
 full:       .res 1              ; 1: full time - till fire starts a new match
+frame_h:    .res 1              ; (frame_n's carry: full time's slow steps)
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
 cp_d:       .res 2              ; (can_slide's: his way squared)
@@ -825,7 +826,9 @@ play_frame:
         jsr clock
         jsr throwing
         inc frame_n
-        lda dbg_on              ; (a test's plan: the stick as it says,
+        bne :+
+        inc frame_h
+:       lda dbg_on              ; (a test's plan: the stick as it says,
         beq :+                  ; frame by frame)
         jsr dbg_step
 :
@@ -4465,18 +4468,32 @@ spot:
         txa                     ; ones the cyan's turned about) - all of
         asl a                   ; them walking there across the pitch
         asl a                   ; (Luca: the friendly chaos as at half
-        asl a                   ; time - not a line); and there a step
-        adc frame_n             ; about now and then, each at his own
-        lsr a                   ; time: every 32 frames another of
-        lsr a                   ; ft_jit (Luca: them to move among each
-        lsr a                   ; other a little)
+        asl a                   ; time - not a line). There a third of
+        adc frame_n             ; them stand still, a third turn about
+        lda frame_h             ; where they stand, a third step about as
+        adc #0                  ; before - each only every 256 frames,
+        stx tmp + 1             ; at his own time, another of ft_jit
+        adc tmp + 1             ; (Luca: "way less movements, very
+        and #15                 ; sparse" - it was every 32 frames, all
+        sta tmp + 1             ; 22)
+        txa                     ; (shirt mod 3: 0 still, 1 turns, 2 steps)
+@m3:    cmp #3
+        bcc :+
+        sbc #3
+        bcs @m3
+:       cmp #2
+        beq @jit
         lsr a
-        lsr a
-        stx tmp + 1
-        adc tmp + 1
-        and #15
+        bcc @still
+        lda o_mov,x             ; (standing at his place: turned the way
+        bne @still              ; ft_jit's low bits say)
+        ldy tmp + 1
+        lda ft_jit,y
+        and #7
+        sta o_dir,x
+@still: lda #0                  ; (ft_jit's 0 and 5: none)
         sta tmp + 1
-        tay
+@jit:   ldy tmp + 1
         lda ft_dx,x
         clc
         adc ft_jit,y
@@ -7526,6 +7543,10 @@ touch:
         sta off_by              ; ($FE: no one's)
         bcs @done
 :       inc off_pl
+        lda #0                  ; (and no lock: DBL_T kept the receiver
+        sta lock_t              ; beside the kick-off's taker from
+        sta lock_t + 1          ; dribbling on - he ran off without the
+                                ; ball, Luca)
 @done:  pla
         plp
         rts
