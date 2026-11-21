@@ -27,3 +27,9 @@ $BIN/xplus4 -autostartprgmode 1 main/build/main.prg
 
 Opening this folder in VS Code instead of the repository root gives `F5` the
 VS64 debugger with source-level breakpoints.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root.

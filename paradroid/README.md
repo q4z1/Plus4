@@ -957,3 +957,9 @@ sources (`~/.cache/plus4emu/buildlib.sh`, see `p4emu.py`).
 | `p4emu_fire.py` | fire's states as the original's: the wait, transfer mode, the weapon (also from a direction in the wait, and kept with fire held), letting go |
 | `p4emu_xcount.py` | the transfer game's counts, picture by picture: every number from 99 down, and how often |
 | `yape_pads.py` | the gamepads Yape sees, in its order (which one is on which joystick port) |
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

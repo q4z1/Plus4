@@ -80,3 +80,9 @@ song together of them.
 
 Directed by the author, with an AI coding assistant used intensively for
 the implementation - see the main README.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

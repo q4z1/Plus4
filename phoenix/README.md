@@ -441,3 +441,9 @@ $BIN/xplus4 -autostartprgmode 1 phoenix/build/phoenix.prg
 `-Cl` matters: cc65 otherwise keeps local variables on its software stack, and
 that costs a sixth of the running time in a game that is busy every frame.
 The switch lives in [cflags](cflags), which the build script picks up.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

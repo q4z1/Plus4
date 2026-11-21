@@ -315,3 +315,19 @@ Each program lists its own; see the README in its folder.
 | [Phoenix](phoenix/README.md) | joystick in port 1, or cursor keys and space; stick down raises the force field |
 | [Stardew Pond](stardew/README.md) | joystick in either port, or cursor keys; fire or space uses what is in your hand; `,` `.` pick an item; `I` the backpack |
 | [trainschedule](trainschedule/README.md) | joystick in either port, or cursor keys and space; fire on a signal and then on its destination sets a route; fire held with a direction is a command (up: overview, left/right: speed, down: next timetable); `F1` music |
+
+## License
+
+Copyright (C) 2026 Kai Philipp. Free software under the
+[GNU Affero General Public License](LICENSE), version 3 or (at your option)
+any later version, with additional terms under its section 7 in
+[NOTICE](NOTICE): whoever passes on this work or any part of it - a single
+routine included - keeps the author notices and names the original as
+*"Based on Plus/4 Playground by Kai Philipp, https://github.com/q4z1/Plus4"*.
+
+Commercial use outside these terms - in a closed product, say - needs a
+licence of its own; ask through this repository.
+
+Material of others - graphics, data and music from the originals the games
+are modelled on, ZX0, the PokerTH logo - is not covered; [NOTICE](NOTICE)
+lists it.

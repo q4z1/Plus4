@@ -978,3 +978,9 @@ emulator that decodes the phase.
 
 It is a fan-made proof of concept, not affiliated with or endorsed by
 Sensible Software or Arlasoft.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

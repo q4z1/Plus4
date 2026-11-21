@@ -367,3 +367,9 @@ low half with an empty file name.
 
 `build.sh` looks for cc65 in `~/.local/share/cc65-vs64/bin`, or in
 `CC65_BIN` if that is set, and needs Python 3 for the tables. As for the Phoenix clone, `-Cl` is on.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

@@ -1,0 +1,117 @@
+Plus/4 Playground
+https://github.com/q4z1/Plus4
+
+Copyright (C) 2026 Kai Philipp
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program, in the file LICENSE. If not, see
+<https://www.gnu.org/licenses/>.
+
+
+Additional terms under section 7 of the GNU AGPL version 3
+----------------------------------------------------------
+
+Under section 7(b), anyone who conveys this work, a modified version of
+it, or a work containing any part of it, in source or in object form,
+must
+
+  1. keep this NOTICE file, or one with the same content, with the
+     source, and keep the copyright and author notices in the files and
+     in the documentation as they are;
+
+  2. name the original prominently in the documentation of the work
+     (for example its README), and in the credits or legal notices the
+     work shows to its users if it has any, as:
+
+         Based on Plus/4 Playground by Kai Philipp,
+         https://github.com/q4z1/Plus4
+
+  3. keep the author credits that the programs show themselves (on
+     their title, credits or loading screens), and mark a modified
+     version as modified there and in its documentation.
+
+These terms apply to every part taken over, including single routines
+or files.
+
+
+Commercial licensing
+--------------------
+
+The AGPL lets anyone use this work commercially, provided the whole of
+the derived work is published under the AGPL with its complete source.
+Any other commercial use - in particular in a product whose source is not
+published under the AGPL, or without the terms above - needs a separate
+licence from the copyright holder. Ask through the repository:
+https://github.com/q4z1/Plus4
+
+
+Material of others
+------------------
+
+The licence above covers the work of the copyright holder only. The
+following belongs to others, keeps its own terms, and is NOT licensed
+here; names of games and products are trademarks of their owners and are
+used to say what a program is modelled on. Nothing here is affiliated
+with or endorsed by them.
+
+  simple-soccer/tools/zx0/
+      ZX0 by Einar Saukas, BSD 3-Clause License (see its LICENSE there).
+
+  paradroid/
+      Paradroid (C64) by Andrew Braybrook, Hewson Consultants, 1985:
+      the decks, blocks, characters, waypoints, lifts, droid types and
+      pictures, the status panel, the ship's side view, the logo, the
+      briefing, the console pages, the colours, the sound effects and
+      the title's sound in data/ and in the build are taken from the
+      original.
+
+  simple-soccer/
+      The graphics follow Arlasoft Soccer (C64). The title music player
+      is the mixer of International Karate on the Plus/4 ("Wave Convert
+      V2.0" by TLC of CNS, 1992). The title music is an arrangement of
+      Kernkraft 400 (Zombie Nation, 1999) and Star Dust by David
+      Whittaker (Lazy Jones, C64, 1984); the compositions belong to
+      their owners. Sensible Soccer is by Sensible Software.
+
+  demonattack/
+      After Demon Attack (Atari 2600) by Imagic, 1982.
+
+  phoenix/
+      After Phoenix (Atari 2600, Atari, 1982; arcade game by Amstar /
+      Centuri / Taito, 1980); the shapes are traced from the original,
+      the melodies are the arcade game's.
+
+  pacman/
+      Pac-Man is a trademark of Bandai Namco Entertainment.
+
+  stardew/
+      Modelled on Stardew Valley by Eric Barone (ConcernedApe); nothing
+      is taken from it. The music by Erik Satie is in the public domain.
+
+  trainschedule/
+      Modelled on Rail Route by bitrich. The compositions played (Johann
+      Strauss I, Rossini, Offenbach, Lumbye, N.S. Smith, Tetsudo Shoka and
+      others) are in the public domain; the notes of the Rossini overture
+      come from an orchestral MIDI file at classicalmidi.co.uk.
+
+  whatchawant/
+      So What'cha Want by the Beastie Boys; the composition and any
+      samples of the record belong to their owners.
+
+  pokerth/
+      PokerTH and its logo (client/pokerth.svg) belong to the PokerTH
+      team, GNU AGPL version 3 or later.
+
+  toolchain/tools/amiga-run/
+      Built on vAmiga by Dirk W. Hoffmann (cloned at build time, not
+      part of this repository), under its own licence.

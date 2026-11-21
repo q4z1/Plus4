@@ -55,3 +55,9 @@ into `toolchain/` as a `.rom` file.
 gets the files off a disk image. Games that load with a track loader of
 their own have no file system on their disks; `adf.py` says so, and their
 code is best taken from memory (`dump`) once it is loaded.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

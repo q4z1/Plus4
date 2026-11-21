@@ -802,3 +802,9 @@ what the view shows, each cell's glyph and colour, for two builds that
 hand out the trains' characters differently.
 
 How this was made: see the [main README](../README.md#how-this-was-made).
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

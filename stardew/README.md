@@ -521,3 +521,9 @@ tests/yape_split.py           # the toolbar's line in Yape, picture by picture
 
 The game saves to the disk it runs from. Rebuilding makes a new disk and
 with it an empty save.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

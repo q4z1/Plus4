@@ -384,3 +384,9 @@ rediscover them. File references are into the upstream repository.
 - **Names are not in the events.** The lobby identifies players by id only;
   names come from `PlayerInfoRequest`. The proxy keeps that table so the
   Plus/4 does not have to.
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.

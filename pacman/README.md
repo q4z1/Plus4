@@ -132,3 +132,9 @@ $BIN/cl65 -t plus4 -O -g -c -o pacman/build/pacman.o pacman/pacman.c
 $BIN/cl65 -t plus4    -o pacman/build/pacman.prg pacman/build/pacman.o
 $BIN/xplus4 -autostartprgmode 1 pacman/build/pacman.prg
 ```
+
+## License
+
+GNU AGPL version 3 or later, with additional terms (keep the author notices,
+name the original) - see [LICENSE](../LICENSE) and [NOTICE](../NOTICE) in the
+repository's root, which also lists the material of others in here.
