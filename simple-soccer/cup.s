@@ -814,16 +814,13 @@ wl_cat: sta c_txt
 
 ; wl_num: goals A after w_buf's w_n
 wl_num: ldx w_n
-        cmp #10
-        bcc :+
-        pha
-        lda #'1'                ; (14 at most)
+        jsr tens                ; (0-99: Luca's 10 - 1)
+        beq :+
+        ora #'0'
         sta w_buf,x
         inx
-        pla
-        sec
-        sbc #10
-:       ora #'0'
+:       lda c_tmp2
+        ora #'0'
         sta w_buf,x
         inx
         stx w_n

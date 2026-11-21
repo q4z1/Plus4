@@ -17,7 +17,7 @@
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why, jumps, HEAD_T
-        .import cam_way
+        .import cam_way, full
         .export team_col, team_flk, start, played
         .import pause_chk, resume, squares
         .import title
@@ -242,7 +242,56 @@ place:
         lda o_yh,x
         adc #0
         sta s_yh,x
+        lda full                ; the view's point (follow): the ball's -
+        bne @pan                ; after full time, PAN_S a picture on to
+        lda s_xl,x              ; the middle spot, where they all go
+        sta vw_l                ; (Luca: not the ball left alone)
+        lda s_xh,x
+        sta vw_h
+        lda s_yl,x
+        sta vw_l + 1
+        lda s_yh,x
+        sta vw_h + 1
         rts
+@pan:   ldx #1                  ; (y, then x)
+@ax:    lda vw_tl,x
+        sec
+        sbc vw_l,x
+        sta tmp
+        lda vw_th,x
+        sbc vw_h,x
+        bmi @neg
+        bne @up
+        lda tmp
+        cmp #PAN_S
+        bcc @set
+@up:    lda vw_l,x              ; (carry set)
+        adc #PAN_S - 1
+        sta vw_l,x
+        bcc @nx
+        inc vw_h,x
+        bcs @nx
+@neg:   cmp #$FF
+        bne @dn
+        lda tmp
+        cmp #<-PAN_S
+        bcs @set
+@dn:    lda vw_l,x              ; (carry clear)
+        sbc #PAN_S - 1
+        sta vw_l,x
+        bcs @nx
+        dec vw_h,x
+        bcc @nx
+@set:   lda vw_tl,x
+        sta vw_l,x
+        lda vw_th,x
+        sta vw_h,x
+@nx:    dex
+        bpl @ax
+        rts
+PAN_S       = 6
+vw_tl:  .byte <(304 - GROUND_X), <(369 + GROUND_Y)
+vw_th:  .byte >(304 - GROUND_X), >(369 + GROUND_Y)
 
 ; follow: the view on the ball, as far as the ground goes - across on it,
 ; up and down within CAM_DZ of it
@@ -264,12 +313,11 @@ follow:
         tya
         ldx #1
         jsr follow_ease
-        ldx #BALL
-        lda s_xl,x
+        lda vw_l                ; (the view's point: the ball's, place)
         sec
         sbc #<(SCR_W * 4 - 8)   ; (the middle of the 38 columns shown)
         sta cam_x
-        lda s_xh,x
+        lda vw_h
         sbc #>(SCR_W * 4 - 8)
         sta cam_x + 1
         ldy #0                  ; (and the lean)
@@ -299,11 +347,11 @@ follow:
         and #$FE                ; pixel: fig_draw puts the figures on even
         sta cam_x               ; pixels of the ground - at odd ones the
                                 ; score and the minute shook, said Luca)
-        lda s_yl,x              ; up and down only as far as the ball is
+        lda vw_l + 1            ; up and down only as far as the ball is
         sec                     ; more than CAM_DZ off the middle of the
         sbc #<(88 + CAM_DZ)     ; 22 rows shown (engine.s CUT_LINE): each
         sta tmp                 ; row it goes costs a coarse scroll, and the
-        lda s_yh,x              ; ball dribbled to and fro made one in
+        lda vw_h + 1            ; ball dribbled to and fro made one in
         sbc #0                  ; many pictures (tmp: the lowest the view
         sta tmp2                ; may be, the ball CAM_DZ below the middle)
         ldy #0                  ; (and the lean)
@@ -732,23 +780,34 @@ draw_hud:
         ldy #HUD_R
 :       sty hud_n
         lda score               ; cyan - yellow
-        jsr hud_digit
+        jsr hud_num
         lda #10                 ; (the dash)
         jsr hud_digit
         lda score + 1
-        jsr hud_digit
+        jsr hud_num
         inc hud_n               ; (a gap)
         lda game_min            ; the minute
+; hud_two: A (0-99) in two figures; hud_num: in one under 10 (Luca: the
+; score went nuts at 10 - its 10 was the dash)
+hud_two:
+        sec
+        .byte $24               ; (bit zp: the clc passed over)
+hud_num:
+        clc
+        php
         ldx #0
 :       cmp #10
         bcc :+
         sbc #10
         inx
         bne :-
-:       pha
+:       plp
+        pha
         txa
-        jsr hud_digit
-        pla
+        bcs :+                  ; (two figures: the tens even if none)
+        beq :++
+:       jsr hud_digit
+:       pla
         jmp hud_digit
 
 ; draw_why: while a whistle's set piece waits, its reason (play.s why)
@@ -798,6 +857,8 @@ why_at: .byte why_fl - why_w, why_of - why_w, why_tw - why_w
         .segment "DATA"
 why_i:  .byte 0                 ; (draw_why's next letter)
 cam_o:  .byte 0, 0              ; the view's lean, x and y (follow)
+vw_l:   .byte 0, 0              ; the view's point, x and y (place)
+vw_h:   .byte 0, 0
 keep_col: .byte $41 | $08       ; the keepers' shirts (keep_kit)
         .segment "CODE"
 

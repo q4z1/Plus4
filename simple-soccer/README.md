@@ -336,8 +336,9 @@ him) comes to 62 pixels from the ball and waits; a tap passes to him.
 Look another way and he goes back to his place, and after 40 frames the
 next comes. Push the stick back - out of the pitch at a throw-in (left
 on the left line, right on the right), at your own goal at the keeper's
-- and he goes back, no one comes till you look another way, the aim
-stays as it was (Luca: a way to have no one offered). At a goal kick and the keeper's ball the view leans 40
+- and he goes back, no one comes till you push the stick again, any way,
+the way the keeper still looks too (it only came for the other two at
+first), the aim stays as it was (Luca: a way to have no one offered). At a goal kick and the keeper's ball the view leans 40
 pixels the way he faces, 4 a picture, so the one offering is in view
 (Luca: as the original's view does when the keeper turns).
 `tests/offer.py` checks the keeper's three ways go to three
@@ -680,10 +681,13 @@ takes its place.
 
 ## Back to the title
 
-At full time both teams walk to the halfway line and stand there in a
-row, the cyan team from the left, the yellow from the middle on - the
-ones on the joysticks and the keepers too - criss-crossing on their way
-as at half time (Luca: something with the players after the end). Then
+At full time both teams walk to the centre circle and gather round it,
+mixed - each yellow player's place the turned-about one of a cyan
+player's, so the two teams stand in turn - the ones on the joysticks and
+the keepers too, criss-crossing on their way as at half time (Luca: the
+friendly chaos, not a line). One lying after a tackle gets up first, and
+the view leaves the ball and goes to the centre spot, six pixels a
+picture. `tests/fulltime.py` checks it. Then
 fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was - and fire again the title, with the choices as they were. A
@@ -777,12 +781,17 @@ Yape, as a video with its sound).
 
 A match is 90 minutes in three real ones (or five, or seven). At 45 the referee blows for
 half time, the teams change ends and the yellow team kicks off; at 90 the result stays
-till fire starts a new match. While the ball is dead or a set piece
+till fire starts a new match. Neither whistle comes while the ball is near
+a goal: the clock stops at 45 and 90 and the referee waits till the ball
+is in the middle half of the pitch, so an attack is played out (Luca's
+vote). While the ball is dead or a set piece
 waits, the score and the minute show at the top left of the view, at
 its right while a whistle's reason is written (they were shown before
 kick-offs only; Luca wanted them at every stop). The view moves across
 in steps of two pixels: the figures are drawn on even pixels of the
-ground, and at an odd step the score shook by one.
+ground, and at an odd step the score shook by one. A score of 10 or more
+takes two figures (it showed the dash for 10, said Luca), up to 99; the
+winner's page likewise.
 
 A keeper stands between his posts a little out from his line, further
 out the further the ball, and goes a quarter of the ball's way across.

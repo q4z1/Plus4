@@ -37,7 +37,7 @@
 
         .export play_init, play_frame, play_picture, pic_n, pose_of, score, game_min, hud, min_frames
         .export lift, o_off, card_pl, card_c, anew, whistle, why, jumps, HEAD_T
-        .export fine_on, sp_way_of, sin4, cam_way
+        .export fine_on, sp_way_of, sin4, cam_way, full
         .export sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import quit_a
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan, goal
@@ -160,8 +160,8 @@ HEAD_SPEED  = 1536              ; rising as a diving header's; he jumps
 HEAD_T      = 16                ; HEAD_T frames, his arms up (o_zl, a
                                 ; player's: pose_of)
 DEAD_HALF   = 150               ; frames dead at half time and full time
-LINE_X0     = 84                ; full time's line-up (spot): the first,
-LINE_DX     = 21                ;   each one on - 84 .. 525
+MID_T       = LINE_T + (LINE_B - LINE_T) / 4    ; the pitch's middle half:
+MID_B       = LINE_B - (LINE_B - LINE_T) / 4    ;   the whistle there (clock)
 DIVE_T      = 40                ; a keeper's dive: frames in the air and down,
 DIVE_AIR    = 16                ; the first so many in the air
 KEEPER_SEES = 76                ; he goes for a shot once it is this near
@@ -1132,7 +1132,7 @@ play_others:
 @look:  lda o_mov,x             ; (those standing passed over)
         beq @next
         lda full                ; (after full time no own way: to the
-        bne @go                 ; line-up with the rest)
+        bne @go                 ; middle with the rest)
         cpx ctrl                ; (the two at the ball: their own way)
         beq @next
         cpx ctrl_b
@@ -2892,9 +2892,21 @@ offering:
         asl a
         asl a
         asl a
-:       cmp offer_w
+:       ldy offer_t             ; (no_offer's $FF: the stick let go, none;
+        iny                     ; pushed any way - the way he looks too -
+        bne @cmp                ; a way anew, Luca: all three again)
+        pha
+        lda pj
+        and #$0F
+        tay
+        lda joy_dir,y
+        cmp #8
+        pla
+        bcc @new
+        rts
+@cmp:   cmp offer_w
         beq @same
-        sta offer_w
+@new:   sta offer_w
         lda #0
         sta offer_t
         lda #$FF
@@ -2945,7 +2957,8 @@ offering:
 ; throw-in - out of the pitch: left on the left line, right on the right
 ; - or at its goal kick or keeper's ball - at its own goal: the team-mate
 ; offered (offering) goes back to his place and no one comes till the
-; aim or the way the keeper looks changes; the aim stays (Luca: a way to
+; stick is pushed again, any way - the way the keeper still looks too
+; (Luca: it came only for the other two); the aim stays (Luca: a way to
 ; have no one offered). Not the computer's: its brain turns its taker
 ; with a stick of its own (br_stick), out of the pitch too. Keeps X.
 no_offer:
@@ -2976,8 +2989,7 @@ no_offer:
         bne @no
         lda #$FF
         sta offer
-        lda #OFFER_T
-        sta offer_t
+        sta offer_t             ; (none till the stick is pushed: offering)
         sec
         rts
 @no:    clc
@@ -4148,7 +4160,7 @@ team_ai:
         cpx #11
         beq @next
         lda full                ; (full time: the joysticks' too, to the
-        bne @all                ; line-up - spot)
+        bne @all                ; middle - spot)
         cpx ctrl
         beq @next
         cpx ctrl_b
@@ -4401,6 +4413,13 @@ keep_off:
         sta z_py + 1
 @done:  rts
 
+; full time's places round the middle spot (spot), the cyan team's then
+; the yellow's - these turned about, so the two mix: picked by a search
+; for the least overlapping figures within 112 across, 62 up and down
+ft_dx:  .byte 11, 67, <-23, 88, <-79, <-74, 51, <-27, <-49, <-93, <-47
+        .byte <-11, <-67, 23, <-88, 79, 74, <-51, 27, 49, 93, 47
+ft_dy:  .byte <-28, <-39, 57, <-30, <-43, <-3, 22, <-56, 3, 3, 49
+        .byte 28, 39, <-57, 30, 43, 3, <-22, 56, <-3, <-3, <-49
 wall_dl:    .byte <(-WALL_D), <WALL_D
 wall_dh:    .byte >(-WALL_D), >WALL_D
 
@@ -4411,29 +4430,30 @@ wall_dh:    .byte >(-WALL_D), >WALL_D
 ; bit in the mask, off the ball as far as the two bytes say): carry clear,
 ; z_px, z_py; carry set none - his formation's then. Keeps X.
 spot:
-        lda full                ; full time: both teams lined up along the
-        beq @play               ; halfway line, the cyan from the left, the
-        lda #<LINE_X0           ; yellow on from the middle, LINE_DX apart -
-        sta z_px                ; all of them walking there across the
-        lda #>LINE_X0           ; pitch (Luca: something with the players
-        sta z_px + 1            ; after the end, like the mix at half time)
-        txa
-        tay
-        beq @fy
-@fx:    lda z_px
-        clc
-        adc #LINE_DX
-        sta z_px
-        bcc :+
-        inc z_px + 1
-:       dey
-        bne @fx
-@fy:    lda #<369
+        lda full                ; full time: both teams round the middle
+        beq @play               ; circle, mixed (ft_dx, ft_dy: the yellow
+        lda ft_dx,x             ; ones the cyan's turned about) - all of
+        ldy #<304               ; them walking there across the pitch
+        jsr @add                ; (Luca: the friendly chaos as at half
+        sta z_px                ; time - not a line)
+        sty z_px + 1
+        lda ft_dy,x
+        ldy #<369
+        jsr @add
         sta z_py
-        lda #>369
-        sta z_py + 1
+        sty z_py + 1
         clc
         rts
+@add:   sty tmp                 ; (A signed + 256 + Y: A, Y - the middle
+        ldy #1                  ; spot's 304, 369 both in 256 - 511)
+        cmp #$80
+        bcc :+
+        dey
+:       clc
+        adc tmp
+        bcc :+
+        iny
+:       rts
 @play:  cpx offer               ; (the team-mate offering himself: offering's
         bne :+                  ; place for him)
         lda kickoff
@@ -5252,10 +5272,12 @@ rules:
         lda o_zl,x
         cmp #BAR_Z
         bcs @wide
-        lda score,y             ; a goal
-        clc
+        lda score,y             ; a goal (99 at most: the HUD's two
+        cmp #99                 ; figures)
+        bcs :+
         adc #1
         sta score,y
+:
         jsr sfx_goal
         lda #1
         sta goal
@@ -7975,7 +7997,8 @@ cam_way:
 
 ; clock: a frame of the match's time (not while a set piece waits, nor
 ; after full time): at 45 minutes half time, the yellow team to kick
-; off, at 90 full time; and hud, the score and minute shown, while the
+; off, at 90 full time - each once the ball is in the middle half of the
+; pitch (MID_T - MID_B), the action at a goal played out; and hud, the score and minute shown, while the
 ; ball is dead or a set piece waits (Luca: at every stop - it was the
 ; kick-off's only)
 clock:
@@ -7990,31 +8013,46 @@ clock:
         ora full
         ora train               ; (training: no time)
         bne @done
-        inc min_t
+        lda game_min            ; (the half's last minute: no more - 90
+        cmp #90                 ; on whichever half, a test's too)
+        bcs @end
+        cmp #45
+        bne :+
+        ldy half
+        beq @end
+:       inc min_t
         lda min_t
         cmp min_frames
         bcc @done
         lda #0
         sta min_t
         inc game_min
+@done:  rts
+@end:   lda o_yl + BALL         ; 45 or 90 minutes and the action's end:
+        cmp #<MID_T             ; the whistle once the ball is in the
+        lda o_yh + BALL         ; middle half of the pitch - near either
+        sbc #>MID_T             ; goal play goes on (Luca's vote)
+        bcc @done
+        lda o_yl + BALL
+        cmp #<MID_B
+        lda o_yh + BALL
+        sbc #>MID_B
+        bcs @done
         lda game_min
-        cmp #45
-        bne :+
+        cmp #90
+        bcs :+
         lda #1
         sta half
         sta flip                ; (the sides change)
         sta rs_team             ; (the yellow team kicks off again)
         bne @whistle
-:       cmp #90
-        bne @done
-        lda #1
+:       lda #1
         sta full
         lda #0
         sta rs_team
 @whistle:
         lda #DEAD_HALF
         jmp whistle
-@done:  rts
 
 ; whistle: the ball dead A frames, for a kick-off in the middle (rs_team's)
 whistle:
@@ -8048,7 +8086,10 @@ new_match:
         cmp #100                ; min_t counts them, the clock stopped)
         bcs :+
         inc min_t
-        bcc @on
+        cmp #FALL_T             ; (FALL_T frames in, those lying up, to
+        bne @on                 ; the middle with the rest - Luca: one
+        jsr get_up              ; sliding at the end lay there dead)
+        jmp @on
 :       lda joy
         and #J_FIRE
         bne :+

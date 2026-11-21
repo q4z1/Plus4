@@ -18,7 +18,9 @@ none-gk, none-throw        someone offering; then the stick back - at his
                            goal (the keeper), out of the pitch (left on the
                            left line): he goes back, no one offers 60
                            frames on, the throw-in's aim as it was (Luca:
-                           a way to have no one offered)
+                           a way to have no one offered); then the first
+                           way again: someone offering (Luca: the way the
+                           keeper still looked offered no one)
 
 A line each; the exit code counts the wrong ones.
 """
@@ -143,9 +145,21 @@ def none_case(v, kind, x, y, back):
     d1 = math.dist(pos(v, off), pos(v, BALL))
     same = kind != R_THROW or m(v, 'sp_aim') == aim
     still = m(v, 'kickoff') == 1
-    return d1 > d0 + 20 and same and still, \
-        '%d offered, then back: %d -> %d away, the aim %s, the set piece %s' % (
-            off, d0, d1, 'kept' if same else 'moved', 'waiting' if still else 'taken')
+    v.poke(lab['dbg_joy'], [UP])        # the first way again - the way the
+    for f in range(4):                  # keeper still looks (Luca: it came
+        v.cmd('x')                      # only for the other two)
+    v.poke(lab['dbg_joy'], [0])
+    again = None
+    for f in range(110):
+        v.cmd('x')
+        if m(v, 'offer') < 22:
+            again = f
+            break
+    return d1 > d0 + 20 and same and still and again is not None, \
+        '%d offered, then back: %d -> %d away, the aim %s, the set piece %s; ' \
+        'the stick the first way again: %s' % (
+            off, d0, d1, 'kept' if same else 'moved', 'waiting' if still else 'taken',
+            'offered after %d frames' % again if again is not None else 'no one')
 
 
 def main():
