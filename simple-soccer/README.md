@@ -338,13 +338,17 @@ next comes. Push the stick back - out of the pitch at a throw-in (left
 on the left line, right on the right), at your own goal at the keeper's
 - and he goes back, no one comes till you push the stick again, any way,
 the way the keeper still looks too (it only came for the other two at
-first), the aim stays as it was (Luca: a way to have no one offered). At a goal kick and the keeper's ball the view leans 40
+first), the aim stays as it was (Luca: a way to have no one offered).
+No one comes, either, till you push the stick at all - the way the
+keeper faced at first called one at once (Luca: nobody makes a move
+till the keeper eye-calls a team-mate). At a goal kick and the keeper's ball the view leans 40
 pixels the way he faces, 4 a picture, so the one offering is in view
 (Luca: as the original's view does when the keeper turns).
 `tests/offer.py` checks the keeper's three ways go to three
 team-mates, and that the one offering comes and gets the pass at goal
 kicks to either side and throw-ins aimed up and down, and that the
-stick back sends him away (none-gk, none-throw). The computer takes its set pieces as Sensible Soccer's does
+stick back sends him away (none-gk, none-throw), and that no one comes
+with the stick untouched (still-gk, still-throw). The computer takes its set pieces as Sensible Soccer's does
 (c14b08): after 50 frames and a few more, the taker turning about
 meanwhile to look for someone (a throw-in), along the goal line (a
 corner, as on the C64) or to the goal (a free kick); then a kick-off
@@ -356,7 +360,11 @@ nearest the ball that way, else he turns on. He turns only
 the ways Sensible Soccer lets him: into the pitch and towards the other
 goal - up to 90 degrees off for a kick-off and a throw-in, 45 for a
 goal kick, the keeper's kick, a corner and a penalty - and any way for a
-free kick. (The goal kick and the keeper's 45 for yours too, as for the
+free kick. Your kick-off any way too, as a free kick (Luca: to the
+team-mates behind as well), and its pass, as a goal kick's, to the one
+within 34 degrees of the way he faces first - with the wide cone the
+nearest, the two beside him, got every one; `tests/kickdir.py` turns
+him all eight ways and passes back (down+left, down+right). (The goal kick and the keeper's 45 for yours too, as for the
 computer's in Sensible Soccer: kicked across his own goal, the
 aftertouch could bend the ball back into it - it did, the stick pulled
 back towards it.) The penalty areas and spots are as its rules have them, the spots
@@ -536,9 +544,14 @@ first, your team's runner's too and the way your player faced: they met
 every ball going by, a team-mate's shot as well - own goals like rain,
 said Luca; then the computer's still headed every ball your team played
 at head height, your shots over its heads and long passes too, even
-before its own keeper.) `tests/header.py`: the stick up, right, let go,
+before its own keeper.) Fire held on since a kick is no fire for a
+header: Luca's goal kick, lofted with fire held and the stick back, flew
+over the team-mate offering at head height - the joystick went to him
+and he headed it back, the stick's way, at his own goal. Let go and
+pressed anew, it is. `tests/header.py`: the stick up, right, let go,
 a ball over his head, the runner to a pass, a shot at the computer's
-runner's head.
+runner's head; `tests/gkhead.py` Luca's goal kick, fire held on (no
+header) and pressed anew (headed).
 
 Fire pressed with the ball in the air near him - higher than a sliding
 tackle's 8 and up to 40, within 49 pixels - and he jumps for it at once,

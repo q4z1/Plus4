@@ -6,7 +6,8 @@ pushed each way in turn: the way the taker (the cyan 9) faces then; last
 the pass, fire tapped with the stick pushed, and the way the ball goes.
 
     tests/kickdir.py [way] [--port2]   (way: the pass's, default up+left,
-                                        none: the stick let go; --port2:
+                                        down+left back to a team-mate
+                                        behind, none: the stick let go; --port2:
                                         the stick in port 2 throughout)
 
 A line each; OK or WRONG last, the exit code 1 if wrong.
@@ -22,10 +23,10 @@ import moves  # noqa: E402
 from yape import Yape  # noqa: E402
 
 # the stick's ways and the way (0 up, 1 up-right ... 7 up-left) he should
-# face: the cyan team attacks up, so he turns at most 90 degrees off it,
-# else he keeps the way he faced
-WAYS = [('up', 0), ('up+right', 1), ('right', 2), ('down+right', 2), ('up', 0),
-        ('down', 0), ('down+left', 0), ('left', 6), ('up+left', 7)]
+# face: any way, the joystick's kick-off as a free kick (Luca: to the
+# team-mates behind too; up to 90 degrees off as Sensible Soccer's before)
+WAYS = [('up', 0), ('up+right', 1), ('right', 2), ('down+right', 3), ('up', 0),
+        ('down', 4), ('down+left', 5), ('left', 6), ('up+left', 7)]
 TAKER = 9
 BALL = 22
 

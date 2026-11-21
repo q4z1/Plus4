@@ -1607,9 +1607,10 @@ odds:
 
 ; may_face: carry clear if a set piece's taker may face way A, as
 ; Sensible Soccer lets him (a bit for each way, c0f8ea): into the pitch
-; or towards the other goal - up to 90 degrees off for a kick-off and a
-; throw-in, 45 for a goal kick, the keeper's kick, a corner and a
-; penalty, any way for a free kick. Keeps A, X.
+; or towards the other goal - up to 90 degrees off for a throw-in and
+; the computer's kick-off, 45 for a goal kick, the keeper's kick, a
+; corner and a penalty, any way for a free kick and a joystick's
+; kick-off. Keeps A, X.
 may_face:
         sta mf_a
         ldy rs_kind
@@ -1647,8 +1648,14 @@ may_face:
         bcc :+
         eor #$FF
         adc #8                  ; (carry set: 8 less it)
-:       ldy rs_kind
-        cmp face_r,y
+:       ldy rs_kind             ; (a joystick's kick-off any way, as a
+        bne @r                  ; free kick's - Luca: to the team-mates
+        pha                     ; behind too; the computer's as Sensible
+        jsr cpu_side            ; Soccer's)
+        pla
+        bcs @r
+        ldy #R_FREE
+@r:     cmp face_r,y
         lda mf_a
         rts
 
@@ -2863,8 +2870,12 @@ pass:
         sta kick_way
         bcc @half
 :       jsr keeper_kick         ; (a goal kick, the keeper's: half as wide
-        bcs @one                ; first - the way he faces chooses, Luca;
-@half:  lsr p_w                 ; no one so: as wide - a tap a safe pass)
+        bcc @half               ; first - the way he faces chooses, Luca;
+        lda kickoff             ; no one so: as wide - a tap a safe pass;
+        beq @one                ; a kick-off's too, Luca: else always to
+        lda rs_kind             ; the two beside him, the nearest)
+        bne @one                ; (R_KICKOFF)
+@half:  lsr p_w
         jsr pass_scan
         ldx mate
         bpl @got
@@ -4885,9 +4896,11 @@ head:
         ldx ctrl
         bmi @no
         lda pj                  ; (the joystick's: with fire only - or in
-        and #J_FIRE             ; the air already, jumped for it: can_try)
-        bne :+
-        lda o_zl,x
+        and #J_FIRE             ; the air already, jumped for it: can_try;
+        beq :+                  ; not fire held on since a kick, $80 on:
+        lda fire_n              ; Luca's goal kick lofted, fire held, the
+        bpl :++                 ; team-mate it flew over got the joystick
+:       lda o_zl,x              ; and headed it back, the stick's way)
         beq @no
 :       jsr can_head
         bcc @go
@@ -6260,8 +6273,9 @@ throwing:
 ; team on its own after a while
 await:
         lda #$FF
-        sta offer               ; (no one offering yet: offering)
-        sta offer_w
+        sta offer               ; (no one offering yet: offering - nor
+        sta offer_w             ; till the stick is pushed, Luca: the way
+        sta offer_t             ; the keeper looked at first called one)
         sta at_n
         sta at_n_b
         sta recv

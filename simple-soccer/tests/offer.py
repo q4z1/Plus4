@@ -21,6 +21,9 @@ none-gk, none-throw        someone offering; then the stick back - at his
                            a way to have no one offered); then the first
                            way again: someone offering (Luca: the way the
                            keeper still looked offered no one)
+still-gk, still-throw      the stick not touched: no one offers in 110
+                           frames (Luca: the way the keeper looked at first
+                           called one); then pushed the way he looks: one
 
 A line each; the exit code counts the wrong ones.
 """
@@ -162,6 +165,38 @@ def none_case(v, kind, x, y, back):
             'offered after %d frames' % again if again is not None else 'no one')
 
 
+STILL = {'still-gk': (R_GOALKICK, 244, 664, UP),
+         'still-throw': (R_THROW, 49, 300, UP)}
+
+
+def still_case(v, kind, x, y, look):
+    s = moves.Setup()
+    moves.restart(s, kind, 0, x, y)
+    for i in moves.EXTRA:
+        s.put('o_off', 0, i)
+    for a, vals in s.pokes:
+        v.poke(a, vals)
+    v.poke(0xED, [0xFF])
+    v.poke(lab['dbg_joy'], [0])
+    for f in range(400):
+        v.cmd('x')
+        if m(v, 'kickoff') and not m(v, 'dead_t') and f > 150:
+            break
+    for f in range(110):
+        v.cmd('x')
+        if m(v, 'offer') < 22:
+            return False, '%d offered after %d frames, the stick untouched' % (m(v, 'offer'), f)
+    v.poke(lab['dbg_joy'], [look])
+    for f in range(4):
+        v.cmd('x')
+    v.poke(lab['dbg_joy'], [0])
+    for f in range(110):
+        v.cmd('x')
+        if m(v, 'offer') < 22:
+            return True, 'no one in 110 frames untouched; pushed: %d after %d' % (m(v, 'offer'), f)
+    return False, 'no one in 110 frames untouched; pushed: no one either'
+
+
 def main():
     v = Vice(PRG, WORK)
     wrong = 0
@@ -180,10 +215,10 @@ def main():
         v.cmd('break %04x' % lab['play_frame'])
         for _ in range(120):
             v.cmd('x')
-        names = [a for a in sys.argv[1:] if not a.startswith('-')] or list(CASES) + list(NONE)
+        names = [a for a in sys.argv[1:] if not a.startswith('-')] or list(CASES) + list(NONE) + list(STILL)
         for name in names:
-            if name in NONE:
-                ok, text = none_case(v, *NONE[name])
+            if name in NONE or name in STILL:
+                ok, text = none_case(v, *NONE[name]) if name in NONE else still_case(v, *STILL[name])
                 wrong += not ok
                 print('%-17s %s %s' % (name, text, 'OK' if ok else 'WRONG'), flush=True)
                 continue
