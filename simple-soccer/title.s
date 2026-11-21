@@ -1751,6 +1751,7 @@ GREEN       = $15               ; (dark: the grass is green)
 teams:
         team "ARGENTINA", SKY, DARK_BLUE, 1, %10001000001
         team "AUSTRALIA", YELLOW, GREEN, 7, %01010000001     ; (not in it: ours)
+        team "AUSTRIA", RED, WHITE, 4, %01010000001     ; (not in it: ours)
         team "BELGIUM", RED, YELLOW, 2, %01010000001
         team "BRAZIL", YELLOW, BLUE, 1, %11000000010
         team "CAMEROON", GREEN, YELLOW, 4, %11000000001
@@ -1783,6 +1784,7 @@ teams:
         team "SOUTH KOREA", RED, WHITE, 8, %01010000001
         team "SPAIN", RED, DARK_BLUE, 2, %01000000101
         team "SWEDEN", YELLOW, DARK_BLUE, 3, %11001000000
+        team "SWITZERLAND", RED, WHITE, 3, %01010000001     ; (not in it: ours)
         team "UKRAINE", YELLOW, BLUE, 5, %01010000001     ; (not in it: ours)
         team "URUGUAY", LIGHT_SKY, WHITE, 3, %01010000001     ; (not in it: ours)
         team "USA", WHITE, DARK_BLUE, 4, %01100000001

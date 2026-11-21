@@ -71,7 +71,7 @@ BOOT_LOAD = 5.0                 # seconds of the loading screen shown
 BOOT_TITLE = 7.0                # of the title after it, before its second page is chosen
 # (the loading shown without a caption: the music no longer plays all
 # through it, only at its end)
-BOOT_CAPS = [('THE TITLE - 37 NATIONAL TEAMS',
+BOOT_CAPS = [('THE TITLE - 39 NATIONAL TEAMS',
               'ONE OR TWO PLAYERS - A MATCH OR TRAINING'),
              ('TEAM SETTINGS - A FORMATION EACH SIDE',
               '4-4-2 TO 4-3-3 - ATTACK DEFEND OR RANDOM')]
@@ -81,7 +81,7 @@ END = ('SIMPLE SOCCER FOR THE COMMODORE PLUS/4', 'GITHUB.COM/Q4Z1/PLUS4')
 # disk is given (L_BLOCK) - after three matchdays, and before the last,
 # where Germany beat Brazil, a point ahead, to win it (seed 25 of a
 # search, its home and away goals); the match's score poked at its end
-LEAGUE_TEAMS = [14, 3, 18, 12, 22, 32, 13, 0]   # (title.s teams)
+LEAGUE_TEAMS = [15, 4, 19, 13, 23, 33, 14, 0]   # (title.s teams)
 LEAGUE_RES = [(2, 0), (1, 1), (3, 0), (1, 0), (1, 2), (0, 0), (1, 4), (2, 1),
               (4, 2), (4, 3), (4, 0), (0, 2), (2, 2), (1, 1), (3, 0), (0, 2),
               (0, 4), (1, 0), (4, 1), (0, 1), (2, 4), (3, 2), (3, 4), (3, 3),
