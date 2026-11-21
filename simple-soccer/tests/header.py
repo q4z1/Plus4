@@ -21,6 +21,10 @@ try       fire only tapped as the ball (18 high) is still some 30 pixels
           it comes (Luca: many more tries at headers)
 miss      tapped so as the ball goes over him (36 high): he jumps - a try
           missed, seen - and does not head it
+tryup     as try, the ball 22 high, the stick pushed up with the tap: he
+          jumps for it and heads it - the diving header (fire with the
+          stick) heads only 8 - 15 high, under this one he dived for
+          nothing (Luca: do the headers want no way pushed?)
 cpu       a cyan shot at head height up the pitch at the computer's 20
           (its runner): no header - it goes over him (Luca: the computer
           intercepts every ball by a header; Sensible Soccer's computer
@@ -53,6 +57,7 @@ CASES = {
     'runner': (7, '', 18, None, 0),
     'try': (9, 'fire', 18, 'up', HEAD_SPEED),
     'miss': (9, 'fire', 36, None, 0),
+    'tryup': (9, 'up+fire', 22, 'up', HEAD_SPEED),
     'cpu': (20, '', 18, None, 0),
 }
 
@@ -116,8 +121,9 @@ def run_cpu(v, name):
 
 def run_try(v, name):
     """9 at (304, 500), the ball flying down at him; fire tapped (four
-    frames) once it is within 30 pixels"""
-    z = 18 if name == 'try' else 36
+    frames, with the stick for tryup) once it is within 30 pixels"""
+    z = CASES[name][2]
+    tap = bits(CASES[name][1])
     v.poke(lab['dbg_joy'], [0])
     for _ in range(6):
         v.cmd('x')
@@ -136,29 +142,32 @@ def run_try(v, name):
     for a, vals in s.pokes:
         v.poke(a, vals)
     v.poke(OFF_PL, [0xFF])
-    jump, tapped, zs = 0, None, []
+    jump, tapped, zs, dived = 0, None, [], False
     for f in range(40):
         by = word(v, 'o_yl', 'o_yh', BALL)
         if tapped is None and by > 470:
-            v.poke(lab['dbg_joy'], [BITS['fire']])
+            v.poke(lab['dbg_joy'], [tap])
             tapped = f
         elif tapped is not None and f == tapped + 4:
             v.poke(lab['dbg_joy'], [0])
         v.cmd('x')
         jump = max(jump, v.mem(lab['o_zl'] + 9, 1)[0])
+        dived = dived or v.mem(lab['o_slide'] + 9, 1)[0] != 0
         if abs(by - 500) < 12:
             zs.append(v.mem(lab['o_zl'] + BALL, 1)[0])
         if v.mem(lab['last_pl'], 1)[0] == 9:
             if jump:
                 v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
-            return name == 'try', '9 headed it (his jump %d, tapped at frame %s)' % (jump, tapped)
-    return name == 'miss' and jump > 0, 'no header, his jump %d, the ball %s high by him' % (jump, zs)
+            return name != 'miss' and jump > 0 and not dived, \
+                '9 headed it (his jump %d, dived %s, tapped at frame %s)' % (jump, dived, tapped)
+    return name == 'miss' and jump > 0, 'no header, his jump %d, dived %s, the ball %s high by him' % (
+        jump, dived, zs)
 
 
 def run(v, name):
     if name == 'cpu':
         return run_cpu(v, name)
-    if name in ('try', 'miss'):
+    if name in ('try', 'miss', 'tryup'):
         return run_try(v, name)
     who, stick, z, way, speed = CASES[name]
     fire = 'fire' in stick              # (fire pressed as the ball comes

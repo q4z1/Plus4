@@ -119,6 +119,7 @@ SPEED_NEAR  = 1024              ; the keeper going for a ball he is nearest
 NEAR_Z      = 17                ; (under this high, in his box)
 GET_D2      = 5120              ; this near (squared; its 5000), this low
 GET_Z       = 13
+PEN_DX      = 520               ; a penalty at a corner: so far across on 1000
 PEN_REACH   = 12                ; he dives once a penalty is this near his
 PEN_REACH2  = 20                ; line, now and then this near
 RECV_T      = 100               ; frames a pass's receiver runs to meet it
@@ -2018,7 +2019,10 @@ can_kick:
         rts
 
 ; can_dive: carry clear if the stick is pushed and the ball in the air
-; (higher than DHEAD_Z_LO) near player X (DHEAD_D2). Keeps X.
+; (higher than DHEAD_Z_LO, at most DHEAD_Z_HI) near player X (DHEAD_D2).
+; Higher, he jumps for it (can_try) and heads it the stick's way - the
+; dive heads only DHEAD_Z_HI high: under a higher ball he dived for
+; nothing (Luca: do the headers want no way pushed?). Keeps X.
 can_dive:
         jsr stick_way
         cmp #8
@@ -2026,6 +2030,8 @@ can_dive:
         lda o_zl + BALL
         cmp #DHEAD_Z_LO + 1
         bcc @no
+        cmp #DHEAD_Z_HI + 1
+        bcs @no
         jsr mate_dist
         lda tmp
         cmp #<(DHEAD_D2 + 1)
@@ -2766,19 +2772,31 @@ ball_ahead:
         beq @no
         lda rs_kind
         cmp #R_THROW
-        beq :+
+        beq @in
         cmp #R_CORNER
-        bne @no
-:       tya
+        beq @in
+        cmp #R_PENALTY          ; a penalty's slanting: at the corner, as
+        bne @no                 ; the computer's (cpu_pen) - PEN_DX across,
+        tya                     ; inside the post; 1000 sent every one
+        lsr a                   ; with a way pushed wide, said Luca
+        bcc @no
+        cpy #4                  ; (1, 3: right)
+        lda #<(PEN_DX - 1000)
+        ldy #>(PEN_DX - 1000)
+        bcc @add
+        lda #<(1000 - PEN_DX)
+        ldy #>(1000 - PEN_DX)
+        bcs @add
+@in:    tya
         and #3
         bne @y
         jsr ball_rx             ; up or down: across, towards the middle
         lda #<250
         ldy #>250
-        bcc :+
+        bcc @add
         lda #<(-250)
         ldy #>(-250)
-:       clc
+@add:   clc
         adc o_txl + BALL
         sta o_txl + BALL
         tya
@@ -4420,6 +4438,7 @@ ft_dx:  .byte 11, 67, <-23, 88, <-79, <-74, 51, <-27, <-49, <-93, <-47
         .byte <-11, <-67, 23, <-88, 79, 74, <-51, 27, 49, 93, 47
 ft_dy:  .byte <-28, <-39, 57, <-30, <-43, <-3, 22, <-56, 3, 3, 49
         .byte 28, 39, <-57, 30, 43, 3, <-22, 56, <-3, <-3, <-49
+ft_jit: .byte 0, 7, <-5, 3, <-8, 0, 5, <-3, 8, <-6, 2, 0, <-7, 4, <-2, 6
 wall_dl:    .byte <(-WALL_D), <WALL_D
 wall_dh:    .byte >(-WALL_D), >WALL_D
 
@@ -4432,12 +4451,36 @@ wall_dh:    .byte >(-WALL_D), >WALL_D
 spot:
         lda full                ; full time: both teams round the middle
         beq @play               ; circle, mixed (ft_dx, ft_dy: the yellow
-        lda ft_dx,x             ; ones the cyan's turned about) - all of
-        ldy #<304               ; them walking there across the pitch
-        jsr @add                ; (Luca: the friendly chaos as at half
-        sta z_px                ; time - not a line)
+        txa                     ; ones the cyan's turned about) - all of
+        asl a                   ; them walking there across the pitch
+        asl a                   ; (Luca: the friendly chaos as at half
+        asl a                   ; time - not a line); and there a step
+        adc frame_n             ; about now and then, each at his own
+        lsr a                   ; time: every 32 frames another of
+        lsr a                   ; ft_jit (Luca: them to move among each
+        lsr a                   ; other a little)
+        lsr a
+        lsr a
+        stx tmp + 1
+        adc tmp + 1
+        and #15
+        sta tmp + 1
+        tay
+        lda ft_dx,x
+        clc
+        adc ft_jit,y
+        ldy #<304
+        jsr @add
+        sta z_px
         sty z_px + 1
+        lda tmp + 1             ; (up or down: another of them)
+        clc
+        adc #5
+        and #15
+        tay
         lda ft_dy,x
+        clc
+        adc ft_jit,y
         ldy #<369
         jsr @add
         sta z_py
@@ -6338,8 +6381,8 @@ cpu_pen:
         sta o_dzl + BALL
         jmp sfx_kick
 
-pen_xl:     .byte <(304 - 520), <(304 + 520)
-pen_xh:     .byte >(304 - 520), >(304 + 520)
+pen_xl:     .byte <(304 - PEN_DX), <(304 + PEN_DX)
+pen_xh:     .byte >(304 - PEN_DX), >(304 + PEN_DX)
 
 ; ---- the keepers ----------------------------------------------------------
 ;

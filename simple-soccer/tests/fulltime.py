@@ -10,9 +10,11 @@ half     the 45th minute, the ball near a goal: no whistle 40 pictures
 full     the same at 90: full time only once the ball is in the middle
          half; then one of them lying (as after a slide) is up again, all
          22 walk to their places round the middle circle (ft_dx, ft_dy),
-         mixed, and the view goes to the middle spot, not the ball left
-         near the goal; the score 10 - 12 in two figures each;
-         screenshot fulltime.png
+         mixed - each within ft_jit's 8 of it - and the view goes to the
+         middle spot, not the ball left near the goal; the score 10 - 12
+         in two figures each; and there they step about (ft_jit, Luca:
+         them to move among each other a little): 150 pictures on most
+         of them somewhere else; screenshot fulltime.png
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -28,6 +30,7 @@ FT_DX = [11, 67, -23, 88, -79, -74, 51, -27, -49, -93, -47]
 FT_DY = [-28, -39, 57, -30, -43, -3, 22, -56, 3, 3, 49]
 FT = [(304 + x, 369 + y) for x, y in zip(FT_DX, FT_DY)] + \
      [(304 - x, 369 - y) for x, y in zip(FT_DX, FT_DY)]
+JIT = 8                         # (play.s ft_jit: a step about at most)
 CAM_X = (304 - 23 - (40 * 4 - 8)) & 0xFE        # (follow: the middle spot's)
 
 
@@ -75,13 +78,19 @@ def full(lab):
             if up is None and s.get('o_slide', 5) == 0:
                 up = k
         far = [(i, s.where(i)) for i in range(22)
-               if abs(s.where(i)[0] - FT[i][0]) > 6 or abs(s.where(i)[1] - FT[i][1]) > 6]
+               if abs(s.where(i)[0] - FT[i][0]) > 6 + JIT or abs(s.where(i)[1] - FT[i][1]) > 6 + JIT]
         cam = s.get('cam_x') | s.get('cam_x', 1) << 8
         s.v.screenshot(os.path.join(CACHE, 'fulltime.png'))
-        ok = up is not None and not far and abs(cam - CAM_X) <= 2 and s.get('full') == 1
+        was = [s.where(i) for i in range(22)]
+        for k in range(150):
+            s.picture()
+        moved = sum(1 for i in range(22) if abs(s.where(i)[0] - was[i][0]) > 2 or
+                    abs(s.where(i)[1] - was[i][1]) > 2)
+        ok = up is not None and not far and abs(cam - CAM_X) <= 2 and s.get('full') == 1 \
+            and moved >= 11
         return ok, '%s; up after %s pictures; not at their places: %s; the view at x %d ' \
-            '(the middle spot\'s %d), y %d' % (
-                text, up, far or 'none', cam, CAM_X, s.get('cam_y') | s.get('cam_y', 1) << 8)
+            '(the middle spot\'s %d), y %d; %d of 22 stepped about since' % (
+                text, up, far or 'none', cam, CAM_X, s.get('cam_y') | s.get('cam_y', 1) << 8, moved)
     finally:
         s.stop()
 

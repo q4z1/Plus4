@@ -787,10 +787,9 @@ def main():
         out.write('la_up:                  ; a pixel up\n')
         hexrows(out, bytes(b for c, _ in WAVE
                            for b in list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]]), 8)
-        out.write('\n        .export crow_of, cmap_lo, cmap_hi, cmap_board\n        .rodata\n')
+        out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
         out.write('crow_of:                ; each row shown: its colours\' number, $FF white\n')
         idx = {y: i for i, (y, _) in enumerate(tint)}
-        out.write('cmap_board = %d            ; the boards\' colours (not the crowd\'s)\n' % idx[BOARD_ROW])
         hexrows(out, bytes(idx.get(y, 255) for y in shown))
         out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
         out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')

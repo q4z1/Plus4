@@ -36,7 +36,7 @@ on YouTube (made by `tests/trailer.py`).
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
 | fire, held | space | shot, at once - held on, the harder; pulled back meanwhile, the higher; the stick across bends it |
 | fire, a ball at head height near you | space | header, the stick's way (let go: towards the goal) |
-| fire and a direction, the ball in the air near you | space and a cursor key | diving header, that way |
+| fire and a direction, the ball 8 - 15 high near you | space and a cursor key | diving header, that way (higher: he jumps and heads it that way) |
 | | RUN/STOP or P | pause |
 | in the pause: up, down, fire let go | cursor keys, space (RUN/STOP, P: on) | CONTINUE, or QUIT the match |
 
@@ -471,6 +471,13 @@ ball is on the spot, the keeper on his line, everyone else but the
 taker put out of the area, then to their places at its edge. The taker faces the goal; yours turns with the
 stick and kicks with fire as for any set piece - held, it is a shot -
 and the yellow team shoots its penalties at one corner or the other.
+Yours, turned up and left or up and right, goes at that corner too, as
+the computer's: 520 across on 1000, just inside the post. Straight
+along the way he faces it went wide of the post every time - 45 degrees
+from 58 pixels out is 58 across, the posts are 35 from the middle (Luca:
+the slightest tap with a way pushed sends it outside the goal); only a
+straight one bent with the aftertouch went in. `tests/penalty.py`:
+straight, both corners tapped and held - in or saved, none wide.
 
 The cards are Sensible Soccer's (c10fca): none for a penalty; a red
 one if the player fouled was the last man - nearer the goal than every
@@ -538,13 +545,16 @@ tackle's 8 and up to 40, within 49 pixels - and he jumps for it at once,
 even with fire only tapped: if it comes to his head while he is up, he
 heads it as above, else it is a try missed, and everyone sees it (Luca:
 many more tries at headers, at corners too). A lower ball is still a
-sliding tackle's, fire and the stick still a diving header; the
-computer tries none. `tests/header.py` try and miss.
+sliding tackle's, fire and the stick still a diving header - for a ball
+up to 15 high, the height the dive heads; a higher one with the stick
+pushed is a try too, headed the stick's way (he dived under it for
+nothing before - Luca wondered if headers want no way pushed). The
+computer tries none. `tests/header.py` try, miss and tryup.
 
 Above or below that a ball in the air goes over the players' heads unless one of them goes
 for it - and the other header is the diving one, as Sensible Soccer has no
 other (c13af4, c140d4): fire pressed with the
-stick pushed, the ball higher than 8 and within 49 pixels, and two
+stick pushed, the ball 9 to 15 high and within 49 pixels, and two
 frames on your player dives the stick's way (2048, slowing 36 a frame);
 in the first 16 frames of his dive, the ball 8 to 15 high and within 8
 pixels, he heads it on - the way he dives, a step nearer the stick's, a
@@ -687,7 +697,11 @@ player's, so the two teams stand in turn - the ones on the joysticks and
 the keepers too, criss-crossing on their way as at half time (Luca: the
 friendly chaos, not a line). One lying after a tackle gets up first, and
 the view leaves the ball and goes to the centre spot, six pixels a
-picture. `tests/fulltime.py` checks it. Then
+picture. There they step about: every 32 frames, each at his own time,
+a player's place moves up to 8 pixels from his own (a table of 16 small
+steps) and he walks there (Luca: them to move among each other a
+little). `tests/fulltime.py` checks it - 150 pictures on, 19 of the 22
+somewhere else. Then
 fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was - and fire again the title, with the choices as they were. A
@@ -925,11 +939,13 @@ the view has moved. Now and then a wave runs through the stands: the
 spectators of one kind after another raised a pixel - they sit side by
 side in that order, so the raise runs along the rows (the characters
 in each picture's cache rewritten, whatever codes they have there). At
-a goal the stands party (Luca's wish): every shirt's hue turns a step
-round red, cyan, purple, green, blue and yellow every 8 frames till the
-kick-off - each picture's rows put in from the map anew, then turned
-there (the map's rows overlap in memory: they stay as they are), and
-three pictures more after it, back as they were.
+a goal the stands jump till the kick-off: every other spectator up a
+pixel, the ones of the wave's odd steps and the even ones by turns, 8
+frames each - the wave's own characters, nothing more to draw (Luca:
+the colour cycle tried first, every shirt's hue turned a step every 8
+frames, looked like no party - jumping was his idea). `tests/party.py`
+(the venv's Python, for PIL) takes the stands from the screen every
+second frame: two pictures by turns, the same colours in both.
 
 The picture is cut short to give the CPU more time: 16 lines before its
 end the TED's line counter is put 16 on, so the display stops early and
