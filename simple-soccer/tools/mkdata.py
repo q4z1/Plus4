@@ -161,6 +161,15 @@ FONT5 = {
 LOGO_LETTERS = 'SIMPLECOR'           # their four cells each from code 96
 
 
+# letters the bold of title_font runs together - W's three strokes a
+# block at the bottom, M's at the top: drawn bold by hand, as the C64's
+# own characters have them, a pixel wider than the rest
+BOLD5 = {
+    'W': '''.XX...XX .XX...XX .XX...XX .XX.X.XX .XXXXXXX .XXX.XXX .XX...XX''',
+    'M': '''.XX...XX .XXX.XXX .XXXXXXX .XX.X.XX .XX...XX .XX...XX .XX...XX''',
+}
+
+
 def title_font():
     """the title's characters from code 32: the font (32-95), the
     letters of the name at twice the size (96 on, four each: top left,
@@ -175,6 +184,10 @@ def title_font():
             # pixels wide, two between the letters (thin, it was lost on the
             # pages' green, said Luca)
             font[c * 8 + y] = b | (b >> 1)
+    for ch, rows in BOLD5.items():      # (drawn bold by hand)
+        c = ord(ch) - 32
+        for y, row in enumerate(rows.split()):
+            font[c * 8 + y] = int(row.replace('X', '1').replace('.', '0'), 2)
     for k, ch in enumerate(LOGO_LETTERS):
         big = [[0] * 16 for _ in range(16)]
         for y, row in enumerate(GLYPHS[ch]):

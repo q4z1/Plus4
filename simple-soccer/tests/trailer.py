@@ -178,6 +178,7 @@ CREDITS = ['SIMPLE SOCCER', 'THE CREDITS', '',
            'TESTED ON REAL HARDWARE', 'THOROUGH ENGINE TESTS', 'AND MANY NEW IDEAS', 'BY LUCA', '',
            'THE MUSIC PLAYER FROM', 'INTERNATIONAL KARATE BY', 'CSABO - ATI - SIZ - TLC', '',
            'THE FAST LOADER AFTER', 'SIZ AND SIZIOLIB', '',
+           'PACKED WITH ZX0', 'BY EINAR SAUKAS', 'AND EXOMIZER', 'BY MAGNUS LIND', '',
            'THANKS TO PLUS4WORLD', 'AND THE WHOLE PLUS/4 SCENE', '', '',
            'SEE YOU ON THE PITCH....']
 CREDITS_START, CREDITS_HOLD = 0.6, 3.5  # its crawl from; the last line held (seconds)
@@ -636,24 +637,38 @@ def set_piece(y, lab, mark, name, at, pushes, held, after):
     return bool(heads)
 
 
+def load_end(mark):
+    """the loading screen's last picture before the page marked (the
+    mark comes once the page has saved, seconds after it shows): the
+    last with the table's place on the left empty"""
+    n = mark
+    while n > mark - 10 * FPS:
+        im = Image.open(os.path.join(WORK, 'league', 'f%04d.ppm' % n))
+        if len(set(im.convert('L').crop((40, 90, 140, 150)).tobytes())) == 1:
+            return n
+        n -= 1
+    raise RuntimeError('no loading screen before %d' % mark)
+
+
 def league_parts():
     """the match's goal and the league's three parts: (name, pictures,
-    sound, how many) each - the loading between shown a moment only"""
+    sound, how many) each - the loading between shown a moment only: its
+    end, the ball turning, the name and the dots (its first seconds the
+    resident loader's bare LOADING, cup.s not in yet)"""
     mk = dict(l.split() for l in open(os.path.join(WORK, 'league', 'marks.txt')))
     mk = {k: int(v) for k, v in mk.items()}
-    load = int(1.2 * FPS)
+    load = int(2.0 * FPS)
     g = mk['goal']
     g0 = max(mk['kick'] + 10, mk.get('open', 0), g - int(GOAL_BEFORE * FPS))
     gt = (g - g0) / FPS
     goal = [(g0, g + int(GOAL_AFTER * FPS), 1)]
     a = [(mk['title'], mk['fire'] + 10, 1),
-         (mk['fire'] + 10, mk['fire'] + 10 + load, 1),
-         (mk['page1'], mk['page1'] + int(5.0 * FPS), 1)]
+         (load_end(mk['page1']) - load, load_end(mk['page1']) + 1, 1),
+         (load_end(mk['page1']) + 1, load_end(mk['page1']) + 1 + int(5.0 * FPS), 1)]
     d = [(mk['day7'] + 10, mk['day7-ft'] + int(1.5 * FPS), 1),     # (from minute 89)
-         (mk['day7-back'] + 5, mk['day7-back'] + 5 + load, 1),
-         (mk['day7-page'], mk['day7-page'] + int(6.5 * FPS), 1)]
-    w = [(mk['champ-back'] + 5, mk['champ-back'] + 5 + load, 1),
-         (mk['champ'], mk['champ'] + int(6.0 * FPS), 1)]
+         (load_end(mk['day7-page']) - load, load_end(mk['day7-page']) + 1, 1),
+         (load_end(mk['day7-page']) + 1, load_end(mk['day7-page']) + 1 + int(6.5 * FPS), 1)]
+    w = [(mk['champ'], mk['champ'] + int(6.0 * FPS), 1)]    # (no loading before it)
     sets = [(n, [(mk[n], mk[n + '-end'], 1)], [(SET_CAPS[n], X, -X)])
             for n, *_ in SET_PIECES]
     out = [('goal', goal, [(GOAL_CAPS[0], X, gt - 0.2), (GOAL_CAPS[1], gt, -X)])] + sets + [
