@@ -38,6 +38,17 @@ SHOT_FRAMES = 27
 # a header (play.s head: fire held, the ball 13 - 26 high and within 10):
 # fire held already as a high ball comes near, the stick at the goal
 HEAD_Z, HEAD_NEAR = (9, 30), 24
+# a cross to be headed (Pilot.heads): the ball's flight foreseen from two
+# looks (its way) and its step up (gravity $12/256 a frame) - he runs to
+# where it comes down to head height (HEAD_AT) first that he can reach at
+# RUN_PX a frame, and presses fire FIRE_T frames before it is there: he
+# jumps for it (can_try: within DHEAD_D2, up to TRY_HI) and heads it as
+# it comes (head: within 10, 13 - 26 high, in his HEAD_T frames up)
+HEAD_AT = (14, 24)
+RUN_PX = 1.8
+FIRE_T = 9
+HEAD_R = 7                      # within this of its way: headed (head: 10)
+GRAVITY = 0x12 / 256
 NAMES = ['up', 'up+right', 'right', 'down+right', 'down', 'down+left', 'left', 'up+left']
 
 
@@ -72,7 +83,20 @@ def read_state(mem):
     s['flip'] = mem(lab['flip'], 1)[0]
     s['min'] = mem(lab['game_min'], 1)[0]
     s['rs'] = mem(lab['rs_kind'], 1)[0]
+    s['jumps'] = mem(lab['jumps'], 1)[0]
+    dz = mem(lab['o_dzl'] + BALL, 1)[0] + mem(lab['o_dzf'] + BALL, 1)[0] / 256
+    s['dz'] = dz - 256 if dz >= 128 else dz
+    s['zs'] = mem(lab['o_zl'], N)
     return s
+
+
+def headed(s):
+    """whether state s shows the joystick's player heading it: up in a
+    header's jump (play.s head/can_try: jumps), the ball his touch last
+    (a try missed leaves it the kicker's)"""
+    c = s['ctrl']
+    return s['jumps'] > 0 and c < 11 and s['last_team'] == 0 and s['last_pl'] == c and \
+        s['zs'][c] > 0
 
 
 class Pilot:
@@ -83,6 +107,7 @@ class Pilot:
         self.heads = heads                  # a high ball near him: headed at the goal
         self.aim = 'up'
         self.kick = 0
+        self.seen = None                    # the ball at the last look: frames, x, y, its last touch
 
     def decide(self, s):
         """the stick for state s - after half time (flip) the cyan team
@@ -108,9 +133,10 @@ class Pilot:
                 self.kick = (self.kick + 1) % 6
                 return 'up+fire' if self.kick == 5 else 'up'
             return 'none'
-        if self.heads and HEAD_Z[0] <= s['z'] <= HEAD_Z[1] and \
-                math.hypot(bx - px, by - py) < HEAD_NEAR:
-            return stick_to(GOAL[0] - px, GOAL[1] - py) + '+fire'
+        if self.heads:
+            st = self.cross(s, c, px, py, bx, by)
+            if st:
+                return st
         near = math.hypot(bx - px, by - py) < 10 and s['z'] < 8
         if near and s['last_team'] == 0:
             side = 1 if px >= GOAL[0] else -1
@@ -142,6 +168,35 @@ class Pilot:
             return stick_to(tx - px, ty - py)
         return stick_to(bx - px, by - py)
 
+    def cross(self, s, c, px, py, bx, by):
+        """the stick for a ball in the air to be headed, None if not one"""
+        seen, self.seen = self.seen, (s['frames'], bx, by, s['last_pl'])
+        at_goal = stick_to(GOAL[0] - px, GOAL[1] - py)
+        if s['jumps'] and s['zs'][c]:       # up for it: fire held, at the goal
+            return at_goal + '+fire'
+        if s['z'] < 9 or seen is None or seen[3] != s['last_pl']:
+            return None
+        n = (s['frames'] - seen[0]) & 255
+        if not 1 <= n <= 20:
+            return None
+        vx, vy = (bx - seen[1]) / n, (by - seen[2]) / n
+        z, dz = s['z'], s['dz']
+        for t in range(0, 80):
+            zt = z + dz * t - GRAVITY * t * (t + 1) / 2
+            if zt < HEAD_AT[0]:
+                if dz - GRAVITY * t < 0:
+                    return None             # down past his head: no header
+                continue                    # (still rising to it)
+            if zt > HEAD_AT[1]:
+                continue
+            tx, ty = bx + vx * t, by + vy * t
+            d = math.hypot(tx - px, ty - py)
+            if d - HEAD_R <= RUN_PX * t:    # (near enough is enough)
+                if t <= FIRE_T and d < HEAD_R + 2:
+                    return at_goal + '+fire'
+                return stick_to(tx - px, ty - py) if d >= 3 else 'none'
+        return None
+
 
 # ---- in Yape -------------------------------------------------------------------
 
@@ -167,7 +222,7 @@ def stopped_reader(y):
 
 
 def yape_goal(y, at_goal, secs=900, step=0.03, log=None, clock_back=True, tick=None, open_secs=0,
-              clean=False, heads=False):
+              clean=False, heads=False, on_head=None):
     """the pilot at the cyan joystick in Yape (dbg_joy) till the cyan team
     scores: at_goal(since) called then, the machine still stopped -
     since: the match's frames from the last set piece; False if
@@ -180,7 +235,8 @@ def yape_goal(y, at_goal, secs=900, step=0.03, log=None, clock_back=True, tick=N
     the score kept as it was at the start (a goal that does not count,
     one of the yellow team's: set back), so the one that counts is the
     first on the board. heads: a high ball near the joystick's player
-    headed at the goal (fire held)"""
+    headed at the goal (fire held); on_head() called the first time the
+    joystick's player has headed it (headed)"""
     from moves import monitor_open, monitor_cmd
     pilot = Pilot()
     pilot.heads = heads
@@ -206,6 +262,9 @@ def yape_goal(y, at_goal, secs=900, step=0.03, log=None, clock_back=True, tick=N
                 first = s['score'][0]
             scored = False
         st = 'none' if scored else pilot.decide(s)
+        if on_head and headed(s):
+            on_head()
+            on_head = None
         if scored:
             at_goal(t - set_t)
         if log and n % 10 == 0:
