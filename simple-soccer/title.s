@@ -1146,6 +1146,9 @@ MENU_W      = 27
 menu_lo:    .byte <menu_1, <menu_2
 menu_hi:    .byte >menu_1, >menu_2
 team22:     .byte 0, 22         ; (each team's part of tac_*)
+; (the names, the pages' lines and the flags' frame in MAIN: the title has
+; no room left for them)
+        .rodata
 FORM_W      = 6
 form_names: .byte "4-4-2 5-4-1 4-5-1 5-3-2 3-5-2 4-3-3 ATTACKDEFENDRANDOM"
 .assert * - form_names = FORMS * FORM_W, error, "form_names"
@@ -1169,6 +1172,7 @@ menu_2: .byte LEN_ROW, LINE_COL, C_TEXT
         .byte MORE_ROW, LINE_COL, C_TEXT
         .byte "< MAIN SETTINGS", 0
         .byte $FF
+        .segment "TITLE"
 arrows_n:   .byte 3 * 40, 2 * 40
 field_at:   .byte NAME_COL, TEXT_DROP * 40 + NAME_COL       ; (the away side's lower)
 .assert TEXT_DROP * 40 + NAME_COL + FIELD_W < 256, error, "field_at"
@@ -1193,6 +1197,7 @@ MODE_LEAGUE = 2                 ; a new league (cup.s: K_NEW)
 MODE_ON     = 3                 ; the league going on (K_ON)
 ch_first:   .byte 0, 0, MODE_MATCH, 0, 3, 0, 0  ; (k_init: K_CH's order)
 
+        .rodata
 ; a flag's frame, multicolour, in the cells round it: a line next to the
 ; flag - corners top left, top, top right, left, right, bottom left,
 ; bottom, bottom right
@@ -1205,6 +1210,7 @@ frame_chars:
         .byte $03, 0, 0, 0, 0, 0, 0, 0
         .byte $FF, 0, 0, 0, 0, 0, 0, 0
         .byte $C0, 0, 0, 0, 0, 0, 0, 0
+        .segment "TITLE"
 
 ; the cup: top left, top right, bottom left, bottom right
 name:       .byte "SIMPLE SOCCER"
@@ -1768,6 +1774,7 @@ teams:
         team "NETHERLANDS", ORANGE, WHITE, 1, %01000001100
         team "NEW ZEALAND", WHITE, DARK_BLUE, 8, %01010000001     ; (not in it: ours)
         team "NIGERIA", GREEN, WHITE, 7, %01000100010
+        team "NORWAY", RED, WHITE, 3, %01010000001     ; (not in it: ours)
         team "POLAND", WHITE, RED, 4, %11100000000
         team "PORTUGAL", DARK_RED, WHITE, 4, %01100000001
         team "SAUDI ARABIA", WHITE, GREEN, 8, %00010000110
@@ -1776,6 +1783,7 @@ teams:
         team "SOUTH KOREA", RED, WHITE, 8, %01010000001
         team "SPAIN", RED, DARK_BLUE, 2, %01000000101
         team "SWEDEN", YELLOW, DARK_BLUE, 3, %11001000000
+        team "UKRAINE", YELLOW, BLUE, 5, %01010000001     ; (not in it: ours)
         team "URUGUAY", LIGHT_SKY, WHITE, 3, %01010000001     ; (not in it: ours)
         team "USA", WHITE, DARK_BLUE, 4, %01100000001
 TEAMS       = (* - teams) / (NAME_W + 3)

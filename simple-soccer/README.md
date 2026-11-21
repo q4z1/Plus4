@@ -12,7 +12,7 @@ ball, the keepers, sliding tackles, headers, and the rules - throw-ins,
 goal kicks, corners, fouls with free kicks and penalties, goals and
 kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
-other, with 35 national teams from all over the world to choose from -
+other, with 37 national teams from all over the world to choose from -
 a match, training (a keeper and four a side, to try the moves out), or a
 league of eight teams for one player or two, kept on the disk. A match
 can be paused (RUN/STOP), left, and saved on the disk to go on with
@@ -141,7 +141,7 @@ background, a dark green that is the flags' dark green (the frame keeps
 it from the background), white and a second shared colour, and one of its
 own - and every flag keeps to that, so each comes out to the pixel. The
 second shared colour is red, unless another lets more of the flag come
-out: Sweden's, Senegal's, Brazil's and Uruguay's is yellow, Colombia's
+out: Sweden's, Senegal's, Brazil's, Ukraine's and Uruguay's is yellow, Colombia's
 navy, Ghana's black (its star). Brazil's and Portugal's greens are the
 dark green: their green, yellow, blue, white (and Portugal's red) would
 not go into the cells otherwise. The two flags share no line of the
@@ -149,7 +149,7 @@ picture, so the title sets that colour for each while it is drawn (in
 the border at the end of a line, where the TED shows no stray pixel for
 it). No colour shows that is not in the flag.
 
-The patterns of all the flags' cells are on the disk once each (162 of
+The patterns of all the flags' cells are on the disk once each (163 of
 them, each only with the rows that are not the one above again - some 5
 bytes rather than 8); the title copies those of the two flags shown into
 the character codes its own font leaves free. Each side has two sets of codes: a flag
@@ -425,8 +425,8 @@ dribbles it.
 ## The teams and their players
 
 The teams are as good as Sensible Soccer has them where it has them (24
-of the 35): each its level, 1 the best to 8, and its three stars or so
-of the eleven. The other eleven have a level from how
+of the 37): each its level, 1 the best to 8, and its three stars or so
+of the eleven. The other thirteen have a level from how
 good we took them to be and the stars it most often has: the keeper, 8
 and 10 (`title.s`'s list of teams).
 
@@ -624,7 +624,7 @@ off. The line the stick is on shows white, label and choice, the others
 grey (the choices were all yellow after each change, which Luca found
 confusing). TEAM SETTINGS (right on it) turns to a second page of those four
 lines: each team's formation, or RANDOM; MAIN SETTINGS (left on it)
-turns back. Each of the 35 teams has its shirt and a second one: the TED gives a
+turns back. Each of the 37 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
 purple, green, blue, yellow) in eight shades, so the Netherlands play in
 a light red and the green teams in a dark green the grass sets off. The
