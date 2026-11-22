@@ -4882,18 +4882,23 @@ head:
         lda last_pl             ; Luca: thrown to him at head height, he
         cmp thrower             ; headed it on)
         beq @no
-:       jsr cpu_side            ; (the computer's: none)
-        bcs @no
-        ldx ctrl
+:       ldx ctrl
         bmi @no
-        lda pj                  ; (the joystick's: with fire only - or in
+        jsr cpu_side            ; (the computer's: only its own team's
+        bcc :+                  ; ball, a cross, a pass in the air - Luca
+        lda last_team           ; saw too few headers; once it headed the
+        cmp me                  ; other team's too, every shot at head
+        beq @can                ; height and long pass, back to its keeper
+        rts                     ; too)
+:       lda pj                  ; (the joystick's: with fire only - or in
         and #J_FIRE             ; the air already, jumped for it: can_try;
         beq :+                  ; not fire held on since a kick, $80 on:
         lda fire_n              ; Luca's goal kick lofted, fire held, the
         bpl :++                 ; team-mate it flew over got the joystick
 :       lda o_zl,x              ; and headed it back, the stick's way)
         beq @no
-:       jsr can_head
+:
+@can:   jsr can_head
         bcc @go
 @no:    rts
 @go:    lda #HEAD_T
@@ -6733,21 +6738,33 @@ k_shot:
 ; (under 512) low and near him, not held by the other team, kp_g*
 ; (c130fa); or one in his box, low, that he is nearer than the players
 ; going for it - both teams' joystick's, the one run after it, the pass's
-; - SPEED_NEAR (c12f46). Keeps X.
+; - SPEED_NEAR (c12f46). And, as neither original has it, one the other
+; team holds - a dribbler's - low in his box within GET_D2 of him: he goes
+; for it, SPEED_NEAR (Luca: too many goals, walked in; the dribbler at his
+; feet he never took). Keeps X.
 k_get:
-        lda #0                  ; (not one the other team holds)
+        lda #0                  ; (the other team's: held)
         cpx #11
         bcc :+
         lda #1
 :       jsr held
-        bcc :+
-@out:   rts
-:       jsr mate_dist
+        lda #0
+        ror a
+        sta k_i                 ; (bit 7: held - @key's)
+        jsr mate_dist
         lda tmp
         sta k_d2
         lda tmp + 1
         sta k_d2 + 1
+        bit k_i
+        bpl :+
+        cmp #>GET_D2            ; (held: only near him, and dribbled -
+        bcs @out                ; not a shot just kicked, under 1536)
         lda o_sph + BALL
+        cmp #>1536
+        bcc @near
+@out:   rts
+:       lda o_sph + BALL
         cmp #>512
         bcs @near
         lda o_zl + BALL
@@ -6764,8 +6781,11 @@ k_get:
         lda kp_gh,y
         sta z_ks + 1
         jmp @go1
-@near:  lda k_on                  ; (not a shot at his goal: k_shot's)
+@near:  bit k_i                 ; (not a shot at his goal: k_shot's -
+        bmi :+                  ; a dribble at it it takes for one)
+        lda k_on
         bne @no
+:
         lda o_zl + BALL         ; nearer than the players after it?
         cmp #NEAR_Z
         bcs @no
@@ -6793,6 +6813,8 @@ k_get:
         sbc o_yh + BALL
         bcs @no
 @key:   stx z_obj
+        lda k_i                 ; (held: at the dribbler's feet - he is
+        bmi @rush               ; never nearer)
         lda #NEAR_N - 1
         sta k_i
 :       ldy k_i
@@ -6802,7 +6824,7 @@ k_get:
         bcc @not
         dec k_i
         bpl :-
-        ldx z_obj
+@rush:  ldx z_obj
         ldy #<SPEED_NEAR
         lda #>SPEED_NEAR
 @go:    sty z_ks
@@ -7543,7 +7565,8 @@ touch:
 
 ; held: carry set if the ball is held by the team other than A's: it
 ; touched it HOLD_T frames ago or less, or its player who did has it by
-; him, low. Keeps X, Y.
+; him, low - not one down, sliding or knocked over (Luca: a ball by one
+; lying there no one came for). Keeps X, Y.
 held:
         cmp last_team
         beq @no
@@ -7556,8 +7579,11 @@ held:
         tya
         pha
         ldy last_pl
+        lda o_slide,y           ; (down: as far as can be)
+        sta tmp + 1
+        bne :+
         jsr dist_y
-        pla
+:       pla
         tay
         lda tmp + 1
         bne @no
@@ -8039,7 +8065,35 @@ pose_of:
         rts
 @down:  lda #IMG_DOWN
         rts
-@none:  lda #$FF
+@none:  lda goal                ; (Luca: celebrations - after a goal the
+        beq @ft                 ; scorers' team, at full time the winners:
+        lda rs_team             ; each his arms up 16 frames in 64, by
+        eor #1                  ; turns)
+        bpl @team
+@ft:    lda full
+        beq @no
+        lda score
+        cmp score + 1
+        beq @no                 ; (a draw: no one)
+        lda #0
+        rol a                   ; (1: the cyan team won)
+        eor #1
+@team:  cpx #11                 ; (his team and A's: 0 0 or 1 1 - A * 2
+        rol a                   ; + his + 1 has bit 1 clear)
+        adc #1
+        and #2
+        bne @no
+        txa
+        asl a
+        asl a
+        asl a
+        asl a
+        adc frame_n
+        and #$30
+        bne @no
+        lda #IMG_HOLD
+        rts
+@no:    lda #$FF
         rts
 
 ; cam_way: A = the way the view leans ahead of the ball (follow) - at a

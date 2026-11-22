@@ -29,6 +29,9 @@ cpu       a cyan shot at head height up the pitch at the computer's 20
           (its runner): no header - it goes over him (Luca: the computer
           intercepts every ball by a header; Sensible Soccer's computer
           heads none)
+cpuown    the same ball, but a yellow team-mate's pass: 20 heads it -
+          the computer heads its own team's balls in the air, crosses
+          and passes (Luca saw too few headers)
 
 A line each: who touched it, where it went, how fast, his jump; OK or
 WRONG; a screenshot as he heads it (header-<case>.png). The exit code counts the wrong ones.
@@ -59,6 +62,7 @@ CASES = {
     'miss': (9, 'fire', 36, None, 0),
     'tryup': (9, 'up+fire', 22, 'up', HEAD_SPEED),
     'cpu': (20, '', 18, None, 0),
+    'cpuown': (20, '', 18, 'down', HEAD_SPEED),
 }
 
 
@@ -100,7 +104,11 @@ def run_cpu(v, name):
     s.obj(who, 304, 300, d=4)
     s.put('ctrl_b', who)
     s.pokes.append((lab['ctx_b'] + lab['helper'] - lab['ctx'], [who]))
-    s.put('last_pl', 9)                 # (cyan's shot)
+    if name == 'cpuown':                # (a yellow team-mate's pass)
+        s.put('last_pl', 18)
+        s.put('last_team', 1)
+    else:
+        s.put('last_pl', 9)             # (cyan's shot)
     moves.flight(s, 304, 360, 304, 360 - 32 * 60, 1536, 18, level(60))
     for a, vals in s.pokes:
         v.poke(a, vals)
@@ -115,8 +123,9 @@ def run_cpu(v, name):
             zs.append(v.mem(lab['o_zl'] + BALL, 1)[0])
         if v.mem(lab['last_pl'], 1)[0] == who:
             v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
-            return False, '%d took it (his jump %d, the ball %s high at him)' % (who, jump, zs)
-    return True, 'no header: it went by him %s high' % zs
+            return name == 'cpuown' and jump > 0, '%d took it (his jump %d, the ball %s high at him)' % (
+                who, jump, zs)
+    return name != 'cpuown', 'no header: it went by him %s high' % zs
 
 
 def run_try(v, name):
@@ -165,7 +174,7 @@ def run_try(v, name):
 
 
 def run(v, name):
-    if name == 'cpu':
+    if name in ('cpu', 'cpuown'):
         return run_cpu(v, name)
     if name in ('try', 'miss', 'tryup'):
         return run_try(v, name)

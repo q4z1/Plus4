@@ -286,7 +286,9 @@ As in Sensible Soccer and on the C64, the cyan player nearest a ball no
 one has - not yours, not the keeper - runs to it on his own, as a pass's
 receiver does to meet it; a ball the other team has is left to the
 player you run, as on the C64 (the computer's runner still goes for it,
-to slide in). The joystick stays with the player
+to slide in) - but not one by an opponent lying on the ground, after
+his tackle or knocked over: that ball is free, and your nearest comes
+for it (Luca: no one came). The joystick stays with the player
 who has the ball at his feet, goes to the one running to it once he
 gets to it, and else to the player nearest it - not the one on his way to it, not
 the one who has just passed or shot. Your player's shirt flickers a
@@ -567,9 +569,12 @@ pressed, is headed on - neither original has such a header, Luca missed
 it: he jumps, his arms up, for 16 frames, and heads it at 1536, rising
 as a diving header's, the way the stick points (let go: towards the
 goal his team attacks). Not a keeper (his hands), nor one who has just
-kicked it. The computer's team heads none, as Sensible Soccer's does not
-(its header's fire is dead code): it takes a high ball with the foot, up
-to 12 high, and the rest goes over it. (Every header came of itself at
+kicked it. The computer's team heads only its own team's balls - a
+cross, a corner, a pass in the air - towards the goal it attacks
+(Sensible Soccer's heads none, its header's fire is dead code; Luca saw
+too few headers): one of the other team's it takes with the foot, up to
+12 high, and the rest goes over it (`tests/header.py cpu, cpuown`).
+(Every header came of itself at
 first, your team's runner's too and the way your player faced: they met
 every ball going by, a team-mate's shot as well - own goals like rain,
 said Luca; then the computer's still headed every ball your team played
@@ -874,7 +879,12 @@ picks up - holding it up in his hands, then after half a second at his
 chest, his arms down, till he kicks it out - and one low in his box that he is nearer than the players
 going for it - either team's joystick's, the one run after it, a
 pass's receiver - he goes for too (1024, its c12f46), when it is no
-shot at his goal. A high ball in his box (13 pixels up or more, a pixel
+shot at his goal. And, as neither original has it, a ball dribbled into
+his box by the other team, slower than a shot, within some 70 pixels of
+him: he comes out for it (1024) and takes it from the dribbler's feet -
+in the original he stays on his line and the dribbler walks it in
+(Luca: too many goals; four of the computer's matches against itself,
+three minutes each: 21 goals, 24 without). A high ball in his box (13 pixels up or more, a pixel
 a frame or faster) he runs out to (1024) where it will come down through
 20 pixels high, if that is in his box too and he is at most half as far
 from it as the ball - always when it is in his goal area, else 12 less
@@ -981,7 +991,15 @@ boards along the pitch show the name in letters two cells wide - the
 C64's one-cell letters cannot make an M - each in a colour of a sweep
 from yellow to red or cyan to blue, on black. Those cells get their
 colours from a map of the rows that have them, put in again only when
-the view has moved. Now and then a wave runs through the stands: the
+the view has moved. The benches past the right touch line too: the C64's
+were two blocks of one light colour (white coffins, said Luca) - now a
+blue roof of corrugated sheet, dark ribs every four lines and a light
+front edge, and the coach in a red suit, in the characters the benches
+had, no more of them. Their rows count as white while the benches are
+out of the view, else every move across copied them all: so the
+colours cost next to nothing (`tests/pace.py`, six matches: 87.3 % of
+the pictures in time, 87.8 without the colours, 88.0 without the
+benches at all). Now and then a wave runs through the stands: the
 spectators of one kind after another raised a pixel - they sit side by
 side in that order, so the raise runs along the rows (the characters
 in each picture's cache rewritten, whatever codes they have there). At
@@ -991,7 +1009,10 @@ frames each - the wave's own characters, nothing more to draw (Luca:
 the colour cycle tried first, every shirt's hue turned a step every 8
 frames, looked like no party - jumping was his idea). `tests/party.py`
 (the venv's Python, for PIL) takes the stands from the screen every
-second frame: two pictures by turns, the same colours in both.
+second frame: two pictures by turns, the same colours in both. The
+players cheer as well: after a goal the scorers' team, at full time the
+winners on their way off, each with his arms up (the header's picture)
+16 frames in 64, by turns (Luca's wish).
 
 The picture is cut short to give the CPU more time: 16 lines before its
 end the TED's line counter is put 16 on, so the display stops early and

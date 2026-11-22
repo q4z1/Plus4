@@ -419,11 +419,55 @@ def ground_and_font():
                     pattern[data] = free.pop(0)
                     font[pattern[data] * 8:pattern[data] * 8 + 8] = data
                 rows[y][left + i] = pattern[data]
+    # their roofs a corrugated canopy (Luca: white coffins, all of one
+    # light colour): in a colour of their own (colours: ROOF_COL), dark
+    # ribs every four lines and a dark back edge, the front edge light; the
+    # coach's suit his own colour (COACH_COL) - in the characters only the
+    # benches use, no more of them
+    outside = set(rows[y][x] for y in range(len(rows)) for x in range(len(rows[y]))
+                  if not any(t <= y <= b and l <= x <= r for t, b, l, r in BENCHES))
+    done = set()
+    for top, bottom, left, right in BENCHES:
+        for y in range(top, bottom + 1):
+            for cx in range(ROOF[0] // 4, right + 1):
+                c = rows[y][cx]
+                if c in outside or c in done:
+                    continue
+                done.add(c)
+                for py in range(8):
+                    b = font[c * 8 + py]
+                    for x in range(4):
+                        rx = cx * 4 + x - ROOF[0]
+                        sh = 6 - 2 * x
+                        if 0 <= rx < ROOF[1] and b >> sh & 3 == 1:
+                            v = 1 if rx == 0 else 2 if rx == ROOF[1] - 1 or py in (3, 7) else 3
+                            b = b & ~(3 << sh) & 255 | v << sh
+                    font[c * 8 + py] = b
+        for (dy, cx, py0, xs) in COACH:
+            c = rows[top + dy][cx]
+            if c in outside or (c, 'coach') in done:
+                continue
+            done.add((c, 'coach'))
+            for py in range(py0, 8):
+                b = font[c * 8 + py]
+                for x in xs:
+                    sh = 6 - 2 * x
+                    if b >> sh & 3 == 1:
+                        b |= 3 << sh
+                font[c * 8 + py] = b
     return [bytes(r) for r in rows], font
 
 
-# the benches (rows top-bottom, columns left-right of the ground's cells)
+# the benches (rows top-bottom, columns left-right of the ground's cells),
+# their roofs (multicolour pixels: the first across, how wide)
 BENCHES = [(25, 33, 73, 77), (37, 45, 73, 77)]
+ROOF = (75 * 4 + 2, 8)
+ROOF_H = 8                      # (rows from the bench's top: its colours)
+# the coach's suit below his face: (row from the top, column, from line,
+# pixels) - his legs share a cell with the first ones on the bench
+COACH = [(1, 73, 5, range(4)), (1, 74, 4, range(4)), (2, 74, 0, range(2))]
+ROOF_COL = mc(6, 3)             # blue
+COACH_COL = mc(2, 3)            # red
 
 
 def colours():
@@ -440,9 +484,28 @@ def colours():
                 cols[x] = mc(*rnd.choice(CROWD))
         if y == BOARD_ROW:
             cols[:BOARD_WIDTH] = board_row()[1]
+        for top, bottom, left, right in BENCHES:
+            if top <= y < top + ROOF_H:
+                cols[73:75] = [COACH_COL] * 2
+                cols[75:right + 1] = [ROOF_COL] * (right - 74)
         if any(c != white for c in cols):
             out.append((y, cols))
     return out
+
+
+def unique_tints():
+    """colours()'s rows, each alike one once: [(its first row, colours)]"""
+    out = []
+    for y, cols in colours():
+        if all(c != cols for _, c in out):
+            out.append((y, cols))
+    return out
+
+
+def tint_of():
+    """each ground row with colours of its own: its number in unique_tints"""
+    rows = [c for _, c in unique_tints()]
+    return {y: rows.index(cols) for y, cols in colours()}
 
 
 def chars():
@@ -773,7 +836,7 @@ def main():
         out.write('        .export _pitch_map, _pitch_font\n\n        .rodata\n')
         # the ground's rows cut into segments, each row's piece of each
         # (alike ones once), and the colour rows (tint), as one string
-        tint = colours()
+        tint = unique_tints()
         cuts = segments(rows, NSEG)
         pieces = [bytes(r[a:b]) for a, b in zip(cuts, cuts[1:]) for r in rows]
         packed, at = overlapped(pieces + [bytes(c) for _, c in tint])
@@ -803,7 +866,7 @@ def main():
                            for b in list(font[c * 8 + 1:c * 8 + 8]) + [font[c * 8 + 7]]), 8)
         out.write('\n        .export crow_of, cmap_lo, cmap_hi\n        .rodata\n')
         out.write('crow_of:                ; each row shown: its colours\' number, $FF white\n')
-        idx = {y: i for i, (y, _) in enumerate(tint)}
+        idx = tint_of()
         hexrows(out, bytes(idx.get(y, 255) for y in shown))
         out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
         out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')
@@ -903,6 +966,9 @@ def main():
         skin = int(os.environ.get('COL_SHARED', '72'), 16)  # red, the lightest: near white
         out.write('COL_SKIN    = $%02X           ; the shared light colour: lines, ball, skin\n' % skin)
         out.write('COL_BLACK   = $%02X\n' % ted_of(0))
+        out.write('BENCH_TINT  = %d             ; the benches\' colour row (tint: white while\n'
+                  '                            ; they are out of the view)\n' % tint_of().get(BENCHES[0][0], 255))
+        out.write('BENCH_COL   = %d            ; (their first column with its own colour)\n' % 73)
         out.write('COL_LINE    = $%02X           ; white, multicolour (the cells\' own)\n'
                   % (ted_of(1, range(8)) | 0x08))
         out.write('COL_TEAM1   = $%02X           ; cyan, multicolour\n' % (ted_of(3, range(8)) | 0x08))

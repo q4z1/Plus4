@@ -589,7 +589,13 @@ tint:
         adc z_tr
         tay
         lda crow_of,y           ; the colours it wants
-        ldx z_ti
+        cmp #BENCH_TINT         ; (the benches': white while they are out
+        bne :+                  ; of the view - else copied whenever the
+        ldx col0                ; view moved across)
+        cpx #BENCH_COL - SCR_W + 1
+        bcs :+
+        lda #$FF
+:       ldx z_ti
         cmp #$FF
         bne @own
         cmp tc_row,x            ; white, and white already

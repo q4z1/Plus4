@@ -16,9 +16,11 @@
 ; its register the step's and a random 0 - spread (the fourth byte, 2^n -
 ; 1) more each frame, many voices rather than one hiss; on voice 0 a
 ; glide - a square, its register the fourth byte (signed) more each frame,
-; a whistle in the crowd. Its volume 0 leaves the volume as it is; and
-; voice 0's plain steps with volume 0 leave it too while the crowd is on
-; voice 1 (the referee's whistle at the end of the roar made it loud).
+; a whistle in the crowd - or, its fourth byte TRILL, a trill: the
+; register's low byte flipped each frame (the referee's whistle, TONE(2800)
+; and TONE(3150) in turn). A step's volume 0 is VOLUME - but voice 0's
+; leaves it as it is while the crowd is on voice 1 (the referee's whistle
+; at the end of the roar made it loud).
 
         .include "game.inc"
 
@@ -37,8 +39,12 @@ VOLUME      = 6
 SFX_NOISE   = $40
 SFX_REST    = $80
 SFX_EXT     = $C0
+TRILL       = $40               ; (a glide's step: bit 6 alone - V, not N)
 ; the frequency register for a square of hz (PAL)
 .define TONE(hz) (1024 - (110840 + (hz) / 2) / (hz))
+T_LO        = TONE(2800)        ; (the trill's two notes)
+T_HI        = TONE(3150)
+.assert >T_LO = >T_HI, error, "a trill flips the low byte only"
 .macro  step n, reg, kind
         .byte n, <(reg), >(reg) | kind
 .endmacro
@@ -55,6 +61,10 @@ SFX_EXT     = $C0
 ; a glide (voice 0): n frames from reg, d more each frame
 .macro  glide n, reg, d
         .byte n, <(reg), >(reg) | SFX_EXT, <(d)
+.endmacro
+; the referee's trill (voice 0): n frames, T_LO and T_HI in turn
+.macro  trill n
+        glide n, T_LO, TRILL
 .endmacro
 
         .zeropage
@@ -164,11 +174,8 @@ advance:
         sta v_rh,y
         lda snd_d
         sta v_d,y
-        lda snd_k               ; its volume (0: as it is)
-        jsr vol_of
-        beq :+
-        jsr set_vol
-:       lda on_ext,y            ; on: voice 0 a square, voice 1 noise
+        jsr vol_k               ; its volume
+        lda on_ext,y            ; on: voice 0 a square, voice 1 noise
         jsr voice_on
         cpy #0
         bne ext_frame           ; (the crowd: its first frame's noise)
@@ -180,21 +187,26 @@ advance:
         jsr put_reg
         lda snd_k
         bmi off                 ; (a rest)
-        jsr vol_of              ; its volume (0: VOLUME - but voice 0's
-        bne @vol                ; not while the crowd is on voice 1)
+        jsr vol_k               ; its volume
+        lda on_bit,y            ; on: a square, voice 1 noise if so
+        bit snd_k
+        bvc :+
+        lda #SFX_NOISE
+:       jmp voice_on
+; vol_k: the volume of step snd_k on voice Y (0: VOLUME - but voice 0's
+; as it is while the crowd is on voice 1). Keeps X, Y.
+vol_k:  lda snd_k
+        jsr vol_of
+        bne @vol
         cpy #0
         bne @full
         lda v_left + 1
         beq @full
         lda v_ext + 1
-        bne @on
+        bne off - 1             ; (an rts)
 @full:  lda #VOLUME
-@vol:   jsr set_vol
-@on:    lda on_bit,y            ; on: a square, voice 1 noise if so
-        bit snd_k
-        bvc :+
-        lda #SFX_NOISE
-:       jmp voice_on
+@vol:   jmp set_vol
+        rts
 off:    lda TED_SOUND           ; voice Y quiet
         and off_mask,y
         sta TED_SOUND
@@ -217,10 +229,17 @@ ext_frame:
         lda v_rh + 1
         adc #0
         jmp put_reg
-@glide: lda v_d
+@glide: bit v_d                 ; (a trill: the low byte flipped)
+        bmi @step
+        bvc @step
+        lda v_rl
+        eor #<T_LO ^ <T_HI
+        clc                     ; (the high bits as they are: + 0)
+        bcc @lo
+@step:  lda v_d
         clc
         adc v_rl
-        sta v_rl
+@lo:    sta v_rl
         sta snd_lo
         lda v_d                 ; (the step's sign)
         and #$80
@@ -391,23 +410,14 @@ fx_catch:
         step 1, 800, SFX_NOISE
         .byte 0
 fx_whistle:
-        .repeat 7
-        step 1, TONE(2800), 0
-        step 1, TONE(3150), 0
-        .endrepeat
+        trill 14
         .byte 0
 fx_halftime:
-        .repeat 2
-        .repeat 5
-        step 1, TONE(2800), 0
-        step 1, TONE(3150), 0
-        .endrepeat
+        trill 10
         rest 8
-        .endrepeat
-        .repeat 16
-        step 1, TONE(2800), 0
-        step 1, TONE(3150), 0
-        .endrepeat
+        trill 10
+        rest 8
+        trill 32
         .byte 0
 ; the crowd at a goal (Luca: barely horrible - it was a hiss that rose
 ; and stopped): the noise thrown about each frame (many voices, not one)
@@ -506,10 +516,7 @@ fx_red:
         .endrepeat
         .byte 0
 fx_red_w:                          ; (the referee's whistle, as fx_whistle's)
-        .repeat 7
-        step 1, TONE(2800), 0
-        step 1, TONE(3150), 0
-        .endrepeat
+        trill 14
         rest 16
         glide 3, 952, 8
         glide 6, 976, 1
