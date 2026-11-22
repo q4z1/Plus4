@@ -141,7 +141,7 @@ def full_time(v, goals=None):
         v.poke(lab['score'], goals)
     v.poke(lab['game_min'], [89])
     for _ in range(100):        # (the kick-off: the stick)
-        if v.mem(lab['full'], 1)[0] == 1:
+        if v.mem(lab['full'], 1)[0]:
             break
         v.poke(lab['dbg_joy'], [UP | FIRE])
         v.run_for(0.02)
@@ -149,11 +149,11 @@ def full_time(v, goals=None):
         v.run_for(0.1)
     print('full time', v.mem(lab['full'], 1), 'minute', v.mem(lab['game_min'], 1),
           'score', v.mem(lab['score'], 2))
-    assert v.mem(lab['full'], 1)[0] == 1
+    assert v.mem(lab['full'], 1)[0]
     if goals:
         v.poke(lab['score'], goals)
     v.run_for(1)                # (the result shown 2 seconds at least)
-    assert v.mem(lab['full'], 1)[0] == 1, 'gone on from full time'
+    assert v.mem(lab['full'], 1)[0], 'gone on from full time'
     return v.mem(lab['score'], 2)
 
 

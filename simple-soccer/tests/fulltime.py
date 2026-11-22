@@ -10,14 +10,16 @@ half     the 45th minute, the ball near a goal: no whistle 40 pictures
 full     the same at 90: full time only once the ball is in the middle
          half; then one of them lying (as after a slide) is up again, all
          22 walk to their places round the middle circle (ft_dx, ft_dy),
-         mixed - each within ft_jit's 8 of it - and the view goes to the
+         mixed - player i on place i + full - 1 (full 1 - 22, a match's
+         own), each within ft_jit's 8 of it - and the view goes to the
          middle spot, not the ball left near the goal; the score 10 - 12
          in two figures each; and there (Luca: way less movement, very
          sparse) a third stand still, a third turn about where they
-         stand, a third step about (ft_jit) - each every 256 frames: in
-         200 pictures on none of the first two thirds moved, some of the
-         turners facing another way, some of the last third somewhere
-         else; screenshot fulltime.png
+         stand, a third step about (ft_jit) - by their place's number
+         from 1, mod 3 - each every 256 frames: in 200 pictures on none
+         of the first two thirds moved, some of the turners facing
+         another way, some of the last third somewhere else;
+         screenshot fulltime.png
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -80,8 +82,12 @@ def full(lab):
             s.picture()
             if up is None and s.get('o_slide', 5) == 0:
                 up = k
+        full_ = s.get('full')
+        place = [(i + full_ - 1) % 22 for i in range(22)]
+        kind = [(place[i] + 1) % 3 for i in range(22)]  # 0 still, 1 turns, 2 steps
         far = [(i, s.where(i)) for i in range(22)
-               if abs(s.where(i)[0] - FT[i][0]) > 6 + JIT or abs(s.where(i)[1] - FT[i][1]) > 6 + JIT]
+               if abs(s.where(i)[0] - FT[place[i]][0]) > 6 + JIT or
+               abs(s.where(i)[1] - FT[place[i]][1]) > 6 + JIT]
         cam = s.get('cam_x') | s.get('cam_x', 1) << 8
         s.v.screenshot(os.path.join(CACHE, 'fulltime.png'))
         was = [s.where(i) for i in range(22)]
@@ -89,18 +95,18 @@ def full(lab):
         turned = set()
         for k in range(200):
             s.picture()
-            turned |= {i for i in range(22) if i % 3 == 1 and s.get('o_dir', i) != faced[i]}
+            turned |= {i for i in range(22) if kind[i] == 1 and s.get('o_dir', i) != faced[i]}
         moved = [i for i in range(22) if abs(s.where(i)[0] - was[i][0]) > 2 or
                  abs(s.where(i)[1] - was[i][1]) > 2]
-        still = [i for i in moved if i % 3 != 2]
-        stepped = [i for i in moved if i % 3 == 2]
-        ok = up is not None and not far and abs(cam - CAM_X) <= 2 and s.get('full') == 1 \
+        still = [i for i in moved if kind[i] != 2]
+        stepped = [i for i in moved if kind[i] == 2]
+        ok = up is not None and not far and abs(cam - CAM_X) <= 2 and 1 <= full_ <= 22 \
             and not still and len(turned) >= 3 and len(stepped) >= 3
-        return ok, '%s; up after %s pictures; not at their places: %s; the view at x %d ' \
-            '(the middle spot\'s %d), y %d; since: moved of those to stand %s, turned %d of 7, ' \
-            'stepped about %d of 7' % (
-                text, up, far or 'none', cam, CAM_X, s.get('cam_y') | s.get('cam_y', 1) << 8,
-                still or 'none', len(turned), len(stepped))
+        return ok, '%s; places from %d; up after %s pictures; not at their places: %s; the view at x %d ' \
+            '(the middle spot\'s %d), y %d; since: moved of those to stand %s, turned %d of %d, ' \
+            'stepped about %d of %d' % (
+                text, full_, up, far or 'none', cam, CAM_X, s.get('cam_y') | s.get('cam_y', 1) << 8,
+                still or 'none', len(turned), kind.count(1), len(stepped), kind.count(2))
     finally:
         s.stop()
 

@@ -723,11 +723,14 @@ At full time both teams walk to the centre circle and gather round it,
 mixed - each yellow player's place the turned-about one of a cyan
 player's, so the two teams stand in turn - the ones on the joysticks and
 the keepers too, criss-crossing on their way as at half time (Luca: the
-friendly chaos, not a line). One lying after a tackle gets up first, and
+friendly chaos, not a line). Who takes which of the 22 places is new
+each match, a turn of them by a number drawn at the whistle (Luca: mix
+up things, even the places). One lying after a tackle gets up first, and
 the view leaves the ball and goes to the centre spot, six pixels a
 picture. There it is quiet (Luca: way less movement, very sparse): a
 third of them stand still, a third turn about where they stand, and a
-third step about - every 256 frames, each at his own time, a turner
+third step about - which, by his place - every 256 frames, each at his
+own time, scattered rather than one after the other, a turner
 faces another way, a stepper's place moves up to 8 pixels from his own
 (a table of 16 small steps) and he walks there. `tests/fulltime.py`
 checks it - in 200 pictures none of the first two thirds moved, some of

@@ -464,7 +464,7 @@ def record_league():
         y.poke(lab['score'], score)
         y.poke(lab['game_min'], [89])
         mark(name)
-        while y.mem(lab['full'], 1)[0] != 1:  # (the kick-off: the stick)
+        while not y.mem(lab['full'], 1)[0]:  # (the kick-off: the stick)
             stick('up+fire', 0.1)
             y.poke(lab['score'], score)
         mark(name + '-ft')
@@ -498,7 +498,7 @@ def record_league():
             else:
                 raise RuntimeError('no header at the %s in %d' % (name, HEAD_TRIES))
         y.poke(lab['game_min'], [89])       # then on to its end
-        while y.mem(lab['full'], 1)[0] != 1:
+        while not y.mem(lab['full'], 1)[0]:
             stick('up+fire', 0.1)
         time.sleep(2.0)
         stick('fire', 0.2)                  # its winner's page

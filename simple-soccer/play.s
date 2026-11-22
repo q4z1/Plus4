@@ -426,7 +426,8 @@ min_frames: .res 1              ; frames to a minute (the title's choice:
                                 ; 100, 167, 233 - 90 in 3, 5, 7 minutes)
 game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
-full:       .res 1              ; 1: full time - till fire starts a new match
+full:       .res 1              ; full time (1 - 22: its places, spot) - till fire
+                                ; starts a new match
 frame_h:    .res 1              ; (frame_n's carry: full time's slow steps)
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
@@ -4420,28 +4421,40 @@ ft_jit: .byte 0, 7, <-5, 3, <-8, 0, 5, <-3, 8, <-6, 2, 0, <-7, 4, <-2, 6
 wall_dl:    .byte <(-WALL_D), <WALL_D
 wall_dh:    .byte >(-WALL_D), >WALL_D
 
-; spot: player X's place while a set piece waits - Sensible Soccer's for
-; each kind of set piece (sp_kind) and shirt, the team taking it's and
-; the other's (sp_*: in a team's own frame, its goal at the top: x / 2
-; and y / 3 from 54, 49; the team at the bottom's turned about - or, its
-; bit in the mask, off the ball as far as the two bytes say): carry clear,
-; z_px, z_py; carry set none - his formation's then. Keeps X.
-spot:
-        lda full                ; full time: both teams round the middle
-        beq @play               ; circle, mixed (ft_dx, ft_dy: the yellow
-        txa                     ; ones the cyan's turned about) - all of
-        asl a                   ; them walking there across the pitch
-        asl a                   ; (Luca: the friendly chaos as at half
-        asl a                   ; time - not a line). There a third of
-        adc frame_n             ; them stand still, a third turn about
-        lda frame_h             ; where they stand, a third step about as
-        adc #0                  ; before - each only every 256 frames,
-        stx tmp + 1             ; at his own time, another of ft_jit
-        adc tmp + 1             ; (Luca: "way less movements, very
-        and #15                 ; sparse" - it was every 32 frames, all
-        sta tmp + 1             ; 22)
-        txa                     ; (shirt mod 3: 0 still, 1 turns, 2 steps)
-@m3:    cmp #3
+; ft_add: A signed + 256 + Y: A, Y (ft_spot)
+ft_add: sty tmp                 ; (A signed + 256 + Y: A, Y - the middle
+        ldy #1                  ; spot's 304, 369 both in 256 - 511)
+        cmp #$80
+        bcc :+
+        dey
+:       clc
+        adc tmp
+        bcc :+
+        iny
+:       rts
+
+; ft_spot: spot's at full time - both teams round the middle circle,
+; mixed (ft_dx, ft_dy: the yellow ones the cyan's turned about) - all of
+ft_spot:
+        txa
+        clc                     ; them walking there across the pitch
+        adc full                ; (Luca: the friendly chaos as at half
+        cmp #23                 ; time - not a line). Player X on place
+        bcc :+                  ; X + full - 1 of them (full: 1 - 22, a
+        sbc #22                 ; match's own - the places anew each
+:       pha                     ; match, Luca: "mix up things, even
+        tay                     ; initial positions"). There a third of
+        lda ft_dx - 1,y         ; them stand still, a third turn about
+        clc                     ; where they stand, a third step about as
+        adc frame_n             ; before - each only every 256 frames,
+        lda frame_h             ; at his place's time (its ft_dx: not in
+        adc #0                  ; the shirts' order - "the no-move ones
+        stx tmp + 1             ; ... altogether, then the moving come"),
+        adc tmp + 1             ; another of ft_jit (Luca: "way less
+        and #15                 ; movements, very sparse" - it was every
+        sta tmp + 1             ; 32 frames, all 22)
+        tya                     ; (place mod 3: 0 still, 1 turns, 2 steps
+@m3:    cmp #3                  ; - of its number from 1)
         bcc :+
         sbc #3
         bcs @m3
@@ -4457,38 +4470,44 @@ spot:
         sta o_dir,x
 @still: lda #0                  ; (ft_jit's 0 and 5: none)
         sta tmp + 1
-@jit:   ldy tmp + 1
-        lda ft_dx,x
+@jit:   pla                     ; (his place, from 1)
+        pha
+        tay
+        lda ft_dx - 1,y
+        ldy tmp + 1
         clc
         adc ft_jit,y
         ldy #<304
-        jsr @add
+        jsr ft_add
         sta z_px
         sty z_px + 1
         lda tmp + 1             ; (up or down: another of them)
         clc
         adc #5
         and #15
+        sta tmp + 1
+        pla
         tay
-        lda ft_dy,x
+        lda ft_dy - 1,y
+        ldy tmp + 1
         clc
         adc ft_jit,y
         ldy #<369
-        jsr @add
+        jsr ft_add
         sta z_py
         sty z_py + 1
         clc
         rts
-@add:   sty tmp                 ; (A signed + 256 + Y: A, Y - the middle
-        ldy #1                  ; spot's 304, 369 both in 256 - 511)
-        cmp #$80
-        bcc :+
-        dey
-:       clc
-        adc tmp
-        bcc :+
-        iny
-:       rts
+
+; spot: player X's place while a set piece waits - Sensible Soccer's for
+; each kind of set piece (sp_kind) and shirt, the team taking it's and
+; the other's (sp_*: in a team's own frame, its goal at the top: x / 2
+; and y / 3 from 54, 49; the team at the bottom's turned about - or, its
+; bit in the mask, off the ball as far as the two bytes say): carry clear,
+; z_px, z_py; carry set none - his formation's then. Keeps X.
+spot:
+        lda full                ; (full time: ft_spot)
+        bne ft_spot
 @play:  cpx offer               ; (the team-mate offering himself: offering's
         bne :+                  ; place for him)
         lda kickoff
@@ -8090,8 +8109,14 @@ clock:
         sta flip                ; (the sides change)
         sta rs_team             ; (the yellow team kicks off again)
         bne @whistle
-:       lda #1
-        sta full
+:       jsr rnd                 ; (full time: a match's own of its
+        and #31                 ; places round the middle - 1 to 22,
+        cmp #22                 ; spot)
+        bcc :+
+        sbc #22
+:       tay
+        iny
+        sty full
         lda #0
         sta rs_team
 @whistle:
