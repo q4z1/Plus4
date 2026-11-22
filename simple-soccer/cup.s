@@ -66,7 +66,7 @@
 TITLE_AT    = $C000             ; the title's file (build.sh: "title")
 NAME_W      = 13                ; title.s: a team's record, its name first,
 REC_LEVEL   = NAME_W + 2        ; its level (1 the best) last
-RANDOM_FORM = 8                 ; title.s: the formation RANDOM
+RANDOM_FORM = 10                ; title.s: the formation RANDOM
 COLR        = $0800             ; the screen (as k_go has made it)
 CODES       = $0C00
 PFONT       = $E000             ; the page's characters: the title's font

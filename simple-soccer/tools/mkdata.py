@@ -30,10 +30,11 @@ and the colours, for the code):
   lib_*        the formations (data/tactics.txt), for the title, which
                copies the two the teams play into play.s's tac_*: for
                each and each player (0-10 the team at the bottom, 11-21
-               the one at the top) his area's corner and how far across
-               it he goes for each pixel the ball goes (x / 510, y / 641,
-               times 256); the corner's high bytes together in lib_hh
-               (x's in bits 0-1, y's in 2-3)
+               the one at the top) his area (lib_ix: each area once, as
+               most come again in other formations) - its corner and how
+               far across it he goes for each pixel the ball goes (x /
+               510, y / 641, times 256); the corner's high bytes together
+               in lib_hh (x's in bits 0-1, y's in 2-3)
 
 The colours are the TED's nearest to the C64's (VICE's "pepto" palette
 against the one Yape shows, tools/yape-pal.txt).
@@ -853,14 +854,22 @@ def main():
         out.write('\n        .export keep_tab\n        .segment "KEEPTAB"\n')
         out.write('keep_tab:               ; the bits a figure\'s byte leaves\n')
         hexrows(out, bytes(keep_of(d) for d in range(256)))
-        out.write('\n        .export lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh\n        .segment "TITLE"\n')
+        out.write('\n        .export lib_ix, lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh\n        .segment "TITLE"\n')
         forms = tactics()
         assert all(t[0] >> 8 < 4 and t[2] >> 8 < 4 for form in forms for t in form)
+        areas = []                      # (each area once: most come again)
+        for form in forms:
+            for t in form:
+                if t not in areas:
+                    areas.append(t)
+        assert len(forms) * 22 <= 256 and len(areas) <= 256
+        out.write('lib_ix:                 ; formation * 22 + player: his area\n')
+        hexrows(out, bytes(areas.index(t) for form in forms for t in form), 22)
         for name, f in (('lib_x0l', lambda t: t[0] & 255), ('lib_xs', lambda t: t[1]),
                         ('lib_y0l', lambda t: t[2] & 255), ('lib_ys', lambda t: t[3]),
                         ('lib_hh', lambda t: t[0] >> 8 | (t[2] >> 8) << 2)):
-            out.write(name + ':                ; formation * 22 + player\n')
-            hexrows(out, bytes(f(t) for form in forms for t in form), 22)
+            out.write(name + ':                ; the areas\n')
+            hexrows(out, bytes(f(t) for t in areas), 22)
         out.write('\n        .export atan_tab, sin_tab\n        .segment "TABLES"\n')
         out.write('atan_tab:               ; (big - 16) * 32 + small\n')
         hexrows(out, bytes(atan(big, small) if small <= big else 0

@@ -210,7 +210,7 @@ LIFT_DZ     = $0160             ; the aftertouch's lift: 1.375,
 LIFT_HI_DZ  = $0200             ;   pulled back 2
 
         .segment "MATCHZP": zeropage
-; the title's synth's zero page ($B0 on: music.s) and the 16 bytes below
+; the title's synth's zero page ($A8 on: music.s) and the 8 bytes below
 ; it, free once the match is on - main clears it after the title: the
 ; match's busiest variables
 rs_kind:    .res 1              ; the restart (R_*), for which team (rs_x,
@@ -1285,6 +1285,16 @@ triple:
 
 
 
+; joy_way: A = the way the stick (pj) points, 8 none (Z set, carry set),
+; Y its bits. Keeps X.
+joy_way:
+        lda pj
+        and #$0F
+        tay
+        lda joy_dir,y
+        cmp #8
+        rts
+
 ; control: the joystick's player - where he runs, dribbling, fire; for
 ; the computer's team its brain works his stick out first, and a pass
 ; or a shot it wants (br_ev) is made where fire would make one
@@ -1348,11 +1358,7 @@ control:
         bcs :+                  ; stick turns its aim, fine_aim)
         jsr fine_aim
         jmp @of
-:       lda pj
-        and #$0F
-        tay
-        lda joy_dir,y
-        cmp #8
+:       jsr joy_way
         beq :+
         jsr may_face
         bcs :+
@@ -1360,11 +1366,7 @@ control:
 :
 @of:    jsr offering            ; (a team-mate comes to the way he looks)
         jmp @ev
-@stick: lda pj
-        and #$0F
-        tay
-        lda joy_dir,y
-        cmp #8
+@stick: jsr joy_way
         bne @run
         jsr meet                ; the stick let go: he stops, or meets a
         jmp @fire               ; pass, or stops the ball at his feet
@@ -1754,13 +1756,7 @@ sin4:
         sta tmp + 1
         bit sp_w                ; (the second half: less than 0)
         bpl :+
-        lda #0
-        sec
-        sbc tmp
-        sta tmp
-        lda #0
-        sbc tmp + 1
-        sta tmp + 1
+        jsr neg_tmp
 :       ldy tmp + 1
         lda tmp
         rts
@@ -1825,13 +1821,7 @@ fine_aim:
         bmi @face
         jsr sp_try
 @face:  jsr sp_way_of           ; (the aim's way)
-        clc
-        adc #16
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
+        jsr dir_a
         sta o_dir,x
         rts
 
@@ -2928,11 +2918,7 @@ offering:
         iny                     ; pushed any way - the way he looks too -
         bne @cmp                ; a way anew, Luca: all three again)
         pha
-        lda pj
-        and #$0F
-        tay
-        lda joy_dir,y
-        cmp #8
+        jsr joy_way
         pla
         bcc @new
         rts
@@ -3463,21 +3449,8 @@ ball_move:
         bmi :+
         jmp @walls
 :       ; landed: a quarter of the speed lost, a bounce of 5/8
-        lda o_sph,x             ; speed - speed / 4
-        lsr a
-        sta tmp + 1
-        lda o_spl,x
-        ror a
-        lsr tmp + 1
-        ror a
-        sta tmp
-        lda o_spl,x
-        sec
-        sbc tmp
-        sta o_spl,x
-        lda o_sph,x
-        sbc tmp + 1
-        sta o_sph,x
+        ldy #2                  ; speed - speed / 4
+        jsr sp_cut
         lda #0
         sta o_zl,x
         sta o_zf,x
@@ -3744,16 +3717,7 @@ aim:
         cmp #$FF                ; as 0 - else the step from before stays,
         adc #0                  ; and arrive puts him at the destination)
         sta c_th,x
-        lda #128                ; the way it faces: ((128 - theta) + 16) / 32
-        sec
-        sbc z_th
-        clc
-        adc #16
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
+        jsr dir_th              ; the way it faces
         cpx #BALL
         beq @step
         sta o_dir,x
@@ -5037,12 +5001,12 @@ near_x:
 ; goes to the player nearest it - not the helper on his way to it, not
 ; the one who has just passed or shot, not the keeper
 switch:
-        lda kickoff             ; (his team's set piece: the taker keeps
-        beq :+                  ; it)
-        lda rs_team
-        cmp me
-        bne :+
-        rts
+        lda kickoff             ; (a set piece waiting: his team's, the
+        beq :+                  ; taker keeps it; the other team's, the
+        rts                     ; one set_wall put off - the nearest, on
+                                ; his way to his place, stood still
+                                ; where the stick took him, in the wall's
+                                ; way: Luca)
 :       ldx ctrl                ; (nor from one sliding)
         lda o_slide,x
         beq :+
@@ -5538,16 +5502,7 @@ restart:
         sbc o_yh + BALL
         sta z_ay + 1
         jsr angle
-        lda #128
-        sec
-        sbc z_th
-        clc
-        adc #16
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        lsr a
+        jsr dir_th
         sta o_dir,x
         tay                     ; just behind the ball
         lda #0
@@ -6173,10 +6128,11 @@ wall_one:
         bne @put
         lda #0
 @put:   sta o_yh,x
+        tay
         lda #0
         sta o_yf,x
         sta o_xf,x
-        lda o_yh,x              ; (on the pitch)
+        tya                     ; (on the pitch)
         bne :+
         lda o_yl,x
         cmp #LINE_T
@@ -6184,7 +6140,9 @@ wall_one:
         lda #LINE_T
         sta o_yl,x
         bne @st
-:       lda o_yl,x
+:       lsr a                   ; (256-511: on it - only the low byte
+        bcs @st                 ; looked at, it put them at 433, behind
+        lda o_yl,x              ; the taker, Luca)
         cmp #<LINE_B
         bcc @st
         lda #<LINE_B
@@ -6193,7 +6151,7 @@ wall_one:
 
 box_out:    .byte <(BOX_T + 12), <(BOX_B - 12)
 line_in:    .byte <(LINE_T + 4), <(LINE_B - 4)
-.assert >(BOX_T + 12) = 0 && >(BOX_B - 12) = >BOX_B && >(LINE_B - 4) = >LINE_B, error, "set_wall: high bytes"
+.assert >(BOX_T + 12) = 0 && >(BOX_B - 12) = >BOX_B && >(LINE_B - 4) = >LINE_B && >LINE_B = 2 && LINE_T < 256, error, "set_wall: high bytes"
 
 ; wall_near: carry clear if player X is within WALL_D of the ball either
 ; way. Keeps X.
@@ -7116,6 +7074,8 @@ step_c: sty z_dvs + 1
         sta tmp + 1
         bit z_sg
         bpl :+
+; neg_tmp: tmp = -tmp
+neg_tmp:
         lda #0
         sec
         sbc tmp
@@ -7339,6 +7299,12 @@ parry:
         lda tmp + 1
         sta o_sph,x
         ldy #4
+        jsr sp_cut
+        jmp sfx_kick
+
+; sp_cut: player X's speed less itself shifted right Y times. Keeps X.
+sp_cut: lda o_sph,x
+        sta tmp + 1
         lda o_spl,x
         jsr shr16
         sta tmp
@@ -7349,7 +7315,7 @@ parry:
         lda o_sph,x
         sbc tmp + 1
         sta o_sph,x
-        jmp sfx_kick
+        rts
 
 ; shr16: A (low) and tmp + 1 (high) shifted right Y times; A the low
 ; byte, tmp + 1 the high one. Keeps X.
@@ -8603,9 +8569,16 @@ bs_along:
         lda #6
 :       rts
 
-; goal_dir: A = the way (0-7) from the ball to the goal (br_g). Keeps X.
+; dir_th: A = the way (0-7) angle z_th faces: ((128 - theta) + 16) / 32;
+; goal_dir: the way from the ball to the goal (br_g); dir_a: angle A's.
+; Keep X, Y.
+dir_th: lda #128
+        sec
+        sbc z_th
+        .byte $2C               ; (bit abs: over lda br_g)
 goal_dir:
         lda br_g
+dir_a:
         clc
         adc #16
         lsr a

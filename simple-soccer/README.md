@@ -106,7 +106,10 @@ plays it through the last part of the loading - the
 last 50 blocks of the game, some 19 seconds before the title (Luca's idea:
 the music takes most of the machine, so the loading goes at full speed
 till then, and the music brings the player back) - and the title goes on
-with the song where it is. On any other drive - a 1551, an
+with the song where it is, on the beat: while the title is drawn, its
+interrupt counts the frames itself, as the boot's does, till the title's
+loop takes over (before, the notes stood still for a few frames there -
+the stumble Luca heard after the loading). On any other drive - a 1551, an
 SD2IEC - it loads the KERNAL's way, the screen the same, without the
 music till the title: the KERNAL's loading would choke on an interrupt
 5542 times a second.
@@ -249,8 +252,12 @@ halfway line, the other team out of the centre circle - and stand till
 the ball is played.
 
 Everyone else keeps to his place in the team's formation (`data/tactics.txt`:
-4-4-2, 5-4-1, 4-5-1, 5-3-2, 3-5-2, 4-3-3, attack, defend - each team's
-chosen on the title, or one at random): each player has an area, and where
+Sensible Soccer's 4-4-2, 5-4-1, 4-5-1, 5-3-2, 3-5-2, 4-3-3, attack,
+defend, and two of ours Luca asked for, made of their lines: 3-4-3 - the
+back three of 3-5-2, the middle four of 4-4-2, the front three of 4-3-3 -
+and 3-3-4, the back three of 3-5-2, the middle three of 4-3-3, 4-4-2's two
+forwards and two wingers as wide as 4-3-3's wide men and as far up as
+its forwards; each team's chosen on the title, or one at random): each player has an area, and where
 the ball is on the pitch decides where in it he stands - he runs there.
 The line-up for a kick-off is 4-4-2's whatever the formation.
 
@@ -318,7 +325,12 @@ its team near the taker). Where it has no place for a player - a free
 kick elsewhere, the other team at a throw-in - he goes to his place in
 the formation for where it is taken, kept 40 pixels from the ball on the
 side of his own goal if he is the other team's. Whoever is
-still in the way when the ball is put down is put out of it, but at a
+still in the way when the ball is put down is put out of it (your
+joystick's player too: he stands where he is put while the other team's
+set piece waits, and keeps the stick till it is taken - before, the
+stick went to whoever came nearest, and he stopped where it took him,
+in the wall's way; and anyone put out to 433-511 pixels down the pitch
+landed at 433, right behind the taker: Luca; `tests/fkjoy.py`), but at a
 goal kick and when a keeper has caught it the other team runs out of
 the box, its joystick's player too, and the ball is kicked out only once
 the box is clear - put out of it at once, the attacker beside the keeper

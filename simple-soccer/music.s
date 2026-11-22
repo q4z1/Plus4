@@ -43,11 +43,11 @@ bm_start:
         jmp start               ; A/Y: what to call each frame
 bm_hook:
         jmp $FFFF               ; (an rts once the title takes over)
-        .globalzp s_cnt
 .else
         .include "bootmus.inc"
         .export mus_start, mus_frame, mus_stop
 .endif
+        .globalzp s_cnt
         .import __SYNTH_LOAD__, __SYNTH_SIZE__
         .globalzp s_a, s_w1, s_w2, s_w3 ; (known as zero page before they are
                                         ; there: adc s_w1 a zero page add)
@@ -107,24 +107,30 @@ s_w2 = * - 2
         adc FLAT * 256
 s_w3 = * - 2
         sta s_out
-.ifdef BOOT
         dec s_cnt               ; a frame's worth of samples: the frame's
         bne :+                  ; work
         jmp frame
-:
-.endif
-        lda #0
+:       lda #0
 s_a = * - 1                     ; (A as it was)
         rti
 .ifdef BOOT
 s_cnt:  .byte 1                 ; samples to the next frame
+.else
+s_cnt:  .byte 111               ; (the title's loop puts it off each frame:
+.endif                          ; its own, title.s - this while it is drawn)
 
         .segment "TITLE"
 
-; A frame of the music and the boot's own, the interrupt on meanwhile (it
-; takes some 20 samples' time): A, as the interrupt found it, from s_a
-; before the next one changes it
-frame:  lda s_fpi
+; A frame of the music (and the boot's own), the interrupt on meanwhile
+; (it takes some 20 samples' time): A, as the interrupt found it, from
+; s_a before the next one changes it. The title's: while it is drawn, or
+; when its loop is late - a frame of PAL's
+frame:
+.ifdef BOOT
+        lda s_fpi
+.else
+        lda #111
+.endif
         sta s_cnt
         lda s_a
         pha
@@ -134,7 +140,9 @@ frame:  lda s_fpi
         pha
         cli
         jsr mus_frame
+.ifdef BOOT
         jsr bm_hook
+.endif
         pla
         tay
         pla
@@ -142,6 +150,7 @@ frame:  lda s_fpi
         pla
         rti
 
+.ifdef BOOT
 s_fpi:  .byte 0                 ; samples a frame: 111 (PAL), 93 (NTSC)
 .endif
 

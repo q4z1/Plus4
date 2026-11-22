@@ -2,7 +2,8 @@
 """A free kick's distance (play.s WALL_D: set_wall, keep_off), in a match
 in VICE: free kicks for cyan at a few places, the cyan stick let alone -
 while each waits, how near the ball the nearest yellow player (not the
-keeper) comes. In the band before the goal attacked its four nearest
+keeper) stands: one on his way to his place may pass by it (they go
+straight there, as in Sensible Soccer), none may stop near it. In the band before the goal attacked its four nearest
 the goal go to Sensible Soccer's wall, 51-56 pixels from the ball (spot);
 elsewhere each to his formation's place, kept WALL_D (40) off in y.
 
@@ -47,9 +48,12 @@ def run(v, at):
             continue
         if not v.mem(lab['kickoff'], 1)[0]:
             break
-        bx, by = where(v, 22)
+        m = {n: v.mem(lab[n], 23) for n in ('o_xl', 'o_xh', 'o_yl', 'o_yh', 'o_mov')}
+        bx, by = m['o_xl'][22] + 256 * m['o_xh'][22], m['o_yl'][22] + 256 * m['o_yh'][22]
         for i in range(12, 22):         # (yellow, not the keeper 11)
-            x, y = where(v, i)
+            if m['o_mov'][i]:           # (on his way)
+                continue
+            x, y = m['o_xl'][i] + 256 * m['o_xh'][i], m['o_yl'][i] + 256 * m['o_yh'][i]
             d = ((x - bx) ** 2 + (y - by) ** 2) ** 0.5
             nearest = min(nearest, (round(d), i))
     return nearest

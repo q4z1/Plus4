@@ -32,10 +32,11 @@
         .endrepeat              ; not the Plus/4's PETSCII)
 
         .import joy_scan, joy, joy_a, joy_b, min_frames, two, train, team_col, team_flk, sk
-        .import lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh
+        .import lib_ix, lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import mus_start, mus_frame, mus_stop
+        .importzp s_cnt
         .export title, teams, TEAMS_N
         .export t_hook1, t_hook2, draw_menu, draw_lines, lines   ; (cup.s: the winner)
         .export hue_of, T_LOGO_ROW = LOGO_ROW, T_LOGO_COL = LOGO_COL ; (cup.s: its page)
@@ -74,8 +75,8 @@ LEN_ROW     = 6
 PLAYERS_ROW = 7
 MODE_ROW    = 8
 MORE_ROW    = 9                 ; (TEAM SETTINGS, MAIN SETTINGS)
-FORMS       = 9                 ; formations to choose: data/tactics.txt's
-                                ; eight, then RANDOM
+FORMS       = 11                ; formations to choose: data/tactics.txt's
+                                ; ten, then RANDOM
 LINE_COL    = 7                 ; (their text,
 VALUE_COL   = 24                ; the digits, the mode)
 FLAG_ROW    = 11                ; the home flag's first row, 3 rows of 6
@@ -231,57 +232,7 @@ title:
         sta t_ptr
         lda #>lines
         sta t_ptr + 1
-        jsr draw_lines
-        jmp title_on
-
-; draw_lines: the lines at t_ptr (lines' form: row, column, colour, the
-; text, 0 - $FF the end)
-draw_lines:
-@line:  ldy #0
-        lda (t_ptr),y           ; row ($FF: no more)
-        bmi @done
-        tax
-        lda row_lo,x
-        clc
-        iny
-        adc (t_ptr),y           ; + column
-        sta t_dst
-        lda row_hi,x
-        adc #0
-        sta t_dst + 1
-        iny
-        lda (t_ptr),y           ; its colour
-        sta t_col
-        lda t_ptr               ; on to its text
-        clc
-        adc #3
-        sta t_ptr
-        bcc :+
-        inc t_ptr + 1
-:       ldy #0
-:       lda (t_ptr),y
-        beq @end
-        sta (t_dst),y
-        lda t_dst + 1           ; (the colour: $400 below)
-        pha
-        sec
-        sbc #4
-        sta t_dst + 1
-        lda t_col
-        sta (t_dst),y
-        pla
-        sta t_dst + 1
-        iny
-        bne :-
-@end:   iny                     ; past the 0
-        tya
-        clc
-        adc t_ptr
-        sta t_ptr
-        bcc @line
-        inc t_ptr + 1
-        bne @line
-@done:  rts
+        jsr draw_lines          ; (on into title_on)
 
 ; title_on: the title drawn on, and then chosen on
 title_on:
@@ -341,7 +292,12 @@ title_on:
         jsr draw_names
         lda #0
         sta t_pend
-:       jsr mus_frame
+:       bit s_cnt               ; (64 on: the music's own frame was just
+        lda #113                ; now - none of ours; its next put off:
+        sta s_cnt               ; a little over this one - music.s)
+        bvs :+
+        jsr mus_frame
+:
         inc t_tick
         lda t_tick              ; "fire" in light green and white by turns
         and #32
@@ -971,6 +927,55 @@ commit:
         sta t_2nd,x
 @none:  rts
 
+; draw_lines: the lines at t_ptr (lines' form: row, column, colour, the
+; text, 0 - $FF the end)
+draw_lines:
+@line:  ldy #0
+        lda (t_ptr),y           ; row ($FF: no more)
+        bmi @done
+        tax
+        lda row_lo,x
+        clc
+        iny
+        adc (t_ptr),y           ; + column
+        sta t_dst
+        lda row_hi,x
+        adc #0
+        sta t_dst + 1
+        iny
+        lda (t_ptr),y           ; its colour
+        sta t_col
+        lda t_ptr               ; on to its text
+        clc
+        adc #3
+        sta t_ptr
+        bcc :+
+        inc t_ptr + 1
+:       ldy #0
+:       lda (t_ptr),y
+        beq @end
+        sta (t_dst),y
+        lda t_dst + 1           ; (the colour: $400 below)
+        pha
+        sec
+        sbc #4
+        sta t_dst + 1
+        lda t_col
+        sta (t_dst),y
+        pla
+        sta t_dst + 1
+        iny
+        bne :-
+@end:   iny                     ; past the 0
+        tya
+        clc
+        adc t_ptr
+        sta t_ptr
+        bcc @line
+        inc t_ptr + 1
+        bne @line
+@done:  rts
+
 ; split: $FF17 each flag's second shared colour while it is drawn - from
 ; the frame's row above it - and red again below them (the logo's); each
 ; written in the right border (anywhere else the TED shows a white pixel
@@ -1146,12 +1151,14 @@ MENU_W      = 27
 menu_lo:    .byte <menu_1, <menu_2
 menu_hi:    .byte >menu_1, >menu_2
 team22:     .byte 0, 22         ; (each team's part of tac_*)
-; (the names, the pages' lines and the flags' frame in MAIN: the title has
-; no room left for them)
-        .rodata
+; the formations' names (back in the title: each area once, lib_ix, made
+; room for them)
 FORM_W      = 6
-form_names: .byte "4-4-2 5-4-1 4-5-1 5-3-2 3-5-2 4-3-3 ATTACKDEFENDRANDOM"
+form_names: .byte "4-4-2 5-4-1 4-5-1 5-3-2 3-5-2 4-3-3 ATTACKDEFEND3-4-3 3-3-4 RANDOM"
 .assert * - form_names = FORMS * FORM_W, error, "form_names"
+; (the pages' lines and the flags' frame in MAIN: the title has no room
+; left for them)
+        .rodata
 ; the pages' four lines (as lines)
 ; (draw_menu puts the arrows round the values, arrows_n lines of them)
 menu_1: .byte LEN_ROW, LINE_COL, C_TEXT
@@ -1298,7 +1305,7 @@ chosen:
         jsr formations
         jmp kits
 
-; formations: each team's formation chosen (RANDOM: one of the eight, as
+; formations: each team's formation chosen (RANDOM: one of the ten, as
 ; the beam has it) copied from lib_* into its part of play.s's tac_*
 formations:
         ldx #1
@@ -1306,9 +1313,11 @@ formations:
         lda t_form,x
         cmp #FORMS - 1
         bcc :+
-        lda $FF1E               ; (RANDOM)
-        and #7
-:       sta t_c                 ; its place in lib_*: * 22
+@rnd:   lda $FF1E               ; (RANDOM: any of the others)
+        and #15
+        cmp #FORMS - 1
+        bcs @rnd
+:       sta t_c                 ; its place in lib_ix: * 22
         asl a
         sta t_f
         asl a
@@ -1316,12 +1325,15 @@ formations:
         adc t_f
         adc t_c
         asl a
-        tay
+        sta t_f
         lda team22,x            ; its team's in tac_*
         tax
         lda #22
         sta t_i
-@copy:  lda lib_x0l,y
+@copy:  ldy t_f                 ; (each player's area)
+        lda lib_ix,y
+        tay
+        lda lib_x0l,y
         sta tac_x0l,x
         lda lib_xs,y
         sta tac_xs,x
@@ -1337,7 +1349,7 @@ formations:
         lsr a
         lsr a
         sta tac_y0h,x
-        iny
+        inc t_f
         inx
         dec t_i
         bne @copy
