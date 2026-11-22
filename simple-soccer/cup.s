@@ -65,8 +65,8 @@
 
 TITLE_AT    = $C000             ; the title's file (build.sh: "title")
 NAME_W      = 13                ; title.s: a team's record, its name first,
-REC_LEVEL   = NAME_W + 2        ; its level (1 the best) last
-RANDOM_FORM = 10                ; title.s: the formation RANDOM
+REC_LEVEL   = NAME_W + 2        ; its level (1 the best) last, 16 times its
+                                ; formation added
 COLR        = $0800             ; the screen (as k_go has made it)
 CODES       = $0C00
 PFONT       = $E000             ; the page's characters: the title's font
@@ -1266,7 +1266,22 @@ goals:  stx sim_a
 
 ; level: team A's level (title.s teams: 1 the best, 8 the worst). Keeps
 ; X and Y.
-level:  sty lv_y
+level:  jsr lv_byte
+        and #$0F
+        rts
+
+; own_form: team A's formation, the one it has in Sensible Soccer (title.s
+; teams: 16 times it in the level's byte). Keeps X and Y.
+own_form:
+        jsr lv_byte
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        rts
+
+lv_byte:
+        sty lv_y
         jsr rec
         ldy #REC_LEVEL
         lda (c_txt),y
@@ -1389,13 +1404,14 @@ to_match:
         rts
 
 ; side: team Y's formation - a player's his own (L_FORM), the computer's
-; any (RANDOM)
-side:   lda #RANDOM_FORM
-        cpy L_TWO
+; its own in Sensible Soccer (own_form)
+side:   cpy L_TWO
         beq :+
-        bcs @rts
+        bcs @cpu
 :       lda L_FORM,y
-@rts:   rts
+        rts
+@cpu:   lda L_TEAM,y
+        jmp own_form
 
 ; to_title: the title's choices as the league's (LEAGUE, or CONTINUE while
 ; it goes on)

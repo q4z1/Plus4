@@ -453,7 +453,11 @@ k_init:
         bne :+
         inx                     ; (X 0: the home team again)
         beq @rnd
-:       lda #K_MAGIC_0
+:       ldx #0                  ; (their formations their own)
+        jsr own_form
+        inx
+        jsr own_form
+        lda #K_MAGIC_0
         sta K_CHOK
         lda #K_MAGIC_1
         sta K_CHOK + 1
@@ -1472,8 +1476,26 @@ change:
         tya
         tax
         bpl @step
-@kits:  jsr kits
+@kits:  jsr own_form              ; (its formation the team's own)
+        jsr kits
         sec
+        rts
+
+; own_form: side X's formation the one its team has in Sensible Soccer
+; (teams: the level's byte, 16 times it). Keeps X.
+own_form:
+        stx t_i
+        lda t_team,x
+        tax
+        jsr rec
+        ldy #NAME_W + 2
+        lda (t_ptr),y
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        ldx t_i
+        sta t_form,x
         rts
 
 ; kits: the shirts the teams play in - the home team its own, the away
@@ -1591,6 +1613,7 @@ skills:
 runs:
         ldy #NAME_W + 2
         lda (t_ptr),y
+        and #$0F
         sta t_c                 ; (the level)
         ldx t_n
         lda #<1024
@@ -1739,8 +1762,13 @@ t_alt:      .byte 0, 0, $71, $42, $26   ; (kits': the away team's own two,
 ; bit 7 of the name's characters.
 ; Teams it has not: a level from how good we took them to be, 0-4 (4 1,
 ; 3 3, 2 5, 1 7, 0 8), and its stars most often: the keeper, 8 and 10.
+; Last its formation there (form_names; in the level's byte, 16 times
+; it), where it is not 4-4-2 - teams it has not 4-4-2.
 ; Their flags: data/flags.txt, in this order (tools/mkflags.py reads it).
-.macro  team name, home, away, level, stars
+F_541       = 1
+F_532       = 3
+F_352       = 4
+.macro  team name, home, away, level, stars, form
 .repeat NAME_W, I
 .if I < .strlen(name)
         .byte .strat(name, I) | ((stars >> I) & 1) << 7
@@ -1748,7 +1776,11 @@ t_alt:      .byte 0, 0, $71, $42, $26   ; (kits': the away team's own two,
         .byte ' ' | ((stars >> I) & 1) << 7
 .endif
 .endrepeat
+.ifblank form
         .byte home, away, level
+.else
+        .byte home, away, level | form << 4
+.endif
 .endmacro
 WHITE       = $71
 RED         = $42
@@ -1763,7 +1795,7 @@ GREEN       = $15               ; (dark: the grass is green)
 teams:
         team "ARGENTINA", SKY, DARK_BLUE, 1, %10001000001
         team "AUSTRALIA", YELLOW, GREEN, 7, %01010000001     ; (not in it: ours)
-        team "AUSTRIA", RED, WHITE, 4, %01010000001     ; (not in it: ours)
+        team "AUSTRIA", RED, WHITE, 5, %01010000001     ; (the stars ours)
         team "BELGIUM", RED, YELLOW, 2, %01010000001
         team "BRAZIL", YELLOW, BLUE, 1, %11000000010
         team "CAMEROON", GREEN, YELLOW, 4, %11000000001
@@ -1772,34 +1804,34 @@ teams:
         team "CHINA", RED, WHITE, 8, %01010000001     ; (not in it: ours)
         team "COLOMBIA", YELLOW, DARK_BLUE, 2, %10010100000
         team "CROATIA", RED, DARK_BLUE, 6, %00011010000
-        team "DENMARK", RED, WHITE, 2, %11000000001
+        team "DENMARK", RED, WHITE, 2, %11000000001, F_532
         team "EGYPT", RED, WHITE, 7, %01010000001     ; (not in it: ours)
         team "ENGLAND", WHITE, RED, 1, %00110100000
-        team "FRANCE", DARK_BLUE, WHITE, 1, %10000000100
-        team "GERMANY", WHITE, RED, 1, %01010000010
+        team "FRANCE", DARK_BLUE, WHITE, 1, %10000000100, F_532
+        team "GERMANY", WHITE, RED, 1, %01010000010, F_352
         team "GHANA", WHITE, RED, 5, %01010000001     ; (not in it: ours)
-        team "HUNGARY", RED, WHITE, 5, %10010100000
+        team "HUNGARY", RED, WHITE, 5, %10010100000, F_532
         team "IRAN", WHITE, RED, 7, %01010000001     ; (not in it: ours)
         team "ITALY", BLUE, WHITE, 1, %01000011000
         team "JAPAN", DARK_BLUE, WHITE, 5, %01010000001     ; (not in it: ours)
         team "MEXICO", GREEN, WHITE, 3, %01001000001
         team "MOROCCO", RED, GREEN, 5, %00110001000
-        team "NETHERLANDS", ORANGE, WHITE, 1, %01000001100
+        team "NETHERLANDS", ORANGE, WHITE, 1, %01000001100, F_352
         team "NEW ZEALAND", WHITE, DARK_BLUE, 8, %01010000001     ; (not in it: ours)
-        team "NIGERIA", GREEN, WHITE, 7, %01000100010
-        team "NORWAY", RED, WHITE, 3, %01010000001     ; (not in it: ours)
-        team "POLAND", WHITE, RED, 4, %11100000000
+        team "NIGERIA", GREEN, WHITE, 6, %01000100010
+        team "NORWAY", RED, WHITE, 3, %01010000001     ; (the stars ours)
+        team "POLAND", WHITE, RED, 4, %11100000000, F_352
         team "PORTUGAL", DARK_RED, WHITE, 4, %01100000001
         team "SAUDI ARABIA", WHITE, GREEN, 8, %00010000110
         team "SCOTLAND", DARK_BLUE, YELLOW, 4, %01110000000
         team "SENEGAL", WHITE, GREEN, 5, %01010000001     ; (not in it: ours)
         team "SOUTH KOREA", RED, WHITE, 8, %01010000001
-        team "SPAIN", RED, DARK_BLUE, 2, %01000000101
+        team "SPAIN", RED, DARK_BLUE, 2, %01000000101, F_541
         team "SWEDEN", YELLOW, DARK_BLUE, 3, %11001000000
-        team "SWITZERLAND", RED, WHITE, 3, %01010000001     ; (not in it: ours)
-        team "UKRAINE", YELLOW, BLUE, 5, %01010000001     ; (not in it: ours)
+        team "SWITZERLAND", RED, WHITE, 3, %01010000001     ; (the stars ours)
+        team "UKRAINE", YELLOW, BLUE, 4, %01010000001     ; (the stars ours)
         team "URUGUAY", LIGHT_SKY, WHITE, 3, %01010000001     ; (not in it: ours)
-        team "USA", WHITE, DARK_BLUE, 4, %01100000001
+        team "USA", WHITE, DARK_BLUE, 4, %01100000001, F_532
 TEAMS       = (* - teams) / (NAME_W + 3)
 TEAMS_N     = TEAMS             ; (cup.s: the league's)
 .assert TEAMS <= 64, error, "teams: cup.s picks them from 64"

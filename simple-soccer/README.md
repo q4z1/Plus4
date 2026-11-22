@@ -257,7 +257,8 @@ defend, and two of ours Luca asked for, made of their lines: 3-4-3 - the
 back three of 3-5-2, the middle four of 4-4-2, the front three of 4-3-3 -
 and 3-3-4, the back three of 3-5-2, the middle three of 4-3-3, 4-4-2's two
 forwards and two wingers as wide as 4-3-3's wide men and as far up as
-its forwards; each team's chosen on the title, or one at random): each player has an area, and where
+its forwards; each team's chosen on the title - its own in Sensible Soccer
+to begin with - or one at random): each player has an area, and where
 the ball is on the pitch decides where in it he stands - he runs there.
 The line-up for a kick-off is 4-4-2's whatever the formation.
 
@@ -439,11 +440,14 @@ dribbles it.
 
 ## The teams and their players
 
-The teams are as good as Sensible Soccer has them where it has them (24
+The teams are as good as Sensible Soccer has them where it has them (28
 of the 39): each its level, 1 the best to 8, and its three stars or so
-of the eleven. The other fifteen have a level from how
-good we took them to be and the stars it most often has: the keeper, 8
-and 10 (`title.s`'s list of teams).
+of the eleven (Austria's, Norway's, Switzerland's and Ukraine's stars
+ours), and the formation it plays there - most 4-4-2, Germany, the
+Netherlands and Poland 3-5-2, Denmark, France, Hungary and the USA
+5-3-2, Spain 5-4-1. The other eleven have a level from how
+good we took them to be, the stars it most often has: the keeper, 8
+and 10, and 4-4-2 (`title.s`'s list of teams).
 
 They run as Sensible Soccer's do (c107d4, c144dc): on the
 joystick at 1024, with the ball close at 896, every dribbled touch 1024
@@ -638,7 +642,8 @@ minutes), one player or two, a match or training, and the home and the away team
 off. The line the stick is on shows white, label and choice, the others
 grey (the choices were all yellow after each change, which Luca found
 confusing). TEAM SETTINGS (right on it) turns to a second page of those four
-lines: each team's formation, or RANDOM; MAIN SETTINGS (left on it)
+lines: each team's formation - a team chosen brings its own along -
+or RANDOM; MAIN SETTINGS (left on it)
 turns back. Each of the 39 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
 purple, green, blue, yellow) in eight shades, so the Netherlands play in
@@ -693,7 +698,8 @@ MODE: LEAGUE on the title starts a league of eight teams, each against
 each once: seven matchdays of four matches. The team above is the first
 player's ("PLAYER 1" over it); with PLAYERS 2 the one below is the second
 player's ("PLAYER 2"), in the same league - with one player there is no
-team below. The other six (or seven) the computer picks at random.
+team below. The other six (or seven) the computer picks at random; they
+play in their own formations.
 The players meet each other on the last matchday; before that each plays
 the computer's teams, the joystick in either port, as in a match with
 one player. The length chosen is the length of every match of it.
