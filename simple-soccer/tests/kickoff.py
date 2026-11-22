@@ -44,6 +44,7 @@ def main():
         y.poke(lab['dbg_joy'], [0])
         wait(lambda: y.mem(0xFFFE, 2)[1] != 0 and y.mem(0xFF07, 1)[0] & 0x10
              and y.mem(0xFF06, 1)[0] & 0x10, 'the match')
+        wait(lambda: y.mem(lab['enter'], 1)[0] == 0, 'the teams on (walk_on)')
         t0 = time.time()
         while time.time() - t0 < SECS:
             ko, = y.mem(lab['kickoff'], 1)

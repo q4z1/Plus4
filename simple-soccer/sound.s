@@ -24,7 +24,7 @@
 
         .export snd_init, snd_tick
         .export sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
-        .export sfx_save, sfx_miss, sfx_yellow, sfx_red
+        .export sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
 
 TED_V1LO    = $FF0E             ; voice 1's frequency, low
 TED_V2LO    = $FF0F             ; voice 2's
@@ -311,6 +311,9 @@ sfx_goal:                       ; the crowd roaring, whistling
         ldx #>fx_goal_w
         ldy #0
         jsr sfx_start
+        .byte $2C               ; (bit abs: over sfx_roar's jsr)
+sfx_roar:                       ; the crowd roaring (full time: after the
+        jsr save                ; referee's whistle)
         lda #<fx_goal
         ldx #>fx_goal
         jmp crowd1

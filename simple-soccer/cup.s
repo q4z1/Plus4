@@ -64,9 +64,10 @@
         .endrepeat
 
 TITLE_AT    = $C000             ; the title's file (build.sh: "title")
-NAME_W      = 13                ; title.s: a team's record, its name first,
-REC_LEVEL   = NAME_W + 2        ; its level (1 the best) last, 16 times its
-                                ; formation added
+REC_LEVEL   = 2                 ; title.s: a team's record - its shirts, its
+REC_NAME    = 5                 ; level (1 the best; 16 times its formation
+                                ; added), its stars, its name's length, its
+                                ; name
 COLR        = $0800             ; the screen (as k_go has made it)
 CODES       = $0C00
 PFONT       = $E000             ; the page's characters: the title's font
@@ -783,18 +784,11 @@ wl_head:
 ; wl_name: team A's name (title.s teams) into w_buf; wl_cat: text A/X
 ; after it
 wl_name:
-        jsr rec
-        ldy #NAME_W             ; (to its last letter)
+        jsr rec_name
+        sta w_n
+        tay
 :       dey
         lda (c_txt),y
-        and #$7F
-        cmp #' '
-        beq :-
-        iny
-        sty w_n
-:       dey
-        lda (c_txt),y
-        and #$7F
         sta w_buf,y
         tya
         bne :-
@@ -1288,26 +1282,50 @@ lv_byte:
         ldy lv_y
         rts
 
-; rec: c_txt = team A's record (title.s teams, 16 bytes each). Keeps X, Y.
-rec:    pha
-        sta c_txt
-        lda #0
-        asl c_txt               ; * 16
-        rol a
-        asl c_txt
-        rol a
-        asl c_txt
-        rol a
-        asl c_txt
-        rol a
-        sta c_txt + 1
+; rec_name: c_txt = team A's name, A its length. Keeps X.
+rec_name:
+        jsr rec
+        ldy #REC_NAME
+        lda (c_txt),y
+        pha
         lda c_txt
         clc
-        adc #<teams
+        adc #REC_NAME + 1
         sta c_txt
-        lda c_txt + 1
-        adc #>teams
+        bcc :+
+        inc c_txt + 1
+:       pla
+        rts
+
+; rec: c_txt = team A's record (title.s teams: each as long as its name).
+; Keeps A, X, Y.
+rec:    pha
+        txa
+        pha
+        tya
+        pha
+        tsx
+        lda $0103,x             ; (A)
+        tax
+        lda #<teams
+        sta c_txt
+        lda #>teams
         sta c_txt + 1
+@next:  dex
+        bmi @done
+        ldy #REC_NAME
+        lda (c_txt),y
+        clc
+        adc #REC_NAME + 1
+        adc c_txt
+        sta c_txt
+        bcc @next
+        inc c_txt + 1
+        bcs @next
+@done:  pla
+        tay
+        pla
+        tax
         pla
         rts
 
@@ -1825,15 +1843,8 @@ team_name:
         lda #C_P2
 :       sta c_col
         lda L_TEAM,x
-        jsr rec
-        ldy #NAME_W             ; (its length: to its last letter)
-:       dey
-        lda (c_txt),y
-        and #$7F                ; (bit 7: a star)
-        cmp #' '
-        beq :-
-        iny
-        sty c_tmp3
+        jsr rec_name
+        sta c_tmp3
         ldy #0
 :       lda (c_txt),y
         jsr put

@@ -42,7 +42,7 @@
         .import quit_a
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan, goal
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
-        .export two, train, sk, sk_duel, jog_lo, jog_hi
+        .export two, train, enter, sk, sk_duel, jog_lo, jog_hi
         .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
@@ -53,7 +53,7 @@ off_pl      = $ED               ; the receiver offside, $FF none, $FE a set
 off_by      = $EE               ; piece's taker in off_by (above the match's
                                 ; zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
-        .import sfx_save, sfx_miss, sfx_yellow, sfx_red
+        .import sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -426,9 +426,8 @@ min_frames: .res 1              ; frames to a minute (the title's choice:
                                 ; 100, 167, 233 - 90 in 3, 5, 7 minutes)
 game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
-full:       .res 1              ; full time (1 - 22: its places, spot) - till fire
-                                ; starts a new match
-frame_h:    .res 1              ; (frame_n's carry: full time's slow steps)
+full:       .res 1              ; full time: the players still on, 1 more
+                                ; (ft_spot) - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
 cp_d:       .res 2              ; (can_slide's: his way squared)
@@ -445,6 +444,8 @@ card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
 
         .segment "DATA"         ; (BSS full)
+enter:      .byte 0             ; 1: the teams to come on (walk_on) - the
+                                ; title's, not a test's
 sh_pow:     .byte 0             ; how hard the shot: 0 - 24 (shot_power)
 jumps:      .byte 0             ; frames a header's jump may still go on
 sl_any:     .byte 0             ; not 0: someone may be sliding or down
@@ -601,8 +602,50 @@ play_init:
         lda #0
         sta why
         jsr await               ; (as every kick-off: no one offering - its
-        jmp sfx_whistle         ; 0, the keeper: the first kick-off's tap
-                                ; went back to him, Luca)
+        lda enter               ; 0, the keeper: the first kick-off's tap
+        bne walk_on             ; went back to him, Luca)
+        jmp sfx_whistle
+
+; walk_on: from the title (enter), the teams come on from the benches at
+; TUN_X, a step apart, one after the other, to their places for the
+; kick-off - the ball dead till they stand there (walking), then the
+; whistle (Luca)
+walk_on:
+        ldx #PLAYERS - 1
+@pl:    lda o_xl,x
+        sta o_txl,x
+        lda o_xh,x
+        sta o_txh,x
+        lda o_yl,x
+        sta o_tyl,x
+        lda o_yh,x
+        sta o_tyh,x
+        txa                     ; (TUN_X + 8 X: carry clear)
+        asl a
+        asl a
+        asl a
+        adc #<TUN_X
+        sta o_xl,x
+        lda #>TUN_X
+        adc #0
+        sta o_xh,x
+        lda #<369
+        sta o_yl,x
+        lda #>369
+        sta o_yh,x
+        lda #<SPEED_JOG
+        sta o_spl,x
+        lda #>SPEED_JOG
+        sta o_sph,x
+        lda #1
+        sta o_mov,x
+        sta o_new,x
+        dex
+        bpl @pl
+        sta kickoff             ; (A 1: team_ai leaves them on their way)
+        asl a
+        sta dead_t
+        rts
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
 ctx_new:    .byte 0, $FF, 0, $FF, $FF, $FF, 0, 0, 0, 10, $FF
@@ -827,9 +870,7 @@ play_frame:
         jsr clock
         jsr throwing
         inc frame_n
-        bne :+
-        inc frame_h
-:       lda dbg_on              ; (a test's plan: the stick as it says,
+        lda dbg_on              ; (a test's plan: the stick as it says,
         beq :+                  ; frame by frame)
         jsr dbg_step
 :
@@ -1136,8 +1177,9 @@ play_others:
         rts
 @look:  lda o_mov,x             ; (those standing passed over)
         beq @next
-        lda full                ; (after full time no own way: to the
-        bne @go                 ; middle with the rest)
+        lda full                ; (after full time, or coming on, no own
+        ora enter               ; way: with the rest)
+        bne @go
         cpx ctrl                ; (the two at the ball: their own way)
         beq @next
         cpx ctrl_b
@@ -4410,92 +4452,40 @@ keep_off:
         sta z_py + 1
 @done:  rts
 
-; full time's places round the middle spot (spot), the cyan team's then
-; the yellow's - these turned about, so the two mix: picked by a search
-; for the least overlapping figures within 112 across, 62 up and down
-ft_dx:  .byte 11, 67, <-23, 88, <-79, <-74, 51, <-27, <-49, <-93, <-47
-        .byte <-11, <-67, 23, <-88, 79, 74, <-51, 27, 49, 93, 47
-ft_dy:  .byte <-28, <-39, 57, <-30, <-43, <-3, 22, <-56, 3, 3, 49
-        .byte 28, 39, <-57, 30, 43, 3, <-22, 56, <-3, <-3, <-49
-ft_jit: .byte 0, 7, <-5, 3, <-8, 0, 5, <-3, 8, <-6, 2, 0, <-7, 4, <-2, 6
 wall_dl:    .byte <(-WALL_D), <WALL_D
 wall_dh:    .byte >(-WALL_D), >WALL_D
 
-; ft_add: A signed + 256 + Y: A, Y (ft_spot)
-ft_add: sty tmp                 ; (A signed + 256 + Y: A, Y - the middle
-        ldy #1                  ; spot's 304, 369 both in 256 - 511)
-        cmp #$80
-        bcc :+
-        dey
-:       clc
-        adc tmp
-        bcc :+
-        iny
-:       rts
-
-; ft_spot: spot's at full time - both teams round the middle circle,
-; mixed (ft_dx, ft_dy: the yellow ones the cyan's turned about) - all of
+; ft_spot: spot's at full time - everyone off the pitch, to the benches
+; at TUN_X on the halfway line (Luca: the teams gone, the crowd quiet, the
+; score in the middle): there he is gone (o_off 1), full one less - none
+; left (full 1), the crowd's murmur.
+; Carry clear, z_px, z_py; set for one gone. Keeps X.
+TUN_X       = 584               ; (the benches: past the right touch line)
 ft_spot:
-        txa
-        clc                     ; them walking there across the pitch
-        adc full                ; (Luca: the friendly chaos as at half
-        cmp #23                 ; time - not a line). Player X on place
-        bcc :+                  ; X + full - 1 of them (full: 1 - 22, a
-        sbc #22                 ; match's own - the places anew each
-:       pha                     ; match, Luca: "mix up things, even
-        tay                     ; initial positions"). There a third of
-        lda ft_dx - 1,y         ; them stand still, a third turn about
-        clc                     ; where they stand, a third step about as
-        adc frame_n             ; before - each only every 256 frames,
-        lda frame_h             ; at his place's time (its ft_dx: not in
-        adc #0                  ; the shirts' order - "the no-move ones
-        stx tmp + 1             ; ... altogether, then the moving come"),
-        adc tmp + 1             ; another of ft_jit (Luca: "way less
-        and #15                 ; movements, very sparse" - it was every
-        sta tmp + 1             ; 32 frames, all 22)
-        tya                     ; (place mod 3: 0 still, 1 turns, 2 steps
-@m3:    cmp #3                  ; - of its number from 1)
-        bcc :+
-        sbc #3
-        bcs @m3
-:       cmp #2
-        beq @jit
-        lsr a
-        bcc @still
-        lda o_mov,x             ; (standing at his place: turned the way
-        bne @still              ; ft_jit's low bits say)
-        ldy tmp + 1
-        lda ft_jit,y
-        and #7
-        sta o_dir,x
-@still: lda #0                  ; (ft_jit's 0 and 5: none)
-        sta tmp + 1
-@jit:   pla                     ; (his place, from 1)
-        pha
-        tay
-        lda ft_dx - 1,y
-        ldy tmp + 1
-        clc
-        adc ft_jit,y
-        ldy #<304
-        jsr ft_add
+        lda o_off,x             ; (gone already: a keeper asks each frame)
+        bne @gone
+        lda o_xl,x
+        cmp #<(TUN_X - 8)
+        lda o_xh,x
+        sbc #>(TUN_X - 8)
+        bcc @on
+        lda #1                  ; (there: no need to stop him)
+        sta o_off,x
+        dec full
+        lda full
+        cmp #1
+        bne @gone
+        jsr sfx_yellow
+@gone:  sec
+        rts
+@on:    lda #<TUN_X
         sta z_px
-        sty z_px + 1
-        lda tmp + 1             ; (up or down: another of them)
-        clc
-        adc #5
-        and #15
-        sta tmp + 1
-        pla
-        tay
-        lda ft_dy - 1,y
-        ldy tmp + 1
-        clc
-        adc ft_jit,y
-        ldy #<369
-        jsr ft_add
+        lda #>TUN_X
+        sta z_px + 1
+        lda #<369
         sta z_py
-        sty z_py + 1
+        lda #>369
+        sta z_py + 1
         clc
         rts
 
@@ -5823,7 +5813,21 @@ walk_off:
 ; (play_frame keeps the ball dead till he is off). Keeps nothing.
 WALK_S      = 2
 walking:
-        ldx card_pl
+        lda enter               ; (coming on: the ball dead till all of
+        beq @card               ; them stand at their places - walk_on -
+        ldx #PLAYERS - 1        ; then the whistle)
+:       lda o_mov,x
+        bne @on
+        dex
+        bpl :-
+        lda #0                  ; (all there: the kick-off at once, as
+        sta enter               ; play_init set it up - its ball, taker,
+        sta dead_t              ; joystick; not restart's, whose place is
+        jsr line_up             ; the last set piece's - each in line, his
+        jsr sfx_whistle         ; way for it)
+@on:    sec
+        rts
+@card:  ldx card_pl
         bmi @off
         lda o_off,x
         cmp #2
@@ -8109,14 +8113,9 @@ clock:
         sta flip                ; (the sides change)
         sta rs_team             ; (the yellow team kicks off again)
         bne @whistle
-:       jsr rnd                 ; (full time: a match's own of its
-        and #31                 ; places round the middle - 1 to 22,
-        cmp #22                 ; spot)
-        bcc :+
-        sbc #22
-:       tay
-        iny
-        sty full
+:       lda #PLAYERS + 1        ; (full time: the players still on, one
+        sta full                ; more - ft_spot)
+        jsr sfx_roar
         lda #0
         sta rs_team
 @whistle:

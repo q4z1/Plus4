@@ -228,7 +228,14 @@ draw_it: jsr place
 ; the players' are worked out from their places where they are needed)
 place:
         ldx #BALL
-        lda o_xl,x
+        ldy card_pl             ; (one walking off for a red card: on him,
+        bmi :+                  ; the ball dead meanwhile - Luca: he wanted
+        lda o_off,y             ; to see him go)
+        cmp #2
+        bne :+
+        tya
+        tax
+:       lda o_xl,x
         sec
         sbc #GROUND_X
         sta s_xl,x
@@ -243,22 +250,31 @@ place:
         adc #0
         sta s_yh,x
         lda full                ; the view's point (follow): the ball's -
-        bne @pan                ; after full time, PAN_S a picture on to
-        lda s_xl,x              ; the middle spot, where they all go
-        sta vw_l                ; (Luca: not the ball left alone)
-        lda s_xh,x
+        bne @full               ; after full time, PAN_S a picture on to
+        lda s_xl,x              ; the benches where they all go, then the
+        sta vw_l                ; middle spot (Luca: not the ball left
+        lda s_xh,x              ; alone)
         sta vw_h
         lda s_yl,x
         sta vw_l + 1
         lda s_yh,x
         sta vw_h + 1
         rts
-@pan:   ldx #1                  ; (y, then x)
-@ax:    lda vw_tl,x
+@full:  lda #0                  ; (anyone still on: the benches)
+        ldy full
+        cpy #2
+        bcc @pan
+        lda #2
+@pan:   sta tmp2                ; (the target: vw_tl's first or second;
+        ldx #1                  ; y, then x)
+@ax:    txa
+        ora tmp2
+        tay
+        lda vw_tl,y
         sec
         sbc vw_l,x
         sta tmp
-        lda vw_th,x
+        lda vw_th,y
         sbc vw_h,x
         bmi @neg
         bne @up
@@ -282,16 +298,19 @@ place:
         bcs @nx
         dec vw_h,x
         bcc @nx
-@set:   lda vw_tl,x
+@set:   lda vw_tl,y
         sta vw_l,x
-        lda vw_th,x
+        lda vw_th,y
         sta vw_h,x
 @nx:    dex
         bpl @ax
         rts
 PAN_S       = 6
+BENCH_X     = 520               ; (the view on the benches: play.s TUN_X)
 vw_tl:  .byte <(304 - GROUND_X), <(369 + GROUND_Y)
+        .byte <(BENCH_X - GROUND_X), <(369 + GROUND_Y)
 vw_th:  .byte >(304 - GROUND_X), >(369 + GROUND_Y)
+        .byte >(BENCH_X - GROUND_X), >(369 + GROUND_Y)
 
 ; follow: the view on the ball, as far as the ground goes - across on it,
 ; up and down within CAM_DZ of it
@@ -393,7 +412,32 @@ follow:
         sta cam_y
         lda tmp2
         sta cam_y + 1
-:       lda cam_y + 1
+:       lda full                ; after full time on to the very middle,
+        beq @mid                ; PAN_S a picture (Luca: it stopped CAM_DZ
+        lda tmp                 ; higher; tmp: its highest, CAM_DZ over -
+        sec                     ; the step a byte, signed: within CAM_DZ
+        sbc #CAM_DZ             ; and a pan's step of it)
+        sec
+        sbc cam_y
+        bmi @neg
+        cmp #PAN_S
+        bcc @to
+        lda #PAN_S
+        bne @to
+@neg:   cmp #<-PAN_S
+        bcs @to
+        lda #<-PAN_S
+@to:    ldy #0
+        ora #0
+        bpl :+
+        dey
+:       clc
+        adc cam_y
+        sta cam_y
+        tya
+        adc cam_y + 1
+        sta cam_y + 1
+@mid:   lda cam_y + 1
         bpl :+
         lda #0
         sta cam_y
@@ -768,6 +812,8 @@ HUD_LOW     = 154               ; figure goes over them, see engine.s tint;
                                 ; above the cut, engine.s CUT_LINE)
 HUD_HIGH    = 80                ; (the view higher than this: at the bottom)
 HUD_R       = 25                ; (beside a reason: from this place on)
+HUD_MID     = 12                ; (full time, everyone gone: in the middle -
+HUD_MID_Y   = 80                ; Luca)
 draw_hud:
         lda hud
         bne :+
@@ -778,6 +824,10 @@ draw_hud:
         lda why
         beq :+
         ldy #HUD_R
+:       lda full                ; (full time, everyone gone: in the
+        cmp #1                  ; middle)
+        bne :+
+        ldy #HUD_MID
 :       sty hud_n
         lda score               ; cyan - yellow
         jsr hud_num
@@ -950,6 +1000,10 @@ hud_img:                        ; (image A)
         cmp #HUD_HIGH
         bcs :+
         ldx #HUD_LOW
+:       lda full                ; (full time, everyone gone: in the
+        cmp #1                  ; middle)
+        bne :+
+        ldx #HUD_MID_Y
 :       txa
         clc
         adc cam_y

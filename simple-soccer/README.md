@@ -12,7 +12,7 @@ ball, the keepers, sliding tackles, headers, and the rules - throw-ins,
 goal kicks, corners, fouls with free kicks and penalties, goals and
 kick-offs, the score and the time; the view
 follows the ball. One player against the computer, or two against each
-other, with 39 national teams from all over the world to choose from -
+other, with 40 national teams from all over the world to choose from -
 a match, training (a keeper and four a side, to try the moves out), or a
 league of eight teams for one player or two, kept on the disk. A match
 can be paused (RUN/STOP), left, and saved on the disk to go on with
@@ -440,14 +440,22 @@ dribbles it.
 
 ## The teams and their players
 
-The teams are as good as Sensible Soccer has them where it has them (28
-of the 39): each its level, 1 the best to 8, and its three stars or so
-of the eleven (Austria's, Norway's, Switzerland's and Ukraine's stars
-ours), and the formation it plays there - most 4-4-2, Germany, the
-Netherlands and Poland 3-5-2, Denmark, France, Hungary and the USA
-5-3-2, Spain 5-4-1. The other eleven have a level from how
-good we took them to be, the stars it most often has: the keeper, 8
-and 10, and 4-4-2 (`title.s`'s list of teams).
+Each team has a level, 1 the best to 8, as Sensible Soccer gives its
+teams one - its list ranked and cut into eight bands alike - but by
+FIFA's ranking of November 2026 (Luca: 1992's look odd today), five
+teams a band: Spain, Argentina, France, England and Morocco level 1, on
+to Chile, China, Ghana, New Zealand and Saudi Arabia level 8. Where
+Sensible Soccer has the team (29 of the 40), its three stars or so of
+the eleven are its (Austria's, Norway's, Switzerland's, Ukraine's and
+Wales' ours), and so is its formation - most 4-4-2, Germany, the
+Netherlands and Poland 3-5-2, Denmark, France, Hungary, the USA and
+Wales 5-3-2, Spain 5-4-1. The other eleven have the stars it most often
+has (the keeper, 8 and 10) and a formation as they have played of late
+(Luca: something different, not too exotic): Australia, Egypt and
+Senegal 4-3-3, Japan 3-4-3, Chile 3-3-4, China and Iran 4-5-1, New
+Zealand 5-3-2, the rest 4-4-2 (`title.s`'s list of teams, each as long
+as its name: a fixed 13 letters took 121 bytes more, and Wales' flag
+needed them).
 
 They run as Sensible Soccer's do (c107d4, c144dc): on the
 joystick at 1024, with the ball close at 896, every dribbled touch 1024
@@ -519,7 +527,8 @@ far too often.) `tests/cards.py` calls the foul again and again and
 counts. The card is shown by the fouler
 while the ball is dead; with a red, as everyone gets up he walks off
 over the nearer touch line (2 pixels a frame, the ball dead till he is
-off), out of the team's play at once, and is gone
+off, the view on him, not on the ball - Luca hardly saw him go), out of
+the team's play at once, and is gone
 when play goes on - never in reach of the ball, no one's to pass to,
 the joystick gone to a team-mate - and his team plays on with ten
 (Luca wanted to see him go; `tests/cards.py walk`).
@@ -646,7 +655,7 @@ grey (the choices were all yellow after each change, which Luca found
 confusing). TEAM SETTINGS (right on it) turns to a second page of those four
 lines: each team's formation - a team chosen brings its own along -
 or RANDOM; MAIN SETTINGS (left on it)
-turns back. Each of the 39 teams has its shirt and a second one: the TED gives a
+turns back. Each of the 40 teams has its shirt and a second one: the TED gives a
 multicolour cell's own colour only the hues 0-7 (black, white, red, cyan,
 purple, green, blue, yellow) in eight shades, so the Netherlands play in
 a light red and the green teams in a dark green the grass sets off. The
@@ -727,22 +736,18 @@ takes its place.
 
 ## Back to the title
 
-At full time both teams walk to the centre circle and gather round it,
-mixed - each yellow player's place the turned-about one of a cyan
-player's, so the two teams stand in turn - the ones on the joysticks and
-the keepers too, criss-crossing on their way as at half time (Luca: the
-friendly chaos, not a line). Who takes which of the 22 places is new
-each match, a turn of them by a number drawn at the whistle (Luca: mix
-up things, even the places). One lying after a tackle gets up first, and
-the view leaves the ball and goes to the centre spot, six pixels a
-picture. There it is quiet (Luca: way less movement, very sparse): a
-third of them stand still, a third turn about where they stand, and a
-third step about - which, by his place - every 256 frames, each at his
-own time, scattered rather than one after the other, a turner
-faces another way, a stepper's place moves up to 8 pixels from his own
-(a table of 16 small steps) and he walks there. `tests/fulltime.py`
-checks it - in 200 pictures none of the first two thirds moved, some of
-the turners turned, some of the steppers stepped. Then
+Before a match started from the title the teams come on: from the
+benches past the right touch line on the halfway line, a step apart,
+one after the other, each walking to his place for the kick-off - the
+ball dead till all of them stand there, then the whistle (Luca's wish;
+`tests/walkon.py`; a test's match, without the title, has
+them lined up at once). At full time the crowd roars and they all walk
+off the same way, the joysticks' players and the keepers too, one
+lying after a tackle getting up first; the view goes with them to the
+benches, six pixels a picture, and once the last is gone the crowd
+murmurs and the view goes to the centre spot - up and down to the very
+middle of the picture (it stopped 16 pixels higher, said Luca) - and
+the score is shown in the middle of it (`tests/fulltime.py`). Then
 fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was - and fire again the title, with the choices as they were. A

@@ -16,7 +16,7 @@ the title's runs and keeps take the cyan team as the computer's too
 "the computer's" for both, play_frame leaves the cyan team's stick (pj)
 to the brain, control makes the cyan brain's passes and shots (br_ev),
 and play_picture's end calls the brain for the cyan team too, once a
-picture as for the yellow team (a hook in the free bytes before KEEPTAB).
+picture as for the yellow team (a hook in dbg_plan, a test plan's bytes, unused then).
 
 A line for each goal: the minute, who scored, from where the last kick
 came (the ball's place when its speed last jumped, the scorer's own) and
@@ -34,7 +34,6 @@ import league as L  # noqa: E402
 import plan as P  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOOK = 0xB1B0                   # (DATA's end to KEEPTAB at $B200: free)
 BALL = 22
 R_PENALTY = 6
 SHOTS = os.environ.get('CPUPLAY_SHOTS')
@@ -55,6 +54,8 @@ def all_labels():
 
 
 A = all_labels()
+HOOK = A['dbg_plan'][0]         # (a test's plan: unused while the computer
+HOOK_END = HOOK + 3 * 64        # plays both - the hook there)
 
 
 def one(n):
@@ -128,7 +129,7 @@ def patch_game(v):
     code += first + [0x4C, (swap + 4) & 255, (swap + 4) >> 8]
     assert len(code) == 2 * 19 + 7
     hook += code + [0] * (zpn + hin)
-    assert HOOK + len(hook) <= 0xB200, 'no room: %d bytes' % len(hook)
+    assert HOOK + len(hook) <= HOOK_END, 'no room: %d bytes' % len(hook)
     assert v.mem(HOOK, len(hook)) == [0] * len(hook), 'the hook\'s bytes not free'
     v.poke(HOOK, hook)
     v.poke(swap, [0x4C, myswap & 255, myswap >> 8])
@@ -152,6 +153,9 @@ def match(v, home, away, length):
     v.cmd('del')
     if not IDLE:
         patch_game(v)
+    else:
+        v.poke(L.lab['dbg_joy'], [0])
+        P.start(v, L.lab, TAPS)
     if os.environ.get('CPUPLAY_RUNNER'):    # (a trial: the joystick's team's
         me = one('me')                      # runner goes for the other team's
         data = bytes(v.mem(one('help'), 60))    # ball, as the computer's)
@@ -162,14 +166,12 @@ def match(v, home, away, length):
     for item in filter(None, os.environ.get('CPUPLAY_POKES', '').split(';')):
         name, vals = item.split('=')        # (a trial: label=bytes,...)
         v.poke(one(name), [int(x) for x in vals.split(',')])
-    else:
-        v.poke(L.lab['dbg_joy'], [0])
-        P.start(v, L.lab, TAPS)
     score_at, full_at, minute = one('score'), A['full'][-1], one('game_min')
     goals, last = [], [0, 0]
     kick = (None, None)
     old_sp, was = 0, (None, None)
     kicks = polls = waited = pens = 0
+    last_min = None
     t0 = time.time()
     while time.time() - t0 < 1800:
         v.run_for(0.03)
@@ -183,6 +185,10 @@ def match(v, home, away, length):
         if SHOTS and polls % 150 == 0:
             v.screenshot(os.path.join(L.CACHE, 'cpuplay-%03d.png' % (polls // 150)))
         old_sp, was = sp, at
+        mn = v.mem(minute, 1)[0]
+        if mn != last_min:              # (a line a minute: it goes on)
+            last_min = mn
+            print('  %2d\' %d kicks so far, %d-%d' % (mn, kicks, last[0], last[1]), flush=True)
         sc = v.mem(score_at, 2)
         if sc != last:
             for side in (0, 1):
@@ -202,9 +208,10 @@ def match(v, home, away, length):
             v.poke(one('pj'), [0x10])   # (cyan's penalty: cpu_take's are the
             v.run_for(0.02)             # yellow team's - fire as a player's)
             pens += 1
-        if waited == 600:
-            print('  stuck: kickoff, kind %d, team %d' % (kind, team), flush=True)
+        if waited == 600:               # (no use going on: given up)
+            print('  stuck: kickoff, kind %d, team %d - given up' % (kind, team), flush=True)
             v.screenshot(os.path.join(L.CACHE, 'cpuplay-stuck.png'))
+            break
         if v.mem(full_at, 1)[0]:
             break
     print('  %d kicks seen in %d looks, %d fire taps at penalties' % (kicks, polls, pens))

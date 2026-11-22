@@ -136,7 +136,8 @@ def press(v, bits=FIRE, hold=0.02):
 def full_time(v, goals=None):
     """the match to its 89th minute, the score as given; then till full
     time"""
-    wait(v, lambda: v.mem(lab['game_min'], 1)[0] >= 1 or True, 'match')
+    wait(v, lambda: in_match(v) and ram(v, lab['enter'], 1)[0] == 0,
+         'the teams on (play.s walk_on)')
     if goals:
         v.poke(lab['score'], goals)
     v.poke(lab['game_min'], [89])
@@ -521,8 +522,13 @@ def look(drive):
         v.run_for(1)
 
         def name(i):
-            """a team's name (title.s teams: 16 bytes each, the name first)"""
-            return bytes(c & 0x7F for c in v.mem(lab['teams'] + 16 * i, 13)).decode('ascii').strip()
+            """a team's name (title.s teams: shirts, level, stars, the name's
+            length and the name - each record as long as it)"""
+            at = lab['teams']
+            for _ in range(i):
+                at += 6 + v.mem(at + 5, 1)[0]
+            n = v.mem(at + 5, 1)[0]
+            return bytes(v.mem(at + 6, n)).decode('ascii')
         tm = K_CH + 3                       # t_team (the first at random:
         away = ram(v, tm + 1, 1)[0]         # title.s k_init)
         an = name(away)

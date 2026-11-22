@@ -24,7 +24,7 @@
         .include "resident.inc"     ; (K_GO)
 
         .import joy, joy_read, krow, eng_init, frames
-        .import played, anew, whistle, score, game_min
+        .import played, anew, whistle, score, game_min, enter
         .import sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import __BSS_RUN__, __LOWBSS_RUN__, __HIBSS2_RUN__, __HIBSS2_SIZE__
         .export pause_chk, dbg_key, resume, squares, quit_a
@@ -153,7 +153,9 @@ resume: lda K_REQ
         beq :+
         clc
         rts
-:       sei                     ; (C set: from the save)
+:       lda #0                  ; (no coming on: play.s walk_on - the
+        sta enter               ; title's choice for a new match)
+        sei                     ; (C set: from the save)
 sv_move:                        ; sv_tab's blocks to the save (C clear) or
         lda #Z_A                ; back from it (C set)
         ldx #Z_B

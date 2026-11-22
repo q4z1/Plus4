@@ -71,7 +71,7 @@ BOOT_LOAD = 5.0                 # seconds of the loading screen shown
 BOOT_TITLE = 7.0                # of the title after it, before its second page is chosen
 # (the loading shown without a caption: the music no longer plays all
 # through it, only at its end)
-BOOT_CAPS = [('THE TITLE - 39 NATIONAL TEAMS',
+BOOT_CAPS = [('THE TITLE - 40 NATIONAL TEAMS',
               'ONE OR TWO PLAYERS - A MATCH OR TRAINING'),
              ('TEAM SETTINGS - A FORMATION EACH SIDE',
               'TEN OF THEM - 4-4-2 TO 3-3-4 - OR RANDOM')]

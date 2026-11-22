@@ -31,7 +31,7 @@
         .charmap I, I           ; has its characters at their ASCII codes,
         .endrepeat              ; not the Plus/4's PETSCII)
 
-        .import joy_scan, joy, joy_a, joy_b, min_frames, two, train, team_col, team_flk, sk
+        .import joy_scan, joy, joy_a, joy_b, min_frames, two, train, enter, team_col, team_flk, sk
         .import lib_ix, lib_x0l, lib_xs, lib_y0l, lib_ys, lib_hh
         .import tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .import sk_duel, jog_lo, jog_hi, kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
@@ -90,7 +90,9 @@ LABEL_ROW   = FLAG_ROW          ; "HOME" beside the home flag, "AWAY" beside
 NAME_ROW    = FLAG_ROW + 1      ; the away one (TEXT_DROP rows lower), each over
 NAME_COL    = 14                ; its name, a field of FIELD_W - all in the
 FIELD_W     = 12                ; middle between the flags, as "VS"
-NAME_W      = 13                ; (a name in teams: the longest 12 so far)
+REC_LEVEL   = 2                 ; a team's record (teams): its shirt, its
+REC_STARS   = 3                 ; second, its level, its stars (2), its
+REC_NAME    = 5                 ; name's length, its name
 LABEL_COL   = NAME_COL + (FIELD_W - 4) / 2
 TEXT_DROP   = DROP + 1          ; (the away side's words at its flag's foot,
                                 ; the home side's at its top: "VS" between)
@@ -594,6 +596,8 @@ skip:
         sta SKIP
         sta SKIP + 1
         jsr chosen
+        lda #0
+        sta enter
         sec
         rts
 @no:    clc
@@ -1100,14 +1104,9 @@ draw_names:
         lda t_team,x
         tax
         jsr rec                 ; t_ptr: its record
-        ldy #NAME_W             ; its length: the spaces at its end off
-:       dey
+        ldy #REC_NAME           ; its length
         lda (t_ptr),y
-        and #$7F                ; (bit 7: a star)
-        cmp #' '
-        beq :-
-        iny
-        sty t_c
+        sta t_c
         lda #FIELD_W             ; in the middle: (FIELD_W - length) / 2 in
         sec
         sbc t_c
@@ -1126,13 +1125,12 @@ draw_names:
         clc
         adc t_f
         tax
-        ldy #0
+        ldy #REC_NAME + 1
 :       lda (t_ptr),y
-        and #$7F
         sta TCODE + NAME_ROW * 40,x
         inx
         iny
-        cpy t_c
+        dec t_c
         bne :-
         ldx t_x                 ; its colour: the shirt's, hires, light
         lda team_col,x          ; enough on the blue
@@ -1305,6 +1303,9 @@ chosen:
         bne :+
         iny
 :       sty train
+        tya                     ; (a match: the teams come on - play.s
+        eor #1                  ; walk_on; a test's, skip: not)
+        sta enter
         jsr skills
         jsr formations
         jmp kits
@@ -1488,7 +1489,7 @@ own_form:
         lda t_team,x
         tax
         jsr rec
-        ldy #NAME_W + 2
+        ldy #REC_LEVEL
         lda (t_ptr),y
         lsr a
         lsr a
@@ -1505,12 +1506,12 @@ own_form:
 kits:
         ldx t_team
         jsr rec
-        ldy #NAME_W
+        ldy #0
         lda (t_ptr),y
         sta t_k                 ; (the home team's)
         ldx t_team + 1
         jsr rec
-        ldy #NAME_W
+        ldy #0
         lda (t_ptr),y           ; its own, its second
         sta t_alt
         iny
@@ -1574,23 +1575,28 @@ alike:
 @yes:   lda #1
         rts
 
-; rec: t_ptr = team X's record (teams: NAME_W + 3 bytes each). Keeps X.
-rec:    lda #0
-        sta t_ptr + 1
-        txa
-        ldy #4
-:       asl a                   ; * 16
-        rol t_ptr + 1
-        dey
-        bne :-
-        clc
-        adc #<teams
+; rec: t_ptr = team X's record (teams: each as long as its name - a
+; fixed 13 letters were 121 bytes more). Keeps X.
+rec:    txa
+        pha
+        lda #<teams
         sta t_ptr
-        lda t_ptr + 1
-        adc #>teams
+        lda #>teams
         sta t_ptr + 1
+@next:  dex
+        bmi @done
+        ldy #REC_NAME
+        lda (t_ptr),y
+        clc
+        adc #REC_NAME + 1
+        adc t_ptr
+        sta t_ptr
+        bcc @next
+        inc t_ptr + 1
+        bcs @next
+@done:  pla
+        tax
         rts
-.assert NAME_W + 3 = 16, error, "rec: records of 16"
 
 ; skills: each player's pace and each keeper (runs, keeps): as Sensible
 ; Soccer has them for the team's level and stars
@@ -1611,7 +1617,7 @@ skills:
 ; others go to their places (play.s jog_*: Sensible Soccer's c144dc - a
 ; computer's 1572 - 164 * level, a player's 1024)
 runs:
-        ldy #NAME_W + 2
+        ldy #REC_LEVEL
         lda (t_ptr),y
         and #$0F
         sta t_c                 ; (the level)
@@ -1647,26 +1653,31 @@ runs:
         dey
         bne :-
 @put:   sta t_f
+        ldy #REC_STARS          ; (its stars, a bit each, the keeper's
+        lda (t_ptr),y           ; first: t_i, t_k)
+        sta t_i
+        iny
+        lda (t_ptr),y
+        sta t_k
         txa                     ; (pace: skill 0, side * 11 on)
         beq :+
         lda #11
 :       tax
-        ldy #0
-@one:   lda (t_ptr),y           ; (at the ball: 15 less the level, a
-        asl a                   ; star one more, 7-15 - play.s duel; the
-        lda t_c                 ; level 1 the best)
+        ldy #11
+@one:   lsr t_k                 ; (at the ball: 15 less the level, a
+        ror t_i                 ; star one more, 7-15 - play.s duel; the
+        php                     ; level 1 the best)
+        lda t_c
         eor #$0F
         adc #0
         sta sk_duel,x
-        lda (t_ptr),y           ; a star 64 more
-        asl a
+        plp                     ; a star 64 more
         lda t_f
         bcc :+
         adc #64 - 1             ; (carry set)
 :       sta sk,x
         inx
-        iny
-        cpy #11
+        dey
         bne @one
         rts
 
@@ -1677,8 +1688,10 @@ runs:
 ; players': 3, 2) - its star keeper guessing his own but 0-5
 keeps:
         ldx t_n
-        ldy #0
-        lda (t_ptr),y           ; (the keeper's a star: bit 7)
+        ldy #REC_STARS
+        lda (t_ptr),y           ; (the keeper's a star: bit 0, to bit 7)
+        lsr a
+        ror a
         and #$80
         sta t_i
         lda #8
@@ -1757,31 +1770,37 @@ t_alt:      .byte 0, 0, $71, $42, $26   ; (kits': the away team's own two,
 
 ; The teams: a name, its shirt and its second, as the TED's colours
 ; (luminance * 16 + hue, the hue 0-7: multicolour cells have no more),
-; Sensible Soccer's level for it, 1-8 (1 the best) and its stars there,
-; of the eleven (a bit each, the keeper bit 0; c107d4) - the stars in
-; bit 7 of the name's characters.
-; Teams it has not: a level from how good we took them to be, 0-4 (4 1,
-; 3 3, 2 5, 1 7, 0 8), and its stars most often: the keeper, 8 and 10.
+; its level, 1-8 (1 the best) - as Sensible Soccer makes them, its teams
+; ranked and cut into eight bands alike, but by FIFA's ranking of November
+; 2026 (Luca: 1992's look odd today), five teams a band - and its stars
+; there, of the eleven (a bit each, the keeper bit 0; c107d4) - the stars
+; in bit 7 of the name's characters; teams it has not, the stars most
+; often: the keeper, 8 and 10.
 ; Last its formation there (form_names; in the level's byte, 16 times
-; it), where it is not 4-4-2 - teams it has not 4-4-2.
+; it), where it is not 4-4-2 - for teams it has not, one as they have
+; played of late (Luca: something different, not too exotic).
 ; Their flags: data/flags.txt, in this order (tools/mkflags.py reads it).
 F_541       = 1
+F_451       = 2
 F_532       = 3
 F_352       = 4
+F_433       = 5
+F_343       = 8
+F_334       = 9
 .macro  team name, home, away, level, stars, form
-.repeat NAME_W, I
-.if I < .strlen(name)
-        .byte .strat(name, I) | ((stars >> I) & 1) << 7
-.else
-        .byte ' ' | ((stars >> I) & 1) << 7
-.endif
-.endrepeat
 .ifblank form
         .byte home, away, level
 .else
         .byte home, away, level | form << 4
 .endif
+        .word stars
+        .byte .strlen(name)
+.repeat .strlen(name), I
+        .byte .strat(name, I)
+.endrepeat
+T_COUNT .set T_COUNT + 1
 .endmacro
+T_COUNT .set 0
 WHITE       = $71
 RED         = $42
 DARK_RED    = $22
@@ -1794,44 +1813,45 @@ DARK_BLUE   = $26
 GREEN       = $15               ; (dark: the grass is green)
 teams:
         team "ARGENTINA", SKY, DARK_BLUE, 1, %10001000001
-        team "AUSTRALIA", YELLOW, GREEN, 7, %01010000001     ; (not in it: ours)
+        team "AUSTRALIA", YELLOW, GREEN, 6, %01010000001, F_433     ; (not in it: ours)
         team "AUSTRIA", RED, WHITE, 5, %01010000001     ; (the stars ours)
         team "BELGIUM", RED, YELLOW, 2, %01010000001
-        team "BRAZIL", YELLOW, BLUE, 1, %11000000010
-        team "CAMEROON", GREEN, YELLOW, 4, %11000000001
-        team "CANADA", RED, WHITE, 7, %01010000001     ; (not in it: ours)
-        team "CHILE", RED, WHITE, 5, %01010000001     ; (not in it: ours)
-        team "CHINA", RED, WHITE, 8, %01010000001     ; (not in it: ours)
+        team "BRAZIL", YELLOW, BLUE, 2, %11000000010
+        team "CAMEROON", GREEN, YELLOW, 7, %11000000001
+        team "CANADA", RED, WHITE, 5, %01010000001     ; (not in it: ours)
+        team "CHILE", RED, WHITE, 8, %01010000001, F_334     ; (not in it: ours)
+        team "CHINA", RED, WHITE, 8, %01010000001, F_451     ; (not in it: ours)
         team "COLOMBIA", YELLOW, DARK_BLUE, 2, %10010100000
-        team "CROATIA", RED, DARK_BLUE, 6, %00011010000
-        team "DENMARK", RED, WHITE, 2, %11000000001, F_532
-        team "EGYPT", RED, WHITE, 7, %01010000001     ; (not in it: ours)
+        team "CROATIA", RED, DARK_BLUE, 3, %00011010000
+        team "DENMARK", RED, WHITE, 5, %11000000001, F_532
+        team "EGYPT", RED, WHITE, 5, %01010000001, F_433     ; (not in it: ours)
         team "ENGLAND", WHITE, RED, 1, %00110100000
         team "FRANCE", DARK_BLUE, WHITE, 1, %10000000100, F_532
-        team "GERMANY", WHITE, RED, 1, %01010000010, F_352
-        team "GHANA", WHITE, RED, 5, %01010000001     ; (not in it: ours)
-        team "HUNGARY", RED, WHITE, 5, %10010100000, F_532
-        team "IRAN", WHITE, RED, 7, %01010000001     ; (not in it: ours)
-        team "ITALY", BLUE, WHITE, 1, %01000011000
-        team "JAPAN", DARK_BLUE, WHITE, 5, %01010000001     ; (not in it: ours)
+        team "GERMANY", WHITE, RED, 3, %01010000010, F_352
+        team "GHANA", WHITE, RED, 8, %01010000001     ; (not in it: ours)
+        team "HUNGARY", RED, WHITE, 7, %10010100000, F_532
+        team "IRAN", WHITE, RED, 5, %01010000001, F_451     ; (not in it: ours)
+        team "ITALY", BLUE, WHITE, 3, %01000011000
+        team "JAPAN", DARK_BLUE, WHITE, 4, %01010000001, F_343     ; (not in it: ours)
         team "MEXICO", GREEN, WHITE, 3, %01001000001
-        team "MOROCCO", RED, GREEN, 5, %00110001000
-        team "NETHERLANDS", ORANGE, WHITE, 1, %01000001100, F_352
-        team "NEW ZEALAND", WHITE, DARK_BLUE, 8, %01010000001     ; (not in it: ours)
+        team "MOROCCO", RED, GREEN, 1, %00110001000
+        team "NETHERLANDS", ORANGE, WHITE, 2, %01000001100, F_352
+        team "NEW ZEALAND", WHITE, DARK_BLUE, 8, %01010000001, F_532     ; (not in it: ours)
         team "NIGERIA", GREEN, WHITE, 6, %01000100010
-        team "NORWAY", RED, WHITE, 3, %01010000001     ; (the stars ours)
-        team "POLAND", WHITE, RED, 4, %11100000000, F_352
-        team "PORTUGAL", DARK_RED, WHITE, 4, %01100000001
+        team "NORWAY", RED, WHITE, 4, %01010000001     ; (the stars ours)
+        team "POLAND", WHITE, RED, 7, %11100000000, F_352
+        team "PORTUGAL", DARK_RED, WHITE, 2, %01100000001
         team "SAUDI ARABIA", WHITE, GREEN, 8, %00010000110
-        team "SCOTLAND", DARK_BLUE, YELLOW, 4, %01110000000
-        team "SENEGAL", WHITE, GREEN, 5, %01010000001     ; (not in it: ours)
-        team "SOUTH KOREA", RED, WHITE, 8, %01010000001
-        team "SPAIN", RED, DARK_BLUE, 2, %01000000101, F_541
-        team "SWEDEN", YELLOW, DARK_BLUE, 3, %11001000000
+        team "SCOTLAND", DARK_BLUE, YELLOW, 7, %01110000000
+        team "SENEGAL", WHITE, GREEN, 4, %01010000001, F_433     ; (not in it: ours)
+        team "SOUTH KOREA", RED, WHITE, 6, %01010000001
+        team "SPAIN", RED, DARK_BLUE, 1, %01000000101, F_541
+        team "SWEDEN", YELLOW, DARK_BLUE, 6, %11001000000
         team "SWITZERLAND", RED, WHITE, 3, %01010000001     ; (the stars ours)
-        team "UKRAINE", YELLOW, BLUE, 4, %01010000001     ; (the stars ours)
-        team "URUGUAY", LIGHT_SKY, WHITE, 3, %01010000001     ; (not in it: ours)
+        team "UKRAINE", YELLOW, BLUE, 6, %01010000001     ; (the stars ours)
+        team "URUGUAY", LIGHT_SKY, WHITE, 4, %01010000001     ; (not in it: ours)
         team "USA", WHITE, DARK_BLUE, 4, %01100000001, F_532
-TEAMS       = (* - teams) / (NAME_W + 3)
+        team "WALES", RED, WHITE, 7, %01010000001, F_532     ; (the stars ours)
+TEAMS       = T_COUNT
 TEAMS_N     = TEAMS             ; (cup.s: the league's)
 .assert TEAMS <= 64, error, "teams: cup.s picks them from 64"

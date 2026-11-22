@@ -62,6 +62,7 @@ def main():
         y.poke(lab[port], [0])
         wait(lambda: y.mem(0xFFFE, 2)[1] != 0 and y.mem(0xFF07, 1)[0] & 0x10
              and y.mem(0xFF06, 1)[0] & 0x10, 'the match')
+        wait(lambda: y.mem(lab['enter'], 1)[0] == 0, 'the teams on (walk_on)')
         time.sleep(1.5)
         print('kick-off %d, set piece %d, taker %d, rs_team %d, flip %d, ctrl %d, K_HOME %d' % (
             y.mem(lab['kickoff'], 1)[0], y.mem(lab['rs_kind'], 1)[0], y.mem(lab['taker'], 1)[0],
