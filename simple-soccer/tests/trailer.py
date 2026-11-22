@@ -74,7 +74,7 @@ BOOT_TITLE = 7.0                # of the title after it, before its second page 
 BOOT_CAPS = [('THE TITLE - 39 NATIONAL TEAMS',
               'ONE OR TWO PLAYERS - A MATCH OR TRAINING'),
              ('TEAM SETTINGS - A FORMATION EACH SIDE',
-              '4-4-2 TO 4-3-3 - ATTACK DEFEND OR RANDOM')]
+              'TEN OF THEM - 4-4-2 TO 3-3-4 - OR RANDOM')]
 END = ('SIMPLE SOCCER FOR THE COMMODORE PLUS/4', 'GITHUB.COM/Q4Z1/PLUS4')
 # the league (--league records it, from a copy of the disk in Yape:
 # WORK/league): its eight teams, Germany the player's; the results the
