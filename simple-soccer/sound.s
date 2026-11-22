@@ -305,13 +305,12 @@ sfx_catch:
         lda #<fx_catch
         ldx #>fx_catch
         jmp low1
-sfx_goal:                       ; the crowd roaring, whistling
-        jsr save
-        lda #<fx_goal_w
-        ldx #>fx_goal_w
+sfx_goal:                       ; the crowd roaring, whistling (the roar
+        jsr sfx_roar            ; first: X, Y as they were - a bit over its
+        lda #<fx_goal_w         ; three bytes' jsr ran the third as code,
+        ldx #>fx_goal_w         ; Luca: the crowd mad at a goal)
         ldy #0
-        jsr sfx_start
-        .byte $2C               ; (bit abs: over sfx_roar's jsr)
+        jmp go
 sfx_roar:                       ; the crowd roaring (full time: after the
         jsr save                ; referee's whistle)
         lda #<fx_goal

@@ -624,24 +624,23 @@ walk_on:
         asl a
         asl a
         asl a
-        adc #<TUN_X
+        adc #<TUN_X             ; (no carry: under 256)
         sta o_xl,x
         lda #>TUN_X
-        adc #0
         sta o_xh,x
         lda #<369
         sta o_yl,x
-        lda #>369
-        sta o_yh,x
         lda #<SPEED_JOG
         sta o_spl,x
         lda #>SPEED_JOG
         sta o_sph,x
-        lda #1
+        lda #>369               ; (1)
+        sta o_yh,x
         sta o_mov,x
         sta o_new,x
         dex
         bpl @pl
+.assert <TUN_X + 8 * (PLAYERS - 1) < 256 && >369 = 1, error, "walk_on"
         sta kickoff             ; (A 1: team_ai leaves them on their way)
         asl a
         sta dead_t
@@ -1167,6 +1166,10 @@ keepers_move:
 play_others:
         ldx #PLAYERS - 1        ; (21 .. 12, 10 .. 1: the keepers have their
         bne @look               ; own way)
+@own:   cpx ctrl                ; (the two at the ball: their own way)
+        beq @next
+        cpx ctrl_b
+        bne @go
 @next:  dex
         beq @done
         cpx #11
@@ -1178,13 +1181,11 @@ play_others:
 @look:  lda o_mov,x             ; (those standing passed over)
         beq @next
         lda full                ; (after full time, or coming on, no own
-        ora enter               ; way: with the rest)
-        bne @go
-        cpx ctrl                ; (the two at the ball: their own way)
-        beq @next
-        cpx ctrl_b
-        beq @next
-@go:    stx z_obj
+        ora enter               ; way: with the rest - and the way anew
+        beq @own                ; each picture, the destination noted
+        sta o_new,x             ; changed: angle's is rough, on a long way
+        dec c_tyh,x             ; one end came first, the other crept on
+@go:    stx z_obj               ; - Luca: he ran on standing there)
         lda o_new,x             ; the way anew only for a new destination:
         ora o_slide,x           ; on a straight run it stays the same (a
         beq @step               ; slide's, slower each frame: always)
