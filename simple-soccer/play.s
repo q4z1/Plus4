@@ -2585,9 +2585,9 @@ dribble:
 :       rts
 
         .segment "RODATA"
-glue_of:    .byte 8, 9, 10, 12, 14, 17, 19, 22, 22  ; (by sk_duel, 7-15: the
-                                ; C64's $3E88 4 - 21; the weakest kept it too
-                                ; little, said Luca)
+glue_of:    .byte 4, 5, 6, 8, 11, 14, 17, 21, 21    ; (by sk_duel, 7-15: the
+                                ; C64's $3E88 - 8 - 22 kept the ball too long,
+                                ; Ghana's too, said Luca)
 drib_of:    .byte 130, 116, 102, 88, 74, 60, 46, 32, 32  ; ($3E80)
         .segment "CODE"
 

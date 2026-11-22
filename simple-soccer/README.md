@@ -469,9 +469,11 @@ the better more often, by his team's level (a level better, or a star,
 one step up): even 16 in 32, each step between them one in 32 more, at
 most 23. The ball stops dead at his feet, and the other team cannot
 dribble it for 24 frames. And it sticks to a dribbler only for so many
-turns with it since he got it - 8 for the weakest (level 8, no star),
-22 for the best (the C64's 4 to 21: Luca found the weak teams could not
-keep it at all): past them, each turn he makes with the other team's
+turns with it since he got it - the C64's 4 for the weakest (level 8,
+no star) to 21 for the best (for a while 8 to 22, as Luca found the weak
+teams could not keep it at all; then he found it too strong, Ghana's
+too):
+past them, each turn he makes with the other team's
 player at the ball too lets it go to that one, his own team not
 touching it for 16 frames. The same roll decides when a sliding tackle
 reaches the ball at a player's feet: lost, the tackle misses the ball,
