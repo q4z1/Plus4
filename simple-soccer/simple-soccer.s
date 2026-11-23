@@ -19,7 +19,7 @@
         .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why, jumps, HEAD_T
         .import cam_way, full
         .export team_col, team_flk, start, played
-        .import pause_chk, resume, squares
+        .import pause_chk, pause, resume, squares
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -176,8 +176,10 @@ main:
         jsr squares             ; (their places may have held the save)
         jsr eng_init
         plp
-        bcs @on
-        jsr play_init
+        bcc @new
+        jsr pause               ; (a saved match taken up: its pause page
+        jmp @on                 ; first, fire to go on - Luca)
+@new:   jsr play_init
         ldx #0                  ; an order to sort from (none in it yet)
         stx vis_n
 :       txa
@@ -643,8 +645,9 @@ draw:
         adc tmp2                ; direction * 3
         adc step_img,y
 @img:   sta fig_img
-        cmp #IMG_THROW_RA       ; (a throw-in: three lines higher, the hands
-        bcc :+                  ; over the head)
+        cmp #IMG_HOLD           ; (a throw-in: three lines higher, the hands
+        bcc :+                  ; over the head; the arms up as well - a
+                                ; header's jump, a keeper's, one cheering)
         lda fig_y
         sec
         sbc #3

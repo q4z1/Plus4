@@ -589,9 +589,11 @@ tint:
         adc z_tr
         tay
         lda crow_of,y           ; the colours it wants
-        cmp #BENCH_TINT         ; (the benches': white while they are out
-        bne :+                  ; of the view - else copied whenever the
-        ldx col0                ; view moved across)
+        cmp #BENCH_TINT         ; (the benches', the tunnel's - from
+        bcc :+                  ; BENCH_TINT on: white while they are out
+        ldx col0                ; of the view - else copied whenever the
+                                ; view moved across; kept only from that
+                                ; column on, mkdata BENCH_FROM)
         cpx #BENCH_COL - SCR_W + 1
         bcs :+
         lda #$FF

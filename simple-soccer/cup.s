@@ -642,7 +642,10 @@ ask:    jsr page
         jsr text
         lda #2                  ; (the choices: keep it, a new one)
         sta m_off
-        jmp menu
+        jsr menu
+        lda #0                  ; (the page's own again, the carry kept -
+        sta m_off               ; Luca: a new league's page offered "KEEP"
+        rts                     ; and "A NEW ONE", and meant the others)
 
 ; ---- the winner's page ---------------------------------------------------------
 ;

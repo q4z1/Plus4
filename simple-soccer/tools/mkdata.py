@@ -361,7 +361,43 @@ def ground_and_font():
     """the ground (79 x 67 codes) and its characters, the boards in and
     the goals' shadows gone - cells changed get codes of their own"""
     rows = [bytearray(r) for r in board_pitch()]
+    # the benches where BENCHES says, from the C64's places (C64_BENCHES),
+    # the tunnel between them - the three in the middle of the halfway
+    # line (the user)
+    old = {(y, x): rows[y][x] for y in range(len(rows)) for x in range(73, 78)}
+    for (c64, _, _, _), (top, bottom, left, right) in zip(C64_BENCHES, BENCHES):
+        for y in range(c64, c64 + 8):
+            rows[y][left:right + 1] = bytes(5)
+    for (c64, _, _, _), (top, bottom, left, right) in zip(C64_BENCHES, BENCHES):
+        for dy in range(bottom - top + 1):
+            rows[top + dy][left:right + 1] = bytes(old[c64 + dy, x] for x in range(left, right + 1))
     font = base_chars()
+    # and the boards' gap beside them as well (the user): the board above
+    # it ending BOARD_UP lines higher (its lines alike every second one),
+    # the one below beginning BOARD_ON lines higher, its first line more
+    cells = {}
+    bx = BOARD_X * 4
+
+    def at(x, y):
+        return font[rows[y // 8][x // 4] * 8 + y % 8] >> (6 - 2 * (x % 4)) & 3
+    top_end, low_top = BOARD_GAP
+    for y in range(top_end - 24, top_end + 1):
+        for x in range(bx, bx + 4):
+            cells[x, y] = at(x, y + BOARD_UP)
+    for y in range(low_top - BOARD_ON, low_top):
+        for x in range(bx, bx + 4):
+            cells[x, y] = at(x, low_top)
+    used = set(c for r in rows for c in r)
+    for (cx, cy) in sorted(set((x // 4, y // 8) for x, y in cells)):
+        data = bytearray(font[rows[cy][cx] * 8:rows[cy][cx] * 8 + 8])
+        for (x, y), v in cells.items():
+            if (x // 4, y // 8) == (cx, cy):
+                sh = 6 - 2 * (x % 4)
+                data[y % 8] = data[y % 8] & ~(3 << sh) & 255 | v << sh
+        code = next(k for k in range(1, 256) if k not in used)
+        used.add(code)
+        font[code * 8:code * 8 + 8] = data
+        rows[cy][cx] = code
 
     def px(x, y):
         b = font[rows[y // 8][x // 4] * 8 + y % 8]
@@ -422,27 +458,50 @@ def ground_and_font():
     # their roofs a corrugated canopy (Luca: white coffins, all of one
     # light colour): in a colour of their own (colours: ROOF_COL), dark
     # ribs every four lines and a dark back edge, the front edge light; the
-    # coach's suit his own colour (COACH_COL) - in the characters only the
+    # coaches' suits their own colours (COACH_COLS) - in the characters only the
     # benches use, no more of them
     outside = set(rows[y][x] for y in range(len(rows)) for x in range(len(rows[y]))
                   if not any(t <= y <= b and l <= x <= r for t, b, l, r in BENCHES))
     done = set()
     for top, bottom, left, right in BENCHES:
-        for y in range(top, bottom + 1):
+        # the bench's end at the bottom, below the last one sitting - the
+        # C64's seat, mirrored by the shadow (the user: a burst ball)
+        for cx, xs in SEAT_END:
+            c = rows[top + 7][cx]
+            data = bytearray(font[c * 8:c * 8 + 8])
+            for py in range(8):
+                for x in xs:
+                    data[py] &= ~(3 << (6 - 2 * x)) & 255
+            data = bytes(data)
+            if data not in pattern:
+                pattern[data] = free.pop(0)
+                font[pattern[data] * 8:pattern[data] * 8 + 8] = data
+            rows[top + 7][cx] = pattern[data]
+        # the roof drawn anew, the same at both ends (the user: the C64's
+        # block left bits at its foot): dark ribs (RIBS), the front edge
+        # light, the side wall at the back dark - its shadow below gone,
+        # grass (the user)
+        for y in range(top, top + ROOF_H):
             for cx in range(ROOF[0] // 4, right + 1):
-                c = rows[y][cx]
-                if c in outside or c in done:
-                    continue
-                done.add(c)
+                data = bytearray(font[rows[y][cx] * 8:rows[y][cx] * 8 + 8])
                 for py in range(8):
-                    b = font[c * 8 + py]
+                    line = (y - top) * 8 + py
                     for x in range(4):
                         rx = cx * 4 + x - ROOF[0]
+                        if not 0 <= rx < ROOF[1]:
+                            continue
                         sh = 6 - 2 * x
-                        if 0 <= rx < ROOF[1] and b >> sh & 3 == 1:
-                            v = 1 if rx == 0 else 2 if rx == ROOF[1] - 1 or py in (3, 7) else 3
-                            b = b & ~(3 << sh) & 255 | v << sh
-                    font[c * 8 + py] = b
+                        v = (1 if rx == 0 else
+                             2 if rx == ROOF[1] - 1 or line % 4 in RIBS else 3)
+                        foot = line - (ROOF_H * 8 - len(WALL))
+                        if foot >= 0:       # (its wall below it)
+                            v = 2 if rx <= WALL[foot] else 0
+                        data[py] = data[py] & ~(3 << sh) & 255 | v << sh
+                data = bytes(data)
+                if data not in pattern:
+                    pattern[data] = free.pop(0)
+                    font[pattern[data] * 8:pattern[data] * 8 + 8] = data
+                rows[y][cx] = pattern[data]
         for (dy, cx, py0, xs) in COACH:
             c = rows[top + dy][cx]
             if c in outside or (c, 'coach') in done:
@@ -455,19 +514,72 @@ def ground_and_font():
                     if b >> sh & 3 == 1:
                         b |= 3 << sh
                 font[c * 8 + py] = b
+    # the tunnel between the benches (Luca: the teams went off into thin
+    # air): their roof on across the gap, its mouth black in front of it,
+    # steps going down in it
+    # - the teams come out of it and go into it (play.s TUN_X). Its rows
+    # alike, with the benches' colours (colours) and roof - a player never reaches
+    # the roof, nor the cells coloured, so restore's white harms nothing
+    used = set(c for r in rows for c in r)
+    free = [c for c in range(1, 256) if c not in used]
+    pattern = {bytes(font[c * 8:c * 8 + 8]): c for c in sorted(used, reverse=True)}
+    src = rows[BENCHES[0][0] + 4]
+    for y in TUNNEL_ROWS:
+        for cx in range(TUNNEL_COL, len(rows[y])):
+            data = bytearray(font[src[cx] * 8:src[cx] * 8 + 8])
+            for py in range(8):
+                for x in range(4):
+                    rx = cx * 4 + x - ROOF[0]
+                    sh = 6 - 2 * x
+                    v = 2 if rx < 0 else 0 if rx >= ROOF[1] else data[py] >> sh & 3
+                    if cx * 4 + x in TUNNEL_STEPS:
+                        v = 1
+                    if not TUNNEL_LINES[0] <= y * 8 + py <= TUNNEL_LINES[1]:
+                        v = 0           # (narrower: the user)
+                    data[py] = data[py] & ~(3 << sh) & 255 | v << sh
+            data = bytes(data)
+            if data not in pattern:
+                pattern[data] = free.pop(0)
+                font[pattern[data] * 8:pattern[data] * 8 + 8] = data
+            rows[y][cx] = pattern[data]
     return [bytes(r) for r in rows], font
 
 
 # the benches (rows top-bottom, columns left-right of the ground's cells),
-# their roofs (multicolour pixels: the first across, how wide)
-BENCHES = [(25, 33, 73, 77), (37, 45, 73, 77)]
+# their roofs (multicolour pixels: the first across, how wide) - the C64's
+# a row lower and higher, eight rows each (no shadow below), and the
+# tunnel's three between them, a row apart: all in the middle of the
+# halfway line, lines 291 and 292 of pitch.txt (the user)
+C64_BENCHES = [(25, 33, 73, 77), (37, 45, 73, 77)]
+BENCHES = [(26, 33, 73, 77), (39, 46, 73, 77)]
+TUNNEL_ROWS = range(35, 38)
+TUNNEL_LINES = (284, 299)       # (its first line and last in them)
 ROOF = (75 * 4 + 2, 8)
-ROOF_H = 8                      # (rows from the bench's top: its colours)
+ROOF_H = 8                      # (rows from the bench's top: its colours, its roof)
+# the roofs' ribs: lines 0 and 3 of every four - a rib at the top and the
+# bottom, two lines thick between (mirrored about the halfway line)
+RIBS = (0, 3)
+SEAT_END = [(74, range(4)), (75, range(2))]     # (its row 7: cells, pixels gone)
+# the wall at the roof's foot, as the C64's (the user: it showed the bench
+# a little in 3D): its last lines dark, so far across from the front edge
+WALL = (7, 6, 6, 5, 5, 4)
 # the coach's suit below his face: (row from the top, column, from line,
 # pixels) - his legs share a cell with the first ones on the bench
 COACH = [(1, 73, 5, range(4)), (1, 74, 4, range(4)), (2, 74, 0, range(2))]
+# the boards' gap beside them: the C64's last line of the board above it
+# and first one of the board below, how much higher they end and begin
+BOARD_X = 71
+BOARD_GAP = (247, 345)
+BOARD_UP = 6
+BOARD_ON = 3
+TUNNEL_COL = 72
+# its steps down (the user's wish): their edges light, a pixel of each of
+# its columns before the roof - one character for all three
+TUNNEL_STEPS = {TUNNEL_COL * 4 + 4 * k for k in range(3)}
 ROOF_COL = mc(6, 3)             # blue
-COACH_COL = mc(2, 3)            # red
+COACH_COLS = [mc(2, 3), ROOF_COL]   # the coaches' suits: red, blue (the user)
+BENCH_FROM = 73 - 40 + 1        # (engine.s tint: the benches' colours from
+                                # this column of the view on - SCR_W)
 
 
 def colours():
@@ -484,21 +596,28 @@ def colours():
                 cols[x] = mc(*rnd.choice(CROWD))
         if y == BOARD_ROW:
             cols[:BOARD_WIDTH] = board_row()[1]
-        for top, bottom, left, right in BENCHES:
-            if top <= y < top + ROOF_H:
-                cols[73:75] = [COACH_COL] * 2
+        for (top, bottom, left, right), coach in zip(BENCHES, COACH_COLS):
+            if top <= y < top + ROOF_H or y in TUNNEL_ROWS and coach == COACH_COLS[0]:
+                cols[73:75] = [coach] * 2
                 cols[75:right + 1] = [ROOF_COL] * (right - 74)
         if any(c != white for c in cols):
             out.append((y, cols))
     return out
 
 
+def bench_row(y):
+    """row y one of the benches' or the tunnel's"""
+    return y in TUNNEL_ROWS or any(t <= y < t + ROOF_H for t, _, _, _ in BENCHES)
+
+
 def unique_tints():
-    """colours()'s rows, each alike one once: [(its first row, colours)]"""
+    """colours()'s rows, each alike one once: [(its first row, colours)] -
+    the benches' last (from BENCH_TINT on: engine.s tint)"""
     out = []
-    for y, cols in colours():
-        if all(c != cols for _, c in out):
-            out.append((y, cols))
+    for bench in (False, True):
+        for y, cols in colours():
+            if bench_row(y) == bench and all(c != cols for _, c in out):
+                out.append((y, cols))
     return out
 
 
@@ -839,7 +958,10 @@ def main():
         tint = unique_tints()
         cuts = segments(rows, NSEG)
         pieces = [bytes(r[a:b]) for a, b in zip(cuts, cuts[1:]) for r in rows]
-        packed, at = overlapped(pieces + [bytes(c) for _, c in tint])
+        # (the benches' from BENCH_FROM on only: engine.s tint takes them
+        # white while the view is left of it)
+        packed, at = overlapped(pieces + [bytes(c[BENCH_FROM:] if bench_row(y) else c)
+                                          for y, c in tint])
         out.write('_pitch_map:             ; the pieces, overlapped\n')
         hexrows(out, packed, 40)
         shown = shown_rows()
@@ -871,7 +993,8 @@ def main():
         out.write('cmap_lo: .byte ' + ', '.join('<cmap%d' % i for i in range(len(tint))) + '\n')
         out.write('cmap_hi: .byte ' + ', '.join('>cmap%d' % i for i in range(len(tint))) + '\n')
         for i, (y, cols) in enumerate(tint):
-            out.write('cmap%d = _pitch_map + %d   ; ground row %d\n' % (i, at[len(pieces) + i], y))
+            out.write('cmap%d = _pitch_map + %d   ; ground row %d\n'
+                      % (i, at[len(pieces) + i] - (BENCH_FROM if bench_row(y) else 0), y))
         spr = sprites()
         figs = [figure(digit_pic(b[5]) if isinstance(b, str) else
                        black_socks(small_shadow(spr[b])) if b in RUN_FRAMES else
@@ -966,8 +1089,9 @@ def main():
         skin = int(os.environ.get('COL_SHARED', '72'), 16)  # red, the lightest: near white
         out.write('COL_SKIN    = $%02X           ; the shared light colour: lines, ball, skin\n' % skin)
         out.write('COL_BLACK   = $%02X\n' % ted_of(0))
-        out.write('BENCH_TINT  = %d             ; the benches\' colour row (tint: white while\n'
-                  '                            ; they are out of the view)\n' % tint_of().get(BENCHES[0][0], 255))
+        out.write('BENCH_TINT  = %d             ; the benches\' colour rows, this one on (tint:\n'
+                  '                            ; white while they are out of the view)\n'
+                  % min(i for y, i in tint_of().items() if bench_row(y)))
         out.write('BENCH_COL   = %d            ; (their first column with its own colour)\n' % 73)
         out.write('COL_LINE    = $%02X           ; white, multicolour (the cells\' own)\n'
                   % (ted_of(1, range(8)) | 0x08))

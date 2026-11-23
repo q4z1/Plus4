@@ -47,7 +47,8 @@ first, as CONTINUE before QUIT - fire straight away takes what can be
 taken back (Luca). NO goes back to the title - a league's match to the league's page, not
 played: it is still to play. YES saves the match on the disk first (the
 file "match": one at a time, a newer save takes its place), then the
-title offers CONTINUE: it goes on with the match as it was - a league's
+title offers CONTINUE: it goes on with the match as it was - first its
+pause page, fire on CONTINUE to play on (Luca) - a league's
 match counts in the league once it is played out. A league going on
 waits meanwhile; CONTINUE takes the saved match first. With CONTINUE
 chosen the title shows no teams and no TEAM SETTINGS: the match is the
@@ -566,7 +567,7 @@ and leave screenshots (`why-*.png`).
 
 A ball 13 to 26 high within 10 pixels of your joystick's player, fire
 pressed, is headed on - neither original has such a header, Luca missed
-it: he jumps, his arms up, for 16 frames, and heads it at 1536, rising
+it: he jumps, his arms up (drawn three lines higher), for 16 frames, and heads it at 1536, rising
 as a diving header's, the way the stick points (let go: towards the
 goal his team attacks). Not a keeper (his hands), nor one who has just
 kicked it. The computer's team heads only its own team's balls - a
@@ -740,20 +741,24 @@ KERNAL's way. The disk keeps one league; as long as
 it goes on the title offers MODE: CONTINUE. LEAGUE chosen while one goes
 on first shows its page and asks: KEEP THIS LEAGUE (the choice the stick
 is on: back to the title, CONTINUE chosen) or START A NEW LEAGUE, which
-takes its place.
+takes its place - and then offers PLAY THE NEXT MATCH and BACK TO THE
+TITLE again (it went on showing the question's two, Luca found).
 
 ## Back to the title
 
-Before a match started from the title the teams come on: from the
-benches past the right touch line on the halfway line, a step apart,
+Before a match started from the title the teams come on: out of the
+tunnel between the benches past the right touch line, on the halfway
+line, a step apart,
 one after the other, each walking to his place for the kick-off - the
 ball dead till all of them stand there, then the whistle (Luca's wish;
 `tests/walkon.py`; a test's match, without the title, has
-them lined up at once). At full time the crowd roars and they all walk
-off the same way, the joysticks' players and the keepers too, one
-lying after a tackle getting up first; the view goes with them to the
+them lined up at once). At full time the crowd roars, everyone stands
+where he is for two seconds - the winners cheering - and then they all
+walk off the same way, into the tunnel, the joysticks' players and the
+keepers too, one lying after a tackle getting up first (Luca: they went
+off into thin air before); the view goes with them to the
 benches, six pixels a picture, and once the last is gone the crowd
-murmurs and the view goes to the centre spot - up and down to the very
+murmurs on, till fire, and the view goes to the centre spot - up and down to the very
 middle of the picture (it stopped 16 pixels higher, said Luca) - and
 the score is shown in the middle of it (`tests/fulltime.py`). Then
 fire brings up the winner's page - the title's screen
@@ -996,9 +1001,15 @@ from yellow to red or cyan to blue, on black. Those cells get their
 colours from a map of the rows that have them, put in again only when
 the view has moved. The benches past the right touch line too: the C64's
 were two blocks of one light colour (white coffins, said Luca) - now a
-blue roof of corrugated sheet, dark ribs every four lines and a light
-front edge, and the coach in a red suit, in the characters the benches
-had, no more of them. Their rows count as white while the benches are
+blue roof of corrugated sheet, dark ribs and a light front edge, a dark
+side wall and at its foot the C64's slanted wall (no shadow before it),
+one coach in a red suit, the other in the roofs' blue. Between them the
+tunnel to the dressing rooms, its roof the same, in front of it its
+mouth with steps going down. Benches, tunnel and the gap in the boards
+beside them lie in the middle of the halfway line, to the pixel; the
+ribs too are mirrored about it. The benches' colour rows are kept only
+from the column where the view first shows them, so the second coach's
+colour cost a few bytes, not a whole row. Their rows count as white while the benches are
 out of the view, else every move across copied them all: so the
 colours cost next to nothing (`tests/pace.py`, six matches: 87.3 % of
 the pictures in time, 87.8 without the colours, 88.0 without the
@@ -1014,8 +1025,9 @@ frames, looked like no party - jumping was his idea). `tests/party.py`
 (the venv's Python, for PIL) takes the stands from the screen every
 second frame: two pictures by turns, the same colours in both. The
 players cheer as well: after a goal the scorers' team, at full time the
-winners on their way off, each with his arms up (the header's picture)
-16 frames in 64, by turns (Luca's wish).
+winners standing and on their way off, each jumping with his arms up (the
+header's picture, three lines higher) 8 frames in 32, by turns (Luca's
+wish: twice as often as first, and a jump).
 
 The picture is cut short to give the CPU more time: 16 lines before its
 end the TED's line counter is put 16 on, so the display stops early and

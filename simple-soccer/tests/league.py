@@ -228,6 +228,18 @@ def paused(v):
     return v.mem(0xFF14, 1)[0] == 0xE8 and bytes(v.mem(0xEC00 + 9 * 40 + 17, 5)) == bytes([16, 1, 21, 19, 5])
 
 
+def resumed(v):
+    """a saved match taken up: its pause page first (Luca: fire to go on),
+    nothing played meanwhile - then fire, CONTINUE"""
+    wait(v, lambda: paused(v), 'the pause page of the match taken up', 240)
+    fr = v.mem(lab['frame_n'], 1)[0]
+    v.run_for(2)
+    v.screenshot(os.path.join(CACHE, 'league-save-paused.png'))
+    assert paused(v) and v.mem(lab['frame_n'], 1)[0] == fr, 'the match went on without fire'
+    press(v)
+    print('resumed: the pause page first, fire goes on')
+
+
 def pause_quit(v, name):
     """the match on: RUN/STOP (pause.s dbg_key) - the pause - then QUIT"""
     wait(v, lambda: in_match(v), 'the match', 60)
@@ -276,6 +288,7 @@ def savegame(v):
     v.screenshot(os.path.join(CACHE, 'league-save-title.png'))
     v.poke(K_CH + 2, [3])                   # CONTINUE
     press(v)
+    resumed(v)
     wait(v, lambda: in_match(v), 'the match again', 240)
     v.run_for(1)
     sc, mi = v.mem(lab['score'], 2), v.mem(lab['game_min'], 1)[0]
@@ -319,6 +332,7 @@ def savegame(v):
     assert ram(v, L_BLOCK + 42, 1)[0] == 1, 'the league\'s match not saved'
     v.poke(K_CH + 2, [3])                   # CONTINUE: the match
     press(v)
+    resumed(v)
     wait(v, lambda: in_match(v), 'the league match again', 240)
     full_time(v, [4, 0])
     press(v)
@@ -507,6 +521,9 @@ def ask(drive):
         new = ram(v, L_BLOCK, 42)
         print('new', new)
         assert new[1] == 1 and new[14:] == [255] * 28, 'not a new league'
+        lines = screen(v)
+        assert 'PLAY THE NEXT MATCH' in lines[23] and 'BACK TO THE TITLE' in lines[24], \
+            'the new league\'s menu not its own (Luca: KEEP / A NEW ONE again)'
     finally:
         v.stop()
 

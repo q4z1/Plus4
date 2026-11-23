@@ -27,7 +27,7 @@
         .import played, anew, whistle, score, game_min, enter
         .import sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import __BSS_RUN__, __LOWBSS_RUN__, __HIBSS2_RUN__, __HIBSS2_SIZE__
-        .export pause_chk, dbg_key, resume, squares, quit_a
+        .export pause_chk, pause, dbg_key, resume, squares, quit_a
 
 SCR         = $EC00             ; the page: picture 2's place (engine.s
 ATT         = $E800             ; MAT2: its codes, its colours)

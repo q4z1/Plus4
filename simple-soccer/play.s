@@ -54,6 +54,7 @@ off_by      = $EE               ; piece's taker in off_by (above the match's
                                 ; zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
+        .import v_left, crowd1, fx_yellow
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -106,8 +107,9 @@ WALL_D      = 40                ; a set piece: the other team this far off
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 18                ; taker's head, drawn so high while he holds it
                                 ; (in his hands: data/sprites.txt 60, 62)
-HOLD_LIFT   = 14                ; a keeper's hands up, the ball held in them
-HOLD_TOP    = 6                 ; (the top goal's keeper: before his chest)
+HOLD_LIFT   = 14 + HOLD_UP      ; a keeper's hands up, the ball held in them
+HOLD_TOP    = 6                 ; (the top goal's keeper: before his chest -
+HOLD_UP     = 3                 ; his arms up drawn this much higher: draw)
 ARMS_T      = 25                ; frames holding it up, then at his chest
 SPEED_DIVE  = 2048              ; his dive (c0dffc),
 SPEED_DIVE_W = 1280             ; the wrong way at a penalty (c0dffe),
@@ -606,41 +608,34 @@ play_init:
         bne walk_on             ; went back to him, Luca)
         jmp sfx_whistle
 
-; walk_on: from the title (enter), the teams come on from the benches at
-; TUN_X, a step apart, one after the other, to their places for the
+; walk_on: from the title (enter), the teams come on out of the tunnel at
+; WALK_X, a step apart, one after the other, to their places for the
 ; kick-off - the ball dead till they stand there (walking), then the
 ; whistle (Luca)
 walk_on:
         ldx #PLAYERS - 1
-@pl:    lda o_xl,x
-        sta o_txl,x
-        lda o_xh,x
-        sta o_txh,x
-        lda o_yl,x
-        sta o_tyl,x
-        lda o_yh,x
-        sta o_tyh,x
-        txa                     ; (TUN_X + 8 X: carry clear)
+@pl:    jsr stand               ; (his place there his destination)
+        txa                     ; (WALK_X + 8 X: carry clear)
         asl a
         asl a
         asl a
-        adc #<TUN_X             ; (no carry: under 256)
+        adc #<WALK_X            ; (no carry: under 256)
         sta o_xl,x
-        lda #>TUN_X
+        lda #>WALK_X
         sta o_xh,x
-        lda #<369
+        lda #<TUN_Y
         sta o_yl,x
         lda #<SPEED_JOG
         sta o_spl,x
         lda #>SPEED_JOG
         sta o_sph,x
-        lda #>369               ; (1)
+        lda #>TUN_Y             ; (1)
         sta o_yh,x
         sta o_mov,x
         sta o_new,x
         dex
         bpl @pl
-.assert <TUN_X + 8 * (PLAYERS - 1) < 256 && >369 = 1, error, "walk_on"
+.assert <WALK_X + 8 * (PLAYERS - 1) < 256 && >TUN_Y = 1, error, "walk_on"
         sta kickoff             ; (A 1: team_ai leaves them on their way)
         asl a
         sta dead_t
@@ -816,6 +811,21 @@ top_of:
         lda #1
 :       eor flip
         rts
+
+; slow: object X's speed A less, down to 0 at most. Keeps X, Y.
+slow:   sta tmp
+        lda o_spl,x
+        sec
+        sbc tmp
+        sta o_spl,x
+        lda o_sph,x
+        sbc #0
+        sta o_sph,x
+        bcs :+
+        lda #0
+        sta o_spl,x
+        sta o_sph,x
+:       rts
 
 ; stand: object X stopped, its destination where it is
 stand:
@@ -3282,13 +3292,40 @@ mate_way:
 mate_dist:
         lda o_off,x             ; (one sent off: nowhere)
         bne @far
-        lda o_xl,x              ; |x - the ball's x|, under 256
+        jsr ball_dx             ; |x - the ball's x|, under 256
+        bcs @far
+        lda sq8_lo,y
+        sta mate_t
+        lda sq8_hi,y
+        sta mate_t + 1
+        jsr ball_dy             ; |y - the ball's y|
+        bcs @far
+        jsr sq_add
+        bcs @far
+        rts
+@far:   lda #$FF
+        sta tmp
+        sta tmp + 1
+        rts
+
+; ball_dx: Y = |player X's x - the ball's|, carry clear - set if 256 or
+; more; ball_dy: the same of y. Keeps X.
+ball_dy:
+        lda o_yl,x
+        sec
+        sbc o_yl + BALL
+        tay
+        lda o_yh,x
+        sbc o_yh + BALL
+        jmp bd_hi
+ball_dx:
+        lda o_xl,x
         sec
         sbc o_xl + BALL
         tay
         lda o_xh,x
         sbc o_xh + BALL
-        beq @x
+bd_hi:  beq @near
         cmp #$FF
         bne @far
         tya                     ; (less: negated, the carry set)
@@ -3296,30 +3333,9 @@ mate_dist:
         adc #0
         beq @far                ; (256)
         tay
-@x:     lda sq8_lo,y
-        sta mate_t
-        lda sq8_hi,y
-        sta mate_t + 1
-        lda o_yl,x              ; |y - the ball's y|
-        sec
-        sbc o_yl + BALL
-        tay
-        lda o_yh,x
-        sbc o_yh + BALL
-        beq @y
-        cmp #$FF
-        bne @far
-        tya
-        eor #$FF
-        adc #0
-        beq @far
-        tay
-@y:     jsr sq_add
-        bcs @far
+@near:  clc
         rts
-@far:   lda #$FF
-        sta tmp
-        sta tmp + 1
+@far:   sec
         rts
 
 ; dist_y: tmp = the distance squared from the ball to player Y, as
@@ -3438,23 +3454,11 @@ ball_move:
         jsr aim
         ldx #BALL
         ; friction: 16 on the ground, 10 in the air
-        ldy #16
-        lda o_zl,x
+        lda #16
+        ldy o_zl,x
         beq :+
-        ldy #10
-:       sty tmp
-        lda o_spl,x
-        sec
-        sbc tmp
-        sta o_spl,x
-        lda o_sph,x
-        sbc #0
-        sta o_sph,x
-        bcs :+
-        lda #0
-        sta o_spl,x
-        sta o_sph,x
-:
+        lda #10
+:       jsr slow
         step_in
         ; turning: a picture on every 16 pixels it rolls (a frame goes
         ; speed / 512 of them) - no more than one a picture till a speed
@@ -4456,36 +4460,55 @@ keep_off:
 wall_dl:    .byte <(-WALL_D), <WALL_D
 wall_dh:    .byte >(-WALL_D), >WALL_D
 
-; ft_spot: spot's at full time - everyone off the pitch, to the benches
-; at TUN_X on the halfway line (Luca: the teams gone, the crowd quiet, the
-; score in the middle): there he is gone (o_off 1), full one less - none
-; left (full 1), the crowd's murmur.
-; Carry clear, z_px, z_py; set for one gone. Keeps X.
-TUN_X       = 584               ; (the benches: past the right touch line)
+; ft_spot: spot's at full time - STAND_T frames where they are (Luca:
+; the teams stand first, cheering or not), then everyone off the pitch,
+; into the tunnel between the benches, TUN_X, TUN_Y (Luca:
+; the teams gone, the score in the middle): in its mouth he is gone (o_off
+; 1), full one less - none left: full 1. Carry clear, z_px, z_py; set for
+; one gone. Keeps X.
+TUN_M       = 72 * 8 + 23       ; (the tunnel's mouth: mkdata TUNNEL_COL, simple-soccer.s GROUND_X)
+TUN_IN      = TUN_M + 4         ; (gone there - his shirt in the white
+TUN_X       = TUN_IN            ; column before the benches' colours: no
+                                ; further, team_ai sees him there only
+                                ; every 11 frames - he went on into the
+                                ; coach's red)
+WALK_X      = TUN_M
+TUN_Y       = 369 + 7           ; (his feet: him in the middle of its mouth,
+                                ; as the tunnel on the halfway line - mkdata)
+STAND_T     = 100               ; (new_match: and fire not before)
 ft_spot:
         lda o_off,x             ; (gone already: a keeper asks each frame)
         bne @gone
-        lda o_xl,x
-        cmp #<(TUN_X - 8)
+        lda min_t
+        cmp #STAND_T
+        bcs @walk
+        lda o_xl,x              ; (standing: his place where he is)
+        sta z_px
         lda o_xh,x
-        sbc #>(TUN_X - 8)
+        sta z_px + 1
+        lda o_yl,x
+        sta z_py
+        lda o_yh,x
+        sta z_py + 1
+        clc
+        rts
+@walk:  lda o_xl,x
+        cmp #<TUN_IN
+        lda o_xh,x
+        sbc #>TUN_IN
         bcc @on
         lda #1                  ; (there: no need to stop him)
         sta o_off,x
         dec full
-        lda full
-        cmp #1
-        bne @gone
-        jsr sfx_yellow
 @gone:  sec
         rts
 @on:    lda #<TUN_X
         sta z_px
         lda #>TUN_X
         sta z_px + 1
-        lda #<369
+        lda #<TUN_Y
         sta z_py
-        lda #>369
+        lda #>TUN_Y
         sta z_py + 1
         clc
         rts
@@ -5069,21 +5092,9 @@ switch:
         sta mate_t + 1
         sbc mate_d + 1
         bcs @next
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        tay
-        lda o_yh,x
-        sbc o_yh + BALL
-        beq @dy
-        cmp #$FF
-        bne @next
-        tya
-        eor #$FF
-        adc #0
-        beq @next
-        tay
-@dy:    jsr sq_add
+        jsr ball_dy
+        bcs @next
+        jsr sq_add
         bcs @next
         lda tmp
         cmp mate_d
@@ -6248,7 +6259,7 @@ throwing:
         lda rs_team             ; in the net; after ARMS_T both at the
         eor flip                ; chest, the arms down)
         beq :+
-        ldy #HOLD_TOP
+        ldy #HOLD_TOP + HOLD_UP
 :       lda touch_t
         cmp #ARMS_T
         bcc @hold
@@ -7743,19 +7754,8 @@ slides:
         cpy #3
         bne :+
         lda #FALL_DECEL
-:       sta tmp
-        lda o_spl,x
-        sec
-        sbc tmp
-        sta o_spl,x
-        lda o_sph,x
-        sbc #0
-        sta o_sph,x
-        bcs :+
-        lda #0
-        sta o_spl,x
-        sta o_sph,x
-:       lda o_hit,x             ; (knocked over himself: no more)
+:       jsr slow
+        lda o_hit,x             ; (knocked over himself: no more)
         cmp #3
         bne :+
         rts
@@ -8070,8 +8070,8 @@ pose_of:
         rts
 @none:  lda goal                ; (Luca: celebrations - after a goal the
         beq @ft                 ; scorers' team, at full time the winners:
-        lda rs_team             ; each his arms up 16 frames in 64, by
-        eor #1                  ; turns)
+        lda rs_team             ; each jumps, his arms up, by turns)
+        eor #1
         bpl @team
 @ft:    lda full
         beq @no
@@ -8086,13 +8086,12 @@ pose_of:
         adc #1
         and #2
         bne @no
-        txa
-        asl a
-        asl a
-        asl a
+        txa                     ; (Luca: twice as often, and he jumps -
+        asl a                   ; draw: IMG_HOLD three lines higher - 8
+        asl a                   ; frames in 32)
         asl a
         adc frame_n
-        and #$30
+        and #$18
         bne @no
         lda #IMG_HOLD
         rts
@@ -8176,6 +8175,7 @@ clock:
         jsr sfx_roar
         lda #0
         sta rs_team
+        sta min_t               ; (new_match counts from here)
 @whistle:
         lda #DEAD_HALF
         jmp whistle
@@ -8208,9 +8208,14 @@ kick_spot:
 ; disk, cup.s) - or, a test without the disk, starts a new match: no
 ; goals, the first minute, the cyan team to kick off
 new_match:
-        lda min_t               ; (the result shown 2 seconds at least:
-        cmp #100                ; min_t counts them, the clock stopped)
-        bcs :+
+        lda v_left + 1          ; (the crowd quiet: it murmurs, on and on
+        bne @loud               ; till fire - Luca)
+        lda #<(fx_yellow + 3)   ; (its murmur without the rest first)
+        ldx #>(fx_yellow + 3)
+        jsr crowd1
+@loud:  lda min_t               ; (the result shown 2 seconds at least:
+        cmp #STAND_T            ; min_t counts them from the whistle - the
+        bcs :+                  ; teams stand meanwhile, ft_spot)
         inc min_t
         cmp #FALL_T             ; (FALL_T frames in, those lying up, to
         bne @on                 ; the middle with the rest - Luca: one
@@ -8834,42 +8839,18 @@ br_cone:
         jne @next
         lda o_off,x             ; (mate_dist, closer: in line - given up
         jne @next               ; once |dx| squared alone is no nearer than
-        lda o_xl,x              ; the nearest so far, as switch; one far
-        sec                     ; off: never the nearest that way)
-        sbc o_xl + BALL
-        tay
-        lda o_xh,x
-        sbc o_xh + BALL
-        beq @dx
-        cmp #$FF
-        jne @next
-        tya
-        eor #$FF
-        adc #0
-        jeq @next
-        tay
-@dx:    lda sq8_lo,y
+        jsr ball_dx             ; the nearest so far, as switch; one far
+        jcs @next               ; off: never the nearest that way)
+        lda sq8_lo,y
         sta mate_t
         cmp mate_d
         lda sq8_hi,y
         sta mate_t + 1
         sbc mate_d + 1
         jcs @next
-        lda o_yl,x
-        sec
-        sbc o_yl + BALL
-        tay
-        lda o_yh,x
-        sbc o_yh + BALL
-        beq @dy
-        cmp #$FF
-        jne @next
-        tya
-        eor #$FF
-        adc #0
-        jeq @next
-        tay
-@dy:    jsr sq_add
+        jsr ball_dy
+        jcs @next
+        jsr sq_add
         jcs @next
         cmp #$FF                ; (from $FF00 on: as far off)
         jeq @next

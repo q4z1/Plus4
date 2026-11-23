@@ -9,13 +9,18 @@ half     the 45th minute, the ball near a goal: no whistle 40 pictures
          end of the action)
 full     the same at 90: full time only once the ball is in the middle
          half; then one of them lying (as after a slide) is up again, the
-         crowd roars, and all 22 walk off to the benches past the right
-         touch line on the halfway line (ft_spot, TUN_X: Luca), the view
+         crowd roars, the teams stand where they are some 2 seconds
+         (STAND_T: no one moves from the 10th picture to the 30th), then
+         all 22 walk off into the tunnel between the benches on the
+         halfway line (ft_spot, TUN_X: Luca), the view
          going there - each gone there (o_off 1), full one less, 23 to 1;
          then the view to the middle spot, up and down to the very middle
          (Luca: it stopped CAM_DZ higher), and the score 10 - 12, in two
-         figures each, in the middle of it (draw_hud: HUD_MID);
-         screenshots fulltime-benches.png, fulltime.png
+         figures each, in the middle of it (draw_hud: HUD_MID); the crowd
+         murmuring on and on till fire (new_match: voice 1 never quiet
+         150 pictures after all are gone - Luca);
+         screenshots fulltime-stand.png, fulltime-benches.png, fulltime-tunnel.png
+         (half of them gone), fulltime.png
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -71,29 +76,44 @@ def full(lab):
         s.put('score', 1, 12)
         s.obj(BALL, 120, 640)           # (the ball left down near a goal)
         s.put('o_slide', 5, 1)          # (one lying)
-        up, gone, benches = None, None, 0
+        up, gone, benches, quiet = None, None, 0, 0
+        tun = os.path.join(CACHE, 'fulltime-tunnel.png')
+        if os.path.exists(tun):
+            os.remove(tun)
+        pos = lambda: [s.where(i) for i in range(22) if i != 5]     # noqa: E731
         for k in range(1500):
             s.picture()
             if up is None and s.get('o_slide', 5) == 0:
                 up = k
+            if k == 10:
+                p10 = pos()
+            if k == 30:
+                moved = [i for i, (a, b) in enumerate(zip(p10, pos())) if a != b]
+                s.v.screenshot(os.path.join(CACHE, 'fulltime-stand.png'))
+            if gone is not None and k > gone and not s.get('v_left', 1):
+                quiet += 1
             cam = s.get('cam_x') | s.get('cam_x', 1) << 8
             if s.get('full') > 1 and cam > BENCH_CAM:
                 benches += 1
                 if benches == 1:
                     s.v.screenshot(os.path.join(CACHE, 'fulltime-benches.png'))
+            if s.get('full') == 12 and not os.path.exists(tun):
+                s.v.screenshot(tun)
             if gone is None and s.get('full') == 1:
                 gone = k
-            if gone is not None and k > gone + 120:
+            if gone is not None and k > gone + 150:
                 break
         left = [i for i in range(22) if s.get('o_off', i) != 1]
         cam = s.get('cam_x') | s.get('cam_x', 1) << 8
         cam_y = s.get('cam_y') | s.get('cam_y', 1) << 8
         s.v.screenshot(os.path.join(CACHE, 'fulltime.png'))
         ok = up is not None and first == 23 and gone is not None and not left and benches > 0 \
-            and abs(cam - CAM_X) <= 2 and cam_y == CAM_Y
-        return ok, '%s; full %d at first; up after %s pictures; all gone after %s (still on: %s); ' \
-            'the view on the benches %d pictures, at last at x %d (the middle spot\'s %d), y %d (%d)' % (
-                text, first, up, gone, left or 'none', benches, cam, CAM_X, cam_y, CAM_Y)
+            and abs(cam - CAM_X) <= 2 and cam_y == CAM_Y and not moved and not quiet
+        return ok, '%s; full %d at first; up after %s pictures; standing from the 10th picture to ' \
+            'the 30th (moved: %s); all gone after %s (still on: %s); the view on the benches %d ' \
+            'pictures, at last at x %d (the middle spot\'s %d), y %d (%d); the crowd quiet %d ' \
+            'pictures after' % (text, first, up, moved or 'none', gone, left or 'none', benches,
+                               cam, CAM_X, cam_y, CAM_Y, quiet)
     finally:
         s.stop()
 

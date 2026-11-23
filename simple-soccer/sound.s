@@ -27,6 +27,7 @@
         .export snd_init, snd_tick
         .export sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .export sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
+        .export v_left, crowd1, fx_yellow  ; (play.s new_match: the murmur on)
 
 TED_V1LO    = $FF0E             ; voice 1's frequency, low
 TED_V2LO    = $FF0F             ; voice 2's
