@@ -32,6 +32,9 @@ cpu       a cyan shot at head height up the pitch at the computer's 20
 cpuown    the same ball, but a yellow team-mate's pass: 20 heads it -
           the computer heads its own team's balls in the air, crosses
           and passes (Luca saw too few headers)
+cpukick   its keeper's goal kick coming down at 20, who runs up to it: he
+          heads it on down the pitch, not back the way he ran (Luca: a
+          goal kick headed back out for a corner)
 
 A line each: who touched it, where it went, how fast, his jump; OK or
 WRONG; a screenshot as he heads it (header-<case>.png). The exit code counts the wrong ones.
@@ -63,6 +66,7 @@ CASES = {
     'tryup': (9, 'up+fire', 22, 'up', HEAD_SPEED),
     'cpu': (20, '', 18, None, 0),
     'cpuown': (20, '', 18, 'down', HEAD_SPEED),
+    'cpukick': (20, '', 11, 'down', HEAD_SPEED),
 }
 
 
@@ -104,12 +108,26 @@ def run_cpu(v, name):
     s.obj(who, 304, 300, d=4)
     s.put('ctrl_b', who)
     s.pokes.append((lab['ctx_b'] + lab['helper'] - lab['ctx'], [who]))
+    s.put('jumps', 0)                   # (none left from the case before)
+    s.pokes.append((lab['lock_t'], [0, 0]))
+    s.put('kick_pl', 0xFF)              # (nor the case before's header his kick)
+    s.put('o_zl', 0, who)               # (nor his jump)
+    for n in ('game_min', 'half', 'full', 'enter'):     # (the cases before
+        s.put(n, 10 if n == 'game_min' else 0)          # ran the clock on to
+                                                        # half time: all off)
     if name == 'cpuown':                # (a yellow team-mate's pass)
         s.put('last_pl', 18)
         s.put('last_team', 1)
+    elif name == 'cpukick':             # (its keeper's goal kick)
+        s.obj(who, 304, 300, d=0)
+        s.put('last_pl', 11)
+        s.put('last_team', 1)
     else:
         s.put('last_pl', 9)             # (cyan's shot)
-    moves.flight(s, 304, 360, 304, 360 - 32 * 60, 1536, 18, level(60))
+    if name == 'cpukick':
+        moves.flight(s, 304, 240, 304, 240 + 32 * 60, 1536, 18, level(60))
+    else:
+        moves.flight(s, 304, 360, 304, 360 - 32 * 60, 1536, 18, level(60))
     for a, vals in s.pokes:
         v.poke(a, vals)
     v.poke(OFF_PL, [0xFF])
@@ -123,9 +141,13 @@ def run_cpu(v, name):
             zs.append(v.mem(lab['o_zl'] + BALL, 1)[0])
         if v.mem(lab['last_pl'], 1)[0] == who:
             v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
-            return name == 'cpuown' and jump > 0, '%d took it (his jump %d, the ball %s high at him)' % (
-                who, jump, zs)
-    return name != 'cpuown', 'no header: it went by him %s high' % zs
+            own = name in ('cpuown', 'cpukick')
+            for _ in range(4):
+                v.cmd('x')
+            dy = word(v, 'o_yl', 'o_yh', BALL) - by
+            return own and jump > 0 and dy > 0, '%d took it (his jump %d, the ball %s high at him, then %+d down the pitch)' % (
+                who, jump, zs, dy)
+    return name not in ('cpuown', 'cpukick'), 'no header: it went by him %s high (he at y %d)' % (zs, word(v, 'o_yl', 'o_yh', who))
 
 
 def run_try(v, name):
@@ -174,7 +196,7 @@ def run_try(v, name):
 
 
 def run(v, name):
-    if name in ('cpu', 'cpuown'):
+    if name in ('cpu', 'cpuown', 'cpukick'):
         return run_cpu(v, name)
     if name in ('try', 'miss', 'tryup'):
         return run_try(v, name)

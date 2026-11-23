@@ -4907,8 +4907,11 @@ head:
         lda me
         sta last_team
         jsr touch_x
-        jsr stick_way
-        cmp #8
+        jsr cpu_side            ; (the computer's: always up the pitch,
+        lda #8                  ; never the way he ran to it - the stick
+        bcs :+                  ; brain made: Luca saw a goal kick headed
+        jsr stick_way           ; back, out for a corner)
+:       cmp #8
         bne @way
         jsr top_of              ; (from the top: down the pitch)
         beq @way

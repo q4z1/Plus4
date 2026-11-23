@@ -574,6 +574,9 @@ cross, a corner, a pass in the air - towards the goal it attacks
 (Sensible Soccer's heads none, its header's fire is dead code; Luca saw
 too few headers): one of the other team's it takes with the foot, up to
 12 high, and the rest goes over it (`tests/header.py cpu, cpuown`).
+Always up the pitch: at first it headed the way its player ran to the
+ball, and running up to its own keeper's goal kick that was back at its
+own goal - out for a corner, Luca saw (`tests/header.py cpukick`).
 (Every header came of itself at
 first, your team's runner's too and the way your player faced: they met
 every ball going by, a team-mate's shot as well - own goals like rain,
