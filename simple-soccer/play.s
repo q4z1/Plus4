@@ -100,10 +100,12 @@ BOX_T       = 137               ; from the line to (top) / from (bottom)
 BOX_B       = 601
 SPOT_T      = 107               ; the penalty spots (c11b9a)
 SPOT_B      = 631
-WALL_D      = 40                ; a set piece: the other team this far off
-                                ; (in y; with how far across they stand
-                                ; some 50 from the ball, Sensible Soccer's
-                                ; wall 51-56: tests/freekick.py)
+WALL_D      = 54                ; a set piece: the other team this far off
+                                ; (in y: in line with Sensible Soccer's
+                                ; wall, 51-56 - at 40 one put out stood
+                                ; alone in front of it, the computer's
+                                ; man at the ball in Luca's picture:
+                                ; tests/freekick.py, fkcpu.py)
 THROW_T     = 10                ; a throw-in: frames the ball flies from the
 THROW_HOLD  = 18                ; taker's head, drawn so high while he holds it
                                 ; (in his hands: data/sprites.txt 60, 62)
@@ -432,7 +434,6 @@ full:       .res 1              ; full time: the players still on, 1 more
                                 ; (ft_spot) - till fire starts a new match
 hud:        .res 1              ; 1: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
-cp_d:       .res 2              ; (can_slide's: his way squared)
 br_70:      .res 1              ; brain's (br_*: MATCHZP): the side its kick
                                 ; bends to (1, $FF, 0 none), his distance
 br_d:       .res 2              ; squared to the ball
@@ -450,10 +451,14 @@ sl_any:     .res 1              ; not 0: someone may be sliding or down
                                 ; (o_slide) - slides looks through them all
 lock_t:     .res 2              ; each team's frames its joystick's player may
                                 ; not dribble, tackled (Sensible Soccer's $74)
-k_d2:       .res 2              ; (k_get's: his way to the ball, squared)
 old_z:      .res 2              ; ball_move's: where it was (old_x, old_y:
 old_x       = $EF               ; above the match's zero page, not saved -
-old_y       = $F2               ; pause.s's from $F6; ball_move's alone)
+old_y       = $F2               ; ball_move's alone)
+; more of a routine's own over pause.s's (Z_*, $F6 on: only while the
+; match is paused - between frames, never inside one of these)
+each_v      = $F5               ; (each's routine)
+k_d2        = $F7               ; (k_get's, k_high's: a way squared)
+cp_d        = $F9               ; (can_slide's: his way squared)
 
         .segment "DATA"         ; (BSS full)
 enter:      .byte 0             ; 1: the teams to come on (walk_on) - the
@@ -476,7 +481,6 @@ two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
 train:      .res 1              ; 1: training - a keeper and four a side, no
                                 ; time (the title's choice)
-each_v:     .res 2              ; (each's routine)
 
         .segment "HIBSS2"       ; (not cleared: the title fills it)
 ; each player's pace by his number (title.s runs: Sensible Soccer's)
@@ -4208,7 +4212,13 @@ team_ai:
         cpx ctrl
         beq @next
         cpx ctrl_b
-        beq @next
+        bne :+
+        lda kickoff             ; (the computer's at a set piece: to his
+        beq @next               ; place as the rest - set_wall alone put
+        lda two                 ; him WALL_D off, in front of the wall
+        beq @all                ; as it was, Luca saw)
+        bne @next
+:
         cpx helper
         beq @next
         cpx helper_b

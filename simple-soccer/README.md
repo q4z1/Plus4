@@ -327,8 +327,10 @@ some 55 pixels from the ball, between it and the goal), a penalty, and a
 throw-in in one of three bands along either touch line (three or four of
 its team near the taker). Where it has no place for a player - a free
 kick elsewhere, the other team at a throw-in - he goes to his place in
-the formation for where it is taken, kept 40 pixels from the ball on the
-side of his own goal if he is the other team's. Whoever is
+the formation for where it is taken, kept 54 pixels from the ball on the
+side of his own goal if he is the other team's (it was 40: one put out
+there stood alone in front of the wall, the computer's man at the ball
+in Luca's picture; `tests/fkcpu.py`). Whoever is
 still in the way when the ball is put down is put out of it (your
 joystick's player too: he stands where he is put while the other team's
 set piece waits, and keeps the stick till it is taken - before, the

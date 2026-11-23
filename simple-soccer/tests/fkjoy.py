@@ -3,7 +3,7 @@
 player close to where it is taken, as the one who fouled - Luca saw him
 stand right behind the taker. While it waits (the ball still on its
 place), how near the ball the joystick's player comes: set_wall puts him
-WALL_D (40) off, and he must stay there - he stands while the other
+WALL_D (54) off, and he must stay there - he stands while the other
 team's set piece waits, and keeps the stick till it is taken (play.s
 switch).
 
@@ -24,7 +24,7 @@ import moves  # noqa: E402
 lab = labels()
 OFF_PL = 0xED                   # (play.s)
 R_FREE = 5
-NEAR = 40                       # (WALL_D)
+NEAR = 50                       # (WALL_D 54)
 BALL = 22
 # (the place, cyan 9 off it) - yellow attacks down: behind the taker is up
 CASES = [((304, 300), (0, -14)), ((304, 300), (10, -30)), ((304, 300), (0, 14)),
