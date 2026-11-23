@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """The teams coming on before a match (play.s walk_on, walking), from the
 disk in VICE: a match started from the title - the players at first past
-the right touch line, in the tunnel, a step apart (WALK_X + 8 each), walking on to their
-places for the kick-off, the ball dead meanwhile (dead_t 1); once they all
+the right touch line, back in the tunnel, a step apart (WALK_FROM + 8
+each: not drawn there), walking on to their places for the kick-off, the ball dead meanwhile (dead_t 1); once they all
 stand there (enter 0), the kick-off - and the joystick's player able to
 take it. A test's match (the title skipped, tests/vice.py) has them lined
 up at once, as before. The ball on the middle spot then (restart had
@@ -21,6 +21,7 @@ import cpuplay as C  # noqa: E402
 from vice import Vice  # noqa: E402
 
 WALK_X = 72 * 8 + 23            # (play.s: the tunnel's mouth)
+WALK_FROM = WALK_X + 230
 
 
 def places(v):
@@ -44,8 +45,8 @@ def main():
         L.press(v)
         v.cmd('x')                      # (the match's first frame)
         start = places(v)
-        report('start', all(x >= WALK_X - 4 for x, _ in start) and v.mem(C.one('enter'), 1)[0] == 1,
-               'all past the touch line: x %d - %d' % (min(x for x, _ in start), max(x for x, _ in start)))
+        report('start', all(x >= WALK_FROM - 4 for x, _ in start) and v.mem(C.one('enter'), 1)[0] >= 1,
+               'all back in the tunnel: x %d - %d' % (min(x for x, _ in start), max(x for x, _ in start)))
         frames, shot = 0, False
         while frames < 2000 and v.mem(C.one('enter'), 1)[0]:
             v.cmd('x')

@@ -1615,7 +1615,11 @@ skills:
 
 ; runs: side t_n's pace (skills; t_ptr its record) and how fast its
 ; others go to their places (play.s jog_*: Sensible Soccer's c144dc - a
-; computer's 1572 - 164 * level, a player's 1024)
+; computer's 1572 - 164 * level, a player's 1024 - but levels 7 and 8 as
+; level 6, 588: at 260 a weak team crept to its places at a free kick and
+; off at full time, said Luca; faster for all, the computer's wall and
+; marking got every corner of yours)
+JOG_MAXL    = 6
 runs:
         ldy #REC_LEVEL
         lda (t_ptr),y
@@ -1638,6 +1642,9 @@ runs:
         lda #>1572
         sta jog_hi,x
         ldy t_c
+        cpy #JOG_MAXL + 1
+        bcc :+
+        ldy #JOG_MAXL
 :       lda jog_lo,x
         sec
         sbc #164

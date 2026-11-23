@@ -42,7 +42,7 @@
         .import quit_a
         .export dbg_on, dbg_i, dbg_t, dbg_bits, dbg_plan, goal
         .export o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step, o_spl, ctrl, ctrl_b
-        .export two, train, enter, sk, sk_duel, jog_lo, jog_hi
+        .export two, train, enter, TUN_IN, sk, sk_duel, jog_lo, jog_hi
         .export tac_x0l, tac_x0h, tac_xs, tac_y0l, tac_y0h, tac_ys
         .export kp_gl, kp_gh, kp_sl, kp_sh, kp_dn, kp_dv
         .import joy, joy_a, joy_b, atan_tab, sin_tab
@@ -54,7 +54,7 @@ off_by      = $EE               ; piece's taker in off_by (above the match's
                                 ; zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
-        .import v_left, crowd1, fx_yellow
+        .import v_left, crowd1, fx_murmur
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -444,14 +444,20 @@ o_off:      .res NOBJ           ; 1: sent off - gone from the match (2:
                                 ; walking off, drawn still - walk_off)
 card_pl:    .res 1              ; the player shown a card while the ball is
 card_c:     .res 1              ; dead, $FF none; 0 yellow, 1 red
+sh_pow:     .res 1              ; how hard the shot: 0 - 24 (shot_power)
+jumps:      .res 1              ; frames a header's jump may still go on
+sl_any:     .res 1              ; not 0: someone may be sliding or down
+                                ; (o_slide) - slides looks through them all
+lock_t:     .res 2              ; each team's frames its joystick's player may
+                                ; not dribble, tackled (Sensible Soccer's $74)
+k_d2:       .res 2              ; (k_get's: his way to the ball, squared)
+old_z:      .res 2              ; ball_move's: where it was (old_x, old_y:
+old_x       = $EF               ; above the match's zero page, not saved -
+old_y       = $F2               ; pause.s's from $F6; ball_move's alone)
 
         .segment "DATA"         ; (BSS full)
 enter:      .byte 0             ; 1: the teams to come on (walk_on) - the
                                 ; title's, not a test's
-sh_pow:     .byte 0             ; how hard the shot: 0 - 24 (shot_power)
-jumps:      .byte 0             ; frames a header's jump may still go on
-sl_any:     .byte 0             ; not 0: someone may be sliding or down
-                                ; (o_slide) - slides looks through them all
 ; why: the reason for the whistle shown till the set piece is taken -
 ; WHY_FOUL, WHY_OFF (offside), WHY_TWICE (a double touch); 0 none
 why:        .byte 0
@@ -466,12 +472,6 @@ dbg_on:     .res 1
 dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
-lock_t:     .res 2              ; each team's frames its joystick's player may
-                                ; not dribble, tackled (Sensible Soccer's $74)
-k_d2:       .res 2              ; (k_get's: his way to the ball, squared)
-old_x:      .res 3              ; ball_move's: where it was
-old_y:      .res 3
-old_z:      .res 2
 two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
 train:      .res 1              ; 1: training - a keeper and four a side, no
@@ -619,9 +619,9 @@ walk_on:
         asl a
         asl a
         asl a
-        adc #<WALK_X            ; (no carry: under 256)
+        adc #<WALK_FROM         ; (no carry: under 256)
         sta o_xl,x
-        lda #>WALK_X
+        lda #>WALK_FROM
         sta o_xh,x
         lda #<TUN_Y
         sta o_yl,x
@@ -635,7 +635,7 @@ walk_on:
         sta o_new,x
         dex
         bpl @pl
-.assert <WALK_X + 8 * (PLAYERS - 1) < 256 && >TUN_Y = 1, error, "walk_on"
+.assert <WALK_FROM + 8 * (PLAYERS - 1) < 256 && >TUN_Y = 1, error, "walk_on"
         sta kickoff             ; (A 1: team_ai leaves them on their way)
         asl a
         sta dead_t
@@ -4213,9 +4213,10 @@ team_ai:
         beq @next
         cpx helper_b
         beq @next
-@all:   lda o_slide,x           ; (one lying stays down, one sent off away)
-        ora o_off,x
-        bne @next
+@all:   lda o_off,x             ; (one lying stays down, one walking off -
+        and #2                  ; 2, training's absent 3 - away; one sent
+        ora o_slide,x           ; off goes on unseen, so ft_spot counts him
+        bne @next               ; at full time: full stuck at 2, Luca saw)
         cpx taker
         bne :+
         lda full
@@ -4473,12 +4474,15 @@ TUN_X       = TUN_IN            ; column before the benches' colours: no
                                 ; every 11 frames - he went on into the
                                 ; coach's red)
 WALK_X      = TUN_M
+WALK_FROM   = WALK_X + 230      ; (coming on: back in the tunnel, not drawn
+                                ; - simple-soccer.s place - till the view
+                                ; has got there from the middle spot, Luca)
 TUN_Y       = 369 + 7           ; (his feet: him in the middle of its mouth,
                                 ; as the tunnel on the halfway line - mkdata)
 STAND_T     = 100               ; (new_match: and fire not before)
 ft_spot:
         lda o_off,x             ; (gone already: a keeper asks each frame)
-        bne @gone
+        bne @off
         lda min_t
         cmp #STAND_T
         bcs @walk
@@ -4496,10 +4500,11 @@ ft_spot:
         cmp #<TUN_IN
         lda o_xh,x
         sbc #>TUN_IN
-        bcc @on
-        lda #1                  ; (there: no need to stop him)
-        sta o_off,x
-        dec full
+        bcc @on                 ; (there: no need to stop him - A 0 on)
+@off:   bmi @gone               ; gone: counted once, o_off $81 - one sent
+        lda #$81                ; off before (1) as well: full stuck at 2,
+        sta o_off,x             ; the view on the benches, no score in the
+        dec full                ; middle, Luca saw after a red card
 @gone:  sec
         rts
 @on:    lda #<TUN_X
@@ -4909,10 +4914,11 @@ head:
         bmi @no
         jsr cpu_side            ; (the computer's: only its own team's
         bcc :+                  ; ball, a cross, a pass in the air - Luca
-        lda last_team           ; saw too few headers; once it headed the
-        cmp me                  ; other team's too, every shot at head
-        beq @can                ; height and long pass, back to its keeper
-        rts                     ; too)
+        lda last_pl             ; saw too few headers; once it headed the
+        cmp #12                 ; other team's too, every shot at head
+        bcs @can                ; height and long pass, back to its keeper
+        rts                     ; too. Not its keeper's, 11: Luca saw every
+                                ; goal kick met by a team-mate's head)
 :       lda pj                  ; (the joystick's: with fire only - or in
         and #J_FIRE             ; the air already, jumped for it: can_try;
         beq :+                  ; not fire held on since a kick, $80 on:
@@ -4992,12 +4998,11 @@ can_head:
 
 ; can_try: carry clear if the joystick's player X, fire just pressed,
 ; jumps for a header (control): the ball in the air - higher than a
-; sliding tackle's (SLIDE_Z) and at most TRY_HI - and near (DHEAD_D2, as
+; sliding tackle's (SLIDE_Z), however high - and near (DHEAD_D2, as
 ; a diving header's); not a keeper, nor one sliding or in the air, nor the
 ; one who has just kicked it. He is up HEAD_T frames, head heads it if it
 ; comes to his head meanwhile - else a try missed (Luca: more tries at
 ; headers, at corners too, missed ones as well). Keeps X.
-TRY_HI      = 40
 can_try:
         jsr cpu_side            ; (the computer heads none: no tries)
         bcs @no
@@ -5008,11 +5013,9 @@ can_try:
         lda o_slide,x
         ora o_zl,x
         bne @no
-        lda o_zl + BALL
-        cmp #SLIDE_Z + 1
+        lda o_zl + BALL         ; (however high: he tries, by instinct -
+        cmp #SLIDE_Z + 1        ; Luca; above 40 he slid for it)
         bcc @no
-        cmp #TRY_HI + 1
-        bcs @no
         jsr kicker
         bcs @no
         jsr mate_dist
@@ -8036,11 +8039,7 @@ pose_of:
         lda #IMG_SLIDE_A
 :       rts
 @keeper:
-        lda o_zl,x              ; (a header's jump: the arms up)
-        beq :+
-        lda #IMG_HOLD
-        rts
-:       txa
+        txa
         beq :+
         cpx #11
         bne @none
@@ -8152,7 +8151,9 @@ clock:
         sta min_t
         inc game_min
 @done:  rts
-@end:   lda o_yl + BALL         ; 45 or 90 minutes and the action's end:
+@end:   ldy dead_t              ; (not while the ball is dead: a foul at 90
+        bne @done               ; minutes is taken, Luca - the whistle went,
+        lda o_yl + BALL         ; FOUL still shown) 45 or 90 minutes and the action's end:
         cmp #<MID_T             ; the whistle once the ball is in the
         lda o_yh + BALL         ; middle half of the pitch - near either
         sbc #>MID_T             ; goal play goes on (Luca's vote)
@@ -8210,8 +8211,8 @@ kick_spot:
 new_match:
         lda v_left + 1          ; (the crowd quiet: it murmurs, on and on
         bne @loud               ; till fire - Luca)
-        lda #<(fx_yellow + 3)   ; (its murmur without the rest first)
-        ldx #>(fx_yellow + 3)
+        lda #<fx_murmur
+        ldx #>fx_murmur
         jsr crowd1
 @loud:  lda min_t               ; (the result shown 2 seconds at least:
         cmp #STAND_T            ; min_t counts them from the whistle - the
@@ -8263,8 +8264,8 @@ squad:
         bpl :--
         rts
 
-off_train:  .byte 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1
-            .byte 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1
+off_train:  .byte 0, 3, 3, 0, 3, 3, 0, 0, 3, 0, 3   ; (3: team_ai's too)
+            .byte 0, 3, 3, 0, 3, 3, 0, 0, 3, 0, 3
 
 ; ---- the yellow team's play ---------------------------------------------
 
@@ -8631,8 +8632,12 @@ brain_set:
         bne :+
         lda br_t
         bne @none
-        lda #1                  ; (lifted, not bent)
-        jsr br_kick
+        lda game_min            ; (lifted, not bent - by the minute, the
+        and #3                  ; clock standing: 0 low and hard, 2 high
+        cmp #3                  ; to the far post, else lifted - Luca: it
+        bne :+                  ; knew one way only)
+        lda #1
+:       jsr br_kick
         lda #0
         sta br_70
         rts

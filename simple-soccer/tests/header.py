@@ -12,7 +12,8 @@ none      the stick let go, fire held: headed towards the goal his team
           attacks (up)
 nofire    the stick up, no fire: no header - it goes over him (Luca:
           headers of themselves met every ball going by)
-high      the ball over his head (40 high), fire held: no header
+high      the ball far over his head (90 high), fire held: he jumps for
+          it all the same (Luca: by instinct - above 40 he slid), no header
 runner    7 the runner to a pass to him (recv, helper), the joystick on 9
           far off: no header of himself (the joystick's team's runner
           heads none)
@@ -32,9 +33,10 @@ cpu       a cyan shot at head height up the pitch at the computer's 20
 cpuown    the same ball, but a yellow team-mate's pass: 20 heads it -
           the computer heads its own team's balls in the air, crosses
           and passes (Luca saw too few headers)
-cpukick   its keeper's goal kick coming down at 20, who runs up to it: he
-          heads it on down the pitch, not back the way he ran (Luca: a
-          goal kick headed back out for a corner)
+cpukick   its keeper's goal kick coming down at 20, who runs up to it: no
+          header - he takes it with the foot or it goes by (Luca: every
+          goal kick met by a team-mate's head; before that one headed back
+          the way he ran, out for a corner)
 
 A line each: who touched it, where it went, how fast, his jump; OK or
 WRONG; a screenshot as he heads it (header-<case>.png). The exit code counts the wrong ones.
@@ -59,7 +61,7 @@ CASES = {
     'right': (9, 'right+fire', 18, 'right', HEAD_SPEED),
     'none': (9, 'fire', 18, 'up', HEAD_SPEED),
     'nofire': (9, 'up', 18, None, 0),
-    'high': (9, 'up+fire', 40, None, 0),
+    'high': (9, 'up+fire', 90, None, 0),
     'runner': (7, '', 18, None, 0),
     'try': (9, 'fire', 18, 'up', HEAD_SPEED),
     'miss': (9, 'fire', 36, None, 0),
@@ -101,7 +103,7 @@ def run_cpu(v, name):
     s = moves.Setup()
     moves.open_play(s, 9)
     for i in range(1, 22):
-        s.put('o_off', 0 if i in (9, 11, 20) else 1, i)
+        s.put('o_off', 0 if i in (9, 11, 20) else 3, i)
     s.obj(0, 304, 676, d=0)
     s.obj(11, 304, 62, d=4)
     s.obj(9, 304, 560, d=0)
@@ -141,13 +143,14 @@ def run_cpu(v, name):
             zs.append(v.mem(lab['o_zl'] + BALL, 1)[0])
         if v.mem(lab['last_pl'], 1)[0] == who:
             v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
-            own = name in ('cpuown', 'cpukick')
             for _ in range(4):
                 v.cmd('x')
             dy = word(v, 'o_yl', 'o_yh', BALL) - by
-            return own and jump > 0 and dy > 0, '%d took it (his jump %d, the ball %s high at him, then %+d down the pitch)' % (
+            if name == 'cpukick':
+                return jump == 0, '%d took it with the foot? (his jump %d, the ball %s high at him)' % (who, jump, zs)
+            return name == 'cpuown' and jump > 0 and dy > 0, '%d took it (his jump %d, the ball %s high at him, then %+d down the pitch)' % (
                 who, jump, zs, dy)
-    return name not in ('cpuown', 'cpukick'), 'no header: it went by him %s high (he at y %d)' % (zs, word(v, 'o_yl', 'o_yh', who))
+    return name != 'cpuown', 'no header: it went by him %s high (he at y %d)' % (zs, word(v, 'o_yl', 'o_yh', who))
 
 
 def run_try(v, name):
@@ -161,7 +164,7 @@ def run_try(v, name):
     s = moves.Setup()
     moves.open_play(s, 9)
     for i in range(1, 22):
-        s.put('o_off', 0 if i in (7, 9, 11, 21) else 1, i)
+        s.put('o_off', 0 if i in (7, 9, 11, 21) else 3, i)
     s.obj(0, 304, 676, d=0)
     s.obj(11, 304, 62, d=4)
     s.obj(21, 150, 150, d=4)
@@ -210,7 +213,7 @@ def run(v, name):
     s = moves.Setup()
     moves.open_play(s, 9)
     for i in range(1, 22):              # (the keepers, 7, 9 and one yellow)
-        s.put('o_off', 0 if i in (7, 9, 11, 21) else 1, i)
+        s.put('o_off', 0 if i in (7, 9, 11, 21) else 3, i)
     s.obj(0, 304, 676, d=0)
     s.obj(11, 304, 62, d=4)
     s.obj(21, 150, 150, d=4)
@@ -224,6 +227,9 @@ def run(v, name):
         s.put('last_pl', 8)             # (a team-mate's pass)
     else:
         s.obj(7, 100, 650, d=0)
+    if name == 'high':                  # (a yellow ball: his own, from the
+        s.put('last_pl', 21)            # set-up, read as his header once he
+        s.put('last_team', 1)           # jumps)
     y0 = 482 if 'right' in stick else 440   # (running across: it comes
     moves.flight(s, 304, y0, 304, y0 + 32 * 60, 1536, z, level(500 - y0))  # soon)
     for a, vals in s.pokes:
@@ -254,7 +260,8 @@ def run(v, name):
             ok = way == went and abs(sp - speed) <= 40
             return ok, '%d headed it %s at %d, his jump %d' % (who, went, sp, jump)
     zb = v.mem(lab['o_zl'] + BALL, 1)[0]
-    return way is None, 'no header (the ball %d high, last %d)' % (zb, v.mem(lab['last_pl'], 1)[0])
+    return way is None and (name != 'high' or jump > 0), 'no header (the ball %d high, last %d, his jump %d)' % (
+        zb, v.mem(lab['last_pl'], 1)[0], jump)
 
 
 def main():

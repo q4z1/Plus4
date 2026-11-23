@@ -17,7 +17,7 @@
         .importzp ctrl, ctrl_b, pic_n
         .import __MATCHZP_RUN__, __MATCHZP_SIZE__
         .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why, jumps, HEAD_T
-        .import cam_way, full
+        .import cam_way, full, enter, TUN_IN
         .export team_col, team_flk, start, played
         .import pause_chk, pause, resume, squares
         .import title
@@ -57,6 +57,8 @@ MAX_STEPS   = 4                 ; frames of play caught up in a turn at most
 
         .zeropage
 ptr:    .res 2
+vw_l:   .res 2                  ; the view's point, x and y (place: set
+vw_h:   .res 2                  ; before it is read - not cleared)
 
 ; The start, where the program's BASIC line SYSes to - and where cup.s
 ; starts it again after a match: the ROM out, the variables cleared; no
@@ -253,20 +255,31 @@ place:
         sta s_yh,x
         lda full                ; the view's point (follow): the ball's -
         bne @full               ; after full time, PAN_S a picture on to
-        lda s_xl,x              ; the benches where they all go, then the
-        sta vw_l                ; middle spot (Luca: not the ball left
-        lda s_xh,x              ; alone)
+        ldy enter               ; the benches where they all go, then the
+        beq @ball               ; middle spot (Luca: not the ball left
+        iny                     ; alone). Coming on (walk_on: enter counts
+        beq @mid                ; the pictures, up to 255) the middle spot
+        sty enter               ; a second, the ball there, then the
+        cpy #ENTER_MID          ; tunnel they come out of, from ENTER_BACK
+        bcc @ball               ; back to the middle, as the last of them
+        cpy #ENTER_BACK         ; get to their places (Luca)
+        bcc @bench
+        bcs @mid
+@ball:  lda s_xl,x
+        sta vw_l
+        lda s_xh,x
         sta vw_h
         lda s_yl,x
         sta vw_l + 1
         lda s_yh,x
         sta vw_h + 1
         rts
-@full:  lda #0                  ; (anyone still on: the benches)
-        ldy full
+@full:  ldy full                ; (anyone still on: the benches)
         cpy #2
-        bcc @pan
-        lda #2
+        bcs @bench
+@mid:   lda #0
+        .byte $2C               ; (bit: over the lda)
+@bench: lda #2
 @pan:   sta tmp2                ; (the target: vw_tl's first or second;
         ldx #1                  ; y, then x)
 @ax:    txa
@@ -308,6 +321,8 @@ place:
         bpl @ax
         rts
 PAN_S       = 6
+ENTER_MID   = 18                ; (pictures: 17 a second)
+ENTER_BACK  = 104
 BENCH_X     = 520               ; (the view on the benches: play.s TUN_X)
 vw_tl:  .byte <(304 - GROUND_X), <(369 + GROUND_Y)
         .byte <(BENCH_X - GROUND_X), <(369 + GROUND_Y)
@@ -497,7 +512,12 @@ sort:
 @down:  lda tmp2
         cmp #VIS_H * 8 + 14
         bcs @no
-@x:     lda o_xl,x              ; across: from 18 left of it to 10 right
+@x:     lda o_xl,x              ; (past the tunnel's mouth: in it, not
+        cmp #<TUN_IN            ; drawn on the benches - coming on, walk_on)
+        lda o_xh,x
+        sbc #>TUN_IN
+        bcs @no
+        lda o_xl,x              ; across: from 18 left of it to 10 right
         sec
         sbc cg_xl
         sta tmp
@@ -645,10 +665,13 @@ draw:
         adc tmp2                ; direction * 3
         adc step_img,y
 @img:   sta fig_img
-        cmp #IMG_HOLD           ; (a throw-in: three lines higher, the hands
-        bcc :+                  ; over the head; the arms up as well - a
-                                ; header's jump, a keeper's, one cheering)
-        lda fig_y
+        ldy o_zl,x              ; (a header's jump: his running picture,
+        bne @up                 ; shadow and all - the arms up were the
+        cmp #IMG_HOLD           ; keeper's, said Luca; a throw-in: three
+        bcc :+                  ; lines higher, the hands over the head;
+                                ; the arms up as well - a keeper's, one
+                                ; cheering)
+@up:    lda fig_y
         sec
         sbc #3
         sta fig_y
@@ -910,8 +933,6 @@ why_at: .byte why_fl - why_w, why_of - why_w, why_tw - why_w
         .segment "DATA"
 why_i:  .byte 0                 ; (draw_why's next letter)
 cam_o:  .byte 0, 0              ; the view's lean, x and y (follow)
-vw_l:   .byte 0, 0              ; the view's point, x and y (place)
-vw_h:   .byte 0, 0
 keep_col: .byte $41 | $08       ; the keepers' shirts (keep_kit)
         .segment "CODE"
 

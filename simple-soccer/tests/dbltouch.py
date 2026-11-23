@@ -44,7 +44,7 @@ def scene(s, kind, at, nine=None):
     on = (7, 12) + ((9,) if nine else ())   # (the keepers off: no pass to
                                             # one, no catch)
     for i in range(22):
-        s.put('o_off', 0 if i in on else 1, i)
+        s.put('o_off', 0 if i in on else 3, i)
     s.obj(0, 304, 676, d=0)
     s.obj(11, 304, 62, d=4)
     s.obj(12, 560, 100, d=4)

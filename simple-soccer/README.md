@@ -397,7 +397,10 @@ As on the C64, the computer's throw-in or corner kicked the way the
 taker faces goes a little in from the line: up or down a touch line 250
 in 1000 across towards the middle, along the goal line 150 in 1000 in
 from it, and a corner slanting in 350 in 1000 off the goal line (19
-degrees, not 45).
+degrees, not 45). Its corner it kicks three ways (Luca: it knew one
+only), by the minute, the clock standing while it waits: low and hard
+(head high at most), lifted as before, or high over to the far post
+(`tests/cpucorner.py`).
 
 Yours you aim finer than the stick's eight ways (Luca's wish - the ways
 along a line were of no use, and two more angles each side wanted): two
@@ -490,7 +493,12 @@ touching it for 16 frames. The same roll decides when a sliding tackle
 reaches the ball at a player's feet: lost, the tackle misses the ball,
 and if it knocks him over, that is a foul. The title
 works out the paces, the keepers and these levels once both teams are
-chosen, a player's team's by its level too.
+chosen, a player's team's by its level too. The computer's players go to
+their places as fast as Sensible Soccer has it, 1408 at level 1 and 164
+less a level - but levels 7 and 8 as fast as level 6, 588: at 260, a
+quarter of a player's team's 1024, a weak team crept to its places at a
+free kick and off at full time, said Luca (faster for every level, its
+marking took every corner of yours: `tests/restarts.py`).
 
 Nothing else between players is rolled for, as nothing is in Sensible
 Soccer: not a first touch, not a dribbler's touch.
@@ -567,7 +575,8 @@ and leave screenshots (`why-*.png`).
 
 A ball 13 to 26 high within 10 pixels of your joystick's player, fire
 pressed, is headed on - neither original has such a header, Luca missed
-it: he jumps, his arms up (drawn three lines higher), for 16 frames, and heads it at 1536, rising
+it: he jumps - his running picture three lines higher, his shadow with
+him (the arms up were a keeper's, said Luca) - for 16 frames, and heads it at 1536, rising
 as a diving header's, the way the stick points (let go: towards the
 goal his team attacks). Not a keeper (his hands), nor one who has just
 kicked it. The computer's team heads only its own team's balls - a
@@ -577,7 +586,8 @@ too few headers): one of the other team's it takes with the foot, up to
 12 high, and the rest goes over it (`tests/header.py cpu, cpuown`).
 Always up the pitch: at first it headed the way its player ran to the
 ball, and running up to its own keeper's goal kick that was back at its
-own goal - out for a corner, Luca saw (`tests/header.py cpukick`).
+own goal - out for a corner, Luca saw. Its keeper's kicks it heads none:
+a team-mate's head met every goal kick (`tests/header.py cpukick`).
 (Every header came of itself at
 first, your team's runner's too and the way your player faced: they met
 every ball going by, a team-mate's shot as well - own goals like rain,
@@ -593,7 +603,8 @@ runner's head; `tests/gkhead.py` Luca's goal kick, fire held on (no
 header) and pressed anew (headed).
 
 Fire pressed with the ball in the air near him - higher than a sliding
-tackle's 8 and up to 40, within 49 pixels - and he jumps for it at once,
+tackle's 8, however high (by instinct, said Luca: above 40 he slid for
+it), within 49 pixels - and he jumps for it at once,
 even with fire only tapped: if it comes to his head while he is up, he
 heads it as above, else it is a try missed, and everyone sees it (Luca:
 many more tries at headers, at corners too). A lower ball is still a
@@ -750,15 +761,21 @@ Before a match started from the title the teams come on: out of the
 tunnel between the benches past the right touch line, on the halfway
 line, a step apart,
 one after the other, each walking to his place for the kick-off - the
-ball dead till all of them stand there, then the whistle (Luca's wish;
+ball dead till all of them stand there, then the whistle. The view
+rests on the centre spot a second, goes over to the tunnel as they come
+out of it, and back to the middle as the last of them get to their
+places (Luca's wish;
 `tests/walkon.py`; a test's match, without the title, has
 them lined up at once). At full time the crowd roars, everyone stands
 where he is for two seconds - the winners cheering - and then they all
 walk off the same way, into the tunnel, the joysticks' players and the
 keepers too, one lying after a tackle getting up first (Luca: they went
-off into thin air before); the view goes with them to the
+off into thin air before) - one sent off counted as gone already (after
+a red card the view stayed on the benches, no score in the middle, Luca
+saw); the view goes with them to the
 benches, six pixels a picture, and once the last is gone the crowd
-murmurs on, till fire, and the view goes to the centre spot - up and down to the very
+murmurs on, low and even, till fire (a card's murmur, swelling and
+dying again and again, was one for a game with aliens, said Luca), and the view goes to the centre spot - up and down to the very
 middle of the picture (it stopped 16 pixels higher, said Luca) - and
 the score is shown in the middle of it (`tests/fulltime.py`). Then
 fire brings up the winner's page - the title's screen
@@ -857,7 +874,9 @@ half time, the teams change ends and the yellow team kicks off; at 90 the result
 till fire starts a new match. Neither whistle comes while the ball is near
 a goal: the clock stops at 45 and 90 and the referee waits till the ball
 is in the middle half of the pitch, so an attack is played out (Luca's
-vote). While the ball is dead or a set piece
+vote) - and not while the ball is dead: a foul at 90 minutes is taken
+and played out (it whistled for full time at once, FOUL still shown,
+Luca saw). While the ball is dead or a set piece
 waits, the score and the minute show at the top left of the view, at
 its right while a whistle's reason is written (they were shown before
 kick-offs only; Luca wanted them at every stop). The view moves across
@@ -1026,7 +1045,7 @@ frames, looked like no party - jumping was his idea). `tests/party.py`
 second frame: two pictures by turns, the same colours in both. The
 players cheer as well: after a goal the scorers' team, at full time the
 winners standing and on their way off, each jumping with his arms up (the
-header's picture, three lines higher) 8 frames in 32, by turns (Luca's
+keeper's picture holding the ball, three lines higher) 8 frames in 32, by turns (Luca's
 wish: twice as often as first, and a jump).
 
 The picture is cut short to give the CPU more time: 16 lines before its

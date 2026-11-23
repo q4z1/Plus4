@@ -12,8 +12,9 @@ full     the same at 90: full time only once the ball is in the middle
          crowd roars, the teams stand where they are some 2 seconds
          (STAND_T: no one moves from the 10th picture to the 30th), then
          all 22 walk off into the tunnel between the benches on the
-         halfway line (ft_spot, TUN_X: Luca), the view
-         going there - each gone there (o_off 1), full one less, 23 to 1;
+         halfway line (ft_spot, TUN_X: Luca) - one sent off before
+         counted as gone too (the view stuck on the benches), the view
+         going there - each gone there (o_off $81), full one less, 23 to 1;
          then the view to the middle spot, up and down to the very middle
          (Luca: it stopped CAM_DZ higher), and the score 10 - 12, in two
          figures each, in the middle of it (draw_hud: HUD_MID); the crowd
@@ -21,6 +22,10 @@ full     the same at 90: full time only once the ball is in the middle
          150 pictures after all are gone - Luca);
          screenshots fulltime-stand.png, fulltime-benches.png, fulltime-tunnel.png
          (half of them gone), fulltime.png
+foul     a foul in the middle at 90 minutes, the computer's free kick: no
+         full time while the ball is dead nor while the kick waits - it
+         is taken and played out, then the whistle, the reason gone (Luca:
+         full time at once, FOUL still shown)
 
 A line each, OK or WRONG; the exit code counts the wrong ones.
 """
@@ -76,11 +81,13 @@ def full(lab):
         s.put('score', 1, 12)
         s.obj(BALL, 120, 640)           # (the ball left down near a goal)
         s.put('o_slide', 5, 1)          # (one lying)
+        s.put('o_off', 14, 1)           # (one sent off before: counted too -
+                                        # full stuck at 2 once, Luca saw)
         up, gone, benches, quiet = None, None, 0, 0
         tun = os.path.join(CACHE, 'fulltime-tunnel.png')
         if os.path.exists(tun):
             os.remove(tun)
-        pos = lambda: [s.where(i) for i in range(22) if i != 5]     # noqa: E731
+        pos = lambda: [s.where(i) for i in range(22) if i not in (5, 14)]    # noqa: E731
         for k in range(1500):
             s.picture()
             if up is None and s.get('o_slide', 5) == 0:
@@ -103,7 +110,7 @@ def full(lab):
                 gone = k
             if gone is not None and k > gone + 150:
                 break
-        left = [i for i in range(22) if s.get('o_off', i) != 1]
+        left = [i for i in range(22) if not s.get('o_off', i) & 1]
         cam = s.get('cam_x') | s.get('cam_x', 1) << 8
         cam_y = s.get('cam_y') | s.get('cam_y', 1) << 8
         s.v.screenshot(os.path.join(CACHE, 'fulltime.png'))
@@ -118,7 +125,34 @@ def full(lab):
         s.stop()
 
 
-CASES = {'half': half, 'full': full}
+def foul(lab):
+    s = Scene(lab)
+    try:
+        s.put('game_min', 0, 90)
+        s.put('min_t', 0, 0)
+        s.put('half', 0, 1)
+        s.obj(BALL, 300, 380)
+        s.put('rs_kind', 0, 5)          # (R_FREE, the yellow team's)
+        s.put('rs_team', 0, 1)
+        s.v.poke(lab['rs_x'], [300 & 255, 300 >> 8])
+        s.v.poke(lab['rs_y'], [380 & 255, 380 >> 8])
+        s.put('why', 0, 1)              # (WHY_FOUL)
+        s.put('dead_t', 0, 40)
+        taken = None
+        for k in range(600):
+            s.picture()
+            if taken is None and k > 2 and not s.get('dead_t') and not s.get('kickoff'):
+                taken = k
+            if s.get('full'):
+                ok = taken is not None and not s.get('why')
+                return ok, 'full time after %d pictures, the free kick taken after %s, the reason ' \
+                    'shown %d' % (k, taken, s.get('why'))
+        return False, 'no full time in 600 pictures (the kick taken after %s)' % taken
+    finally:
+        s.stop()
+
+
+CASES = {'half': half, 'full': full, 'foul': foul}
 
 
 def main():

@@ -79,7 +79,7 @@ def run(v, name):
     s = moves.Setup()
     moves.open_play(s, 9)
     for i in range(1, 22):              # (the keepers, 9 and one yellow
-        s.put('o_off', 0 if i in (9, 11, 21) else 1, i)  # far off: with
+        s.put('o_off', 0 if i in (9, 11, 21) else 3, i)  # far off: with
     s.obj(0, 304, 676, d=0)             # none the yellow team's set
     s.obj(11, 304, 62, d=4)             # pieces after a case have no
     s.obj(9, 304, 300, d=0)             # taker - ctrl_b $FF, a hang)

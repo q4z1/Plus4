@@ -42,7 +42,7 @@ HEAD_Z, HEAD_NEAR = (9, 30), 24
 # looks (its way) and its step up (gravity $12/256 a frame) - he runs to
 # where it comes down to head height (HEAD_AT) first that he can reach at
 # RUN_PX a frame, and presses fire FIRE_T frames before it is there: he
-# jumps for it (can_try: within DHEAD_D2, up to TRY_HI) and heads it as
+# jumps for it (can_try: within DHEAD_D2) and heads it as
 # it comes (head: within 10, 13 - 26 high, in his HEAD_T frames up)
 HEAD_AT = (14, 24)
 RUN_PX = 1.8

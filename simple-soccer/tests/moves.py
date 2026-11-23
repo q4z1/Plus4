@@ -118,7 +118,7 @@ def open_play(s, ctrl, team=0, holder=None):
         s.put(n, v)
     s.put('score', 0, 1)
     for i in EXTRA:                     # (each scene its move alone)
-        s.put('o_off', 1, i)
+        s.put('o_off', 3, i)          # (training's absent: 3)
 
 
 def restart(s, kind, team, x, y):
