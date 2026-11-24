@@ -8,13 +8,22 @@ backend, with a configuration directory of its own, written afresh for
 each start (Yape saves its settings on exit, warp too).
 
 Yape starts the .prg itself.
+
+shm=True: a file Yape maps as well ($YAPE_SHM, see the patch in
+paradroid/tools/yape.patch) - the joysticks on the real ports (joy()),
+warp on and off (set_warp()), and the frames in lockstep: step(n) lets n
+frames run, then the machine stands still and smem() reads its memory as
+it was then, without the monitor.
 """
-import os, re, struct, subprocess, time, zlib
+import mmap, os, re, struct, subprocess, time, zlib
 from onetest import kill_other_tests
 
 YAPE = os.path.expanduser('~/.cache/paradroid/yapesdl/yapesdl')
 HOME = os.path.expanduser('~/.cache/simple-soccer/yapehome')
 SHOT = os.path.expanduser('~/.cache/simple-soccer/test/yape.ppm')
+SHM = os.path.expanduser('~/.cache/simple-soccer/test/yape.shm')
+SHM_SIZE = 0x10100
+FREE = 0xFFFFFFFF
 EMULATORS = ('yapesdl', 'yape', 'xplus4', 'x64sc')
 CONF = '''[Yape configuration file]
 DisplayFrameRate = 0
@@ -61,8 +70,9 @@ def ppm_to_png(src, dst):
 
 
 class Yape:
-    def __init__(self, image, warp=False, series=0, env=(), title=False, skip='TS'):
+    def __init__(self, image, warp=False, series=0, env=(), title=False, skip='TS', shm=False):
         kill_emulators()
+        self.sm = None
         conf = os.path.join(HOME, 'Gaia', 'yapeSDL')
         os.makedirs(conf, exist_ok=True)
         with open(os.path.join(conf, 'yape.conf'), 'w') as f:
@@ -75,6 +85,14 @@ class Yape:
         if series:                  # png_series(): so many pictures in a row
             env.append('--env=YAPE_SHOTN=%d' % series)
         env += ['--env=' + e for e in env_extra]
+        if shm:
+            with open(SHM, 'wb') as f:
+                f.write(bytes([0, 0, int(warp), 0]) + struct.pack('<III', FREE, 0, FREE)
+                        + bytes(SHM_SIZE - 16))
+            fd = os.open(SHM, os.O_RDWR)
+            self.sm = mmap.mmap(fd, SHM_SIZE)
+            os.close(fd)
+            env.append('--env=YAPE_SHM=' + SHM)
         self.p = subprocess.Popen(
             ['flatpak-spawn', '--host'] + env +
             ['gamescope', '--backend', 'headless', '-W', '1280', '-H', '800', '--',
@@ -166,6 +184,47 @@ class Yape:
                 self.buf += chunk
         out, self.buf = self.buf, b''
         return out.decode('latin-1').splitlines()
+
+    # ---- shm=True ----
+    def _word(self, at):
+        return struct.unpack_from('<I', self.sm, at)[0]
+
+    def joy(self, port, bits):
+        """joystick port (1 or 2) held as bits say (up 1, down 2, left 4,
+        right 8, fire 16)"""
+        self.sm[port - 1] = bits
+
+    def set_warp(self, on):
+        self.sm[2] = int(bool(on))
+
+    def frames(self):
+        """the frames run so far"""
+        return self._word(8)
+
+    def step(self, n, timeout=30):
+        """n frames more (from where it stands, or from now if it runs
+        free), then it stands still with its memory copied"""
+        allowed = self._word(4)
+        if allowed == FREE:
+            allowed = self._word(8)
+        allowed += n
+        struct.pack_into('<I', self.sm, 4, allowed)
+        t = time.time() + timeout
+        while self._word(12) != allowed:
+            if time.time() > t:
+                raise RuntimeError('yape: frame %d not reached (at %d)' % (allowed, self._word(8)))
+            if self.p.poll() is not None:
+                raise RuntimeError('yape gone')
+            time.sleep(0.0005)
+        return allowed
+
+    def free(self):
+        """running on without stopping"""
+        struct.pack_into('<I', self.sm, 4, FREE)
+
+    def smem(self, addr, n):
+        """memory as the last step() left it"""
+        return list(self.sm[0x100 + addr:0x100 + addr + n])
 
     def stop(self):
         try:

@@ -61,7 +61,11 @@ way - the title says "PLAYER 1" and "PLAYER 2" over them then, and below
 "HOME: PORT 1   AWAY: PORT 2" or the other way about: whoever played
 alone with his joystick in port 2 keeps the home team when a friend
 joins (Luca found port 1 always the home team's the wrong way about).
-`tests/ports.py` checks it on the title in Yape. (The code and the
+`tests/ports.py` checks it on the title in Yape. `tests/twoplayer.py`
+plays a whole match of two from the disk in VICE, Yape and plus4emu -
+the title by joystick, the walk on, both halves, every set piece, the
+winner's page and back to the title - each team's stick moved as a
+player would, in Yape and plus4emu on the real joystick ports. (The code and the
 rest of this text call them the cyan and the yellow team, the colours
 they had before there was a choice.)
 

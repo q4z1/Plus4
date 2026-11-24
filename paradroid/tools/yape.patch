@@ -9,12 +9,16 @@ Paradroid's changes to Yape (github.com/calmopyrin/yapesdl, at f5fcf8d):
   change of the joystick ports as read, with the time; YAPE_WAV writes the
   sound while a $YAPE_SHOTN series runs, by the machine's clock (raw signed
   16 bit, mono, 48 kHz), for videos with sound.
+- YAPE_SHM (simple-soccer/tests/yape.py, shm=True): a file the test maps as
+  well - the two joysticks on the real ports, warp on and off, the frames in
+  lockstep (the machine stands still till the test allows more) and a copy
+  of the memory each time it stands.
 - the ROMs the settings name are loaded at start-up, not only at the next
   hard reset: a cartridge in yape.conf (Demon Attack's run-yape.sh puts one
   there) starts with the machine.
 
 diff --git a/keyboard.cpp b/keyboard.cpp
-index f1c63a5..da9d284 100644
+index f1c63a5..3ae27a7 100644
 --- a/keyboard.cpp
 +++ b/keyboard.cpp
 @@ -1,3 +1,4 @@
@@ -22,10 +26,23 @@ index f1c63a5..da9d284 100644
  /*
  	YAPE - Yet Another Plus/4 Emulator
  
-@@ -284,6 +285,19 @@ unsigned char KEYS::feedjoy(unsigned char latch)
+@@ -284,6 +285,32 @@ unsigned char KEYS::feedjoy(unsigned char latch)
  		if (sdlJoys[activePcJoy2ix])
  			tmp &= getPcJoyState(activePcJoy2ix, 1);
  	}
++	// YAPE_SHM (main.cpp): two bytes a test writes, joystick 1's and 2's
++	// (up 1, down 2, left 4, right 8, fire 16) - on the ports as a stick in
++	// them would be
++	{
++		extern volatile unsigned char *g_yapeShm;
++		if (g_yapeShm) {
++			const unsigned char j1 = g_yapeShm[0], j2 = g_yapeShm[1];
++			if ((latch & 0x04) == 0)
++				tmp &= ~((j1 & 0x0F) | ((j1 & 0x10) << 2));
++			if ((latch & 0x02) == 0)
++				tmp &= ~((j2 & 0x0F) | ((j2 & 0x10) << 3));
++		}
++	}
 +	// YAPE_JOYLOG: each change of what the machine reads, with the time
 +	{
 +		static int log = -1;
@@ -43,7 +60,7 @@ index f1c63a5..da9d284 100644
  }
  
 diff --git a/main.cpp b/main.cpp
-index 9859b40..8aa4d93 100644
+index 9859b40..6c22c26 100644
 --- a/main.cpp
 +++ b/main.cpp
 @@ -7,7 +7,7 @@
@@ -89,7 +106,7 @@ index 9859b40..8aa4d93 100644
  				if (event.jbutton.button == 5 || event.jbutton.button == 14) { // START button
  					enterMenu();
  				} else if (event.jbutton.button == 4) {
-@@ -1355,9 +1364,83 @@ static void app_initialise()
+@@ -1355,9 +1364,150 @@ static void app_initialise()
  	KEYS::initPcJoys();
  }
  
@@ -166,14 +183,81 @@ index 9859b40..8aa4d93 100644
 +	}
 +}
 +
++/* YAPE_SHM: a file a test maps as well (simple-soccer/tests/yape.py):
++   0, 1    joystick 1's and 2's bits, for keyboard.cpp's feedjoy
++   2       bit 0: warp wanted
++   4-7     the frames allowed to run (little endian; $FFFFFFFF: no limit)
++   8-11    the frames run (written here)
++   12-15   the frame the memory copy was made at (written here)
++   $100-   the memory as the CPU sees it, copied when the frames allowed
++           are done ($FD00-$FEFF and $FF20-$FF3F left out: I/O)
++   The machine stands still between frames till the test allows more. */
++#include <sys/mman.h>
++#include <fcntl.h>
++#include <unistd.h>
++volatile unsigned char *g_yapeShm = NULL;
++#define SHM_SIZE 0x10100
++
++static unsigned int shmWord(unsigned int at)
++{
++	return g_yapeShm[at] | (g_yapeShm[at + 1] << 8) | (g_yapeShm[at + 2] << 16)
++		| ((unsigned int) g_yapeShm[at + 3] << 24);
++}
++
++static void shmSetWord(unsigned int at, unsigned int v)
++{
++	for (int i = 0; i < 4; i++)
++		g_yapeShm[at + i] = (v >> (8 * i)) & 255;
++}
++
++// true: the frames allowed are done, no frame now
++static bool shmHold()
++{
++	static int tried = 0;
++	if (!tried) {
++		tried = 1;
++		const char *p = getenv("YAPE_SHM");
++		int fd = p ? open(p, O_RDWR) : -1;
++		if (fd >= 0) {
++			void *m = mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
++			if (m != MAP_FAILED)
++				g_yapeShm = (volatile unsigned char *) m;
++			close(fd);
++		}
++	}
++	if (!g_yapeShm)
++		return false;
++	const bool warp = g_yapeShm[2] & 1;
++	if (warp == g_50Hz)
++		toggleFullThrottle(NULL);
++	const unsigned int allowed = shmWord(4), done = shmWord(8);
++	if (allowed == 0xFFFFFFFF || done < allowed) {
++		shmSetWord(8, done + 1);
++		return false;
++	}
++	if (shmWord(12) != done) {
++		MemoryHandler &mem = machine->getMem();
++		for (unsigned int a = 0; a < 0x10000; a++)
++			if (a < 0xFD00 || (a >= 0xFF00 && a < 0xFF20) || a >= 0xFF40)
++				g_yapeShm[0x100 + a] = mem.Read(a);
++		__sync_synchronize();
++		shmSetWord(12, done);
++	}
++	return true;
++}
++
  /* ---------- MAIN LOOP ---------- */
  static void mainLoop()
  {
 +	testHooks();
++	if (shmHold()) {
++		SDL_Delay(1);
++		return;
++	}
  	// hook into the emulation loop if active
  	if (g_bActive) {
  		ted8360->ted_process(1);
-@@ -1413,6 +1496,9 @@ static void printSpecialKeys()
+@@ -1413,6 +1563,9 @@ static void printSpecialKeys()
  /* ---------- MAIN ---------- */
  int main(int argc, char *argv[])
  {
@@ -183,7 +267,7 @@ index 9859b40..8aa4d93 100644
  	machineInit();
  	uinterface = new UI(ted8360);
  
-@@ -1441,7 +1527,9 @@ int main(int argc, char *argv[])
+@@ -1441,7 +1594,9 @@ int main(int argc, char *argv[])
  		ad_get_curr_dir(tmpStr);
  		fprintf(stderr, "IEC drive path: %s\n", tmpStr);
  		setEmulationLevel(g_iEmulationLevel);
@@ -194,7 +278,7 @@ index 9859b40..8aa4d93 100644
  	} else
  		fprintf(stderr,"Error loading settings or no .ini file present...\n");
  #endif
-@@ -1501,6 +1589,8 @@ int main(int argc, char *argv[])
+@@ -1501,6 +1656,8 @@ int main(int argc, char *argv[])
  	setMainLoop(1);
  #else
  	printSpecialKeys();
