@@ -2,7 +2,7 @@
 """Sliding tackles at the walls round the pitch: the joystick's player
 put near the top or the bottom (or a side) and sent into a tackle there,
 his place each picture - he must stop at the walls (play.s inside: x
-19-588, y 30-719), never slide on into the stands.
+19-588, y 31-719), never slide on into the stands.
 
     tests/walls.py [out-dir]
 
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vice import Vice  # noqa: E402
 from shot import PRG, WORK, labels, held_from_start  # noqa: E402
 
-WALL_L, WALL_R, WALL_T, WALL_B = 19, 588, 30, 719
+WALL_L, WALL_R, WALL_T, WALL_B = 19, 588, 31, 719
 VEC = [(0, -1000), (1000, -1000), (1000, 0), (1000, 1000),
        (0, 1000), (-1000, 1000), (-1000, 0), (-1000, -1000)]
 BALL = 22

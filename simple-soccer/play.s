@@ -2011,8 +2011,10 @@ meet:
 @stand: jmp stand
 
 ; inside: player X's destination inside the walls round the pitch (the
-; ball's, x 19-588, y 20-719; at the top 30: his head below the boards'
-; row - simple-soccer.s TOP_Y) - no one runs into the stands. Keeps X.
+; ball's, x 19-588, y 20-719; at the top 31: his head below the boards'
+; row - simple-soccer.s TOP_Y - even three lines up, jumping for a header
+; or cheering: 30 took the boards' colours, Luca saw) - no one runs into
+; the stands. Keeps X.
 inside:
         lda o_txh,x
         bmi @x0
@@ -2037,13 +2039,13 @@ inside:
 :       lda o_tyh,x
         bmi @y0
         lda o_tyl,x
-        cmp #<30
+        cmp #<31
         lda o_tyh,x
-        sbc #>30
+        sbc #>31
         bcs :+
-@y0:    lda #<30
+@y0:    lda #<31
         sta o_tyl,x
-        lda #>30
+        lda #>31
         sta o_tyh,x
 :       lda #<719
         cmp o_tyl,x

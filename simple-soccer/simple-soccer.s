@@ -327,7 +327,10 @@ place:
         rts
 PAN_S       = 6
 ENTER_MID   = 18                ; (pictures: 17 a second)
-ENTER_BACK  = 104
+ENTER_BACK  = 84                ; (as the last of them leaves the tunnel's
+                                ; row and the view: back in the middle a
+                                ; little before all stand - Luca: at 104
+                                ; it came late, the benches long empty)
 BENCH_X     = 520               ; (the view on the benches: play.s TUN_X)
 vw_tl:  .byte <(304 - GROUND_X), <(369 + GROUND_Y)
         .byte <(BENCH_X - GROUND_X), <(369 + GROUND_Y)
@@ -842,7 +845,10 @@ HUD_Y       = 10                ; the stands at the top of the view: no
 HUD_LOW     = 154               ; figure goes over them, see engine.s tint;
                                 ; above the cut, engine.s CUT_LINE)
 HUD_HIGH    = 80                ; (the view higher than this: at the bottom)
-HUD_R       = 25                ; (beside a reason: from this place on)
+HUD_R       = 19                ; (beside a reason: from this place on -
+                                ; its last figure left of the benches'
+                                ; roof, view at MAX_X: 25 took its
+                                ; colours, Luca saw)
 HUD_MID     = 12                ; (full time, everyone gone: in the middle -
 HUD_MID_Y   = 80                ; Luca)
 draw_hud:

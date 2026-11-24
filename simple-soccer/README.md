@@ -767,8 +767,8 @@ halfway line till well past the touch line, only then each walking to
 his place for the kick-off (Luca: not out of nowhere) - the
 ball dead till all of them stand there, then the whistle. The view
 rests on the centre spot a second, goes over to the tunnel as they come
-out of it, and back to the middle as the last of them get to their
-places (Luca's wish;
+out of it, and back to the middle as the last of them leaves the
+tunnel's row, there just before they all stand (Luca's wish;
 `tests/walkon.py`; a test's match, without the title, has
 them lined up at once). At full time the crowd roars, everyone stands
 where he is for two seconds - the winners cheering - and then they all
@@ -885,7 +885,9 @@ waits, the score and the minute show at the top left of the view, at
 its right while a whistle's reason is written (they were shown before
 kick-offs only; Luca wanted them at every stop) - and from 45 or 90
 minutes on, while the last attack is played out, till the whistle
-(Luca: the time up, the ball still in play). The view moves across
+(Luca: the time up, the ball still in play); beside a reason they end
+left of the benches' roof, and no one goes so near the boards at the top
+that his jump for a header takes their colours (Luca saw both). The view moves across
 in steps of two pixels: the figures are drawn on even pixels of the
 ground, and at an odd step the score shook by one. A score of 10 or more
 takes two figures (it showed the dash for 10, said Luca), up to 99; the
