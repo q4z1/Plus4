@@ -432,7 +432,7 @@ game_min:   .res 1              ; the match's minute, 0-90
 half:       .res 1              ; 1: the second half
 full:       .res 1              ; full time: the players still on, 1 more
                                 ; (ft_spot) - till fire starts a new match
-hud:        .res 1              ; 1: the score and the minute shown
+hud:        .res 1              ; not 0: the score and the minute shown
 hd_x:       .res 1              ; (dist_y, pair_d2)
 br_70:      .res 1              ; brain's (br_*: MATCHZP): the side its kick
                                 ; bends to (1, $FF, 0 none), his distance
@@ -8166,13 +8166,9 @@ cam_way:
 ; kick-off's only), and from 45 or 90 minutes on till the whistle (Luca:
 ; the time up, the ball still in play)
 clock:
-        lda #0
-        ldy kickoff
-        bne @hud
-        ldy dead_t
-        beq :+
-@hud:   lda #1
-:       sta hud
+        lda dead_t              ; (hud: not 0 - draw_hud)
+        ora kickoff
+        sta hud
         lda kickoff
         ora full
         ora train               ; (training: no time)
@@ -8184,6 +8180,8 @@ clock:
         bne :+
         ldy half
         beq @end
+        ldy dead_t              ; (half time over: 45 till the kick-off -
+        bne @done               ; it went on to 46 meanwhile, Luca saw)
 :       inc min_t
         lda min_t
         cmp min_frames

@@ -784,7 +784,8 @@ middle of the picture (it stopped 16 pixels higher, said Luca) - and
 the score is shown in the middle of it (`tests/fulltime.py`). Then
 fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
-"VS" was - and fire again the title, with the choices as they were. A
+"VS" was, every line in the middle as the title's names (FULL TIME and
+the score stood half a cell right of them, Luca saw) - and fire again the title, with the choices as they were. A
 league over has its own: THE LEAGUE IS WON BY, the first and second in
 the flags' places. The title is no longer in memory then - the match's pictures are
 where it was - so it comes from the disk again, with its flags (some 13 KB,
@@ -874,7 +875,9 @@ Plus/4; `tests/title_music.py` records the title in VICE (`--yape`: in
 Yape, as a video with its sound).
 
 A match is 90 minutes in three real ones (or five, or seven). At 45 the referee blows for
-half time, the teams change ends and the yellow team kicks off; at 90 the result stays
+half time, the teams change ends and the yellow team kicks off - the
+second half from 45, the clock still till then (it showed 46, said
+Luca); at 90 the result stays
 till fire starts a new match. Neither whistle comes while the ball is near
 a goal: the clock stops at 45 and 90 and the referee waits till the ball
 is in the middle half of the pitch, so an attack is played out (Luca's

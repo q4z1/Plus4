@@ -831,15 +831,17 @@ wl_second:
         lda #$71                ; (title.s C_TEXT)
         bne wl_buf
 ; wl_vs: w_buf (w_n long, 0: none) in the middle of seven where "VS"
-; is (blanks round it: "VS" gone)
+; is (blanks round it: "VS" gone) - as the names, "VS", HOME and AWAY:
+; the middle of the line, half a cell to the left if odd (Luca: the
+; score was a cell right of them)
 wl_vs:  lda #<T_VS_ROW
-        ldy #17
+        ldy #16
         jsr wl_at
         lda #$71                ; (title.s C_TEXT)
         jsr wl_colour
         lda #7
         jsr wl_byte
-        lda #7                  ; (the blanks before it)
+        lda #8                  ; (the blanks before it)
         sec
         sbc w_n
         lsr a
@@ -887,11 +889,11 @@ wl_mid: pha
 wl_mid_n:
         pha
         txa
-        lsr a
         eor #$FF
         sec
-        adc #20                 ; (20 - length / 2)
-        tay
+        adc #40
+        lsr a                   ; ((40 - length) / 2: as the title's names -
+        tay                     ; Luca: FULL TIME half a cell right of them)
         pla
         ; fall through
 ; wl_at: a new entry at line A, column Y: its place

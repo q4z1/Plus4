@@ -5,7 +5,8 @@ place), scenes set up through the monitor in a match in VICE.
     tests/fulltime.py [case ...]
 
 half     the 45th minute, the ball near a goal: no whistle 40 pictures
-         on, the score and the minute shown (at 44 not); the ball in the middle: half time (Luca: 90 minutes and the
+         on, the score and the minute shown (at 44 not); then 45 through
+         the break till the kick-off (Luca: the second half began at 46); the ball in the middle: half time (Luca: 90 minutes and the
          end of the action)
 full     the same at 90: full time only once the ball is in the middle
          half; then one of them lying (as after a slide) is up again, the
@@ -75,7 +76,17 @@ def wait_end(s, flag, minute):
 def half(lab):
     s = Scene(lab)
     try:
-        return wait_end(s, 'half', 45)
+        s.put('min_frames', 0, 100)             # (3 minutes a match: fewer frames to a
+        ok, text = wait_end(s, 'half', 45)      # minute than the break has)
+        if not ok:
+            return ok, text
+        for k in range(400):
+            s.picture()
+            if s.get('game_min') != 45:
+                return False, text + '; minute %d in the break' % s.get('game_min')
+            if s.get('kickoff'):
+                return True, text + '; 45 through the break, till the kick-off (%d pictures)' % k
+        return False, text + '; no kick-off'
     finally:
         s.stop()
 
