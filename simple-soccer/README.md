@@ -762,7 +762,9 @@ TITLE again (it went on showing the question's two, Luca found).
 Before a match started from the title the teams come on: out of the
 tunnel between the benches past the right touch line, on the halfway
 line, a step apart,
-one after the other, each walking to his place for the kick-off - the
+one after the other, in single file down its steps and along the
+halfway line till well past the touch line, only then each walking to
+his place for the kick-off (Luca: not out of nowhere) - the
 ball dead till all of them stand there, then the whistle. The view
 rests on the centre spot a second, goes over to the tunnel as they come
 out of it, and back to the middle as the last of them get to their
@@ -881,7 +883,9 @@ and played out (it whistled for full time at once, FOUL still shown,
 Luca saw). While the ball is dead or a set piece
 waits, the score and the minute show at the top left of the view, at
 its right while a whistle's reason is written (they were shown before
-kick-offs only; Luca wanted them at every stop). The view moves across
+kick-offs only; Luca wanted them at every stop) - and from 45 or 90
+minutes on, while the last attack is played out, till the whistle
+(Luca: the time up, the ball still in play). The view moves across
 in steps of two pixels: the figures are drawn on even pixels of the
 ground, and at an odd step the score shook by one. A score of 10 or more
 takes two figures (it showed the dash for 10, said Luca), up to 99; the

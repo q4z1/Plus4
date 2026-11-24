@@ -5,7 +5,7 @@ place), scenes set up through the monitor in a match in VICE.
     tests/fulltime.py [case ...]
 
 half     the 45th minute, the ball near a goal: no whistle 40 pictures
-         on; the ball in the middle: half time (Luca: 90 minutes and the
+         on, the score and the minute shown (at 44 not); the ball in the middle: half time (Luca: 90 minutes and the
          end of the action)
 full     the same at 90: full time only once the ball is in the middle
          half; then one of them lying (as after a slide) is up again, the
@@ -44,7 +44,15 @@ BENCH_CAM = 304                                 # (the view past this: on the be
 
 def wait_end(s, flag, minute):
     """the minute set, the ball near the top goal: no whistle; in the
-    middle: the whistle"""
+    middle: the whistle - the score and the minute shown from the minute
+    on, not before it (Luca: the time up, the ball in play)"""
+    s.put('game_min', 0, minute - 1)
+    s.put('min_t', 0, 0)
+    s.put('half', 0, 1 if minute == 90 else 0)
+    s.obj(BALL, 200, 120)
+    s.picture()
+    if s.get('hud'):
+        return False, 'the score shown at %d minutes, the ball in play' % (minute - 1)
     s.put('game_min', 0, minute)
     s.put('min_t', 0, 0)
     s.put('half', 0, 1 if minute == 90 else 0)
@@ -54,11 +62,13 @@ def wait_end(s, flag, minute):
         if s.get(flag):
             return False, 'whistled after %d pictures, the ball at y %d' % (k, s.where(BALL)[1])
         s.obj(BALL, 200, 120)
+    if not s.get('hud'):
+        return False, 'the time up, the score not shown'
     s.obj(BALL, 300, 380)
     for k in range(10):
         s.picture()
         if s.get(flag):
-            return True, 'none near the goal, at once in the middle (%d pictures)' % k
+            return True, 'none near the goal (the score shown), at once in the middle (%d pictures)' % k
     return False, 'no whistle with the ball in the middle'
 
 

@@ -22,6 +22,8 @@ from vice import Vice  # noqa: E402
 
 WALK_X = 72 * 8 + 23            # (play.s: the tunnel's mouth)
 WALK_FROM = WALK_X + 230
+WALK_OUT = 512                  # (along the tunnel's row till here)
+TUN_Y = 369 + 7
 
 
 def places(v):
@@ -47,10 +49,15 @@ def main():
         start = places(v)
         report('start', all(x >= WALK_FROM - 4 for x, _ in start) and v.mem(C.one('enter'), 1)[0] >= 1,
                'all back in the tunnel: x %d - %d' % (min(x for x, _ in start), max(x for x, _ in start)))
-        frames, shot = 0, False
+        frames, shot, off_row, seen = 0, 0, 0, 0
         while frames < 2000 and v.mem(C.one('enter'), 1)[0]:
             v.cmd('x')
             frames += 1
+            if frames % 3 == 0:         # (out of the tunnel, on its row till WALK_OUT)
+                for x, y in places(v):
+                    if WALK_OUT <= x < WALK_X + 4:
+                        seen += 1
+                        off_row = max(off_row, abs(y - TUN_Y))
             if not shot and frames == 150:
                 v.screenshot(os.path.join(L.CACHE, 'walkon.png'))
                 shot = True
@@ -64,6 +71,8 @@ def main():
             print('   still on the way:', [(i, arrived[i], (t['o_txl'][i] + 256 * t['o_txh'][i],
                                                        t['o_tyl'][i] + 256 * t['o_tyh'][i]))
                                          for i in range(22) if mov[i]])
+        report('row', seen > 50 and off_row <= 1,
+               'out of the tunnel along its row till x %d: %d seen, at most %d off it' % (WALK_OUT, seen, off_row))
         report('walk', not v.mem(C.one('enter'), 1)[0] and frames < 2000,
                'on and in their places after %d frames, the ball dead till then (dead_t %d)' % (frames, dead))
         for _ in range(5):

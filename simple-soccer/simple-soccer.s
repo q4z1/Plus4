@@ -147,9 +147,14 @@ s_i:    .res 1                  ; sort's
 s_j:    .res 1
 s_key:  .res PLAYERS            ; (order's)
 
-        .bss
+        .segment "HIBSS3"       ; (each picture's own: not saved)
 s_off:  .res FIGS               ; 1: not in this picture (seen)
 p_key:  .res PLAYERS            ; (sort's: each player's key, $FF listed)
+
+        .bss
+why_i:  .res 1                  ; (draw_why's next letter)
+cam_o:  .res 2                  ; the view's lean, x and y (follow)
+keep_col: .res 1                ; the keepers' shirts (keep_kit)
 team_col:   .res 2              ; each team's shirts, multicolour (title.s)
 team_flk:   .res 2              ; and the colour its joystick's player
                                 ; flickers to: white, black on a light shirt
@@ -930,10 +935,6 @@ why_of: .byte W_O, W_F, W_F, W_S, W_I, W_D, W_E, $FF
 why_tw: .byte W_D, W_O, W_U, W_B, W_L, W_E, 0, W_T, W_O, W_U, W_C, W_H, $FF
 why_at: .byte why_fl - why_w, why_of - why_w, why_tw - why_w
 
-        .segment "DATA"
-why_i:  .byte 0                 ; (draw_why's next letter)
-cam_o:  .byte 0, 0              ; the view's lean, x and y (follow)
-keep_col: .byte $41 | $08       ; the keepers' shirts (keep_kit)
         .segment "CODE"
 
 ; keep_kit: the keepers' shirts, as a match starts (a saved one too):
@@ -953,35 +954,24 @@ keep_kit:
         cpy #3
         bne @try
         lda keep_try,y          ; (black)
-@set:   ora #$08                ; (multicolour)
-        sta keep_col
+@set:   sta keep_col
         rts
-keep_try:   .byte $41, $44, $27, $00
+keep_try:   .byte $49, $4C, $2F, $08    ; (multicolour, as team_col)
 
-; unlike: carry set if shirt A (luminance, hue 0-7) is unlike team X's -
-; another hue, or two shades apart. Keeps A, X, Y.
+; unlike: carry set if shirt A (luminance, hue 0-7, multicolour) is
+; unlike team X's - another hue, or two shades apart. Keeps A, X, Y.
 unlike:
         sta tmp
         eor team_col,x
         and #$07
         bne @yes
-        lda team_col,x          ; (the shades: high nibbles)
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        sta tmp2
-        lda tmp
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        sec
-        sbc tmp2
+        lda tmp                 ; (the same hue, both multicolour: the
+        sec                     ; shades' way apart, times 16)
+        sbc team_col,x
         bcs :+
         eor #$FF                ; (|a - b|)
         adc #1
-:       cmp #2
+:       cmp #$20
         lda tmp
         rts
 @yes:   lda tmp

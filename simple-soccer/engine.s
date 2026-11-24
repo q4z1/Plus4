@@ -795,8 +795,8 @@ wave:
         rts
 LA_N        = 7
 
-        .segment "DATA"
-la_m:       .byte 0             ; (wave's: the bits of la_step looked at)
+        .bss
+la_m:       .res 1              ; (wave's: the bits of la_step looked at)
         .code
 r40_lo      = row40s_lo + 3     ; (rows 0 .. 27 of row40s, times 40)
 r40_hi      = row40s_hi + 3

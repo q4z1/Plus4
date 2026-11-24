@@ -301,17 +301,18 @@ on_bit:     .byte $10, $20
 on_ext:     .byte $10, SFX_NOISE
 off_mask:   .byte <~$10, <~$60
 
-        .data                   ; (the BSS is full)
-snd_k:  .byte 0
-snd_t:  .byte 0
-snd_lo: .byte 0
-snd_d:  .byte 0
-v_ext:  .byte 0, 0              ; each voice: 0 a plain step, else an
-v_rl:   .byte 0, 0              ; extended one - its register (low, high
-v_rh:   .byte 0, 0              ; bits), its spread or step
-v_d:    .byte 0, 0
-v_crowd: .byte 0                ; not 0: voice 1's effect the crowd's
-lfsr:   .byte $5A               ; (ext_frame's random)
+        .bss
+snd_k:  .res 1
+snd_t:  .res 1
+snd_lo: .res 1
+snd_d:  .res 1
+v_ext:  .res 2                  ; each voice: 0 a plain step, else an
+v_rl:   .res 2                  ; extended one - its register (low, high
+v_rh:   .res 2                  ; bits), its spread or step
+v_d:    .res 2
+v_crowd: .res 1                 ; not 0: voice 1's effect the crowd's
+        .data
+lfsr:   .byte $5A               ; (ext_frame's random: never 0)
         .code
 
 ; the effects, each on its voice. Keep X, Y.

@@ -460,12 +460,13 @@ each_v      = $F5               ; (each's routine)
 k_d2        = $F7               ; (k_get's, k_high's: a way squared)
 cp_d        = $F9               ; (can_slide's: his way squared)
 
-        .segment "DATA"         ; (BSS full)
+        .segment "DATA"         ; (not saved: resume's 0)
 enter:      .byte 0             ; 1: the teams to come on (walk_on) - the
                                 ; title's, not a test's
+        .bss
 ; why: the reason for the whistle shown till the set piece is taken -
 ; WHY_FOUL, WHY_OFF (offside), WHY_TWICE (a double touch); 0 none
-why:        .byte 0
+why:        .res 1
 WHY_FOUL    = 1
 WHY_OFF     = 2
 WHY_TWICE   = 3
@@ -477,10 +478,16 @@ dbg_on:     .res 1
 dbg_i:      .res 1              ; the next entry's place
 dbg_t:      .res 2              ; frames since
 dbg_bits:   .res 1              ; the stick as the plan has it
+
+        .segment "DATA"         ; (the title's: a saved match's own)
 two:        .res 1              ; 1: two players, the yellow team the second
                                 ; joystick's (the title's choice)
 train:      .res 1              ; 1: training - a keeper and four a side, no
                                 ; time (the title's choice)
+
+        .segment "HIBSS3"       ; (not saved: nor enter - resume)
+wk_yl:      .res PLAYERS        ; (walk_on's: each one's place, y)
+wk_yh:      .res PLAYERS
 
         .segment "HIBSS2"       ; (not cleared: the title fills it)
 ; each player's pace by his number (title.s runs: Sensible Soccer's)
@@ -614,11 +621,16 @@ play_init:
 
 ; walk_on: from the title (enter), the teams come on out of the tunnel at
 ; WALK_X, a step apart, one after the other, to their places for the
-; kick-off - the ball dead till they stand there (walking), then the
-; whistle (Luca)
+; kick-off - along the tunnel's row, down its steps, till WALK_OUT, then
+; each to his place (walking; Luca: not out of nowhere) - the ball dead
+; till they stand there, then the whistle (Luca)
 walk_on:
         ldx #PLAYERS - 1
 @pl:    jsr stand               ; (his place there his destination)
+        lda o_yl,x              ; (his place's y kept for walking, the
+        sta wk_yl,x             ; tunnel's row his destination's)
+        lda o_yh,x
+        sta wk_yh,x
         txa                     ; (WALK_X + 8 X: carry clear)
         asl a
         asl a
@@ -629,17 +641,20 @@ walk_on:
         sta o_xh,x
         lda #<TUN_Y
         sta o_yl,x
+        sta o_tyl,x
         lda #<SPEED_JOG
         sta o_spl,x
         lda #>SPEED_JOG
         sta o_sph,x
         lda #>TUN_Y             ; (1)
         sta o_yh,x
+        sta o_tyh,x
         sta o_mov,x
         sta o_new,x
         dex
         bpl @pl
 .assert <WALK_FROM + 8 * (PLAYERS - 1) < 256 && >TUN_Y = 1, error, "walk_on"
+.assert <WALK_OUT = 0 && WALK_OUT > 608 - 115 && WALK_OUT < TUN_M, error, "walk_on: WALK_OUT"
         sta kickoff             ; (A 1: team_ai leaves them on their way)
         asl a
         sta dead_t
@@ -4489,6 +4504,9 @@ WALK_FROM   = WALK_X + 230      ; (coming on: back in the tunnel, not drawn
                                 ; has got there from the middle spot, Luca)
 TUN_Y       = 369 + 7           ; (his feet: him in the middle of its mouth,
                                 ; as the tunnel on the halfway line - mkdata)
+WALK_OUT    = 512               ; (coming on: along TUN_Y till here, then
+                                ; to his place - walking; a whole high
+                                ; byte, beyond every place line_up has)
 STAND_T     = 100               ; (new_match: and fire not before)
 ft_spot:
         lda o_off,x             ; (gone already: a keeper asks each frame)
@@ -5849,6 +5867,16 @@ walking:
         lda enter               ; (coming on: the ball dead till all of
         beq @card               ; them stand at their places - walk_on -
         ldx #PLAYERS - 1        ; then the whistle)
+@out:   lda o_xh,x              ; (past WALK_OUT: off the tunnel's row, to
+        cmp #>WALK_OUT          ; his place - aim sees it changed; once
+        bcs :+                  ; there, the same)
+        lda wk_yl,x
+        sta o_tyl,x
+        lda wk_yh,x
+        sta o_tyh,x
+:       dex
+        bpl @out
+        ldx #PLAYERS - 1
 :       lda o_mov,x
         bne @on
         dex
@@ -8133,7 +8161,8 @@ cam_way:
 ; off, at 90 full time - each once the ball is in the middle half of the
 ; pitch (MID_T - MID_B), the action at a goal played out; and hud, the score and minute shown, while the
 ; ball is dead or a set piece waits (Luca: at every stop - it was the
-; kick-off's only)
+; kick-off's only), and from 45 or 90 minutes on till the whistle (Luca:
+; the time up, the ball still in play)
 clock:
         lda #0
         ldy kickoff
@@ -8161,7 +8190,8 @@ clock:
         sta min_t
         inc game_min
 @done:  rts
-@end:   ldy dead_t              ; (not while the ball is dead: a foul at 90
+@end:   inc hud                 ; (the time up: shown - 1 or 2)
+        ldy dead_t              ; (not while the ball is dead: a foul at 90
         bne @done               ; minutes is taken, Luca - the whistle went,
         lda o_yl + BALL         ; FOUL still shown) 45 or 90 minutes and the action's end:
         cmp #<MID_T             ; the whistle once the ball is in the
