@@ -48,7 +48,7 @@
         .include "resident.inc" ; (RES_LOAD, RES_NM, RES_DST: build.sh)
 
         .import score, start, teams, TEAMS_N, joy_read, joy
-        .import t_hook1, t_hook2, draw_menu, draw_lines, lines
+        .import t_hook1, t_hook2, draw_menu, draw_lines, lines, t_league
         .importzp t_ptr, t_s, t_d
         .importzp T_LEN_ROW, T_MODE_ROW, T_FIRE_ROW, T_NAME_ROW, T_NAME_COL, T_FIELD_W
         .importzp T_LABEL_ROW, T_LABEL_COL, T_DROP, T_VS_ROW, T_MORE_ROW
@@ -101,7 +101,7 @@ ROW_RES     = 5                 ; the matchday's four
 ROW_TAB     = 10                ; the table's head, its eight below
 ROW_NEXT    = 20
 ROW_DISK    = 21
-ROW_MENU    = 23                ; the choices, two rows
+ROW_MENU    = 23                ; the choices, two rows (three: from 22)
 
         .segment "CUPHDR"
         .addr CUP               ; (the file's load address)
@@ -188,8 +188,18 @@ KIRQ        = $0314             ; (its way on, while the ROM is in)
 
         .segment "LDLOW"        ; (run low: the ROM in; and room)
 
-; ld_rom: "LOADING" from the ROM's characters to LD_LETTERS on
+; ld_rom: "LOADING" from the ROM's characters to LD_LETTERS on - and
+; the ROM's first 64 to PFONT: k_go's screen from the RAM as it is, its
+; codes changed to the loading screen's then with nothing seen (Luca: a
+; flash as the ball came - the screen was off while they changed)
 ld_rom: sta $FF3E
+        ldx #0
+:       lda $D000,x
+        sta PFONT,x
+        lda $D100,x
+        sta PFONT + $100,x
+        inx
+        bne :-
         ldx #7 * 8 - 1
 :       txa
         lsr a
@@ -282,18 +292,24 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         sta LD_FONT,x
         dex
         bpl :-
-        lda #$0B                ; blank (the border's green, as the
-        sta TED_SCROLLY         ; background) while the codes change
-        ldx #250
-        lda #LD_BLANK
+:       lda TED_LINE            ; below the picture: the characters
+        cmp #210                ; from the RAM, at PFONT - k_go's look
+        bne :-                  ; the same there - and the ball's
+        lda #0                  ; pentagons black (in the border: no
+        sta TED_COL1            ; snow)
+        lda TED_BMBASE
+        and #$FB
+        sta TED_BMBASE
+        lda #>PFONT
+        sta TED_CHBASE
+        ldx #250                ; the codes the loading screen's, the
+        lda #LD_BLANK           ; same to see
 :       sta CODES - 1,x
         sta CODES + 249,x
         sta CODES + 499,x
         sta CODES + 749,x
         dex
         bne :-
-        stx TED_COL1            ; the ball's pentagons black (blank: no
-                                ; snow)
         ldx #6                  ; "LOADING" (its colours: k_go's)
 :       txa
         clc
@@ -316,13 +332,6 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         dex
         bpl :-
         jsr dots
-        lda TED_BMBASE          ; the characters from the RAM, at PFONT
-        and #$FB
-        sta TED_BMBASE
-        lda #>PFONT
-        sta TED_CHBASE
-        lda #$1B                ; on again
-        sta TED_SCROLLY
         lda $FFFE               ; the interrupt (its vector as it was
         sta ld_vec              ; kept)
         lda $FFFF
@@ -602,7 +611,12 @@ cup_go: lda #0
 @page:  jsr page
 @menu:  jsr menu                ; C set: the next match
         bcs :+
-        jsr to_title
+        lda m_sel               ; (the third: another league drawn, the
+        cmp #2                  ; players' teams kept)
+        bne @title
+        jsr new_draw
+        jmp @save
+@title: jsr to_title
         lda L_ON                ; (the league over: its winner)
         bne restart
         jsr win_league
@@ -640,7 +654,7 @@ ask:    jsr page
         lda #<t_one
         ldx #>t_one
         jsr text
-        lda #2                  ; (the choices: keep it, a new one)
+        lda #3                  ; (the choices: keep it, a new one)
         sta m_off
         jsr menu
         lda #0                  ; (the page's own again, the carry kept -
@@ -712,6 +726,7 @@ win_league:
         lda t_team
         jsr wl_name
         jsr wl_second
+        inc w_lg - __WIN_RUN__ + __WIN_LOAD__
         lda #0                  ; no "VS": first and second
         sta w_n
         jsr wl_vs
@@ -1034,7 +1049,12 @@ win_key:
         sta w_on
         lda #$80
         jsr w_walk
-        lda #<lines             ; (the texts first: the menu's values then
+        lda w_lg                ; (a league's: the players' teams again)
+        beq :+
+        jsr t_league
+        sec
+        rts
+:       lda #<lines             ; (the texts first: the menu's values then
         sta t_ptr               ; fill the joysticks' line)
         lda #>lines
         sta t_ptr + 1
@@ -1100,6 +1120,7 @@ w_walk: sta w_mode
 @done:  rts
 
 w_on:   .byte 0
+w_lg:   .byte 0                 ; (a league's: win_league)
 w_held: .byte 0
 w_mode: .byte 0
 w_col:  .byte 0
@@ -1127,7 +1148,8 @@ new_league:
         sta L_FORM
         lda t_form + 1
         sta L_FORM + 1
-        ldx L_TWO               ; (the computer's from 1 or 2 on)
+new_draw:                       ; (the players' as they are: the page's
+        ldx L_TWO               ; third choice) the computer's from 1 or 2 on
         inx
 @team:  stx c_tmp
 @any:   jsr rnd
@@ -1903,8 +1925,24 @@ tens:   stx c_x2
 ; menu: the next match or back to the title, by the stick (up, down),
 ; fire on its letting go; C set: the next match. With the league over
 ; only the title.
-menu:   lda L_ON
-        sta m_n                 ; (0: one choice)
+menu:   ldx L_ON                ; the choices: the title only (the league
+        beq @n                  ; over); the next match or the title (ask:
+        lda m_off               ; its two); while nothing is played yet
+        bne @n                  ; a new league drawn instead, third (Luca:
+        ldy #L_MATCHES - 1      ; "START A NEW LEAGUE" there, before its
+        lda #$FF                ; menu had its own texts again)
+:       and L_RES,y
+        dey
+        bpl :-
+        cmp #$FF
+        bne @n
+        inx
+@n:     stx m_n                 ; (one less than the choices)
+        lda #ROW_MENU           ; (three: from the row above)
+        cpx #2
+        bne :+
+        lda #ROW_MENU - 1
+:       sta m_row
         lda #0
         sta m_sel
         sta m_was
@@ -1915,7 +1953,7 @@ menu:   lda L_ON
 @draw:  ldx #0                  ; the choices, the one chosen white
 @line:  txa
         clc
-        adc #ROW_MENU
+        adc m_row
         tay
         lda #C_DIM
         cpx m_sel
@@ -1943,11 +1981,9 @@ menu:   lda L_ON
         ldx m_hi,y
         jsr text
         ldx m_x
-        lda m_n
-        beq @wait
+        cpx m_n
         inx
-        cpx #2
-        bne @line
+        bcc @line
 @wait:  jsr frame
         jsr joy_read
         lda joy
@@ -1957,14 +1993,19 @@ menu:   lda L_ON
         stx m_was
         and #J_FIRE
         bne @go
-        txa                     ; (up, down: the other one, if there is)
-        and #J_UP | J_DOWN
+        txa                     ; (up, down: the one above, below, if
+        and #J_UP | J_DOWN      ; there is)
         beq @wait
-        lda m_n
-        beq @wait
+        and #J_UP
+        beq @down
         lda m_sel
-        eor #1
-        sta m_sel
+        beq @wait
+        dec m_sel
+        bpl :+                  ; (always)
+@down:  lda m_sel
+        cmp m_n
+        bcs @wait
+        inc m_sel
 :       jsr frame               ; (till let go)
         jsr joy_read
         lda joy
@@ -1991,7 +2032,9 @@ frame:  lda TED_LINE
 ; ---- the disk -----------------------------------------------------------------------
 
 ; save: the league to the disk ("SAVING ...", then what came of it)
-save:   ldy #ROW_DISK
+save:   lda L_ON                ; (the league over: saved so, CONTINUE no
+        beq store               ; more - but no word of it, Luca: it is
+        ldy #ROW_DISK           ; over, and it saves it)
         lda #C_DIM
         jsr row
         lda #13
@@ -2290,8 +2333,10 @@ t_back:     .byte "BACK TO THE TITLE", 0
 t_saving:   .byte "SAVING ...", 0
 t_saved:    .byte "THE LEAGUE IS SAVED ON THE DISK", 0
 t_failed:   .byte "COULD NOT SAVE THE LEAGUE ON THE DISK", 0
-m_lo:       .byte <t_play, <t_back, <t_keep, <t_anew   ; (the league over:
-m_hi:       .byte >t_play, >t_back, >t_keep, >t_anew   ; the title only; m_off 2: ask's)
+m_lo:       .byte <t_play, <t_back, <t_anew, <t_keep, <t_anew   ; (the league
+m_hi:       .byte >t_play, >t_back, >t_anew, >t_keep, >t_anew   ; over: the
+                                ; title only; nothing played: the three;
+                                ; m_off 3: ask's)
 t_keep:     .byte "KEEP THIS LEAGUE", 0
 t_anew:     .byte "START A NEW LEAGUE", 0
 t_going:    .byte "A NEW LEAGUE WOULD TAKE THIS ONE", 0
@@ -2346,7 +2391,8 @@ c_tmp3: .res 1
 m_n:    .res 1
 m_sel:  .res 1
 m_was:  .res 1
-m_off:  .res 1                  ; menu's texts: 0 the page's, 2 ask's
+m_off:  .res 1                  ; menu's texts: 0 the page's, 3 ask's
+m_row:  .res 1                  ; menu's first row
 m_x:    .res 1
 sim_x:  .res 1
 sim_y:  .res 1

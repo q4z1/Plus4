@@ -18,14 +18,20 @@ runner    7 the runner to a pass to him (recv, helper), the joystick on 9
           far off: no header of himself (the joystick's team's runner
           heads none)
 try       fire only tapped as the ball (18 high) is still some 30 pixels
-          off, the stick let go: he jumps for it at once and heads it as
-          it comes (Luca: many more tries at headers)
-miss      tapped so as the ball goes over him (36 high): he jumps - a try
-          missed, seen - and does not head it
+          off, the stick let go: he dives at it at once, head first, and
+          heads it (Luca: many more tries at headers; a dive at a flying
+          ball - within JUMP_D2 he jumps)
+miss      tapped so as the ball goes over him (36 high): he dives or
+          jumps - a try missed, seen - and does not head it
 tryup     as try, the ball 22 high, the stick pushed up with the tap: he
-          jumps for it and heads it - the diving header (fire with the
-          stick) heads only 8 - 15 high, under this one he dived for
-          nothing (Luca: do the headers want no way pushed?)
+          goes for it and heads it - the stick's diving header starts
+          only at 8 - 15 high, under this one he dived for nothing (Luca:
+          do the headers want no way pushed?)
+across    a ball flying across 15 pixels in front of him, 14 high, from
+          the left: fire tapped as it is 50 pixels off - he dives at it
+          and heads it (Luca: a dive at a flying ball within a range
+          beyond the real, not only under it)
+across30  the same 30 pixels in front, 20 high
 cpu       a cyan shot at head height up the pitch at the computer's 20
           (its runner): no header - it goes over him (Luca: the computer
           intercepts every ball by a header; Sensible Soccer's computer
@@ -66,6 +72,8 @@ CASES = {
     'try': (9, 'fire', 18, 'up', HEAD_SPEED),
     'miss': (9, 'fire', 36, None, 0),
     'tryup': (9, 'up+fire', 22, 'up', HEAD_SPEED),
+    'across': (9, 'fire', 14, None, 0),
+    'across30': (9, 'fire', 20, None, 0),
     'cpu': (20, '', 18, None, 0),
     'cpuown': (20, '', 18, 'down', HEAD_SPEED),
     'cpukick': (20, '', 11, 'down', HEAD_SPEED),
@@ -192,13 +200,56 @@ def run_try(v, name):
         if v.mem(lab['last_pl'], 1)[0] == 9:
             if jump:
                 v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
-            return name != 'miss' and jump > 0 and not dived, \
+            return name != 'miss' and (jump > 0 or dived), \
                 '9 headed it (his jump %d, dived %s, tapped at frame %s)' % (jump, dived, tapped)
-    return name == 'miss' and jump > 0, 'no header, his jump %d, dived %s, the ball %s high by him' % (
+    return name == 'miss' and (jump > 0 or dived), 'no header, his jump %d, dived %s, the ball %s high by him' % (
         jump, dived, zs)
 
 
+def run_across(v, name):
+    """9 at (304, 500), a ball flying right across in front of him; fire
+    tapped (four frames) once it is within 50 pixels"""
+    dy = 30 if name == 'across30' else 15
+    z = CASES[name][2]
+    v.poke(lab['dbg_joy'], [0])
+    for _ in range(6):
+        v.cmd('x')
+    s = moves.Setup()
+    moves.open_play(s, 9)
+    for i in range(1, 22):
+        s.put('o_off', 0 if i in (7, 9, 11, 21) else 3, i)
+    s.obj(0, 304, 676, d=0)
+    s.obj(11, 304, 62, d=4)
+    s.obj(21, 150, 150, d=4)
+    s.obj(7, 100, 650, d=0)
+    s.obj(9, 304, 500, d=0)
+    for n, val in (('jumps', 0), ('o_zl', 0), ('o_slide', 0), ('o_mov', 0)):
+        s.put(n, val, 9 if n != 'jumps' else 0)
+    moves.flight(s, 200, 500 - dy, 200 + 32 * 60, 500 - dy, 1536, z, level(110))
+    s.put('last_pl', 21)
+    s.put('last_team', 1)
+    for a, vals in s.pokes:
+        v.poke(a, vals)
+    v.poke(OFF_PL, [0xFF])
+    tapped, dived = None, False
+    for f in range(60):
+        bx, by = word(v, 'o_xl', 'o_xh', BALL), word(v, 'o_yl', 'o_yh', BALL)
+        if tapped is None and (bx - 304) ** 2 + (by - 500) ** 2 <= 50 ** 2:
+            v.poke(lab['dbg_joy'], [BITS['fire']])
+            tapped = f
+        elif tapped is not None and f == tapped + 4:
+            v.poke(lab['dbg_joy'], [0])
+        v.cmd('x')
+        dived = dived or v.mem(lab['o_slide'] + 9, 1)[0] != 0
+        if v.mem(lab['last_pl'], 1)[0] == 9:
+            v.screenshot(os.path.join(WORK, 'header-%s.png' % name))
+            return dived, '9 headed it (dived %s, tapped at frame %s)' % (dived, tapped)
+    return False, 'no header (dived %s, tapped at frame %s)' % (dived, tapped)
+
+
 def run(v, name):
+    if name in ('across', 'across30'):
+        return run_across(v, name)
     if name in ('cpu', 'cpuown', 'cpukick'):
         return run_cpu(v, name)
     if name in ('try', 'miss', 'tryup'):
@@ -214,6 +265,11 @@ def run(v, name):
     moves.open_play(s, 9)
     for i in range(1, 22):              # (the keepers, 7, 9 and one yellow)
         s.put('o_off', 0 if i in (7, 9, 11, 21) else 3, i)
+    s.put('jumps', 0)                   # (nothing left from the case before:
+    s.put('o_zl', 0, who)               # his jump, a slide, the lock)
+    s.put('o_slide', 0, who)
+    s.put('o_mov', 0, who)              # (nor still on his way: 'right' ran off)
+    s.pokes.append((lab['lock_t'], [0, 0]))
     s.obj(0, 304, 676, d=0)
     s.obj(11, 304, 62, d=4)
     s.obj(21, 150, 150, d=4)
@@ -279,8 +335,9 @@ def main():
             ok, got = run(v, name)
             wrong += not ok
             print('%-7s %-50s %s' % (name, got, 'OK' if ok else 'WRONG'), flush=True)
-            for _ in range(100):        # (whatever follows, over)
-                v.cmd('x')
+            v.poke(lab['dbg_joy'], [0])  # (the stick let go: fire held on
+            for _ in range(100):        # charged a shot into the next case)
+                v.cmd('x')              # (whatever follows, over)
     finally:
         v.stop()
     return wrong

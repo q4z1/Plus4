@@ -27,7 +27,7 @@
         .export snd_init, snd_tick
         .export sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .export sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
-        .export v_left, crowd1, fx_murmur  ; (play.s new_match: the murmur on)
+        .export v_left, v_lo, v_hi, crowd1, fx_murmur, fx_hold, fx_fade  ; (play.s new_match)
 
 TED_V1LO    = $FF0E             ; voice 1's frequency, low
 TED_V2LO    = $FF0F             ; voice 2's
@@ -430,6 +430,11 @@ GOAL_N = 35
 fx_goal:
         .repeat GOAL_N, k
         G_I .set k * 4
+        .if k = 12
+fx_hold:                        ; (full time: its loud part again and
+        .elseif k = 22          ; again from here, as it comes to fx_fade,
+fx_fade:                        ; till the teams are gone - play.s
+        .endif                  ; new_match)
         .if G_I < 12
         G_VOL .set 2 + G_I / 2
         .elseif G_I < 85
@@ -450,6 +455,7 @@ fx_goal:
         crowd 4, 868 + G_RISE, G_VOL, 63
         .endrepeat
         .byte 0
+.assert G_I >= 85, error, "fx_goal: fx_fade not in its fading"
 ; and whistling (Luca): up and down, three of them in the roar - done
 ; before the kick-off's whistle (DEAD_GOAL)
 fx_goal_w:

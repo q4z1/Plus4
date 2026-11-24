@@ -38,7 +38,7 @@
         .import mus_start, mus_frame, mus_stop
         .importzp s_cnt
         .export title, teams, TEAMS_N
-        .export t_hook1, t_hook2, draw_menu, draw_lines, lines   ; (cup.s: the winner)
+        .export t_hook1, t_hook2, draw_menu, draw_lines, lines, t_league   ; (cup.s: the winner)
         .export hue_of, T_LOGO_ROW = LOGO_ROW, T_LOGO_COL = LOGO_COL ; (cup.s: its page)
         .exportzp t_ptr, t_s, t_d
         .export T_LEN_ROW = LEN_ROW, T_MODE_ROW = MODE_ROW, T_FIRE_ROW = FIRE_ROW
@@ -173,6 +173,11 @@ title:
         sta TCOL + $300,x
         inx
         bne :-
+        ldx #PORTS_W - 1        ; the joysticks' line grey (its text:
+        lda #C_DIM              ; show_values)
+:       sta TCOL + PORTS_ROW * 40 + PORTS_COL,x
+        dex
+        bpl :-
         ldx #8 * 8 - 1
 :       lda frame_chars,x
         sta TFONT + FRAME_CODE * 8,x
@@ -421,6 +426,33 @@ ports_dig:
         eor #'1' ^ '2'
         sta TCODE + PORTS_ROW * 40 + PORTS_COL + P_AWAY
 @done:  rts
+
+; t_league: (cup.s's win_key) a league's winner's page left - the players'
+; teams again, LEAGUE (Luca: the league's first and second stayed the
+; title's teams): the texts but the teams' (lines up to l_lab), then look
+; as from none - the home team's flag, frame, name, the away team's as
+; the league has them, only what stays drawn. In MAIN: no room in the title.
+t_league:
+        ldx #1
+:       lda L_TEAM,x
+        sta t_team,x
+        dex
+        bpl :-
+        lda #MODE_LEAGUE
+        sta t_train
+        lda l_lab
+        pha
+        lda #$FF
+        sta t_shown
+        sta l_lab
+        lda #<lines
+        sta t_ptr
+        lda #>lines
+        sta t_ptr + 1
+        jsr draw_lines
+        pla
+        sta l_lab
+        jmp look
         .segment "TITLE"
 
 ; k_init: the choices kept from the match before (K_CH), the first time
@@ -508,33 +540,42 @@ look:   ldy #0                  ; (HOME and AWAY)
         cpy t_lab
         bne @redo
         rts
-@redo:  lda t_shown              ; (from none: the home team's flag again,
-        stx t_shown             ; TEAM SETTINGS)
-        sty t_lab
-        bpl :+
+@redo:  txa                     ; the last line to choose: the mode's
+        clc                     ; (none), the home team's, the away team's
+        adc #ROWS - 2           ; (from X: CONTINUE to LEAGUE left the
+        sta t_last              ; team's line out of reach)
+        lda t_shown             ; (from none: the home team's flag again,
+        stx t_shown             ; its frame and name - Luca: none of them
+        sty t_lab               ; after CONTINUE - and TEAM SETTINGS)
+        bpl @texts
         ldx #0
         jsr prep
         jsr commit
-        jsr draw_menu
-:
-        txa
-        clc
-        adc #ROWS - 2
-        sta t_last
-        lda #<lines             ; the texts again (HOME, AWAY, VS, the
-
-        sta t_ptr               ; arrows)
-        lda #>lines
+        jsr frame_x             ; (X 0: its frame only)
+        jsr draw_names
+        jsr menu_text           ; (the lines not blanked first)
+@texts: lda t_shown             ; the texts again, only those that stay:
+        bmi @away               ; the arrows round each name shown, VS
+        asl a                   ; with the away team, HOME and AWAY
+        ora t_lab               ; unless PLAYER 1, 2 go there (Luca:
+        tax                     ; CONTINUE to LEAGUE drew the away
+        lda l_sel - 1,x         ; team's, then took them away - a
+        sta t_ptr               ; flicker)
+        lda l_selh - 1,x
         sta t_ptr + 1
         jsr draw_lines
         lda t_lab
         beq @away
-        ldx #7                  ; PLAYER 1, PLAYER 2
-:       lda t_player,x
+        ldx #7                  ; PLAYER 1, PLAYER 2 (that one with the
+:       lda t_player,x          ; away team only)
         sta TCODE + LABEL_ROW * 40 + LABEL_COL - 2,x
+        ldy t_shown
+        beq :+
         sta TCODE + (LABEL_ROW + TEXT_DROP) * 40 + LABEL_COL - 2,x
-        dex
-        bpl :-
+:       dex
+        bpl :--
+        ldy t_shown
+        beq @away
         inc TCODE + (LABEL_ROW + TEXT_DROP) * 40 + LABEL_COL + 5
 @away:  lda t_shown
         bpl :+
@@ -714,6 +755,7 @@ draw_menu:
         sta TCODE + MORE_ROW * 40 + LINE_COL,x
         dex
         bpl :-
+menu_text:                      ; (look: what is there drawn over)
         ldx t_page
         lda menu_lo,x
         sta t_ptr
@@ -738,6 +780,7 @@ draw_menu:
 ; draw_frames: a grey frame round each flag's place
 draw_frames:
         ldx #1
+frame_x:                        ; (X 0: the home team's only)
 @side:  lda flag_lo,x           ; the row above the flag, a column left
         sec
         sbc #41
@@ -1234,27 +1277,28 @@ digit_of:   .byte "357"
 lines:
         .byte SUB_ROW, 5, $61
         .byte "A FOOTBALL GAME FOR THE PLUS/4", 0
-        .byte LABEL_ROW, LABEL_COL - 2, C_TEXT  ; (8 wide: "PLAYER 1" there
+        .byte FIRE_ROW, 9, C_FIRE0
+        .byte "PRESS FIRE TO KICK OFF", 0
+        .byte CREDIT_ROW, 8, $52        ; (the name's red, below)
+        .byte "BY Q4Z1 2026 (& CLAUDE)", 0
+        ; the teams' (look: from l_lab, l_away or l_home on, as shown)
+l_lab:  .byte LABEL_ROW, LABEL_COL - 2, C_TEXT  ; (8 wide: "PLAYER 1" there
         .byte "  HOME  ", 0                     ; in a league of two, look)
         .byte LABEL_ROW + TEXT_DROP, LABEL_COL - 2, C_TEXT
         .byte "  AWAY  ", 0
-        .byte NAME_ROW, NAME_COL - 1, C_TEXT
-        .byte "<", 0
-        .byte NAME_ROW, NAME_COL + FIELD_W, C_TEXT
-        .byte ">", 0
-        .byte NAME_ROW + TEXT_DROP, NAME_COL - 1, C_TEXT
+l_away: .byte NAME_ROW + TEXT_DROP, NAME_COL - 1, C_TEXT
         .byte "<", 0
         .byte NAME_ROW + TEXT_DROP, NAME_COL + FIELD_W, C_TEXT
         .byte ">", 0
         .byte FLAG_ROW + FLAG_H, 19, C_DIM      ; (between the flags)
         .byte "VS", 0
-        .byte FIRE_ROW, 9, C_FIRE0
-        .byte "PRESS FIRE TO KICK OFF", 0
-        .byte PORTS_ROW, PORTS_COL, C_DIM       ; (its text: show_values)
-        .byte "                            ", 0
-        .byte CREDIT_ROW, 8, $52        ; (the name's red, below)
-        .byte "BY Q4Z1 2026 (& CLAUDE)", 0
+l_home: .byte NAME_ROW, NAME_COL - 1, C_TEXT
+        .byte "<", 0
+        .byte NAME_ROW, NAME_COL + FIELD_W, C_TEXT
+        .byte ">", 0
         .byte $FF
+l_sel:  .byte <l_home, <l_lab, <l_away  ; (look: t_shown * 2 + t_lab - 1)
+l_selh: .byte >l_home, >l_lab, >l_away
 
 row_lo:
         .repeat 25, I

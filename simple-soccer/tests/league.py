@@ -14,8 +14,13 @@ what:  back    a match to its full time, fire: the title again, the
                offers CONTINUE, its page
        two     two players: each one's match against the computer, then
                (a league saved before its last matchday) theirs, the end
+               (saved as over, no word of it: Luca); fire on the winner's
+               page: the title with the players' teams, LEAGUE (not the
+               league's first and second)
        ask     LEAGUE with a league going on: the question - kept, then
-               a new one
+               on the title CONTINUE to LEAGUE by the stick (the home
+               team's frame and name, nothing of the away team's, its
+               line in reach), then a new one
        look    the title's teams as the mode has them (the league: no
                away team with one player; PLAYER 1 and 2 with two)
        quit    a match left from its pause (pause.s): RUN/STOP, QUIT, not
@@ -477,15 +482,59 @@ def two(drive):
         ch, lines = play(v, [0, 4], 'two-over')
         assert ch[1] == 1 and ch[3:5] == [GER, ITA], 'the players\' match'
         assert 'WON BY' in lines[20], 'not over'
+        assert not any('SAV' in l for l in lines), 'the league over, and it says it saves it'
         print('league', ram(v, L_BLOCK, 42))
         assert ram(v, L_BLOCK + 1, 1) == [0], 'still on'
         press(v)                        # (the title only)
         wait(v, lambda: at_title(v), 'the title', 180)
         winner(v, 'THE LEAGUE IS WON BY', 'ITALY', '', 'champion')
+        t = title_text(v)               # (the players' teams again, LEAGUE -
+        ch = ram(v, K_CH, 7)            # Luca: the first and second stayed)
+        print('\n'.join(l for l in t if l))
+        assert ch[2] == 2 and ch[3:5] == [GER, ITA], 'not the players\' teams after the league'
+        text = '\n'.join(t)
+        assert 'LEAGUE' in text and 'GERMANY' in text and 'ITALY' in text and 'PLAYER 2' in text \
+            and 'AUSTRALIA' not in text, 'the title not the players\' league'
         print('modes up to', v.mem(lab['t_modes'], 1), 'choices', ram(v, K_CH, 7))
         assert v.mem(lab['t_modes'], 1)[0] == 2, 'CONTINUE after the end'
     finally:
         v.stop()
+
+
+def team_name(v, i):
+    """team i's name (title.s teams: shirts, level, stars, the name's
+    length and the name - each record as long as it)"""
+    at = lab['teams']
+    for _ in range(i):
+        at += 6 + v.mem(at + 5, 1)[0]
+    n = v.mem(at + 5, 1)[0]
+    return bytes(v.mem(at + 6, n)).decode('ascii')
+
+
+def continue_to_league(v):
+    """on the title in CONTINUE: down to MODE, left - LEAGUE with one
+    player as it is from MATCH (Luca, 24.11.: the flags flickered; the
+    home flag came without its frame and name, the team's line out of
+    reach)"""
+    assert v.mem(K_CH + 2, 1)[0] == 3 and v.mem(lab['t_row'], 1)[0] == 0
+    press(v, DOWN)
+    press(v, DOWN)
+    press(v, 0x04)                      # LEFT: LEAGUE
+    v.run_for(0.5)
+    t = title_text(v)
+    print('CONTINUE to LEAGUE:\n' + '\n'.join(t[8:19]))
+    v.screenshot(os.path.join(CACHE, 'league-continue-to-league.png'))
+    home = team_name(v, ram(v, K_CH + 3, 1)[0])
+    codes = v.mem(0xEC00, 1000)
+    assert 'LEAGUE' in t[8] and 'TEAM SETTINGS' in t[9], 'not LEAGUE'
+    assert 'PLAYER 1' in t[11] and home in t[12], 'the home team\'s name not there'
+    assert codes[10 * 40 + 4] == 0 and codes[14 * 40 + 4] == 5, 'the home flag\'s frame not there'
+    assert 'VS' not in t[14] and not t[15].strip() and not t[16].strip() and \
+        not t[17].strip() and codes[14 * 40 + 28] == 32, 'the away team\'s things there'
+    assert v.mem(lab['t_last'], 1)[0] == 4, 'the team\'s line out of reach'
+    for _ in range(3):
+        press(v, DOWN)
+    assert v.mem(lab['t_row'], 1)[0] == 4, 'not down to the team'
 
 
 def ask(drive):
@@ -508,6 +557,7 @@ def ask(drive):
         ch = ram(v, K_CH, 7)
         print('kept: choices', ch, 'modes', v.mem(lab['t_modes'], 1))
         assert ch[2] == 3 and ram(v, L_BLOCK, 42) == lg, 'not kept'
+        continue_to_league(v)
         v.poke(K_CH + 2, [2])               # LEAGUE again: a new one
         press(v)
         wait(v, lambda: on_page(v), 'the question', 180)
@@ -522,8 +572,25 @@ def ask(drive):
         print('new', new)
         assert new[1] == 1 and new[14:] == [255] * 28, 'not a new league'
         lines = screen(v)
-        assert 'PLAY THE NEXT MATCH' in lines[23] and 'BACK TO THE TITLE' in lines[24], \
-            'the new league\'s menu not its own (Luca: KEEP / A NEW ONE again)'
+        assert 'PLAY THE NEXT MATCH' in lines[22] and 'BACK TO THE TITLE' in lines[23] and \
+            'START A NEW LEAGUE' in lines[24], \
+            'the new league\'s menu not its own (Luca: KEEP / A NEW ONE again; nothing played: a new one third)'
+        # the third: another one drawn, the player's team kept (Luca, 24.11.)
+        press(v, DOWN)
+        press(v, DOWN)
+        press(v, DOWN)                      # (no further than the third)
+        press(v)
+        wait(v, lambda: on_page(v) and ram(v, L_BLOCK, 42) != new and
+             any('SAVED' in l for l in screen(v)), 'another new league', 180)
+        v.run_for(1)
+        page(v, 'ask-again')
+        again = ram(v, L_BLOCK, 42)
+        print('again', again)
+        assert again[1] == 1 and again[14:] == [255] * 28 and again[2:7] == new[2:7], \
+            'not another new league for the same player'
+        assert again[7:14] != new[7:14], 'the same teams drawn'
+        lines = screen(v)
+        assert 'START A NEW LEAGUE' in lines[24], 'no third choice after it'
     finally:
         v.stop()
 

@@ -103,12 +103,14 @@ k_go:   sei
         lda #0
         sta TED_IRQEN
         sta $FF11               ; (the sound off)
-        lda #PAGE_BG
+        lda #$0B                ; the screen off first: the match's picture,
+        sta TED_SCROLLY         ; its splits gone with the interrupt, in the
+                                ; page's colours a moment else (Luca: a
+                                ; flash, worse with fire before the end)
+        lda #PAGE_BG            ; (PAGE_BORDER the same: pause.s)
         sta TED_BG
-        lda #PAGE_BORDER
         sta TED_BORDER
-        lda #0
-        tax                     ; a blank screen at $0800 (colours) and
+        ldx #0                  ; a blank screen at $0800 (colours) and
         lda #' '                ; $0C00 (codes), the ROM's characters -
 :       sta $0C00,x             ; as the KERNAL's: kstub's IOINIT keeps it
         sta $0D00,x

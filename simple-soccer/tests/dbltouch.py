@@ -11,6 +11,9 @@ the kick 7's stick points at the ball.
 throw   a throw-in tapped into the pitch, 7 running after it: the whistle
 mate    a throw-in to 9 beside him: 9 has it, play goes on
 free    a free kick tapped ahead, 7 running after it: the whistle
+far     the same, 9 far off: the joystick goes to 9 after the kick, back
+        to 7 (the nearest) after KICKED_T - the whistle (Luca: the
+        taker could never touch it again)
 corner  a corner tapped out, 7 running after it: the whistle
 
 A line each: the case, what happened, OK or WRONG; the exit code counts
@@ -57,6 +60,7 @@ CASES = {
     'throw': (lambda s: scene(s, R_THROW, (49, 300)), 'down+right+fire', True, True),
     'mate': (lambda s: scene(s, R_THROW, (49, 300), nine=(110, 300)), 'right+fire', False, False),
     'free': (lambda s: scene(s, R_FREE, (304, 420)), 'up+fire', True, True),
+    'far': (lambda s: scene(s, R_FREE, (304, 420), nine=(60, 700)), 'up+fire', True, True),
     'corner': (lambda s: scene(s, R_CORNER, (54, 54)), 'down+right+fire', True, True),
 }
 

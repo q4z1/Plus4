@@ -56,7 +56,8 @@ DOT_Y       = 2
 MAX_STEPS   = 4                 ; frames of play caught up in a turn at most
 
         .zeropage
-ptr:    .res 2
+tmp:    .res 1                  ; (scratch, the drawing's: on the zero page)
+tmp2:   .res 1
 vw_l:   .res 2                  ; the view's point, x and y (place: set
 vw_h:   .res 2                  ; before it is read - not cleared)
 
@@ -95,34 +96,20 @@ start:  sei
 :       lda TED_SCROLLY         ; the screen blank till the title's is
         and #$EF                ; made: LOWV is the boot's screen codes
         sta TED_SCROLLY         ; ($0C00-$0FFF), 0 an "@" each
-        lda #<__BSS_RUN__
-        sta ptr
-        lda #>__BSS_RUN__
-        sta ptr + 1
-        ldx #>__BSS_SIZE__
-        ldy #0
-        tya
-@page:  cpx #0
-        beq @rest
-:       sta (ptr),y
-        iny
-        bne :-
-        inc ptr + 1
-        dex
-        jmp @page
-@rest:  cpy #<__BSS_SIZE__
-        beq @done
-        sta (ptr),y
-        iny
-        jmp @rest
-@done:  ldx #0                  ; and those down low (LOWV: 256 to 511
-:       sta __LOWV_START__,x    ; bytes, up to the test's word at $0FF8)
+        lda #0                  ; the variables cleared: BSS's four pages
+        tax                     ; whole (pause.s saves them so), and
+:       sta __BSS_RUN__,x       ; those down low (LOWV: 256 to 511 bytes,
+        sta __BSS_RUN__ + $100,x    ; up to the test's word at $0FF8)
+        sta __BSS_RUN__ + $200,x
+        sta __BSS_RUN__ + $300,x
+        sta __LOWV_START__,x
         cpx #<(__LOWV_SIZE__ - $100)
         bcs :+
         sta __LOWV_START__ + $100,x
 :       inx
         bne :--
         jmp main
+.assert <__BSS_RUN__ = 0 && __BSS_SIZE__ <= $400, error, "BSS: four pages from a page's start"
 
         .segment "HIBSS2"       ; (not cleared: simple-soccer.cfg)
 ; the figures on the ground, worked out each turn: where their feet are
@@ -135,8 +122,6 @@ played: .res 1                  ; frames played up to
 aim_r:  .res 1                  ; (draw_aim's: how far, the dot's offset)
 aim_t:  .res 2
 order:  .res FIGS               ; the figures from the top down
-tmp:    .res 1
-tmp2:   .res 1
 cg_xl:  .res 1                  ; (sort's: the view's corner as the players'
 cg_xh:  .res 1                  ; places go)
 cg_yl:  .res 1

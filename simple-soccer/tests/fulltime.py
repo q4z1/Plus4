@@ -19,8 +19,9 @@ full     the same at 90: full time only once the ball is in the middle
          then the view to the middle spot, up and down to the very middle
          (Luca: it stopped CAM_DZ higher), and the score 10 - 12, in two
          figures each, in the middle of it (draw_hud: HUD_MID); the crowd
-         murmuring on and on till fire (new_match: voice 1 never quiet
-         150 pictures after all are gone - Luca);
+         roaring loud till the last is gone (new_match: fx_hold again,
+         never fx_goal's fading meanwhile), then murmuring on and on till
+         fire (voice 1 never quiet 150 pictures after all are gone - Luca);
          screenshots fulltime-stand.png, fulltime-benches.png, fulltime-tunnel.png
          (half of them gone), fulltime.png
 foul     a foul in the middle at 90 minutes, the computer's free kick: no
@@ -104,7 +105,8 @@ def full(lab):
         s.put('o_slide', 5, 1)          # (one lying)
         s.put('o_off', 14, 1)           # (one sent off before: counted too -
                                         # full stuck at 2 once, Luca saw)
-        up, gone, benches, quiet = None, None, 0, 0
+        up, gone, benches, quiet, fading = None, None, 0, 0, 0
+        murmur = False
         tun = os.path.join(CACHE, 'fulltime-tunnel.png')
         if os.path.exists(tun):
             os.remove(tun)
@@ -120,6 +122,11 @@ def full(lab):
                 s.v.screenshot(os.path.join(CACHE, 'fulltime-stand.png'))
             if gone is not None and k > gone and not s.get('v_left', 1):
                 quiet += 1
+            at = s.get('v_lo', 1) | s.get('v_hi', 1) << 8     # (voice 1's next step)
+            if gone is None and (not s.get('v_left', 1) or at > lab['fx_fade']):
+                fading += 1                 # (the roar dying, the teams still on)
+            if gone is not None and at == lab['fx_murmur'] + 4:
+                murmur = True
             cam = s.get('cam_x') | s.get('cam_x', 1) << 8
             if s.get('full') > 1 and cam > BENCH_CAM:
                 benches += 1
@@ -136,12 +143,14 @@ def full(lab):
         cam_y = s.get('cam_y') | s.get('cam_y', 1) << 8
         s.v.screenshot(os.path.join(CACHE, 'fulltime.png'))
         ok = up is not None and first == 23 and gone is not None and not left and benches > 0 \
-            and abs(cam - CAM_X) <= 2 and cam_y == CAM_Y and not moved and not quiet
+            and abs(cam - CAM_X) <= 2 and cam_y == CAM_Y and not moved and not quiet \
+            and not fading and murmur
         return ok, '%s; full %d at first; up after %s pictures; standing from the 10th picture to ' \
             'the 30th (moved: %s); all gone after %s (still on: %s); the view on the benches %d ' \
-            'pictures, at last at x %d (the middle spot\'s %d), y %d (%d); the crowd quiet %d ' \
-            'pictures after' % (text, first, up, moved or 'none', gone, left or 'none', benches,
-                               cam, CAM_X, cam_y, CAM_Y, quiet)
+            'pictures, at last at x %d (the middle spot\'s %d), y %d (%d); the roar dying %d ' \
+            'pictures while they were on; the crowd quiet %d pictures after, murmuring %s' % (
+                text, first, up, moved or 'none', gone, left or 'none', benches,
+                cam, CAM_X, cam_y, CAM_Y, fading, quiet, murmur)
     finally:
         s.stop()
 

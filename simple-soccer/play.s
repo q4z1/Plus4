@@ -54,7 +54,7 @@ off_by      = $EE               ; piece's taker in off_by (above the match's
                                 ; zero page: the save keeps it), the passer
         .import sfx_kick, sfx_catch, sfx_whistle, sfx_halftime, sfx_goal
         .import sfx_save, sfx_miss, sfx_yellow, sfx_red, sfx_roar
-        .import v_left, crowd1, fx_murmur
+        .import v_left, v_lo, v_hi, crowd1, fx_murmur, fx_hold, fx_fade
 
 PLAYERS     = 22                ; 0-10 the joystick's team, from its keeper
 BALL        = PLAYERS           ; the last object
@@ -135,6 +135,7 @@ SLIDE_T     = 50                ; a sliding tackle's frames,
 SPEED_SLIDE = 1792              ; its speed at first,
 SLIDE_DECEL = 48                ; less each frame,
 SLIDE_REACH = 64                ; the ball this near (squared) it reaches
+DHEAD_REACH = 254               ; (a diving header this: Luca, beyond the real)
                                 ; (Sensible Soccer's, c13f7a; a diving
                                 ; header too),
 SLIDE_Z     = 8                 ; this low
@@ -154,6 +155,10 @@ DHEAD_Z_LO  = 8                 ; a diving header (Sensible Soccer's only
 DHEAD_Z_HI  = 15                ; header, c13af4, c140d4): fire pressed, the
 DHEAD_D2    = 2450              ; stick pushed, the ball higher than 8 this
                                 ; near (squared); he dives the stick's way,
+                                ; (heading it up to HEAD_HI: Luca wanted
+                                ; dives at head height, from further too)
+TRY_D2      = 4096              ; a header tried, the ball this near: within
+JUMP_D2     = 254               ; this he jumps, else dives at it (Luca)
 SPEED_DHEAD = 2048              ; so fast, slowing so much a frame, and in
 DHEAD_DECEL = 36                ; the first frames of it heads the ball 8 -
 DHEAD_T     = 16                ; 15 high on: a quarter faster than he goes,
@@ -547,6 +552,7 @@ corner_c:   .byte 3, 5, 1, 7
 ; the joystick as a way to go (8: none)
 joy_dir:    .byte 8, 0, 4, 8, 6, 7, 5, 6, 2, 1, 3, 2, 8, 0, 4, 8
 ; a destination 1000 pixels off, each way
+reach_t:    .byte SLIDE_REACH + 1, DHEAD_REACH + 1     ; (slides: o_hd 0, 1)
 vec_xl:     .byte <0, <1000, <1000, <1000, <0, <(-1000), <(-1000), <(-1000)
 vec_xh:     .byte >0, >1000, >1000, >1000, >0, >(-1000), >(-1000), >(-1000)
 vec_yl:     .byte <(-1000), <(-1000), <0, <1000, <1000, <1000, <0, <(-1000)
@@ -1554,10 +1560,17 @@ control:
         bcs @held               ; for it - head heads it if it comes, Luca:
         lda #$FF                ; many more tries, missed ones too)
         sta fire_n
+        lda tmp + 1             ; (further than a jump reaches: he dives
+        bne @dive               ; at it, head first - Luca: not only under
+        lda tmp                 ; the ball, a dive at a flying ball within
+        cmp #JUMP_D2 + 1        ; a range beyond the real, hit or miss)
+        bcs @dive
         lda #HEAD_T
         sta o_zl,x
         sta jumps
         rts
+@dive:  jsr ball_way
+        jmp dive_way
 @held:  lda fire_n                ; (held SHOT_HOLD: the shot, as soon as
         cmp #SHOT_HOLD          ; the ball is at his feet - fire held on
         bcc @done               ; charges it: $80 on, a throw-in $C0 on)
@@ -2094,7 +2107,7 @@ can_kick:
         rts
 
 ; can_dive: carry clear if the stick is pushed and the ball in the air
-; (higher than DHEAD_Z_LO, at most DHEAD_Z_HI) near player X (DHEAD_D2).
+; (higher than DHEAD_Z_LO, at most DHEAD_Z_HI) near player X (TRY_D2).
 ; Higher, he jumps for it (can_try) and heads it the stick's way - the
 ; dive heads only DHEAD_Z_HI high: under a higher ball he dived for
 ; nothing (Luca: do the headers want no way pushed?). Keeps X.
@@ -2109,9 +2122,9 @@ can_dive:
         bcs @no
         jsr mate_dist
         lda tmp
-        cmp #<(DHEAD_D2 + 1)
+        cmp #<(TRY_D2 + 1)
         lda tmp + 1
-        sbc #>(DHEAD_D2 + 1)
+        sbc #>(TRY_D2 + 1)
         rts
 @no:    sec
         rts
@@ -2218,6 +2231,7 @@ stick_way:
 ; (slides heads it on when he reaches it). Keeps X.
 dive_head:
         jsr stick_way           ; (the stick's way)
+dive_way:                       ; (A's: at the ball, control's @dive)
         sta o_dir,x
         jsr slide
         lda #1
@@ -3173,47 +3187,44 @@ pass_scan:
         bne @look
         rts
 
+; kt_axis: kick_to's for x (X the player, Y 0) or y (both 2 * NOBJ on)
+kt_axis:
+        lda o_xl,x
+        sec
+        sbc o_xl + BALL,y
+        sta tmp
+        lda o_xh,x
+        sbc o_xh + BALL,y
+        .repeat 5
+        asl tmp
+        rol a
+        .endrepeat
+        sta tmp + 1
+        lda tmp
+        clc
+        adc o_xl + BALL,y
+        sta o_txl + BALL,y
+        lda tmp + 1
+        adc o_xh + BALL,y
+        sta o_txh + BALL,y
+        rts
+.assert o_yl = o_xl + 2 * NOBJ && o_yh = o_xh + 2 * NOBJ && o_tyl = o_txl + 2 * NOBJ && o_tyh = o_txh + 2 * NOBJ, error, "kick_to: y 2 * NOBJ after x"
+
 ; kick_to: the ball passed to player X, mate_d away (squared): its
 ; destination 32 times as far as he is
 kick_to:
-        lda o_xl,x
-        sec
-        sbc o_xl + BALL
-        sta tmp
-        lda o_xh,x
-        sbc o_xh + BALL
-        ldy #5
-:       asl tmp
-        rol a
-        dey
-        bne :-
-        sta tmp + 1
-        lda tmp
+        ldy #0                  ; across, then (X, Y 2 * NOBJ on) down
+        jsr kt_axis
+        txa
         clc
-        adc o_xl + BALL
-        sta o_txl + BALL
-        lda tmp + 1
-        adc o_xh + BALL
-        sta o_txh + BALL
-        lda o_yl,x
+        adc #2 * NOBJ
+        tax
+        ldy #2 * NOBJ
+        jsr kt_axis
+        txa
         sec
-        sbc o_yl + BALL
-        sta tmp
-        lda o_yh,x
-        sbc o_yh + BALL
-        ldy #5
-:       asl tmp
-        rol a
-        dey
-        bne :-
-        sta tmp + 1
-        lda tmp
-        clc
-        adc o_yl + BALL
-        sta o_tyl + BALL
-        lda tmp + 1
-        adc o_yh + BALL
-        sta o_tyh + BALL
+        sbc #2 * NOBJ
+        tax
         ; as hard as he is far, as the C64's L4383 has it: a step each 50
         ; pixels (pass_d; mate_d may be doubled: his own distance), and
         ; harder the better the kicker (pass_b, by sk_duel: $3E98)
@@ -5027,12 +5038,14 @@ can_head:
         rts
 
 ; can_try: carry clear if the joystick's player X, fire just pressed,
-; jumps for a header (control): the ball in the air - higher than a
-; sliding tackle's (SLIDE_Z), however high - and near (DHEAD_D2, as
-; a diving header's); not a keeper, nor one sliding or in the air, nor the
-; one who has just kicked it. He is up HEAD_T frames, head heads it if it
-; comes to his head meanwhile - else a try missed (Luca: more tries at
-; headers, at corners too, missed ones as well). Keeps X.
+; goes for a header (control): the ball in the air - higher than a
+; sliding tackle's (SLIDE_Z), however high - and near (TRY_D2, tmp its
+; distance squared); not a keeper, nor one sliding or in the air, nor the
+; one who has just kicked it. Within JUMP_D2 he is up HEAD_T frames, head
+; heads it if it comes to his head meanwhile; further he dives at it,
+; head first (dive_way), heading it up to HEAD_HI high within DHEAD_REACH
+; - else a try missed (Luca: more tries at headers, at corners too,
+; missed ones as well; a dive at a flying ball, beyond the real). Keeps X.
 can_try:
         jsr cpu_side            ; (the computer heads none: no tries)
         bcs @no
@@ -5050,9 +5063,9 @@ can_try:
         bcs @no
         jsr mate_dist
         lda tmp
-        cmp #<(DHEAD_D2 + 1)
+        cmp #<(TRY_D2 + 1)
         lda tmp + 1
-        sbc #>(DHEAD_D2 + 1)
+        sbc #>(TRY_D2 + 1)
         rts
 @no:    sec
         rts
@@ -5156,7 +5169,10 @@ switch:
 ; kicker: carry set if player X of the joystick's team passed or shot
 ; KICKED_T frames ago or less, or took a set piece and may not touch the
 ; ball again yet (off_pl $FE, off_by him: double touch) - not his to run
-; to, nor the joystick's. Keeps X, Y.
+; to, nor the joystick's. But a joystick's team's taker only the runner's
+; (helper): the joystick goes to him after KICKED_T as to anyone, and his
+; touch is a double touch then - Luca ran after his free kick and could
+; not touch it, the foul never seen. The computer's never. Keeps X, Y.
 kicker:
         cpx kick_pl
         bne @no
@@ -5164,7 +5180,11 @@ kicker:
         cmp #$FE
         bne :+
         cpx off_by
+        bne :+
+        cpx helper
         beq @yes
+        jsr cpu_side
+        bcs @yes
 :       lda me                  ; (the team's: Y kept)
         bne :+
         lda kick_t
@@ -5668,12 +5688,9 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
         lda box_yh,y
         sta rs_y + 1
         bne @free
-@pen:   lda #R_PENALTY
+@pen:   jsr kick_spot           ; (its x, 304)
+        lda #R_PENALTY
         sta rs_kind
-        lda #<304
-        sta rs_x
-        lda #>304
-        sta rs_x + 1
         ldy r_s
         lda spot_l,y
         sta rs_y
@@ -7807,9 +7824,9 @@ slides:
         lda o_zl + BALL         ; not, the other team's player he slides
         ldy o_hd,x              ; into knocked over (bump)
         beq :+
-        cmp #DHEAD_Z_LO         ; (a header: 8 - 15 high, in his dive's
+        cmp #DHEAD_Z_LO         ; (a header: 8 - 26 high, in his dive's
         bcc @bump               ; first frames)
-        cmp #DHEAD_Z_HI + 1
+        cmp #HEAD_HI + 1
         bcs @bump
         lda o_slide,x
         cmp #SLIDE_T - DHEAD_T
@@ -7821,7 +7838,8 @@ slides:
         lda tmp + 1
         bne @bump
         lda tmp
-        cmp #SLIDE_REACH + 1
+        ldy o_hd,x              ; (a diving header further: DHEAD_REACH)
+        cmp reach_t,y
         bcs @bump
         lda o_hd,x              ; the other team's joystick's player with
         bne @take               ; it at his feet: the better more often
@@ -8249,11 +8267,22 @@ kick_spot:
 ; disk, cup.s) - or, a test without the disk, starts a new match: no
 ; goals, the first minute, the cyan team to kick off
 new_match:
-        lda v_left + 1          ; (the crowd quiet: it murmurs, on and on
+        lda full                ; (the players still on: the roar's loud
+        cmp #2                  ; part again as it comes to its end, till
+        bcc @calm               ; the last is gone - Luca)
+        lda v_lo + 1            ; (its fading, its end, or after: anew)
+        cmp #<fx_fade
+        lda v_hi + 1
+        sbc #>fx_fade
+        bcc @loud
+        lda #<fx_hold
+        ldx #>fx_hold
+        bne @crowd
+@calm:  lda v_left + 1          ; (the crowd quiet: it murmurs, on and on
         bne @loud               ; till fire - Luca)
         lda #<fx_murmur
         ldx #>fx_murmur
-        jsr crowd1
+@crowd: jsr crowd1
 @loud:  lda min_t               ; (the result shown 2 seconds at least:
         cmp #STAND_T            ; min_t counts them from the whistle - the
         bcs :+                  ; teams stand meanwhile, ft_spot)

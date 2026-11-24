@@ -36,6 +36,7 @@ on YouTube (made by `tests/trailer.py`).
 | fire and a direction, the ball low and near you | space and a cursor key | sliding tackle, that way |
 | fire, held | space | shot, at once - held on, the harder; pulled back meanwhile, the higher; the stick across bends it |
 | fire, a ball at head height near you | space | header, the stick's way (let go: towards the goal) |
+| fire, a ball in the air further off (up to 64 pixels) | space | diving header at it, head first - hit or miss |
 | fire and a direction, the ball 8 - 15 high near you | space and a cursor key | diving header, that way (higher: he jumps and heads it that way) |
 | | RUN/STOP or P | pause |
 | in the pause: up, down, fire let go | cursor keys, space (RUN/STOP, P: on) | CONTINUE, or QUIT the match |
@@ -52,7 +53,11 @@ pause page, fire on CONTINUE to play on (Luca) - a league's
 match counts in the league once it is played out. A league going on
 waits meanwhile; CONTINUE takes the saved match first. With CONTINUE
 chosen the title shows no teams and no TEAM SETTINGS: the match is the
-saved one or the league's next, not the title's to choose.
+saved one or the league's next, not the title's to choose. Turned from
+CONTINUE to another mode they come back as that mode has them, and only
+what stays is drawn - from CONTINUE to LEAGUE the away team's words
+showed for a moment, the home flag came without its frame and name, and
+the stick could not get down to the team (Luca; `tests/league.py ask`).
 
 With one player the joystick in either port (or the keyboard) runs the
 home team. With two, the joystick used last on the title runs the home
@@ -565,10 +570,15 @@ and a free kick for the other team where he is - in the penalty area,
 for a double touch or offside, on the area's line, not a penalty: the
 keeper touching his goal kick again (his hands went for it) gave the
 other team one (Luca). Until someone else has
-touched it the joystick does not go back to him, nor does he run to it
-for the team: a kick-off played straight back, its taker on his way to
-his place along the same line, was given back to him as the nearest and
-whistled - in a long test match, the cause of the double touches seen.
+touched it his team's runner is never he (a kick-off played straight
+back, its taker on his way to his place along the same line, was given
+back to him as the nearest and whistled - in a long test match, the
+cause of the double touches seen), and the computer's taker never goes
+for it. But a joystick's taker is everyone's again a second after his
+kick, as after any pass: the joystick goes to him if he is the nearest,
+and if the player then touches it, it is the whistle (Luca ran after his
+free kick in a two-player match and could never touch it again - the
+foul was never seen; `tests/dbltouch.py far`).
 
 What the whistle went for - FOUL, OFFSIDE or DOUBLE TOUCH - is written
 at the top of the view, as the score is before a kick-off, until the
@@ -610,10 +620,16 @@ header) and pressed anew (headed).
 
 Fire pressed with the ball in the air near him - higher than a sliding
 tackle's 8, however high (by instinct, said Luca: above 40 he slid for
-it), within 49 pixels - and he jumps for it at once,
-even with fire only tapped: if it comes to his head while he is up, he
-heads it as above, else it is a try missed, and everyone sees it (Luca:
-many more tries at headers, at corners too). A lower ball is still a
+it), within 64 pixels - and he goes for it at once, even with fire only
+tapped. Within 16 pixels he jumps for it: if it comes to his head while
+he is up, he heads it as above. Further off he dives at it, head first,
+the way to the ball (the nearest of the eight), and heads it on if it is
+within 16 pixels of him and up to 26 high in the first frames of his
+dive - further than a sliding tackle reaches, beyond the real, as Luca
+wanted: a flying ball is not only for one right under it. Else it is a
+try missed, and everyone sees it (Luca: many more tries at headers, at
+corners too; `tests/header.py across, across30` - a ball flying across
+15 and 30 pixels in front of him, fire as it is 50 pixels off). A lower ball is still a
 sliding tackle's, fire and the stick still a diving header - for a ball
 up to 15 high, the height the dive heads; a higher one with the stick
 pushed is a try too, headed the stick's way (he dived under it for
@@ -749,17 +765,24 @@ next match - or, the league over, who won it. The computer's matches of
 a matchday are worked out once the players have played theirs: six
 chances a side, each going in more often the better the team is than the
 other (Sensible Soccer's levels of the teams). On the page the stick
-chooses between the next match and the title, fire on its letting go.
+chooses between the next match and the title, fire on its letting go -
+and as long as nothing of the league is played, a third choice: START A
+NEW LEAGUE draws the computer's teams anew, the players' teams, their
+formations and the length kept, and saves it (Luca missed it once the
+new league's page had its own two choices again).
 
 The league is saved on the disk after every change (the file `league`,
 43 bytes - the last one says whether a match is saved, below): with the
 fast loader into the file as it is and read back, on any other drive the
-KERNAL's way. The disk keeps one league; as long as
+KERNAL's way. At its end quietly, with no word on its page: that it is
+over, so the title offers no CONTINUE ("saved" there read as if it went
+on, Luca). The disk keeps one league; as long as
 it goes on the title offers MODE: CONTINUE. LEAGUE chosen while one goes
 on first shows its page and asks: KEEP THIS LEAGUE (the choice the stick
 is on: back to the title, CONTINUE chosen) or START A NEW LEAGUE, which
 takes its place - and then offers PLAY THE NEXT MATCH and BACK TO THE
-TITLE again (it went on showing the question's two, Luca found).
+TITLE again (it went on showing the question's two, Luca found), and
+START A NEW LEAGUE for another draw.
 
 ## Back to the title
 
@@ -781,7 +804,9 @@ keepers too, one lying after a tackle getting up first (Luca: they went
 off into thin air before) - one sent off counted as gone already (after
 a red card the view stayed on the benches, no score in the middle, Luca
 saw); the view goes with them to the
-benches, six pixels a picture, and once the last is gone the crowd
+benches, six pixels a picture, and as long as one of them is on the
+pitch the crowd roars on - the roar's loud part again each time it would
+die away (Luca) - and once the last is gone it dies away and the crowd
 murmurs on, low and even, till fire (a card's murmur, swelling and
 dying again and again, was one for a game with aliens, said Luca), and the view goes to the centre spot - up and down to the very
 middle of the picture (it stopped 16 pixels higher, said Luca) - and
@@ -791,10 +816,19 @@ with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was, every line in the middle as the title's names (FULL TIME and
 the score stood half a cell right of them, Luca saw) - and fire again the title, with the choices as they were. A
 league over has its own: THE LEAGUE IS WON BY, the first and second in
-the flags' places. The title is no longer in memory then - the match's pictures are
+the flags' places - and fire then brings the title back with the
+players' own teams and LEAGUE, for the next one (the first and second
+stayed the title's teams, Luca wondered; only what stays is drawn, the
+away team's gone with one player). The title is no longer in memory then - the match's pictures are
 where it was - so it comes from the disk again, with its flags (some 13 KB,
 the boot's loading screen meanwhile: the ball and the dots at once, the
-name as soon as the flags, its characters, are in). The way there outlasts the match in
+name as soon as the flags, its characters, are in). "LOADING" comes
+first on a screen of its own, the match's picture off at once (with the
+interrupt its splits were gone, and it was seen a moment in the page's
+colours); the loading screen takes it over unseen - the ROM's
+characters copied to its own first, the font switched below the
+picture, the codes changed with nothing to see (the screen was off a
+whole picture while they changed: a flash as the ball came, Luca). The way there outlasts the match in
 memory the game never touches (`resident.s`): the fast loader's Plus/4
 half at $0200 - the KERNAL's page 2 and 3, of no use to the game - and a
 little code at $FF40, under the ROM. On a drive without the fast loader
