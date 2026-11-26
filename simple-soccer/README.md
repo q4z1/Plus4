@@ -1058,14 +1058,12 @@ players of different teams in one cell: the one behind loses his shirt
 there.) The socks are black. The players cast the C64's shadow, in the
 shared black, but no wider than they are: it never needs a column of
 characters of its own, and it looks the same wherever a player stands
-within a character. The goals cast shadows of their own, not the C64's:
-with the light from the top left, as the players' shadows have it, the
-crossbar's falls four lines lower and four pixels to the right, in the
-black dither the top net's inside already has. At the top it is a band
-in front of the goal, at the bottom it darkens the floor under the net,
-seen through it; at both, the net's side casts a wedge right of the
-right post. The lines, the posts and the nets stay light in front of
-it.
+within a character. The goals cast the C64's shadows, pixel for pixel:
+a band of black below each goal and a wedge right of its right post.
+(tools/mkdata.py GOAL_LOOK 'own' gives them shadows of their own
+instead: with the light from the top left, as the players' shadows have
+it, the crossbar's falls four lines lower and four pixels to the right,
+in the black dither the top net's inside already has.)
 
 Where the TED does more than the C64, the game uses it: a cell's own
 colour can be any of eight hues in eight shades, so every spectator in

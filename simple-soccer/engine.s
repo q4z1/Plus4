@@ -31,7 +31,7 @@
         .export cam_x, cam_y, frames, joy, joy_a, joy_b, dbg_joy, dbg_joyb
         .export fig_x, fig_y, fig_img, fig_col
         .exportzp z_y0, z_d     ; (play.s's mate_t, tmp: only fig_draw's here)
-        .import _pitch_font, seg_at, seg_lol, seg_loh, seg_hil, seg_hih
+        .import _pitch_font, seg_at, seg_lol, seg_loh, seg_hil, seg_hih, row_of
         .import img_ox, img_oy, img_lo, img_hi, pix_lo, pix_hi, keep_tab
         .import crow_of, cmap_lo, cmap_hi, goal
         .import la_codes, la_step, la_norm, la_up
@@ -1071,7 +1071,8 @@ fill_cols:
 ; codes at z_scr - looked up afresh, a segment of the map at a time: its
 ; columns seg_at .. the next's - 1, each row of it in its own place
 ; (tools/mkdata.py: rows alike in a segment there once; its tables
-; seg_*: for each row shown the place less the segment's first column).
+; seg_*: for each of the ground's rows the place less the segment's first
+; column, row_of each row shown's).
 ; Where the rows begin kept in the code for each segment.
 fill:
         lda z_wr
@@ -1115,7 +1116,8 @@ fi_scr: lda #0
 fi_scrh:
         lda #0
         sta fi_dst + 2
-fi_row: ldx z_wr
+fi_row: ldy z_wr                ; (the tables by the ground's rows:
+        ldx row_of,y            ; row_of)
 fi_lo:  lda $FFFF,x             ; (the row's places: abs,y is quicker than
         clc                     ; (zp),y)
         adc col0

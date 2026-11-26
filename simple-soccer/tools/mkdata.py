@@ -362,6 +362,15 @@ def compact():
 GOAL_SHADOWS = [(range(109, 116), range(88, 109), 158, 124, range(107, 109)),   # top
                 (range(477, 484), range(464, 477), 158, 123, range(464, 477))]  # bottom
 
+# Which shadows the goals cast: 'c64' the C64's as they are in its
+# ground (the user, 26.11.: exactly Nick's again, to see it once more),
+# 'own' the C64's taken away (GOAL_SHADOWS) and those of goal_shade()
+# instead.
+GOAL_LOOK = 'c64'
+# but the top goal's right post light down to the goal line as the rest
+# of it (the C64's is black on the line's two rows: the user)
+C64_POSTS = {(158, 107): 1, (158, 108): 1}
+
 # And shadows of their own instead (the user: better than the C64's), as
 # the goals' shape casts them with the light from the top left as the
 # players' shadows have it: the crossbar's GOAL_SHADE lines down and as
@@ -498,8 +507,20 @@ def ground_and_font():
                 made[data] = free.pop(0)
                 font[made[data] * 8:made[data] * 8 + 8] = data
             rows[cy][cx] = made[data]
-    paint(canvas)
-    paint(goal_shade(px))
+    if GOAL_LOOK == 'own':
+        paint(canvas)
+        paint(goal_shade(px))
+    else:
+        paint(C64_POSTS)
+    # characters alike in their pixels one code (but the crowd's and the
+    # wave's: they get colours and moves of their own) - the C64's goal
+    # shadows keep codes the benches and the tunnel need
+    keep = CROWD_CHARS | set(c for c, _ in WAVE)
+    first = {}
+    for r in rows:
+        for x, c in enumerate(r):
+            if c not in keep:
+                r[x] = first.setdefault(bytes(font[c * 8:c * 8 + 8]), c)
     # the benches facing the pitch: on the C64 the people on them face the
     # crowd - each bench mirrored across, its cells and each cell's pixels
     def mirror(data):
@@ -517,6 +538,10 @@ def ground_and_font():
                     pattern[data] = free.pop(0)
                     font[pattern[data] * 8:pattern[data] * 8 + 8] = data
                 rows[y][left + i] = pattern[data]
+    # the C64's codes the benches no longer show free again
+    used = set(c for r in rows for c in r)
+    free = [c for c in range(1, 256) if c not in used]
+    pattern = {d: c for d, c in pattern.items() if c in used}
     # their roofs a corrugated canopy (Luca: white coffins, all of one
     # light colour): in a colour of their own (colours: ROOF_COL), dark
     # ribs every four lines and a dark back edge, the front edge light; the
@@ -1027,13 +1052,17 @@ def main():
         out.write('_pitch_map:             ; the pieces, overlapped\n')
         hexrows(out, packed, 40)
         shown = shown_rows()
-        out.write('\n        .export seg_at, seg_lol, seg_loh, seg_hil, seg_hih\n        .rodata\n')
+        out.write('\n        .export seg_at, seg_lol, seg_loh, seg_hil, seg_hih, row_of\n        .rodata\n')
+        # (the tables by the ground's rows, each row shown its row: rows
+        # shown more than once, as the goal areas' are, once in them)
+        out.write('row_of:                 ; each row shown: the ground\'s row\n')
+        hexrows(out, bytes(shown))
         out.write('seg_at:  .byte ' + ', '.join(str(c) for c in cuts) + '    ; each one\'s first column\n')
         for x in ('lol', 'loh', 'hil', 'hih'):
             out.write('seg_%s: .byte ' % x + ', '.join('%s(seg%d_%s)' % ('<' if x[2] == 'l' else '>', k, x[:2])
                                                     for k in range(NSEG)) + '\n')
         for k, a in enumerate(cuts[:-1]):       # (the place less the first column)
-            places = ['_pitch_map + %d' % (at[k * len(rows) + r] - a) for r in shown]
+            places = ['_pitch_map + %d' % (at[k * len(rows) + r] - a) for r in range(len(rows))]
             out.write('seg%d_lo: .lobytes ' % k + ', '.join(places) + '\n')
             out.write('seg%d_hi: .hibytes ' % k + ', '.join(places) + '\n')
         out.write('\n        .segment "FONTDATA"\n_pitch_font:\n')

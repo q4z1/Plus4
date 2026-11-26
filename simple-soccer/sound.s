@@ -382,7 +382,7 @@ low1:   pha                     ; voice 1, but not over the crowd
         lda v_left + 1
         beq :+
         pla
-        jmp back
+        jmp sfx_back
 :       sta v_crowd
         pla
         ldy #1
@@ -393,7 +393,7 @@ crowd1: pha                     ; voice 1, the crowd's
         pla
         ldy #1
 go:     jsr sfx_start
-back:   ldx snd_x
+sfx_back: ldx snd_x
         ldy snd_y
         rts
 snd_x:  .byte 0
