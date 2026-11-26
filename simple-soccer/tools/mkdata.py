@@ -339,10 +339,17 @@ def pitch():
 def compact():
     """the ground and its characters with the codes it uses only, in
     their order from 0 on (the map leaves a few dozen of the 256 unused:
-    a shorter font) - and old code -> new"""
+    a shorter font), those alike in their pixels as one - and old code ->
+    new"""
     rows, font = ground_and_font()
-    used = sorted(set(c for r in rows for c in r) | {0})
-    new = {c: i for i, c in enumerate(used)}
+    # characters alike in all their pixels one code (but the wave's: the
+    # interrupt changes them)
+    wave = set(c for c, _ in WAVE)
+    first, same = {}, {}
+    for c in sorted(set(c for r in rows for c in r) | {0}):
+        same[c] = c if c in wave else first.setdefault(bytes(font[c * 8:c * 8 + 8]), c)
+    used = sorted(set(same.values()))
+    new = {c: used.index(same[c]) for c in same}
     return ([bytes(new[c] for c in r) for r in rows],
             bytes(b for c in used for b in font[c * 8:c * 8 + 8]), new)
 
@@ -354,6 +361,54 @@ def compact():
 # right post; the right post's x; the left post's x and rows)
 GOAL_SHADOWS = [(range(109, 116), range(88, 109), 158, 124, range(107, 109)),   # top
                 (range(477, 484), range(464, 477), 158, 123, range(464, 477))]  # bottom
+
+# And shadows of their own instead (the user: better than the C64's), as
+# the goals' shape casts them with the light from the top left as the
+# players' shadows have it: the crossbar's GOAL_SHADE lines down and as
+# many pixels right of the goal line, and the posts' between - only on
+# grass, in the black dither the top net's inside already has (pixels
+# with x + y even), the lines, the posts and the nets in front. At the
+# top the band in front of the goal and right of the right post the
+# shadow of the net's side; at the bottom the floor under the net (seen
+# through it) and the side's shadow right of it. (each goal's goal line,
+# the ground row of its net's back, the height of the back's top as a
+# share of the crossbar's, the band in front or the floor under the net;
+# the posts' x)
+GOAL_SHADE = 4
+GOAL_SHAPES = [(107, 98, 0.75, 'front'), (466, 476, 0, 'under')]
+GOAL_POSTS = (123, 158)
+
+
+def goal_shade(px):
+    """the pixels the goals' shadows darken: {(x, y): 2}, px(x, y) the
+    ground's pixels"""
+    d = GOAL_SHADE
+    left, right = GOAL_POSTS
+    out = {}
+
+    def shade(x, y):
+        if px(x, y) == 0 and (x + y) % 2 == 0:
+            out[(x, y)] = 2
+    for line, back, top, where in GOAL_SHAPES:
+        if where == 'front':
+            for t in range(2, d + 1):           # (the line two rows thick)
+                for x in range(left + t, right + t + 1):
+                    shade(x, line + t)
+        else:
+            for y in range(line + 1, back + 1):
+                for x in range(left + min(y - line, d), right):
+                    shade(x, y)
+        # the side: the triangle between the right post's foot, its top's
+        # shadow and the back's top's
+        pts = [(right, line), (right + d, line + d),
+               (right + round(d * top), back + round(d * top))]
+        for y in range(min(p[1] for p in pts), max(p[1] for p in pts) + 1):
+            xs = [x0 + (y - y0) * (x1 - x0) / (y1 - y0)
+                  for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1])
+                  if y0 != y1 and min(y0, y1) <= y <= max(y0, y1)]
+            for x in range(right + 1, int(round(max(xs))) + 1 if xs else 0):
+                shade(x, y)
+    return out
 
 
 @functools.lru_cache(None)
@@ -421,23 +476,30 @@ def ground_and_font():
             if old[(left, y)] == 2:
                 new[(left, y)] = 1
         canvas.update({k: v for k, v in new.items() if v != old[k]})
-    cells = {}
-    for (x, y), v in canvas.items():
-        cells.setdefault((x // 4, y // 8), {})[(x % 4, y % 8)] = v
-    used = set(c for r in rows for c in r)
-    free = [c for c in range(1, 256) if c not in used]
-    made = {}
-    for (cx, cy), ch in sorted(cells.items()):
-        c = rows[cy][cx]
-        data = bytearray(font[c * 8:c * 8 + 8])
-        for (px_, py), v in ch.items():
-            sh = 6 - 2 * px_
-            data[py] = data[py] & ~(3 << sh) & 255 | v << sh
-        data = bytes(data)
-        if data not in made:
-            made[data] = free.pop(0)
-            font[made[data] * 8:made[data] * 8 + 8] = data
-        rows[cy][cx] = made[data]
+
+    def paint(canvas):
+        """the pixels in canvas into the ground: each cell changed the code
+        of a character alike if there is one, else one of its own"""
+        cells = {}
+        for (x, y), v in canvas.items():
+            cells.setdefault((x // 4, y // 8), {})[(x % 4, y % 8)] = v
+        used = set(c for r in rows for c in r)
+        free = [c for c in range(1, 256) if c not in used]
+        made = {bytes(font[c * 8:c * 8 + 8]): c for c in sorted(used, reverse=True)
+                if c not in CROWD_CHARS}
+        for (cx, cy), ch in sorted(cells.items()):
+            c = rows[cy][cx]
+            data = bytearray(font[c * 8:c * 8 + 8])
+            for (px_, py), v in ch.items():
+                sh = 6 - 2 * px_
+                data[py] = data[py] & ~(3 << sh) & 255 | v << sh
+            data = bytes(data)
+            if data not in made:
+                made[data] = free.pop(0)
+                font[made[data] * 8:made[data] * 8 + 8] = data
+            rows[cy][cx] = made[data]
+    paint(canvas)
+    paint(goal_shade(px))
     # the benches facing the pitch: on the C64 the people on them face the
     # crowd - each bench mirrored across, its cells and each cell's pixels
     def mirror(data):
