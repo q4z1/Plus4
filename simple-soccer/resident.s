@@ -125,8 +125,6 @@ k_go:   sei
         sta $0800 + LOAD_AT,x
         dex
         bpl :-
-        lda #$1B                ; text, 25 rows, on
-        sta TED_SCROLLY
         lda TED_CTRL2
         and #$40                ; (PAL or NTSC kept)
         ora #$08                ; 40 columns, 128 characters, hires
@@ -137,6 +135,8 @@ k_go:   sei
         sta TED_CHBASE
         lda #$08
         sta TED_VMBASE
+        lda #$1B                ; text, 25 rows, on (its mode set first)
+        sta TED_SCROLLY
         lda K_FAST
         beq @kernal
 @fast:  lda #<(n_cup - klow + kstub_body)

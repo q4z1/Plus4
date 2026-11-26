@@ -27,7 +27,7 @@
         .import played, anew, whistle, score, game_min, enter
         .import sq8_lo, sq8_hi, qs_lo, qs_hi, qn_lo, qn_hi
         .import __BSS_RUN__, __LOWBSS_RUN__, __HIBSS2_RUN__, __HIBSS2_SIZE__
-        .export pause_chk, pause, dbg_key, resume, squares, quit_a
+        .export pause_chk, pause, dbg_key, resume, squares, quit_a, border
 
 SCR         = $EC00             ; the page: picture 2's place (engine.s
 ATT         = $E800             ; MAT2: its codes, its colours)
@@ -59,7 +59,8 @@ pause_chk:
         rts
 
 ; pause: the match held - the page (PAUSEUI) till CONTINUE or QUIT
-pause:  sei
+pause:  jsr border               ; (not between the cut and its lines back)
+        sei
         lda #0
         sta TED_IRQEN           ; (the picture's interrupt off: it stops)
         sta $FF11               ; (the sound off)
@@ -101,6 +102,7 @@ quit_a: sta K_REQ               ; (K_SAVE: pack has kept the K_REQ before)
         lda K_MAGIC + 1
         cmp #K_MAGIC_1
         bne :+
+        jsr border              ; (k_go turns the interrupt off)
         jmp K_GO
 :       jsr anew
         lda #1                  ; (a kick-off, the next frame)
@@ -135,6 +137,19 @@ calm:   jsr frame
         lda joy
         bne calm
         sta p_old
+        rts
+
+; border: till the beam is in the bottom border, lines 210-249 - only
+; after the match's interrupt has given the cut's lines back (engine.s:
+; it jumps on from below 184 to below 200, and back at VBL_LINE), so the
+; interrupt can be turned off now, and the screen. Off between the two,
+; the frame is CUT_D lines short: 296, one frame out of sync on a real
+; TV (Luca, between a match and the league's page)
+border: lda TED_LINE
+        sec
+        sbc #210
+        cmp #40
+        bcs border
         rts
 
 ; frame: till the beam is in the bottom border anew

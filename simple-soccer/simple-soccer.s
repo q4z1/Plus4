@@ -19,7 +19,7 @@
         .import o_off, card_pl, card_c, fine_on, sp_way_of, sin4, why, jumps, HEAD_T
         .import cam_way, full, enter, TUN_IN
         .export team_col, team_flk, start, played
-        .import pause_chk, pause, resume, squares
+        .import pause_chk, pause, resume, squares, border
         .import title
         .import o_xl, o_xh, o_yl, o_yh, o_zl, o_dir, o_step
         .import __BSS_RUN__, __BSS_SIZE__, __LOWV_START__, __LOWV_SIZE__
@@ -93,7 +93,8 @@ start:  sei
         cmp #>BM_SYNTH
         bne :+
         cli
-:       lda TED_SCROLLY         ; the screen blank till the title's is
+:       jsr border              ; (in the border: no page half gone)
+        lda TED_SCROLLY         ; the screen blank till the title's is
         and #$EF                ; made: LOWV is the boot's screen codes
         sta TED_SCROLLY         ; ($0C00-$0FFF), 0 an "@" each
         lda #0                  ; the variables cleared: BSS's four pages
