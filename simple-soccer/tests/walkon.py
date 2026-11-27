@@ -26,6 +26,43 @@ WALK_OUT = 512                  # (along the tunnel's row till here)
 TUN_Y = 369 + 7
 
 
+def sound_lab():
+    """sound.s's labels: the match's voices (the title has a v_left of its
+    own, under $F000) and the roar's steps"""
+    out = {}
+    for line in open(os.path.join(os.path.dirname(L.D64), 'simple-soccer.lbl')):
+        p = line.split()
+        if len(p) == 3 and p[0] == 'al':
+            n, a = p[2].lstrip('.'), int(p[1], 16)
+            if n in ('v_left', 'v_lo', 'v_hi') and a >= 0xF000 or n in ('fx_goal', 'fx_goal_w'):
+                out[n] = a
+    return out
+
+
+S = sound_lab()
+
+
+def roaring(v):
+    """voice 1 on with the roar (fx_goal: its next step there)"""
+    left, lo, hi = v.mem(S['v_left'] + 1, 1)[0], v.mem(S['v_lo'] + 1, 1)[0], v.mem(S['v_hi'] + 1, 1)[0]
+    return left != 0 and S['fx_goal'] <= lo + 256 * hi <= S['fx_goal_w']
+
+
+def pause_on(v):
+    """RUN/STOP - the pause page - then CONTINUE (its first), the frame's
+    break off meanwhile"""
+    v.cmd('del')
+    v.poke(L.lab['dbg_key'], [0x80])
+    L.wait(v, lambda: L.paused(v), 'the pause', 30)
+    v.poke(L.lab['dbg_key'], [0])
+    v.run_for(0.5)
+    v.poke(L.lab['dbg_joy'], [L.FIRE])  # (CONTINUE as fire is let go: the
+    v.run_for(0.02)                     # break first - the warp would run
+    v.cmd('break %04x' % C.one('play_frame'))   # the walk on to its end)
+    v.poke(L.lab['dbg_joy'], [0])
+    v.cmd('x')
+
+
 def places(v):
     m = {n: v.mem(C.one(n), 22) for n in ('o_xl', 'o_xh', 'o_yl', 'o_yh')}
     return [(m['o_xl'][i] + 256 * m['o_xh'][i], m['o_yl'][i] + 256 * m['o_yh'][i]) for i in range(22)]
@@ -50,9 +87,18 @@ def main():
         report('start', all(x >= WALK_FROM - 4 for x, _ in start) and v.mem(C.one('enter'), 1)[0] >= 1,
                'all back in the tunnel: x %d - %d' % (min(x for x, _ in start), max(x for x, _ in start)))
         frames, shot, off_row, seen = 0, 0, 0, 0
+        loud, quiet, paused_at = 0, [], 0
         while frames < 2000 and v.mem(C.one('enter'), 1)[0]:
             v.cmd('x')
             frames += 1
+            if frames > 3:              # (the crowd roaring as they come,
+                if roaring(v):          # held till they all stand - Luca)
+                    loud += 1
+                else:
+                    quiet.append(frames)
+            if frames == 60:            # (a pause meanwhile: on with it after)
+                pause_on(v)
+                paused_at = frames
             if frames % 3 == 0:         # (out of the tunnel, on its row till WALK_OUT)
                 for x, y in places(v):
                     if WALK_OUT <= x < WALK_X + 4:
@@ -64,6 +110,9 @@ def main():
             if v.mem(C.one('dead_t'), 1)[0] == 0:
                 break
         dead = v.mem(C.one('dead_t'), 1)[0]
+        report('roar', paused_at and loud > 100 and not quiet,
+               'the crowd roaring %d of the frames coming on, a pause at %d (quiet: %s)'
+               % (loud, paused_at, quiet[:8] or 'none'))
         arrived = places(v)
         mov = v.mem(C.one('o_mov'), 22)
         if any(mov):

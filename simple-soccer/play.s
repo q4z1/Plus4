@@ -664,7 +664,8 @@ walk_on:
         sta kickoff             ; (A 1: team_ai leaves them on their way)
         asl a
         sta dead_t
-        rts
+        jmp sfx_roar            ; (the crowd roars as they come - walking
+                                ; holds it, Luca)
 
 ; each team's control as a match starts: pj, ctrl ... t_end (ctx)
 ctx_new:    .byte 0, $FF, 0, $FF, $FF, $FF, 0, 0, 0, 10, $FF
@@ -5879,6 +5880,20 @@ walk_off:
         sta o_sph,x
         rts
 
+; roar_hold: the roar's loud part again as it comes to its fading (or
+; is over) - while the teams come on (walking) and go off (new_match).
+; X, Y go.
+roar_hold:
+        lda v_lo + 1
+        cmp #<fx_fade
+        lda v_hi + 1
+        sbc #>fx_fade
+        bcc :+
+        lda #<fx_hold
+        ldx #>fx_hold
+        jmp crowd1
+:       rts
+
 ; walking: the one walking off (card_pl, o_off 2) WALK_S a frame on to
 ; the touch line he makes for (o_dir 2 or 6: walk_off), a step of his
 ; running pictures every four frames; carry set while he is on his way
@@ -5887,7 +5902,8 @@ WALK_S      = 2
 walking:
         lda enter               ; (coming on: the ball dead till all of
         beq @card               ; them stand at their places - walk_on -
-        ldx #PLAYERS - 1        ; then the whistle)
+        jsr roar_hold           ; then the whistle; the crowd roaring)
+        ldx #PLAYERS - 1
 @out:   lda o_xh,x              ; (past WALK_OUT: off the tunnel's row, to
         cmp #>WALK_OUT          ; his place - aim sees it changed; once
         bcs :+                  ; there, the same)
@@ -8277,19 +8293,13 @@ new_match:
         lda full                ; (the players still on: the roar's loud
         cmp #2                  ; part again as it comes to its end, till
         bcc @calm               ; the last is gone - Luca)
-        lda v_lo + 1            ; (its fading, its end, or after: anew)
-        cmp #<fx_fade
-        lda v_hi + 1
-        sbc #>fx_fade
-        bcc @loud
-        lda #<fx_hold
-        ldx #>fx_hold
-        bne @crowd
+        jsr roar_hold
+        jmp @loud
 @calm:  lda v_left + 1          ; (the crowd quiet: it murmurs, on and on
         bne @loud               ; till fire - Luca)
         lda #<fx_murmur
         ldx #>fx_murmur
-@crowd: jsr crowd1
+        jsr crowd1
 @loud:  lda min_t               ; (the result shown 2 seconds at least:
         cmp #STAND_T            ; min_t counts them from the whistle - the
         bcs :+                  ; teams stand meanwhile, ft_spot)

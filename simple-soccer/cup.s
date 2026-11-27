@@ -217,6 +217,7 @@ ld_rom: sta $FF3E
         sta $FF3F
         rts
 ld_off: .byte 12 * 8, 15 * 8, 1 * 8, 4 * 8, 9 * 8, 14 * 8, 7 * 8
+.assert CHECK + L_LEN <= ld_off, error, "cup.s: the league read back (CHECK) over the ball's interrupt"
 
 ; ld_irq_rom: the interrupt while the KERNAL loads (through its $0314):
 ; the RAM in for a moment
@@ -374,7 +375,15 @@ ld_go:  ldx #71                 ; the ball's first picture (from just
         lda z:mv_to
         ldx z:mv_to + 1
         jsr unpack
-        sei                     ; the interrupt off again, its vector back
+        lda K_REQ               ; a match saved or taken up: while the ball
+        cmp #K_SAVE             ; still turns (Luca: it stood still the
+        bne :+                  ; while) - its pictures in LDLOW, under
+        jsr m_save              ; CUPBSS, which cup_go clears
+:       lda K_REQ
+        cmp #K_RESUME
+        bne :+
+        jsr m_load
+:       sei                     ; the interrupt off again, its vector back
         lda #0
         sta TED_IRQEN
         lda TED_IRQ
@@ -549,6 +558,9 @@ ld_k:   .res 1
 ld_dc:  .res 1
 ld_dp:  .res 1
 ld_dh:  .res 1
+fbits:  .res 1                  ; (fsave's, fput's, fget's: m_save while
+fpairs: .res 1                  ; the ball turns)
+fcount: .res 1
 
         .segment "CUPPGHDR"
         .addr CUP_MAIN          ; ("pages"' load address)
@@ -577,13 +589,11 @@ cup_go: lda #0
         beq @page
         cmp #K_PLAYED
         beq @played
-        cmp #K_RESUME           ; (a saved match taken up: the title kicks
-        bne :+                  ; off at once, pause.s resume)
-        jsr m_load
-        jmp restart
-:       cmp #K_SAVE             ; (left from its pause, saved first: the
-        bne :+                  ; title)
-        jsr m_save
+        cmp #K_RESUME           ; (a saved match taken up - ld_go's m_load:
+        bne :+                  ; the title kicks off at once, pause.s
+        jmp restart             ; resume)
+:       cmp #K_SAVE             ; (left from its pause, saved first by
+        bne :+                  ; ld_go's m_save: the title)
         jmp :++
 :       cmp #K_QUIT             ; (left from its pause: the title only)
         beq :+
@@ -2063,15 +2073,10 @@ save:   lda L_ON                ; (the league over: saved so, CONTINUE no
 ; store: the league saved, C set if it failed (no word of it on the
 ; screen: save, m_save, m_load)
 store:  jsr cksum
-        ldx #L_LEN - 1          ; (a copy low: for the KERNAL, and to
-:       lda L_BLOCK,x           ; compare it with what is read back)
-        sta save_buf,x
-        dex
-        bpl :-
         lda K_FAST
         beq @kernal
-        lda #<save_buf
-        ldx #>save_buf
+        lda #<L_BLOCK
+        ldx #>L_BLOCK
         jsr fsave
         bcs @failed
         lda #<n_league          ; read back
@@ -2086,14 +2091,14 @@ store:  jsr cksum
         bcs @failed
         ldx #L_LEN - 1
 :       lda CHECK,x
-        cmp save_buf,x
+        cmp L_BLOCK,x
         bne @failed
         dex
         bpl :-
         bmi @saved
 @kernal:
-        ldx #L_LEN - 1
-:       lda save_buf,x
+        ldx #L_LEN - 1          ; (a copy low: the KERNAL saves with the
+:       lda L_BLOCK,x           ; ROM in)
         sta CHECK,x
         dex
         bpl :-
@@ -2128,7 +2133,9 @@ m_save: ldx #1                  ; ("match")
 
 ; m_load: (K_RESUME) "match" back to SAVE_AT, its choices to K_CH, for the
 ; game's start to take it up (pause.s resume) - L_SAVED cleared, the
-; league saved; else (not a match's save) the title
+; league saved; else (not a match's save) K_QUIT: the title
+; (m_save, m_load: from ld_go, the ball turning - nothing of CUPBSS, where
+; its pictures are)
 m_load: ldx #1
         jsr names
         lda #<SAVE_AT
@@ -2140,7 +2147,7 @@ m_load: ldx #1
         lda #0
         sta L_SAVED
         jsr store
-        lda #K_TITLE
+        lda #K_QUIT             ; (not a save: the title, no winner's page)
         ldx SAVE_AT + 1         ; (a save: K_CHOK's two bytes there, pause.s
         cpx #K_MAGIC_0          ; sv_tab)
         bne @set
@@ -2405,10 +2412,6 @@ sim_l:  .res 1
 sim_p:  .res 1
 sim_n:  .res 1
 lv_y:   .res 1
-fbits:  .res 1
-fpairs: .res 1
-fcount: .res 1
-save_buf: .res L_LEN
 tb_p:   .res L_TEAMS            ; (table: 7 rows, in this order)
 tb_w:   .res L_TEAMS
 tb_d:   .res L_TEAMS

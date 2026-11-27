@@ -80,11 +80,17 @@ snd_v:  .res 1                  ; (advance's voice)
 
         .code
 
-; snd_init: both voices quiet, the volume up
+; snd_init: both voices quiet, the volume up - an effect going on (the
+; pause turns the sound off; a saved match brings its effects back) on
+; with its next step, the next frame (Luca: the crowd silent after it)
 snd_init:
-        lda #0
-        sta v_left
-        sta v_left + 1
+        ldy #1
+:       lda v_left,y
+        beq :+
+        lda #1
+        sta v_left,y
+:       dey
+        bpl :--
         lda #VOLUME
         sta TED_SOUND
         rts

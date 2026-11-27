@@ -44,6 +44,7 @@ from shot import labels  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D64 = os.path.join(HERE, '..', 'build', 'simple-soccer.d64')
+CLOCK = 1773447                 # the TED's CPU clock (VICE's stopwatch)
 CACHE = os.path.expanduser('~/.cache/simple-soccer')
 FIRE, UP, DOWN = 0x10, 0x01, 0x02
 K_VARS, K_CH, L_BLOCK = 0xFCE0, 0xFCE7, 0xFFC8
@@ -245,6 +246,36 @@ def resumed(v):
     print('resumed: the pause page first, fire goes on')
 
 
+def ball_turns(v, done, what, seconds=240):
+    """till done(): while the loading screen's ball is there (cup.s ld_go:
+    its codes at row 11, the screen at $0C00), it turns - its interrupt's
+    frame count (ld_f) on, never the same for more than a few frames of
+    VICE's own time (Luca 27.11.: it stood still while a match was saved
+    and taken up again)"""
+    v.cmd('sw reset')
+    t, seen, longest, cur = time.time(), 0, 0, None
+    while not done():
+        if time.time() - t > seconds:
+            v.screenshot(os.path.join(CACHE, 'league-stuck.png'))
+            raise RuntimeError('waited in vain: ' + what)
+        ball = (v.mem(0x0C00 + 11 * 40 + 18, 1)[0] == 73
+                and v.mem(0xFF14, 1)[0] & 0xF8 == 0x08)
+        f = v.mem(lab['ld_f'], 1)[0]
+        cyc = int(re.search(r'Stopwatch:\s*(\d+)', v.cmd('sw')).group(1))
+        if not ball:
+            cur = None
+        elif cur and cur[0] == f:
+            longest = max(longest, cyc - cur[1])
+        else:
+            cur = (f, cyc)
+        seen += ball
+        v.run_for(0.02)
+    still = longest / CLOCK
+    print('%s: the ball seen %d times, still at most %.2f s' % (what, seen, still))
+    assert seen >= 3, what + ': no ball'
+    assert still < 0.15, what + ': the ball still for %.2f s' % still
+
+
 def pause_quit(v, name):
     """the match on: RUN/STOP (pause.s dbg_key) - the pause - then QUIT"""
     wait(v, lambda: in_match(v), 'the match', 60)
@@ -285,7 +316,7 @@ def savegame(v):
     assert q == bytes([19, 1, 22, 5, 32, 20, 8, 5, 32, 13, 1, 20, 3, 8, 63]), 'not the question: %r' % q
     press(v, DOWN)
     press(v)                                # YES (the second)
-    wait(v, lambda: at_title(v), 'the title after saving', 240)
+    ball_turns(v, lambda: at_title(v), 'the match saved')
     v.run_for(1)
     lg = ram(v, L_BLOCK, 43)
     print('saved: L_SAVED', lg[42], 'sum ok', sum(lg) & 255 == 0)
@@ -293,6 +324,7 @@ def savegame(v):
     v.screenshot(os.path.join(CACHE, 'league-save-title.png'))
     v.poke(K_CH + 2, [3])                   # CONTINUE
     press(v)
+    ball_turns(v, lambda: paused(v), 'the match taken up')
     resumed(v)
     wait(v, lambda: in_match(v), 'the match again', 240)
     v.run_for(1)

@@ -694,7 +694,10 @@ frames - and the whistles glide by themselves, a step a frame: written
 out frame by frame, the goal's roar alone took 420 bytes. A kick does
 not sound over the crowd. The TED has one volume for both voices: the
 crowd sets it, and the referee's whistle at the end of a roar keeps it
-(it made the roar loud again). `tests/sfx.py` plays each sound in VICE
+(it made the roar loud again). The pause turns the sound off; after it,
+and in a saved match taken up again, what was sounding goes on with its
+next step - it was cut off, and at full time the crowd stayed silent
+while the teams walked off (Luca). `tests/sfx.py` plays each sound in VICE
 into `build/sfx.wav`; `tests/crowd.py` checks the misses and saves that
 start the "oh" (and those that do not), `tests/cards.py` the cards'.
 
@@ -801,7 +804,9 @@ line, a step apart,
 one after the other, in single file down its steps and along the
 halfway line till well past the touch line, only then each walking to
 his place for the kick-off (Luca: not out of nowhere) - the
-ball dead till all of them stand there, then the whistle. The view
+ball dead till all of them stand there, then the whistle - the crowd
+roaring all the while, its loud part again and again as at full time
+(Luca: it was silent), dying away with the whistle. The view
 rests on the centre spot a second, goes over to the tunnel as they come
 out of it, and back to the middle as the last of them leaves the
 tunnel's row, there just before they all stand (Luca's wish;
@@ -875,7 +880,10 @@ teams: fire loads the match back, and the game, starting, takes it up
 where it stood instead of kicking off. One match is kept at a time.
 `tests/league.py savegame` saves one, takes it up and checks the score
 and the minute; and a league's match saved, taken up and played out
-counts in the league.
+counts in the league. While the match is saved and while it is loaded
+back the loading screen's football turns on, its dots with it - it
+stood still for those seconds, some 13 on a 1541 (Luca); the test
+checks that it never stands while it is on the screen.
 
 ## The title's music
 
