@@ -1199,7 +1199,7 @@ team22:     .byte 0, 22         ; (each team's part of tac_*)
 ; the formations' names (back in the title: each area once, lib_ix, made
 ; room for them)
 FORM_W      = 6
-form_names: .byte "4-4-2 5-4-1 4-5-1 5-3-2 3-5-2 4-3-3 ATTACKDEFEND3-4-3 3-3-4 RANDOM"
+form_names: .byte "4-4-2 5-4-1 4-5-1 5-3-2 3-5-2 4-3-3 3-4-3 3-3-4 ATTACKDEFENDRANDOM"
 .assert * - form_names = FORMS * FORM_W, error, "form_names"
 ; (the pages' lines and the flags' frame in MAIN: the title has no room
 ; left for them)
@@ -1836,8 +1836,8 @@ F_451       = 2
 F_532       = 3
 F_352       = 4
 F_433       = 5
-F_343       = 8
-F_334       = 9
+F_343       = 6
+F_334       = 7
 .macro  team name, home, away, level, stars, form
 .ifblank form
         .byte home, away, level

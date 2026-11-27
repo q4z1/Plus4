@@ -591,6 +591,20 @@ def ask(drive):
         assert again[7:14] != new[7:14], 'the same teams drawn'
         lines = screen(v)
         assert 'START A NEW LEAGUE' in lines[24], 'no third choice after it'
+        # drawn anew again and again: the characters still from the RAM
+        # (Luca, 26.11.: the 4th time $FF12 $FC - the ROM's, garbage)
+        for n in range(5):
+            last = ram(v, L_BLOCK, 42)
+            press(v, DOWN)
+            press(v, DOWN)
+            press(v)                        # START A NEW LEAGUE
+            wait(v, lambda: on_page(v) and ram(v, L_BLOCK, 42) != last and
+                 any('SAVED' in l for l in screen(v)), 'new league %d' % n, 180)
+            v.run_for(1)
+            ff12 = v.mem(0xFF12, 1)[0]
+            print('drawn anew %d: $FF12 $%02X' % (n, ff12))
+            assert not ff12 & 4, 'the characters from the ROM after %d' % (n + 1)
+        page(v, 'ask-many')
     finally:
         v.stop()
 

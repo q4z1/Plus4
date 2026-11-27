@@ -5687,7 +5687,9 @@ free_at:                        ; (offside: a free kick where X is, for last_tea
         sta rs_y
         lda box_yh,y
         sta rs_y + 1
-        bne @free
+        bcs @free               ; (always: why > WHY_FOUL - not bne: the
+                                ; top box's line is below 256, a double
+                                ; touch there gave a penalty, Luca)
 @pen:   jsr kick_spot           ; (its x, 304)
         lda #R_PENALTY
         sta rs_kind
@@ -7621,8 +7623,9 @@ touch:
         sta lock_t + 1
         bne @done
 @dbl:   lda off_pl              ; (marked: the taker again - off_chk's
-        cmp #$FE                ; whistle, as for offside; anyone else
-        bne @done               ; first: over)
+        bpl @back               ; whistle, as for offside; anyone else
+        cmp #$FE                ; first: over)
+        bne @done
         cpx off_by
         bne :+
         stx off_pl
@@ -7632,7 +7635,11 @@ touch:
         lda #0                  ; (and no lock: DBL_T kept the receiver
         sta lock_t              ; beside the kick-off's taker from
         sta lock_t + 1          ; dribbling on - he ran off without the
-                                ; ball, Luca)
+        beq @done               ; ball, Luca) (always)
+@back:  cpx off_by              ; (a receiver marked offside: the passer
+        bne @done               ; has it back, a new move - the mark
+        lda #$FF                ; went on, Luca's offside long after, no
+        sta off_pl              ; pass seen)
 @done:  pla
         plp
         rts

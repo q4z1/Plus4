@@ -15,6 +15,13 @@ far     the same, 9 far off: the joystick goes to 9 after the kick, back
         to 7 (the nearest) after KICKED_T - the whistle (Luca: the
         taker could never touch it again)
 corner  a corner tapped out, 7 running after it: the whistle
+boxbot  a free kick in cyan's own box at the bottom, tapped across it,
+        7 after it: a free kick on the box's line (601), not a penalty
+        (the stick that way from 10 frames before till the kick: else
+        he turned to the ball before fire acted, and kicked that way)
+boxtop  the same at the top (the sides changed; last: flip kept): on
+        its line (137) - Luca, 26.11.: his keeper's goal kick touched
+        again there gave a penalty (the line's high byte 0, bne never went)
 
 A line each: the case, what happened, OK or WRONG; the exit code counts
 the wrong ones.
@@ -29,7 +36,7 @@ import moves  # noqa: E402
 
 lab = labels()
 OFF_PL = 0xED                   # (play.s)
-R_THROW, R_CORNER, R_FREE = 1, 3, 5
+R_THROW, R_CORNER, R_FREE, R_PENALTY = 1, 3, 5, 6
 
 
 def bits(s):
@@ -39,9 +46,11 @@ def bits(s):
     return b
 
 
-def scene(s, kind, at, nine=None):
-    """kind's set piece for cyan at 'at', 7 by it, 9 at nine (else off)"""
+def scene(s, kind, at, nine=None, flip=0):
+    """kind's set piece for cyan at 'at', 7 by it, 9 at nine (else off);
+    flip: the sides changed, cyan attacking down"""
     moves.restart(s, kind, 0, *at)
+    s.put('flip', flip)
     s.put('two', 1)                     # (12 on the second joystick, let
     s.put('ctrl_b', 12)                 # alone: he stands where he is)
     on = (7, 12) + ((9,) if nine else ())   # (the keepers off: no pass to
@@ -62,6 +71,8 @@ CASES = {
     'free': (lambda s: scene(s, R_FREE, (304, 420)), 'up+fire', True, True),
     'far': (lambda s: scene(s, R_FREE, (304, 420), nine=(60, 700)), 'up+fire', True, True),
     'corner': (lambda s: scene(s, R_CORNER, (54, 54)), 'down+right+fire', True, True),
+    'boxbot': (lambda s: scene(s, R_FREE, (180, 650)), 'right+fire', True, 601),
+    'boxtop': (lambda s: scene(s, R_FREE, (180, 100), flip=1), 'right+fire', True, 137),
 }
 
 
@@ -100,6 +111,10 @@ def run(v, name):
     taker = None
     for f in range(start + 200):
         stick = kick if start <= f < start + 3 else chase(v) if after and f >= start + 3 else ''
+        if want is not True and want and start - 10 <= f and 0xFE not in seen \
+                and not start <= f < start + 3:     # (the box's: turned first,
+            stick = kick.replace('+fire', '')       # held till it is kicked -
+                                                    # fire acts a frame or two on)
         v.poke(lab['dbg_joy'], [bits(stick)])
         v.cmd('x')
         off, = v.mem(OFF_PL, 1)
@@ -118,7 +133,10 @@ def run(v, name):
             got = 'whistle: free kick for team %d at %d,%d (taker %s, shown %d)' % (
                 team, x[0] + 256 * x[1], y[0] + 256 * y[1], taker, why)
             shown(v, name)
-            return want and team == 1 and taker == 7 and why == WHY_TWICE, got
+            at_y = want is True or y[0] + 256 * y[1] == want
+            return want and team == 1 and taker == 7 and why == WHY_TWICE and at_y, got
+        if f > start and dead and rs == R_PENALTY:
+            return False, 'whistle: a PENALTY (taker %s)' % taker
         if not want and f > start + 3 and lp == 9:
             for _ in range(30):         # (the check is the next frame's)
                 v.cmd('x')

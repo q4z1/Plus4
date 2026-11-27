@@ -1503,8 +1503,9 @@ page:   lda #$0B                ; blank while it is made
         dex
         bpl :-
         jsr logo
-        lsr $FF12               ; the characters from the RAM ($04: k_go's),
-        lda #>PFONT             ; at PFONT; on again
+        lda #$00                ; the characters from the RAM, at PFONT; on
+        sta TED_BMBASE          ; again (no lsr: bits 6 and 7 read 1, so a
+        lda #>PFONT             ; page made anew 4 times got the ROM's)
         sta TED_CHBASE
         lda #$1B
         sta TED_SCROLLY

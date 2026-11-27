@@ -268,7 +268,8 @@ back three of 3-5-2, the middle four of 4-4-2, the front three of 4-3-3 -
 and 3-3-4, the back three of 3-5-2, the middle three of 4-3-3, 4-4-2's two
 forwards and two wingers as wide as 4-3-3's wide men and as far up as
 its forwards; each team's chosen on the title - its own in Sensible Soccer
-to begin with - or one at random): each player has an area, and where
+to begin with - or one at random; there the numbers come first, then
+attack, defend and random): each player has an area, and where
 the ball is on the pitch decides where in it he stands - he runs there.
 The line-up for a kick-off is 4-4-2's whatever the formation.
 
@@ -559,7 +560,9 @@ Two rules neither original has. Offside: a pass to a team-mate in the
 other team's half, nearer its goal line than the ball and than the
 other team's last but one as it goes - not from a kick-off, a throw-in,
 a goal kick or a corner - and he the next to touch it: the whistle, and
-a free kick for the other team where he is. And the double touch: a set
+a free kick for the other team where he is. Anyone else touching it
+first ends it, the passer too: a pass he gets back himself starts a new
+move (Luca saw offside long after, with no pass to be seen). And the double touch: a set
 piece's taker - kick-off, throw-in, goal kick, corner, free kick,
 penalty - may not touch the ball again before anyone else has. Not the
 keeper with the ball in his hands: that is no set piece, he may play it
@@ -569,7 +572,9 @@ leaves his feet; if he is the next to get to it after all, the whistle,
 and a free kick for the other team where he is - in the penalty area,
 for a double touch or offside, on the area's line, not a penalty: the
 keeper touching his goal kick again (his hands went for it) gave the
-other team one (Luca). Until someone else has
+other team one (Luca) - and later still at the top goal, where the
+area's line is below 256 and the branch meant always went only at the
+bottom one (`tests/dbltouch.py` boxbot, boxtop). Until someone else has
 touched it his team's runner is never he (a kick-off played straight
 back, its taker on his way to his place along the same line, was given
 back to him as the nearest and whistled - in a long test match, the

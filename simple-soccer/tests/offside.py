@@ -14,6 +14,10 @@ level   9 level with 12 (the same y / 4): onside
 own     9 beyond it, but in his own half: onside
 throw   a throw-in to 9 beyond the line: no offside from a throw-in
 down    the second half, cyan attacking down: offside as in 'off'
+back    as 'off', but once 9 is marked the ball is put back at 7's feet
+        (the joystick his): his touch, a new move - then at 9's: play
+        goes on (Luca, 26.11.: the mark stayed when the passer got the
+        ball back, offside long after, no pass seen)
 
 A line each: the case, what happened, OK or WRONG; the exit code counts
 the wrong ones.
@@ -65,6 +69,7 @@ CASES = {
     'level': (lambda s: scene(s, (304, 250)), 'fire', False),
     'own': (lambda s: scene(s, (304, 420), line=500, ball=(304, 600)), 'fire', False),
     'down': (lambda s: scene(s, (304, 180), flip=1), 'fire', True),
+    'back': (lambda s: scene(s, (304, 180)), 'fire', False),
 }
 
 
@@ -99,8 +104,35 @@ def run(v, name):
     seen = set()
     nine = v.mem(lab['o_yl'] + 9, 1) + v.mem(lab['o_yh'] + 9, 1)
     kicked = False
+    back = None                         # ('back': 7 had it again, the frame)
+
+    def ball_to(pl, dy):
+        """the ball still at player pl's feet (dy below him)"""
+        p = v.mem(lab['o_xl'], 92)
+        x, y = p[pl] + 256 * p[23 + pl], p[46 + pl] + 256 * p[69 + pl] + dy
+        for k, val in (('o_xl', x & 255), ('o_xh', x >> 8), ('o_yl', y & 255), ('o_yh', y >> 8),
+                       ('o_txl', x & 255), ('o_txh', x >> 8), ('o_tyl', y & 255), ('o_tyh', y >> 8),
+                       ('o_spl', 0), ('o_sph', 0), ('o_zl', 0)):
+            v.poke(lab[k] + 22, [val])
+
     for f in range(start + 160):
-        v.poke(lab['dbg_joy'], [bits(how) if start <= f < start + 3 else 0])
+        if name == 'back' and 9 in seen and back is None:
+            back = -1                   # (marked: back to 7)
+            v.poke(lab['ctrl'], [7])
+        if back == -1:
+            ball_to(7, -4)
+            lp7, = v.mem(lab['last_pl'], 1)
+            off7, = v.mem(OFF_PL, 1)
+            if '-v' in sys.argv and f % 8 == 0:
+                print('   frame %d: last_pl %d, off %02x, ctrl %d, touch_t %d, kick_pl %d, recv %d' % (
+                    f, lp7, off7, *(v.mem(lab[n], 1)[0] for n in ('ctrl', 'touch_t', 'kick_pl', 'recv'))))
+            if off7 == 0xFF:            # (his touch: the mark gone)
+                back = f
+                ball_to(9, -4)
+            elif f > start + 120:
+                return False, 'the mark kept after 7 had it again'
+        v.poke(lab['dbg_joy'], [bits(how) if start <= f < start + 3 else
+                                bits('up') if back == -1 else 0])   # (7 into it)
         kicked = kicked or v.mem(lab['o_spl'] + 22, 1)[0] or v.mem(lab['o_sph'] + 22, 1)[0]
         if not kicked:                  # (9 held where he is till the pass)
             for k in ('o_yl', 'o_tyl'):
@@ -128,7 +160,7 @@ def run(v, name):
                 team, x[0] + 256 * x[1], y[0] + 256 * y[1], 9 in seen, why)
             shown(v, name)
             return want and team == 1 and why == WHY_OFF, got
-        if f > start + 3 and lp == 9:
+        if f > start + 3 and lp == 9 and back != -1:
             for _ in range(4):          # (the check is the next frame's)
                 v.cmd('x')
             dead, = v.mem(lab['dead_t'], 1)
