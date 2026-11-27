@@ -515,12 +515,29 @@ def continue_to_league(v):
     """on the title in CONTINUE: down to MODE, left - LEAGUE with one
     player as it is from MATCH (Luca, 24.11.: the flags flickered; the
     home flag came without its frame and name, the team's line out of
-    reach)"""
-    assert v.mem(K_CH + 2, 1)[0] == 3 and v.mem(lab['t_row'], 1)[0] == 0
+    reach). Under CONTINUE the length and the players "-", out of the
+    stick's reach, the ports' line both ports' (Luca, 26.11.: he set one
+    player, CONTINUE went on with two); from LEAGUE on theirs again"""
+    assert v.mem(K_CH + 2, 1)[0] == 3 and v.mem(lab['t_row'], 1)[0] == 2, 'not on MODE'
+    t = title_text(v)
+    print('CONTINUE:\n' + '\n'.join(t[6:9] + t[22:23]))
+    assert t[6][24] == '-' and t[7][24] == '-', 'CONTINUE: the length or the players shown'
+    assert 'HOME: PORT' in t[22], 'CONTINUE: not both ports'
+    press(v, UP)
+    press(v, 0x08)                      # (RIGHT: on the length's, 7 minutes)
+    assert v.mem(lab['t_row'], 1)[0] == 2, 'up past MODE'
+    sel = ram(v, K_CH, 2)
     press(v, DOWN)
     press(v, DOWN)
     press(v, 0x04)                      # LEFT: LEAGUE
     v.run_for(0.5)
+    t = title_text(v)
+    assert t[6][24] == '357'[sel[0]] and t[7][24] == '12'[sel[1]], 'LEAGUE: not the digits'
+    press(v, UP)
+    press(v, UP)
+    assert v.mem(lab['t_row'], 1)[0] == 0, 'LEAGUE: not up to the length'
+    press(v, DOWN)
+    press(v, DOWN)
     t = title_text(v)
     print('CONTINUE to LEAGUE:\n' + '\n'.join(t[8:19]))
     v.screenshot(os.path.join(CACHE, 'league-continue-to-league.png'))

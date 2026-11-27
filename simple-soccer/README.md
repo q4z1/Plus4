@@ -53,7 +53,10 @@ pause page, fire on CONTINUE to play on (Luca) - a league's
 match counts in the league once it is played out. A league going on
 waits meanwhile; CONTINUE takes the saved match first. With CONTINUE
 chosen the title shows no teams and no TEAM SETTINGS: the match is the
-saved one or the league's next, not the title's to choose. Turned from
+saved one or the league's next, not the title's to choose - nor are its
+length and players: they show "-" and the stick stops at MODE, the
+ports' line names both ports (Luca set one player, and CONTINUE went on
+with the league's two). Turned from
 CONTINUE to another mode they come back as that mode has them, and only
 what stays is drawn - from CONTINUE to LEAGUE the away team's words
 showed for a moment, the home flag came without its frame and name, and
@@ -331,7 +334,8 @@ after a goal - then it is put down with the taker behind it. Meanwhile
 both teams go to their places for it, as Sensible Soccer has them for
 each kind of set piece and each shirt, the team taking it and the other:
 for a goal kick from either side of the goal area, the keeper's ball, a
-corner either side, a free kick in one of seven columns in the band before
+corner either side (there the two its table waits with at the area's
+edge are in it too: five in the area, not three - Luca wanted it fuller), a free kick in one of seven columns in the band before
 the goal attacked (the other team's four nearest the goal then a wall
 some 55 pixels from the ball, between it and the goal), a penalty, and a
 throw-in in one of three bands along either touch line (three or four of

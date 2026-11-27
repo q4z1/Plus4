@@ -131,9 +131,9 @@ t_d:    .res 2
         .segment "TITLE"
 
 title:
-        lda #0
-        sta t_row
         jsr k_init              ; (the choices as last time)
+        jsr first               ; (the stick on the first line it may be on)
+        stx t_row
         lda K_REQ               ; a league's match (cup.s): kicked off at
         cmp #K_PLAYED           ; once, as cup.s has chosen it - a saved
         beq :+                  ; one too (K_RESUME: pause.s)
@@ -340,7 +340,7 @@ title_on:
 :       lda t_new               ; up, down: a line up or down
         and #J_UP
         beq @down
-        lda t_row
+        jsr first               ; (not past the first line)
         beq @down
         dec t_row
         jsr hole                ; (the second page's empty line: over it)
@@ -413,10 +413,36 @@ home_stick:
         jmp show_values
 @done:  rts
 
-; ports_dig: show_values' end - with two players the ports' line's digits
-; as K_HOME has them (" HOME: PORT 2   AWAY: PORT 1")
+; lp_dig: show_values' start - the length's and the players' digits: the
+; length "-" in training, both "-" under CONTINUE, which goes on with the
+; saved match's or the league's own (Luca set one player, CONTINUE went on
+; with two - the stick no more on them there: first). t_c not 0: the
+; ports' line with both ports - two players, or CONTINUE. Y t_train.
+lp_dig: ldx t_two               ; (X: 0, 1, '-' less '1')
+        lda t_train
+        cmp #MODE_ON
+        bne :+
+        ldx #<('-' - '1')
+:       txa
+        clc
+        adc #'1'
+        sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
+        stx t_c
+        ldx t_sel
+        lda digit_of,x
+        ldy t_train
+        cpy #MODE_TRAIN
+        beq :+
+        cpy #MODE_ON
+        bne :++
+:       lda #'-'
+:       sta TCODE + LEN_ROW * 40 + VALUE_COL
+        rts
+
+; ports_dig: show_values' end - with both ports named (lp_dig) the ports'
+; line's digits as K_HOME has them (" HOME: PORT 2   AWAY: PORT 1")
 ports_dig:
-        lda t_two
+        lda t_c
         beq @done
         lda K_HOME
         and #1
@@ -692,17 +718,7 @@ show_rows:
 show_values:
         lda t_page
         bne @forms
-        ldx t_sel
-        lda digit_of,x
-        ldy t_train
-        cpy #MODE_TRAIN
-        bne :+
-        lda #'-'
-:       sta TCODE + LEN_ROW * 40 + VALUE_COL
-        lda t_two
-        clc
-        adc #'1'
-        sta TCODE + PLAYERS_ROW * 40 + VALUE_COL
+        jsr lp_dig              ; (MAIN: the length, the players)
         tya                     ; (the mode's name: MODE_W letters)
         asl a
         asl a
@@ -717,7 +733,7 @@ show_values:
         bpl :-
         ldx #PORTS_W - 1
 :       lda ports_1,x
-        ldy t_two
+        ldy t_c                 ; (lp_dig's)
         beq :+
         lda ports_2,x
 :       sta TCODE + PORTS_ROW * 40 + PORTS_COL,x
@@ -1405,6 +1421,17 @@ formations:
         ldx t_x
         dex
         bpl @team
+        rts
+
+; first: X the first line the stick may be on - the mode's under CONTINUE
+; (the length and the players are the saved match's or the league's:
+; lp_dig), else the length's; Z set if it is on it
+first:  ldx #0
+        lda t_train
+        cmp #MODE_ON
+        bne :+
+        ldx #2
+:       cpx t_row
         rts
 
 ; hole: Z set if t_row is the second page's empty line (MODE_ROW's)

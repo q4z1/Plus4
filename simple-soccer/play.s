@@ -9212,12 +9212,13 @@ sp_t2:  ; taker: goal kick, its left
 sp_t3:  ; taker: the keeper's ball
         .word $001
         .byte 0,0, 50,55, 100,44, 150,44, 200,55, 50,118, 100,92, 150,92, 200,118, 100,148, 150,148
-sp_t4:  ; taker: corner, its right
+sp_t4:  ; taker: corner, its right (the two at the area's edge, y 167, into
+        ; it, y 190 - Luca: more in the area than Sensible Soccer's three)
         .word $000
-        .byte 125,2, 50,200, 100,92, 150,92, 245,200, 75,167, 125,200, 175,167, 225,185, 105,204, 145,204
-sp_t5:  ; taker: corner, its left
+        .byte 125,2, 50,200, 100,92, 150,92, 245,200, 85,190, 125,200, 165,190, 225,185, 105,204, 145,204
+sp_t5:  ; taker: corner, its left (the same two)
         .word $000
-        .byte 125,2, 5,200, 100,92, 150,92, 200,92, 25,185, 75,167, 125,200, 175,167, 105,204, 145,204
+        .byte 125,2, 5,200, 100,92, 150,92, 200,92, 25,185, 85,190, 125,200, 165,190, 105,204, 145,204
 sp_t6:  ; taker: free kick, column 0 from its right
         .word $180
         .byte 125,2, 255,255, 255,255, 255,255, 255,255, 80,174, 150,167, 226,231, 0,241, 120,204, 140,202
