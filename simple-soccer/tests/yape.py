@@ -16,7 +16,7 @@ frames run, then the machine stands still and smem() reads its memory as
 it was then, without the monitor.
 """
 import mmap, os, re, struct, subprocess, time, zlib
-from onetest import kill_other_tests
+from onetest import disk_copy, kill_other_tests
 
 YAPE = os.path.expanduser('~/.cache/paradroid/yapesdl/yapesdl')
 HOME = os.path.expanduser('~/.cache/simple-soccer/yapehome')
@@ -96,7 +96,7 @@ class Yape:
         self.p = subprocess.Popen(
             ['flatpak-spawn', '--host'] + env +
             ['gamescope', '--backend', 'headless', '-W', '1280', '-H', '800', '--',
-             YAPE, os.path.abspath(image)],
+             YAPE, os.path.abspath(disk_copy(image))],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             bufsize=0)
         self.buf = b''

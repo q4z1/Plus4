@@ -15,7 +15,7 @@ import shutil
 import socket
 import subprocess
 import time
-from onetest import kill_other_tests
+from onetest import disk_copy, kill_other_tests
 
 PORT = 6583
 
@@ -73,7 +73,7 @@ class Vice:
             args += ['-warp']
         if drive:               # the drive at 8: 1541 or 1551 (the default)
             args += ['-drive8type', str(drive)]
-        args += ['-autostart', os.path.abspath(image)]
+        args += ['-autostart', os.path.abspath(disk_copy(image))]
         inner = ' '.join("'" + a.replace("'", "'\\''") + "'" for a in args)
         if ON_HOST or shutil.which('gamescope'):
             inner = f'gamescope --backend headless -W 1280 -H 800 -- {inner}'

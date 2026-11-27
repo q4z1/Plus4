@@ -4,6 +4,7 @@ emulator - else the old one goes on driving the emulator or the files
 under the new one's feet, and its pictures look like bugs that are not
 there. vice.py and yape.py call it before they end the emulators."""
 import os
+import shutil
 import signal
 import time
 
@@ -68,3 +69,18 @@ if __name__ == '__main__':             # build.sh: no build under a test
     if _others():
         sys.exit('a test is running (%s): no build under it' %
                  ' '.join(map(str, _others())))
+
+
+ATTACHED = os.path.expanduser('~/.cache/simple-soccer/test/attached.d64')
+
+
+def disk_copy(image):
+    """the disk the emulator gets: a disk image as a copy, never the build's
+    own - the game saves the league and the match on it, and the emulators
+    write that back into the file (a started league went out on the build's
+    disk, Luca 27.11.). A program file as it is."""
+    if not image.lower().endswith('.d64'):
+        return image
+    os.makedirs(os.path.dirname(ATTACHED), exist_ok=True)
+    shutil.copyfile(image, ATTACHED)
+    return ATTACHED
