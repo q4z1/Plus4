@@ -28,6 +28,10 @@ what:  back    a match to its full time, fire: the title again, the
                its page, the league as it was
        savegame a match saved from its pause (QUIT, YES): the title, a
                match saved (L_SAVED); CONTINUE - the match as it was
+       reset   the title's choices in RAM (LEAGUE, two teams, 7 minutes,
+               two players), a soft reset, the disk loaded anew: the
+               title the first time's again (Luca: the same team and
+               LEAGUE after a reset)
        all     all of them (the default)
 
 The match is not played out: its minute is poked to 89. The joystick is
@@ -739,6 +743,35 @@ def look(drive):
         v.stop()
 
 
+def reset(drive):
+    """the choices as a league left them, a reset (the RAM kept), LOAD and
+    RUN: the title as at the first start - 3 minutes, one player, MATCH,
+    its own two teams"""
+    v = Vice(D64, CACHE, drive=drive, title=True)
+    try:
+        wait(v, lambda: at_title(v), 'the title')
+        v.run_for(1)
+        kept = [2, 1, 2, CAN, CRO, 1, 2]        # 7 min, 2 players, LEAGUE
+        v.cmd('bank ram')
+        v.poke(K_CH, kept)
+        v.cmd('bank cpu')
+        assert ram(v, K_CH, 7) == kept, 'not poked'
+        v.sock.sendall(b'reset 0\n')     # (no prompt after it: it runs on)
+        time.sleep(3)
+        v.cmd('r')
+        v.cmd('keybuf load\\x22*\\x22,8\\nrun\\n')    # (VICE types what is quoted, quotes too)
+        v.run_for(1)
+        wait(v, lambda: at_title(v), 'the title after the reset', 240)
+        v.run_for(1)
+        ch = ram(v, K_CH, 7)
+        print('after the reset:', ch)
+        v.screenshot(os.path.join(CACHE, 'league-reset.png'))
+        assert ch[:3] == [0, 0, 0], 'the choices of before the reset'
+        assert ch[3:5] != [CAN, CRO], 'the teams of before the reset'
+    finally:
+        v.stop()
+
+
 def main():
     drive = sys.argv[1] if len(sys.argv) > 1 else '1541'
     what = sys.argv[2] if len(sys.argv) > 2 else 'all'
@@ -762,6 +795,8 @@ def main():
         ask(drive)
     if what in ('look', 'all'):
         look(drive)
+    if what in ('reset', 'all'):
+        reset(drive)
     print('ok')
 
 

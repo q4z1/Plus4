@@ -254,6 +254,8 @@ eol:    .word 0
         .assert K_TITLE = 0, error, "boot: K_HOME 0 too"
         sta K_HOME              ; (port 1 the home team's, till the title
                                 ; sees the other used: home_stick)
+        sta K_CHOK              ; (the title's choices anew: a reset keeps
+                                ; the RAM, its last ones - Luca)
         sei                     ; our interrupt: the ball, the dots - through
         lda #0                  ; $FFFE while the RAM is in, through the
         sta IRQEN               ; KERNAL while the ROM is

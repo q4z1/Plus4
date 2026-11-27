@@ -828,7 +828,11 @@ the score is shown in the middle of it (`tests/fulltime.py`). Then
 fire brings up the winner's page - the title's screen
 with both flags, FULL TIME and who won it (or A DRAW), the score where
 "VS" was, every line in the middle as the title's names (FULL TIME and
-the score stood half a cell right of them, Luca saw) - and fire again the title, with the choices as they were. A
+the score stood half a cell right of them, Luca saw) - and fire again the title, with the choices as they were. Only from
+match to match: the disk loaded anew, after a reset too (the RAM kept),
+the title starts as the first time - 3 minutes, one player, MATCH, two
+teams at random (Luca found his team and LEAGUE there again;
+`tests/league.py reset`). A
 league over has its own: THE LEAGUE IS WON BY, the first and second in
 the flags' places - and fire then brings the title back with the
 players' own teams and LEAGUE, for the next one (the first and second
